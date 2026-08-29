@@ -62,6 +62,14 @@ install(TARGETS femcae_gui
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+if(APPLE)
+    # libfemcae Qt deployment'tan once app bundle icine konur. Boylece
+    # macdeployqt executable uzerindeki @rpath/libfemcae.1.dylib bagimliligini
+    # ilk taramada cozebilir; kalan VTK/OCCT/ARPACK/gfortran zinciri daha sonra
+    # BundleUtilities ile kapatilir.
+    install(TARGETS femcae_api LIBRARY DESTINATION "FEMCAE.app/Contents/Frameworks")
+endif()
+
 # Qt frameworks/plugins are deployed with Qt's supported deploy helper. On macOS
 # BundleUtilities runs afterwards to make VTK/OCCT/ARPACK/gfortran dependencies
 # self-contained and relocatable inside FEMCAE.app.
@@ -74,9 +82,6 @@ qt_generate_deploy_app_script(
 install(SCRIPT ${FEMCAE_QT_DEPLOY_SCRIPT})
 
 if(APPLE)
-    # libfemcae is intentionally copied into the app before fixup_bundle so the
-    # app never depends on a sibling install-prefix lib directory.
-    install(TARGETS femcae_api LIBRARY DESTINATION "FEMCAE.app/Contents/Frameworks")
     set(FEMCAE_BUNDLE_SEARCH_DIRS "${CMAKE_BINARY_DIR};${CMAKE_BINARY_DIR}/gui")
     foreach(_prefix IN LISTS CMAKE_PREFIX_PATH)
         list(APPEND FEMCAE_BUNDLE_SEARCH_DIRS "${_prefix}/lib" "${_prefix}/lib64" "${_prefix}/Frameworks")
