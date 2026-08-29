@@ -13,15 +13,20 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
       - name: Delete stale branches
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           for branch in chore/vscode-workspace fix/macos-native-ci ci/self-hosted-native; do
             echo "Deleting $branch"
-            git -c http.extraheader="AUTHORIZATION: bearer $GH_TOKEN" push \
-              "https://github.com/${GITHUB_REPOSITORY}.git" \
-              --delete "$branch"
+            git push origin --delete "$branch"
           done
