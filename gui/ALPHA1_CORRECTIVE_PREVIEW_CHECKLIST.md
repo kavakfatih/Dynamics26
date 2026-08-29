@@ -32,7 +32,7 @@ kabul edilmeden başlamaz.
 
 ## 3. Inspector
 
-- [ ] Sağ panel sistem palette ile doğal görünüyor; clipping/overlap yok.
+- [ ] Sağ panel native macOS palette/style ile doğal görünüyor; clipping/overlap yok.
 - [ ] Legacy yatay QTabWidget tab strip görünmüyor.
 - [ ] Formlar dar panelde responsive ve gerektiğinde dikey scroll ile kullanılabilir.
 - [ ] Material Inspector yalnız seçilen modele ait parametreleri gösteriyor.
@@ -47,6 +47,8 @@ kabul edilmeden başlamaz.
 - [ ] Mesh / Malzeme / Kesit / Yük-BC / Analiz preprocessing bağlamlarında result contour görünmüyor.
 - [ ] Preprocessing sırasında nötr mesh/geometry görünümü kullanılıyor.
 - [ ] Sonuçlar bağlamında contour tekrar görüntüleniyor.
+- [ ] VTK viewport arka planı ve neutral geometry/mesh edge renkleri macOS Light/Dark appearance ile birlikte güncelleniyor.
+- [ ] Scalar-mapped result contour renkleri theme geçişiyle bozulmuyor.
 - [ ] CAD Geometry != Display Tessellation != FEM Mesh ayrımı bozulmamış.
 
 ## 5. Command authenticity
@@ -70,12 +72,15 @@ kabul edilmeden başlamaz.
 - [ ] Drawer kendiliğinden kapanmıyor; kullanıcı kapatıyor.
 - [ ] Klasik QDockWidget title chrome yerine engineering status strip çekmecenin görünür kontrolü olarak çalışıyor.
 
-## 7. macOS appearance
+## 7. macOS appearance — recovery contract
 
-- [ ] Light Mode'da okunabilirlik doğru.
-- [ ] Dark Mode'da hard-coded beyaz/siyah legacy yüzey oluşmuyor.
+- [ ] Dynamics26 görünümü macOS System Appearance tarafından belirleniyor; uygulama global `QPalette` skin'i zorlamıyor.
+- [ ] Uygulama genelinde `QLabel/QPushButton/QLineEdit/...` gibi generic widget sınıflarını boyayan global QSS skin'i kullanılmıyor.
+- [ ] Önceki engineering-preview `Sistem / Açık / Koyu` override tercihi artık uygulanmıyor; eski `ui/appearance` ayarı temizleniyor.
+- [ ] macOS Light appearance altında Navigator, Inspector, controls ve status text eksiksiz okunuyor.
+- [ ] macOS Dark appearance altında Navigator, Inspector, controls ve status text eksiksiz okunuyor.
+- [ ] Light → Dark → Light sistem geçişinde eski temadan renk/foreground/background kalıntısı kalmıyor.
 - [ ] Inspector section'ları property-grid gibi görünmüyor; gereksiz group-box chrome azaltılmış.
-- [ ] İnce separator ve küçük radius yaklaşımı doğal görünüyor.
 - [ ] Gereksiz shadow / renkli chrome yok.
 - [ ] Renk yalnız durum/önem/result anlamı taşıdığı yerde kullanılıyor.
 
@@ -98,7 +103,8 @@ Alpha.1 ancak aşağıdaki kanıtların tümü mevcut olduğunda kapanabilir:
 3. arm64 GUI architecture gate başarılı.
 4. İlgili clean hosted core/reproducibility gate başarılı.
 5. Gerektiğinde manual strict standalone bundle audit başarılı.
-6. Light ve Dark Mode gerçek macOS ekran görüntüleri incelenmiş.
-7. Kullanıcı gerçek macOS uygulamasını açıp ekran görüntüsü/interaction incelemesini kabul etmiş.
+6. macOS sistem Light ve Dark görünümünde gerçek ekran görüntüleri incelenmiş.
+7. Light → Dark → Light geçişi gerçek macOS üzerinde kalıntısız doğrulanmış.
+8. Kullanıcı gerçek macOS uygulamasını açıp ekran görüntüsü/interaction incelemesini kabul etmiş.
 
 **Alpha.2 — Navigator + Inspector Architecture bu kabulden önce başlamaz.**
