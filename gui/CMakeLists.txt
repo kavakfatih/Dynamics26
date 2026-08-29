@@ -90,6 +90,18 @@ if(APPLE)
         get_filename_component(_arpack_dir "${FEMCAE_ARPACK_LIBRARY}" DIRECTORY)
         list(APPEND FEMCAE_BUNDLE_SEARCH_DIRS "${_arpack_dir}")
     endif()
+
+    # gfortran runtime dylib'leri (libgfortran/libquadmath/libgcc_s) Homebrew
+    # prefix'inin doğrudan lib dizininde olmak zorunda değildir. CMake Fortran
+    # compiler ABI tespiti sırasında gerçek implicit link dizinlerini zaten
+    # çıkardığından, compiler sürümüne özel bir Cellar yolu hard-code etmek
+    # yerine aynı dizinleri bundle resolver'a aktarırız.
+    foreach(_fortran_runtime_dir IN LISTS CMAKE_Fortran_IMPLICIT_LINK_DIRECTORIES)
+        if(IS_DIRECTORY "${_fortran_runtime_dir}")
+            list(APPEND FEMCAE_BUNDLE_SEARCH_DIRS "${_fortran_runtime_dir}")
+        endif()
+    endforeach()
+
     list(REMOVE_DUPLICATES FEMCAE_BUNDLE_SEARCH_DIRS)
     configure_file(
         "${PROJECT_SOURCE_DIR}/cmake/FemcaeFixupBundle.cmake.in"
