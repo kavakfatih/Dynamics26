@@ -24,6 +24,21 @@ public:
     [[nodiscard]] QJsonObject projectJson() const;
     void loadProjectJson(const QJsonObject &object);
 
+    // Yeni CAE Details yüzeyi legacy PrePostPanel formunu göstermeden aynı verified
+    // Structured HEX8 backend'ini kullanır. Bu erişimciler yalnız UI composition
+    // katmanına kontrollü model özeti verir; FEM mesh verisinin sahipliği değişmez.
+    [[nodiscard]] double lengthMm() const;
+    [[nodiscard]] double widthMm() const;
+    [[nodiscard]] double heightMm() const;
+    [[nodiscard]] int divisionsX() const;
+    [[nodiscard]] int divisionsY() const;
+    [[nodiscard]] int divisionsZ() const;
+    [[nodiscard]] int meshNodeCount() const;
+    [[nodiscard]] int meshElementCount() const;
+    [[nodiscard]] bool hasMesh() const;
+    void setStructuredMeshDefinition(double lengthMm, double widthMm, double heightMm,
+                                     int nx, int ny, int nz);
+
     // Alpha.1 viewport bağlamı: preprocessing ekranları result contour'u
     // taşımamalıdır. Stored result database korunur; yalnız consumer'a geçici
     // boş result gönderilerek nötr FEM mesh görünümü istenir.
