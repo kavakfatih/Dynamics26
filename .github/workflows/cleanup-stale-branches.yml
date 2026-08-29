@@ -1,0 +1,27 @@
+name: One-time stale branch cleanup
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/cleanup-stale-branches.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete stale branches
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for branch in chore/vscode-workspace fix/macos-native-ci ci/self-hosted-native; do
+            echo "Deleting $branch"
+            git -c http.extraheader="AUTHORIZATION: bearer $GH_TOKEN" push \
+              "https://github.com/${GITHUB_REPOSITORY}.git" \
+              --delete "$branch"
+          done
