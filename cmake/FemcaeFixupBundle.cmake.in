@@ -4,13 +4,145 @@
 if(NOT APPLE)
     return()
 endif()
+
 include(BundleUtilities)
 set(BU_CHMOD_BUNDLE_ITEMS TRUE)
 set(_femcae_app "${CMAKE_INSTALL_PREFIX}/FEMCAE.app")
 set(_femcae_search_dirs "@FEMCAE_BUNDLE_SEARCH_DIRS@")
+
 if(NOT EXISTS "${_femcae_app}")
     message(FATAL_ERROR "FEMCAE bundle fixup: app bulunamadi: ${_femcae_app}")
 endif()
+
+# BundleUtilities bağımlılıkları app içine kopyalar ve LC_LOAD_* yollarını
+# yeniden yazar. Homebrew'den kopyalanan bazı dylib/framework'ler ise kendi
+# LC_ID_DYLIB veya LC_RPATH metadata'sını koruyabilir. Bu metadata çalışma
+# makinesinin Cellar/build dizinlerine bağlı kalmamalıdır; codesign'dan önce
+# yalnızca bundle-içi, taşınabilir (relocatable) biçime getiriyoruz.
+function(_femcae_run_install_name_tool)
+    execute_process(
+        COMMAND /usr/bin/install_name_tool ${ARGN}
+        RESULT_VARIABLE _result
+        ERROR_VARIABLE _error
+    )
+    if(NOT _result EQUAL 0)
+        string(REPLACE ";" " " _args "${ARGN}")
+        message(FATAL_ERROR
+            "FEMCAE bundle fixup: install_name_tool basarisiz: ${_args}\n${_error}")
+    endif()
+endfunction()
+
+function(_femcae_normalize_macho_metadata app_path)
+    set(_contents "${app_path}/Contents")
+    set(_frameworks "${_contents}/Frameworks")
+    set(_executable_dir "${_contents}/MacOS")
+
+    set(_app_normalized "${app_path}")
+    cmake_path(NORMAL_PATH _app_normalized OUTPUT_VARIABLE _app_normalized)
+
+    file(GLOB_RECURSE _bundle_files LIST_DIRECTORIES FALSE "${_contents}/*")
+    foreach(_item IN LISTS _bundle_files)
+        execute_process(
+            COMMAND /usr/bin/file -b "${_item}"
+            OUTPUT_VARIABLE _file_type
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            RESULT_VARIABLE _file_result
+        )
+        if(NOT _file_result EQUAL 0 OR NOT _file_type MATCHES "Mach-O")
+            continue()
+        endif()
+
+        # Kopyalanmış Homebrew dylib/framework'lerinin mutlak install-id'sini
+        # bundle içindeki standart @rpath kimliğine çevir. BundleUtilities
+        # zaten load-command yollarını yeniden yazdığı için burada yalnızca
+        # kütüphanenin kendi kimliğini normalize ediyoruz.
+        execute_process(
+            COMMAND /usr/bin/otool -D "${_item}"
+            OUTPUT_VARIABLE _id_output
+            ERROR_QUIET
+            RESULT_VARIABLE _id_result
+        )
+        if(_id_result EQUAL 0)
+            string(REPLACE "\n" ";" _id_lines "${_id_output}")
+            list(LENGTH _id_lines _id_line_count)
+            if(_id_line_count GREATER 1)
+                list(GET _id_lines 1 _install_id)
+                string(STRIP "${_install_id}" _install_id)
+                if(_install_id MATCHES "^/")
+                    file(RELATIVE_PATH _framework_relative "${_frameworks}" "${_item}")
+                    if(NOT _framework_relative MATCHES "^\\.\\./" AND
+                       NOT _framework_relative STREQUAL "..")
+                        set(_new_id "@rpath/${_framework_relative}")
+                    else()
+                        get_filename_component(_item_name "${_item}" NAME)
+                        set(_new_id "@loader_path/${_item_name}")
+                    endif()
+                    message(STATUS
+                        "FEMCAE bundle fixup: LC_ID_DYLIB ${_install_id} -> ${_new_id}")
+                    _femcae_run_install_name_tool(-id "${_new_id}" "${_item}")
+                endif()
+            endif()
+        endif()
+
+        # LC_RPATH yalnızca app içinde var olan bir dizine çözülüyorsa kalabilir.
+        # Böylece @loader_path/../../../../lib gibi app dışına kaçan Homebrew
+        # kalıntıları ve /opt/homebrew/... gibi mutlak build yolları silinir.
+        execute_process(
+            COMMAND /usr/bin/otool -l "${_item}"
+            OUTPUT_VARIABLE _load_commands
+            RESULT_VARIABLE _otool_result
+        )
+        if(NOT _otool_result EQUAL 0)
+            message(FATAL_ERROR "FEMCAE bundle fixup: otool -l basarisiz: ${_item}")
+        endif()
+
+        string(REPLACE "\n" ";" _load_lines "${_load_commands}")
+        set(_rpaths "")
+        set(_expect_rpath_path FALSE)
+        foreach(_line IN LISTS _load_lines)
+            string(STRIP "${_line}" _stripped)
+            if(_stripped STREQUAL "cmd LC_RPATH")
+                set(_expect_rpath_path TRUE)
+            elseif(_expect_rpath_path AND _stripped MATCHES "^path ([^ ]+) ")
+                list(APPEND _rpaths "${CMAKE_MATCH_1}")
+                set(_expect_rpath_path FALSE)
+            endif()
+        endforeach()
+        list(REMOVE_DUPLICATES _rpaths)
+
+        get_filename_component(_loader_dir "${_item}" DIRECTORY)
+        foreach(_rpath IN LISTS _rpaths)
+            set(_keep_rpath FALSE)
+            set(_candidate "")
+
+            if(_rpath STREQUAL "@loader_path")
+                set(_candidate "${_loader_dir}")
+            elseif(_rpath MATCHES "^@loader_path/(.*)$")
+                set(_candidate "${_loader_dir}/${CMAKE_MATCH_1}")
+            elseif(_rpath STREQUAL "@executable_path")
+                set(_candidate "${_executable_dir}")
+            elseif(_rpath MATCHES "^@executable_path/(.*)$")
+                set(_candidate "${_executable_dir}/${CMAKE_MATCH_1}")
+            endif()
+
+            if(NOT _candidate STREQUAL "")
+                cmake_path(NORMAL_PATH _candidate OUTPUT_VARIABLE _candidate_normalized)
+                string(FIND "${_candidate_normalized}/" "${_app_normalized}/" _inside_prefix)
+                if(_inside_prefix EQUAL 0 AND IS_DIRECTORY "${_candidate_normalized}")
+                    set(_keep_rpath TRUE)
+                endif()
+            endif()
+
+            if(NOT _keep_rpath)
+                message(STATUS
+                    "FEMCAE bundle fixup: stale/external LC_RPATH siliniyor: ${_item} -> ${_rpath}")
+                _femcae_run_install_name_tool(-delete_rpath "${_rpath}" "${_item}")
+            endif()
+        endforeach()
+    endforeach()
+endfunction()
+
 message(STATUS "FEMCAE bundle fixup: ${_femcae_app}")
 fixup_bundle("${_femcae_app}" "" "${_femcae_search_dirs}")
+_femcae_normalize_macho_metadata("${_femcae_app}")
 verify_app("${_femcae_app}")
