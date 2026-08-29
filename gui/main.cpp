@@ -1,7 +1,9 @@
 #include "MainWindow.h"
 #include "Dynamics26Shell.h"
 
+#include <QAction>
 #include <QApplication>
+#include <QKeySequence>
 #include <QSurfaceFormat>
 
 #include <cstring>
@@ -30,6 +32,29 @@ const char* buildVersion()
     return "unknown";
 #endif
 }
+
+void applyMacCommandShortcuts(MainWindow &window)
+{
+#ifdef Q_OS_MACOS
+    // Qt Apple platformlarında Qt::CTRL kullanıcının Command tuşuna eşlenir.
+    // Dynamics26 özel kısayolları Apple'ın standart mapping'ini takip eder.
+    const auto actions = window.findChildren<QAction *>();
+    for (auto *action : actions) {
+        if (action == nullptr) {
+            continue;
+        }
+        if (action->text() == QStringLiteral("Navigator")) {
+            action->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
+        } else if (action->text() == QStringLiteral("Inspector")) {
+            action->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_2));
+        } else if (action->text() == QStringLiteral("Bottom Utility Area")) {
+            action->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_J));
+        }
+    }
+#else
+    Q_UNUSED(window)
+#endif
+}
 } // namespace
 
 int main(int argc, char *argv[])
@@ -54,6 +79,17 @@ int main(int argc, char *argv[])
 
     MainWindow window;
     dynamics26::gui::applyApplicationShell(window);
+
+#if defined(Q_OS_MACOS) && defined(FEMCAE_GUI_HAS_VTK)
+    // Qt, unifiedTitleAndToolBarOnMac ile QOpenGLWidget içeriğini birlikte
+    // resmi olarak desteklemiyor. Normal Dynamics26 VTK viewport'u
+    // QVTKOpenGLNativeWidget/QOpenGLWidget tabanlı olduğundan Alpha.1'de native
+    // window frame korunur fakat Qt unified-toolbar flag'i kapatılır. İleride
+    // AppKit/Qt entegrasyonu ayrıca araştırılmadan viewport kararlılığı riske atılmaz.
+    window.setUnifiedTitleAndToolBarOnMac(false);
+#endif
+
+    applyMacCommandShortcuts(window);
     window.show();
     return app.exec();
 }
