@@ -27,6 +27,21 @@ public:
     [[nodiscard]] QJsonObject projectJson() const;
     void loadProjectJson(const QJsonObject &object);
 
+    // Alpha.1 CAE workbench yeni Details yüzeyini legacy GeometryPanel widget'ını
+    // doğrudan göstermeden besler. CAD dokümanı yine bu sınıfta tek veri kaynağıdır;
+    // yeni shell yalnız salt-okunur özet alır ve mevcut import slotlarını çağırır.
+    [[nodiscard]] QString currentStepPath() const { return currentStepPath_; }
+    [[nodiscard]] QString currentDxfPath() const { return currentDxfPath_; }
+    [[nodiscard]] int bodyCount() const
+    {
+        return static_cast<int>(document_.entitiesOfKind(femcae::geometry::GeometryEntityKind::Body).size());
+    }
+    [[nodiscard]] int faceCount() const
+    {
+        return static_cast<int>(document_.entitiesOfKind(femcae::geometry::GeometryEntityKind::Face).size());
+    }
+    [[nodiscard]] bool hasCadGeometry() const { return bodyCount() > 0; }
+
     // Alpha.1 viewport bağlamı: Results ekranından Geometri'ye dönüldüğünde
     // son CAD gövdesinin display tessellation'ını yeniden gösterebilmek için
     // panel kendi CAD belgesinden güvenli bir preview üretir. CAD B-Rep ile FEM
