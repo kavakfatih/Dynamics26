@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "Dynamics26Shell.h"
+#include "Alpha1UxController.h"
 
 #include <QApplication>
 #include <QSurfaceFormat>
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
 
     MainWindow window;
     dynamics26::gui::applyApplicationShell(window);
+    dynamics26::gui::attachAlpha1UxController(window);
     window.show();
     return app.exec();
 }
