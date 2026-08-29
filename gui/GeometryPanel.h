@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <exception>
 #include <functional>
 #include <memory>
 
@@ -25,6 +26,27 @@ public:
     void setTessellationConsumer(std::function<void(const femcae::geometry::GeometryTessellation &)> consumer);
     [[nodiscard]] QJsonObject projectJson() const;
     void loadProjectJson(const QJsonObject &object);
+
+    // Alpha.1 viewport bağlamı: Results ekranından Geometri'ye dönüldüğünde
+    // son CAD gövdesinin display tessellation'ını yeniden gösterebilmek için
+    // panel kendi CAD belgesinden güvenli bir preview üretir. CAD B-Rep ile FEM
+    // mesh birbirine dönüştürülmez; yalnız mevcut tessellation consumer çağrılır.
+    [[nodiscard]] bool showCurrentGeometry()
+    {
+        const auto bodies = document_.entitiesOfKind(femcae::geometry::GeometryEntityKind::Body);
+        if (bodies.empty() || !tessellationConsumer_) {
+            return false;
+        }
+        try {
+            auto tessellation = stepImporter_.tessellate(bodies.front(), 0.15);
+            tessellation.sourceRevision = document_.revision();
+            tessellationConsumer_(tessellation);
+            return true;
+        } catch (const std::exception &ex) {
+            emit message(tr("CAD display tessellation yeniden oluşturulamadı: %1").arg(ex.what()));
+            return false;
+        }
+    }
 
 signals:
     void message(const QString &text);
