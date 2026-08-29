@@ -5,6 +5,7 @@
 #include "ViewportWidget.h"
 
 #include <QApplication>
+#include <QColor>
 #include <QGuiApplication>
 #include <QLabel>
 #include <QMainWindow>
@@ -14,7 +15,56 @@
 #include <QTimer>
 #include <QTreeWidget>
 
+#ifdef FEMCAE_GUI_HAS_VTK
+#include <QVTKOpenGLNativeWidget.h>
+#include <vtkActor.h>
+#include <vtkActorCollection.h>
+#include <vtkMapper.h>
+#include <vtkProperty.h>
+#include <vtkRenderer.h>
+#endif
+
 namespace {
+
+#ifdef FEMCAE_GUI_HAS_VTK
+struct ViewportTheme
+{
+    double bg[3];
+    double surface[3];
+    double edge[3];
+    double wire[3];
+};
+
+ViewportTheme currentViewportTheme()
+{
+    const QPalette palette = qApp->palette();
+    const QColor window = palette.color(QPalette::Window);
+    const bool dark = window.lightnessF() < 0.5;
+
+    if (dark) {
+        return {
+            {0.060, 0.071, 0.082},
+            {0.43, 0.47, 0.53},
+            {0.72, 0.76, 0.82},
+            {0.78, 0.82, 0.88}
+        };
+    }
+
+    return {
+        {0.960, 0.968, 0.977},
+        {0.70, 0.74, 0.80},
+        {0.28, 0.32, 0.38},
+        {0.24, 0.28, 0.34}
+    };
+}
+
+void setActorColor(vtkProperty *property, const double rgb[3])
+{
+    if (property != nullptr) {
+        property->SetColor(rgb[0], rgb[1], rgb[2]);
+    }
+}
+#endif
 
 class AppearanceController final : public QObject
 {
@@ -106,6 +156,49 @@ private:
 };
 
 } // namespace
+
+void ViewportWidget::refreshSystemAppearance()
+{
+#ifdef FEMCAE_GUI_HAS_VTK
+    if (renderer_ == nullptr || vtkWidget_ == nullptr || vtkWidget_->renderWindow() == nullptr) {
+        return;
+    }
+
+    const ViewportTheme theme = currentViewportTheme();
+    renderer_->SetBackground(theme.bg[0], theme.bg[1], theme.bg[2]);
+
+    // VTK, Qt/macOS görünüm motorunun parçası değildir. Bu nedenle viewport kendi
+    // semantic rendering rollerini yeniler. Scalar-mapped result contour yüzeyi
+    // korunur; yalnız neutral geometry/mesh ve referans çizgileri temaya uyar.
+    auto *actors = renderer_->GetActors();
+    if (actors != nullptr) {
+        actors->InitTraversal();
+        while (auto *actor = actors->GetNextActor()) {
+            auto *property = actor->GetProperty();
+            if (property == nullptr) {
+                continue;
+            }
+
+            auto *mapper = actor->GetMapper();
+            const bool scalarMapped = mapper != nullptr && mapper->GetScalarVisibility() != 0;
+
+            if (property->GetRepresentation() == VTK_WIREFRAME) {
+                setActorColor(property, theme.wire);
+                property->SetLineWidth(1.35);
+            }
+
+            if (property->GetEdgeVisibility()) {
+                property->SetEdgeColor(theme.edge[0], theme.edge[1], theme.edge[2]);
+                if (!scalarMapped) {
+                    setActorColor(property, theme.surface);
+                }
+            }
+        }
+    }
+
+    vtkWidget_->renderWindow()->Render();
+#endif
+}
 
 namespace dynamics26::gui {
 
