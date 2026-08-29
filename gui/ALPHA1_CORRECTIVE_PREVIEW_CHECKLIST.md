@@ -16,6 +16,8 @@ kabul edilmeden başlamaz.
 ## 1. Application shell
 
 - [ ] Açılışta tek ve kompakt üst toolbar yüzeyi görülüyor.
+- [ ] Toolbar yalnız gerçek backend'e bağlı global komutları taşıyor: Navigator, STEP Import, Mesh, Fit, Çöz, Diagnostics, Inspector.
+- [ ] `Çöz`, toolbar'da kısa metin etiketi taşıyan tek birincil global eylem.
 - [ ] Eski ribbon / çok katlı yatay command yüzeyi yok.
 - [ ] 3D viewport pencerenin baskın çalışma alanı.
 - [ ] macOS native menu bar normal davranıyor.
@@ -39,6 +41,8 @@ kabul edilmeden başlamaz.
 - [ ] Analysis Inspector `Analiz Türü` seçimine göre contextual davranıyor.
 - [ ] Lineer Statik seçiliyken modal/nonlinear controls görünmüyor.
 - [ ] Nonlineer Statik seçiliyken `Gelişmiş Çözücü Ayarları` disclosure olarak açılıyor.
+- [ ] Nonlineer/Modal `Çöz` disabled olduğunda kullanıcı Inspector içinde kısa ve görünür neden görüyor; yalnız tooltip'e güvenilmiyor.
+- [ ] Advanced formulation seçenekleri kullanıcı niyetini önceleyen adlarla gösteriliyor (`Standart`, `Nearly Incompressible (mixed u-p)` vb.).
 - [ ] Mesh Inspector yalnız mesh tanımı/özeti taşıyor; legacy solve/post/export karmaşası görünmüyor.
 
 ## 4. Viewport semantics
@@ -46,6 +50,8 @@ kabul edilmeden başlamaz.
 - [ ] Geometri bağlamı CAD/display tessellation görünümünü kullanıyor.
 - [ ] Mesh / Malzeme / Kesit / Yük-BC / Analiz preprocessing bağlamlarında result contour görünmüyor.
 - [ ] Preprocessing sırasında nötr mesh/geometry görünümü kullanılıyor.
+- [ ] Koyu görünümde neutral wire/edge geometri arka plana gömülmüyor.
+- [ ] Açık görünümde neutral solid shading yüzeyleri aşırı beyaz/siyah kontrasta kaçmıyor.
 - [ ] Sonuçlar bağlamında contour tekrar görüntüleniyor.
 - [ ] VTK viewport arka planı ve neutral geometry/mesh edge renkleri macOS Light/Dark appearance ile birlikte güncelleniyor.
 - [ ] Scalar-mapped result contour renkleri theme geçişiyle bozulmuyor.
@@ -56,16 +62,17 @@ kabul edilmeden başlamaz.
 - [ ] Project Navigator toggle çalışıyor (`⌘1`).
 - [ ] Inspector toggle çalışıyor (`⌘2`).
 - [ ] Diagnostics/utility toggle çalışıyor (`⌘J` ve status strip handle).
+- [ ] STEP Import toolbar komutu gerçek GeometryPanel import yoluna bağlı.
+- [ ] Mesh toolbar komutu gerçek structured HEX8 yoluna bağlı.
 - [ ] Fit View çalışıyor.
-- [ ] Mesh Oluştur gerçek structured HEX8 yoluna bağlı.
 - [ ] `Çöz` yalnız entegre Lineer Statik workflow için enabled.
-- [ ] Henüz entegre olmayan modal/nonlinear GUI yollarında `Çöz` disabled ve gerekçeli tooltip veriyor.
+- [ ] Henüz entegre olmayan modal/nonlinear GUI yollarında `Çöz` disabled ve gerekçesi görünür.
 - [ ] Demo/verification komutları normal kullanıcı command surface'inde görünmüyor.
 - [ ] Search / Undo / Redo gibi henüz gerçek command-registry'si olmayan sahte kontroller görünmüyor.
 
 ## 6. Results & Diagnostics drawer
 
-- [ ] Drawer varsayılan kapalı.
+- [ ] Drawer uygulama ilk açıldığında varsayılan kapalı.
 - [ ] Kullanıcı açtığında Sonuçlar / Yakınsama / Günlük sekmeleri korunuyor.
 - [ ] Çözüm tamamlandığında Sonuçlar sekmesi açılabiliyor ve sayısal tablo kullanıcı dilinde görünüyor.
 - [ ] Error/hata durumunda Günlük alanı görünür hale geliyor.
@@ -105,6 +112,7 @@ Alpha.1 ancak aşağıdaki kanıtların tümü mevcut olduğunda kapanabilir:
 5. Gerektiğinde manual strict standalone bundle audit başarılı.
 6. macOS sistem Light ve Dark görünümünde gerçek ekran görüntüleri incelenmiş.
 7. Light → Dark → Light geçişi gerçek macOS üzerinde kalıntısız doğrulanmış.
-8. Kullanıcı gerçek macOS uygulamasını açıp ekran görüntüsü/interaction incelemesini kabul etmiş.
+8. Toolbar/Inspector/utility davranışları gerçek macOS interaction incelemesinde kabul edilmiş.
+9. Kullanıcı gerçek macOS uygulamasını açıp ekran görüntüsü/interaction incelemesini kabul etmiş.
 
 **Alpha.2 — Navigator + Inspector Architecture bu kabulden önce başlamaz.**
