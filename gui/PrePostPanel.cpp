@@ -53,7 +53,6 @@ PrePostPanel::PrePostPanel(QWidget *parent):QWidget(parent)
     connect(generate,&QPushButton::clicked,this,&PrePostPanel::generateMesh);connect(solve,&QPushButton::clicked,this,&PrePostPanel::solveLinear);connect(cut,&QPushButton::clicked,this,&PrePostPanel::evaluateMidSectionCut);connect(csv,&QPushButton::clicked,this,&PrePostPanel::exportCsv);connect(vtk,&QPushButton::clicked,this,&PrePostPanel::exportVtk);
 }
 
-
 QJsonObject PrePostPanel::projectJson() const
 {
     QJsonObject o;
@@ -73,6 +72,26 @@ void PrePostPanel::loadProjectJson(const QJsonObject &o)
 }
 
 void PrePostPanel::setViewportConsumer(std::function<void(const SimulationMesh &,const ResultDatabase &)> consumer){viewportConsumer_=std::move(consumer);}
+
+double PrePostPanel::lengthMm() const{return length_!=nullptr?length_->value():0.0;}
+double PrePostPanel::widthMm() const{return width_!=nullptr?width_->value():0.0;}
+double PrePostPanel::heightMm() const{return height_!=nullptr?height_->value():0.0;}
+int PrePostPanel::divisionsX() const{return nx_!=nullptr?nx_->value():0;}
+int PrePostPanel::divisionsY() const{return ny_!=nullptr?ny_->value():0;}
+int PrePostPanel::divisionsZ() const{return nz_!=nullptr?nz_->value():0;}
+int PrePostPanel::meshNodeCount() const{return static_cast<int>(mesh_.nodes.size());}
+int PrePostPanel::meshElementCount() const{return static_cast<int>(mesh_.elements.size());}
+bool PrePostPanel::hasMesh() const{return !mesh_.elements.empty();}
+void PrePostPanel::setStructuredMeshDefinition(double lengthMm,double widthMm,double heightMm,int nx,int ny,int nz)
+{
+    if(length_!=nullptr)length_->setValue(lengthMm);
+    if(width_!=nullptr)width_->setValue(widthMm);
+    if(height_!=nullptr)height_->setValue(heightMm);
+    if(nx_!=nullptr)nx_->setValue(nx);
+    if(ny_!=nullptr)ny_->setValue(ny);
+    if(nz_!=nullptr)nz_->setValue(nz);
+}
+
 void PrePostPanel::clearProject(){mesh_={};assignments_.clear();results_.clear();meshSummary_->setText(tr("Henüz FEM mesh yok."));solveSummary_->setText(tr("Henüz çözüm yok."));if(cutSummary_)cutSummary_->setText(tr("Section cut henüz değerlendirilmedi."));}
 
 void PrePostPanel::rebuildAssignments(){
