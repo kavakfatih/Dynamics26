@@ -43,6 +43,30 @@ jobs:
           test "$(uname -m)" = "arm64"
           git diff --check
 
+      - name: Alpha.1 shell contract gate
+        shell: bash
+        run: |
+          set -euxo pipefail
+          shell_source="gui/Dynamics26Shell.cpp"
+          test -f "$shell_source"
+          grep -q 'Dynamics26WorkspaceSplitter' "$shell_source"
+          grep -q 'Dynamics26EngineeringInspector' "$shell_source"
+          grep -q 'QStackedWidget' "$shell_source"
+          grep -q 'setUnifiedTitleAndToolBarOnMac(false)' "$shell_source"
+
+          if grep -R --line-number --fixed-strings 'setUnifiedTitleAndToolBarOnMac(true)' gui; then
+            echo "Unsupported unified title/toolbar path reintroduced for the OpenGL window." >&2
+            exit 1
+          fi
+          if grep -R --line-number --fixed-strings 'Qt::META' gui; then
+            echo "macOS Command shortcuts must use Qt::CTRL semantic mapping." >&2
+            exit 1
+          fi
+          if grep -E --line-number 'QStringLiteral\("(Search|Undo|Redo)' "$shell_source"; then
+            echo "Placeholder command exposed in Alpha.1 shell." >&2
+            exit 1
+          fi
+
       - name: Reuse or install native GUI dependencies
         shell: bash
         env:
@@ -118,6 +142,46 @@ jobs:
           test -x "$app"
           file -L "$app" | tee /tmp/dynamics26-selfhosted-gui-arch.txt
           grep -q arm64 /tmp/dynamics26-selfhosted-gui-arch.txt
+
+      - name: Package engineering preview
+        if: contains(github.event.head_commit.message, '[preview]')
+        shell: bash
+        run: |
+          set -euxo pipefail
+          source_app="$PWD/build-selfhosted-gui-fast/gui/FEMCAE.app"
+          preview_app="$RUNNER_TEMP/Dynamics26.app"
+          archive="$RUNNER_TEMP/Dynamics26-1.1.0-alpha.1-engineering-preview-macos-arm64.zip"
+          notice="$RUNNER_TEMP/Dynamics26-engineering-preview-NOT-STANDALONE.txt"
+
+          test -x "$source_app/Contents/MacOS/FEMCAE"
+          "$source_app/Contents/MacOS/FEMCAE" --bundle-smoke
+
+          rm -rf "$preview_app"
+          rm -f "$archive" "$archive.sha256" "$notice"
+          ditto "$source_app" "$preview_app"
+          ditto -c -k --sequesterRsrc --keepParent "$preview_app" "$archive"
+          shasum -a 256 "$archive" | tee "$archive.sha256"
+          cat > "$notice" <<'EOF'
+          Dynamics26 V1.1.0-alpha.1 engineering preview
+
+          This is an engineering/UX preview built on the trusted Apple Silicon Mac.
+          It intentionally reuses Homebrew Qt/VTK/OCCT runtime dependencies and is
+          NOT the standalone release bundle. Use it only for real macOS visual and
+          interaction acceptance. The manual native-release/full bundle audit remains
+          mandatory before a distributable build can be called verified.
+          EOF
+
+      - name: Upload engineering preview
+        if: contains(github.event.head_commit.message, '[preview]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dynamics26-1.1.0-alpha.1-engineering-preview-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/Dynamics26-1.1.0-alpha.1-engineering-preview-macos-arm64.zip
+            ${{ runner.temp }}/Dynamics26-1.1.0-alpha.1-engineering-preview-macos-arm64.zip.sha256
+            ${{ runner.temp }}/Dynamics26-engineering-preview-NOT-STANDALONE.txt
+          if-no-files-found: error
+          retention-days: 3
 
   # Clean/full standalone validation remains explicit and manual. This job does
   # not reuse the incremental fast-gate build and keeps strict bundle auditing.
