@@ -1,14 +1,18 @@
 #include "AppearanceController.h"
 
+#include "GeometryPanel.h"
+#include "PrePostPanel.h"
 #include "ViewportWidget.h"
 
 #include <QApplication>
 #include <QGuiApplication>
 #include <QLabel>
 #include <QMainWindow>
+#include <QPalette>
 #include <QSettings>
 #include <QStatusBar>
 #include <QTimer>
+#include <QTreeWidget>
 
 namespace {
 
@@ -49,6 +53,18 @@ private:
         status->addPermanentWidget(label);
     }
 
+    void scheduleViewportRefresh()
+    {
+        if (viewport_ == nullptr) {
+            return;
+        }
+        QTimer::singleShot(0, viewport_, [this] {
+            if (viewport_ != nullptr) {
+                viewport_->refreshSystemAppearance();
+            }
+        });
+    }
+
     void attachViewportToSystemAppearance()
     {
         viewport_ = window_.findChild<ViewportWidget *>();
@@ -60,17 +76,28 @@ private:
         // native style tarafından güncellenir; VTK ayrı bir render sistemi olduğu
         // için yalnız viewport kendi semantic rendering renklerini yeniler.
         connect(&app_, &QGuiApplication::paletteChanged, this,
-                [this](const QPalette &) {
-                    if (viewport_ != nullptr) {
-                        viewport_->refreshSystemAppearance();
-                    }
-                });
+                [this](const QPalette &) { scheduleViewportRefresh(); });
 
-        QTimer::singleShot(0, viewport_, [this] {
-            if (viewport_ != nullptr) {
-                viewport_->refreshSystemAppearance();
-            }
-        });
+        // Context değişimi veya backend'in yeni geometry/mesh/result scene'i
+        // oluşturması mevcut VTK actor'larını değiştirebilir. Appearance katmanı
+        // actor'ları yorumlamaz; yalnız ViewportWidget'tan semantic görünümünü
+        // yeniden uygulamasını ister.
+        if (auto *navigator = window_.findChild<QTreeWidget *>(QStringLiteral("Dynamics26Navigator"))) {
+            connect(navigator, &QTreeWidget::currentItemChanged, this,
+                    [this](QTreeWidgetItem *, QTreeWidgetItem *) { scheduleViewportRefresh(); });
+        }
+        if (auto *geometry = window_.findChild<GeometryPanel *>()) {
+            connect(geometry, &GeometryPanel::message, this,
+                    [this](const QString &) { scheduleViewportRefresh(); });
+        }
+        if (auto *prePost = window_.findChild<PrePostPanel *>()) {
+            connect(prePost, &PrePostPanel::message, this,
+                    [this](const QString &) { scheduleViewportRefresh(); });
+            connect(prePost, &PrePostPanel::solveCompleted, this,
+                    [this](double, double, double, qlonglong, double) { scheduleViewportRefresh(); });
+        }
+
+        scheduleViewportRefresh();
     }
 
     QApplication &app_;
