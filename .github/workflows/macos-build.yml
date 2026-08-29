@@ -3,6 +3,11 @@ name: macOS arm64 build and verification
 on:
   push:
     branches: [ main ]
+    # GUI-only günlük değişiklikler trusted self-hosted Mac üzerindeki incremental
+    # fast gate'e gider. Core/CMake/CI gibi başka bir dosya da değişirse bu clean
+    # GitHub-hosted workflow yine çalışır ve reproducibility kanıtı üretir.
+    paths-ignore:
+      - "gui/**"
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -168,10 +173,9 @@ jobs:
             -o "$prefix/bin/meshing_install_smoke"
           "$prefix/bin/meshing_install_smoke"
 
-  # Günlük GUI geliştirme kapısı: kaynak değişikliklerinde derleme/architecture/migration
-  # kanıtı verir. Standalone deployment, fixup, codesign, tam Mach-O audit ve büyük
-  # artifact upload her push'ta tekrarlanmaz; bunlar aşağıdaki clean bundle gate'inde
-  # workflow_dispatch ile çalıştırılır.
+  # Clean hosted GUI kapısı artık GUI-only push'larda değil, bu workflow'u tetikleyen
+  # core/mixed değişikliklerde ve pull request'lerde çalışır. Günlük GUI-only push
+  # doğrulaması trusted self-hosted incremental gate tarafından yapılır.
   gui-fast:
     if: github.event_name != 'workflow_dispatch'
     timeout-minutes: 45
