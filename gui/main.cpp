@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "Dynamics26Shell.h"
 
 #include <QApplication>
 #include <QSurfaceFormat>
@@ -33,9 +34,9 @@ const char* buildVersion()
 
 int main(int argc, char *argv[])
 {
-    // This path intentionally runs before QApplication/QPA initialization.
-    // If dyld cannot resolve Qt/VTK/OCCT/Fortran dependencies, execution never
-    // reaches this point; therefore it is useful as a headless bundle smoke.
+    // Bu yol QApplication/QPA başlatılmadan önce çalışır. Strict macOS bundle
+    // audit geçmiş release kanıtlarıyla uyumlu kalabilsin diye smoke protokolü
+    // ve engine build version sözleşmesi V1.1 alpha aşamasında değiştirilmez.
     if (hasArgument(argc, argv, "--bundle-smoke")) {
         std::cout << "FEMCAE bundle smoke PASS version=" << buildVersion() << '\n';
         return 0;
@@ -44,11 +45,15 @@ int main(int argc, char *argv[])
 #ifdef FEMCAE_GUI_HAS_VTK
     QSurfaceFormat::setDefaultFormat(QVTKOpenGLNativeWidget::defaultFormat());
 #endif
+
     QApplication app(argc, argv);
-    app.setApplicationName("FEMCAE");
+    app.setApplicationName("Dynamics26");
+    app.setApplicationDisplayName("Dynamics26");
     app.setApplicationVersion(QString::fromLatin1(buildVersion()));
-    app.setOrganizationName("FEMCAE");
+    app.setOrganizationName("Dynamics26");
+
     MainWindow window;
+    dynamics26::gui::applyApplicationShell(window);
     window.show();
     return app.exec();
 }
