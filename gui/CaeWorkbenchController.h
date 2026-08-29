@@ -1,6 +1,16 @@
 #pragma once
 
+#include <QSignalBlocker>
+
+class QComboBox;
 class QMainWindow;
+
+// CaeWorkbenchController.cpp aynı translation unit içinde bu helper'ı internal
+// linkage ile tanımlar. Declaration burada yalnız controller derlemesindeki
+// compact Details -> legacy analysis-state köprüsünü önden görünür kılar.
+namespace {
+QComboBox *findAnalysisTypeCombo(QMainWindow &window);
+}
 
 namespace dynamics26::gui {
 
