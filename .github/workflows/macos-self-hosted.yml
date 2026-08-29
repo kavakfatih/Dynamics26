@@ -1,17 +1,128 @@
 name: Trusted self-hosted macOS native validation
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - "gui/**"
+      - ".github/workflows/macos-self-hosted.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Fast push validation and manually requested release validation must not cancel
+# each other. They share the trusted Mac but have different verification goals.
 concurrency:
-  group: dynamics26-self-hosted-main
+  group: dynamics26-self-hosted-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
+  # Günlük Alpha.1/GUI geliştirmesi için trusted Mac üzerindeki hızlı kapı.
+  # build-selfhosted-gui-fast dizini bilinçli olarak korunur: dependency ve
+  # object-cache tekrar kullanımı self-hosted runner'ın ana hız avantajıdır.
+  gui-fast-native:
+    if: github.event_name == 'push'
+    name: gui-fast on trusted Mac
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout current main without deleting incremental build cache
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Trusted-runner guard and source hygiene
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "$GITHUB_REPOSITORY" = "kavakfatih/Dynamics26"
+          test "$GITHUB_EVENT_NAME" = "push"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$(uname -m)" = "arm64"
+          git diff --check
+
+      - name: Reuse or install native GUI dependencies
+        shell: bash
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          set -euxo pipefail
+          if command -v brew >/dev/null 2>&1; then
+            BREW_BIN="$(command -v brew)"
+          elif [[ -x /opt/homebrew/bin/brew ]]; then
+            BREW_BIN=/opt/homebrew/bin/brew
+          else
+            echo "Homebrew bulunamadi. Self-hosted runner Mac'te Homebrew kurulu olmali." >&2
+            exit 1
+          fi
+
+          eval "$("$BREW_BIN" shellenv)"
+          echo "$(dirname "$BREW_BIN")" >> "$GITHUB_PATH"
+
+          # Fast gate yalnız Qt Core/Gui/Widgets/OpenGLWidgets kullanır. `qt`
+          # meta-formülü webengine vb. gereksiz modülleri getirir; qtbase yeterlidir.
+          for formula in cmake ninja gcc qtbase vtk arpack opencascade; do
+            if ! "$BREW_BIN" list --versions "$formula" >/dev/null 2>&1; then
+              "$BREW_BIN" install "$formula"
+            fi
+          done
+
+          FC_PATH="$(command -v gfortran || true)"
+          if [[ -z "$FC_PATH" ]]; then
+            for candidate in /opt/homebrew/bin/gfortran-* /usr/local/bin/gfortran-*; do
+              if [[ -x "$candidate" ]]; then
+                FC_PATH="$candidate"
+              fi
+            done
+          fi
+          test -n "$FC_PATH"
+          test -x "$FC_PATH"
+
+          echo "FC=$FC_PATH" >> "$GITHUB_ENV"
+          echo "QT_PREFIX=$("$BREW_BIN" --prefix qtbase)" >> "$GITHUB_ENV"
+          echo "VTK_PREFIX=$("$BREW_BIN" --prefix vtk)" >> "$GITHUB_ENV"
+          echo "OCCT_PREFIX=$("$BREW_BIN" --prefix opencascade)" >> "$GITHUB_ENV"
+
+      - name: Configure incremental Release GUI gate
+        shell: bash
+        run: |
+          set -euxo pipefail
+          prefix_path="$QT_PREFIX;$VTK_PREFIX;$OCCT_PREFIX"
+          cmake -S . -B build-selfhosted-gui-fast -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_PREFIX_PATH="$prefix_path" \
+            -DFEMCAE_BUILD_TESTING=ON \
+            -DFEMCAE_BUILD_GUI=ON \
+            -DFEMCAE_GUI_WITH_VTK=ON \
+            -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON \
+            -DFEMCAE_REQUIRE_OCCT=ON
+
+      - name: Build GUI target and migration test
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build build-selfhosted-gui-fast --parallel --target femcae_gui
+          cmake --build build-selfhosted-gui-fast --parallel --target femcae_project_migration_test
+
+      - name: Project migration gate
+        run: ctest --test-dir build-selfhosted-gui-fast -L migration --output-on-failure
+
+      - name: Native arm64 GUI architecture gate
+        shell: bash
+        run: |
+          set -euxo pipefail
+          app="build-selfhosted-gui-fast/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          test -x "$app"
+          file -L "$app" | tee /tmp/dynamics26-selfhosted-gui-arch.txt
+          grep -q arm64 /tmp/dynamics26-selfhosted-gui-arch.txt
+
+  # Clean/full standalone validation remains explicit and manual. This job does
+  # not reuse the incremental fast-gate build and keeps strict bundle auditing.
   native-release:
+    if: github.event_name == 'workflow_dispatch'
     name: native-release on trusted Mac
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 120
