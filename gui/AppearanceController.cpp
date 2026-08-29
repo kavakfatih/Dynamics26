@@ -11,8 +11,10 @@
 #include <QPalette>
 #include <QSettings>
 #include <QStatusBar>
+#include <QStyle>
 #include <QTimer>
 #include <QTreeWidget>
+#include <QWidget>
 
 #ifdef FEMCAE_GUI_HAS_VTK
 #include <QVTKOpenGLNativeWidget.h>
@@ -31,6 +33,26 @@ enum class AppearanceMode {
     System,
     Light,
     Dark
+};
+
+struct ThemeTokens {
+    QColor window;
+    QColor panel;
+    QColor raised;
+    QColor field;
+    QColor viewport;
+    QColor text;
+    QColor secondary;
+    QColor muted;
+    QColor border;
+    QColor hover;
+    QColor selection;
+    QColor accent;
+    QColor accentPressed;
+    QColor disabledText;
+    QColor disabledSurface;
+    QColor tooltip;
+    bool dark = false;
 };
 
 QString normalizedMenuText(QString text)
@@ -52,238 +74,446 @@ QMenu *findViewMenu(QMainWindow &window)
     return nullptr;
 }
 
-QPalette lightPalette(const QPalette &system)
+ThemeTokens lightTokens()
 {
-    QPalette p(system);
-    p.setColor(QPalette::Window, QColor(QStringLiteral("#F5F5F7")));
-    p.setColor(QPalette::WindowText, QColor(QStringLiteral("#1D1D1F")));
-    p.setColor(QPalette::Base, QColor(QStringLiteral("#FFFFFF")));
-    p.setColor(QPalette::AlternateBase, QColor(QStringLiteral("#F2F2F4")));
-    p.setColor(QPalette::Text, QColor(QStringLiteral("#1D1D1F")));
-    p.setColor(QPalette::Button, QColor(QStringLiteral("#F2F2F4")));
-    p.setColor(QPalette::ButtonText, QColor(QStringLiteral("#1D1D1F")));
-    p.setColor(QPalette::Highlight, QColor(QStringLiteral("#0A84FF")));
-    p.setColor(QPalette::HighlightedText, QColor(QStringLiteral("#FFFFFF")));
-    p.setColor(QPalette::ToolTipBase, QColor(QStringLiteral("#FFFFFF")));
-    p.setColor(QPalette::ToolTipText, QColor(QStringLiteral("#1D1D1F")));
-    p.setColor(QPalette::Link, QColor(QStringLiteral("#0066CC")));
-    p.setColor(QPalette::PlaceholderText, QColor(QStringLiteral("#8E8E93")));
-
-    p.setColor(QPalette::Disabled, QPalette::WindowText, QColor(QStringLiteral("#8E8E93")));
-    p.setColor(QPalette::Disabled, QPalette::Text, QColor(QStringLiteral("#8E8E93")));
-    p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(QStringLiteral("#8E8E93")));
-    return p;
+    ThemeTokens t;
+    t.window = QColor(QStringLiteral("#EEF1F4"));
+    t.panel = QColor(QStringLiteral("#F7F8FA"));
+    t.raised = QColor(QStringLiteral("#FFFFFF"));
+    t.field = QColor(QStringLiteral("#FFFFFF"));
+    t.viewport = QColor(QStringLiteral("#F3F5F8"));
+    t.text = QColor(QStringLiteral("#20242A"));
+    t.secondary = QColor(QStringLiteral("#626B77"));
+    t.muted = QColor(QStringLiteral("#8B94A0"));
+    t.border = QColor(QStringLiteral("#D4D9E0"));
+    t.hover = QColor(QStringLiteral("#E9EDF2"));
+    t.selection = QColor(QStringLiteral("#DCEBFA"));
+    t.accent = QColor(QStringLiteral("#007AFF"));
+    t.accentPressed = QColor(QStringLiteral("#0064D1"));
+    t.disabledText = QColor(QStringLiteral("#9AA2AD"));
+    t.disabledSurface = QColor(QStringLiteral("#ECEFF3"));
+    t.tooltip = QColor(QStringLiteral("#FFFFFF"));
+    t.dark = false;
+    return t;
 }
 
-QPalette darkPalette(const QPalette &system)
+ThemeTokens darkTokens()
+{
+    ThemeTokens t;
+    t.window = QColor(QStringLiteral("#181A1D"));
+    t.panel = QColor(QStringLiteral("#1F2226"));
+    t.raised = QColor(QStringLiteral("#25292E"));
+    t.field = QColor(QStringLiteral("#17191C"));
+    t.viewport = QColor(QStringLiteral("#0F1418"));
+    t.text = QColor(QStringLiteral("#F1F3F5"));
+    t.secondary = QColor(QStringLiteral("#A6AFBA"));
+    t.muted = QColor(QStringLiteral("#7F8995"));
+    t.border = QColor(QStringLiteral("#373D44"));
+    t.hover = QColor(QStringLiteral("#2A2F35"));
+    t.selection = QColor(QStringLiteral("#223A52"));
+    t.accent = QColor(QStringLiteral("#0A84FF"));
+    t.accentPressed = QColor(QStringLiteral("#0874DE"));
+    t.disabledText = QColor(QStringLiteral("#68717C"));
+    t.disabledSurface = QColor(QStringLiteral("#20242A"));
+    t.tooltip = QColor(QStringLiteral("#2A2F35"));
+    t.dark = true;
+    return t;
+}
+
+QPalette paletteFor(const ThemeTokens &t, const QPalette &system)
 {
     QPalette p(system);
-    p.setColor(QPalette::Window, QColor(QStringLiteral("#1D1D1F")));
-    p.setColor(QPalette::WindowText, QColor(QStringLiteral("#F5F5F7")));
-    p.setColor(QPalette::Base, QColor(QStringLiteral("#171719")));
-    p.setColor(QPalette::AlternateBase, QColor(QStringLiteral("#242426")));
-    p.setColor(QPalette::Text, QColor(QStringLiteral("#F2F2F7")));
+    p.setColor(QPalette::Window, t.window);
+    p.setColor(QPalette::WindowText, t.text);
+    p.setColor(QPalette::Base, t.field);
+    p.setColor(QPalette::AlternateBase, t.panel);
+    p.setColor(QPalette::Text, t.text);
     p.setColor(QPalette::BrightText, QColor(QStringLiteral("#FFFFFF")));
-    p.setColor(QPalette::Button, QColor(QStringLiteral("#2C2C2E")));
-    p.setColor(QPalette::ButtonText, QColor(QStringLiteral("#F2F2F7")));
-    p.setColor(QPalette::Light, QColor(QStringLiteral("#48484A")));
-    p.setColor(QPalette::Midlight, QColor(QStringLiteral("#3A3A3C")));
-    p.setColor(QPalette::Mid, QColor(QStringLiteral("#323234")));
-    p.setColor(QPalette::Dark, QColor(QStringLiteral("#202022")));
-    p.setColor(QPalette::Shadow, QColor(QStringLiteral("#111113")));
-    p.setColor(QPalette::Highlight, QColor(QStringLiteral("#0A84FF")));
+    p.setColor(QPalette::Button, t.raised);
+    p.setColor(QPalette::ButtonText, t.text);
+    p.setColor(QPalette::Highlight, t.accent);
     p.setColor(QPalette::HighlightedText, QColor(QStringLiteral("#FFFFFF")));
-    p.setColor(QPalette::ToolTipBase, QColor(QStringLiteral("#2C2C2E")));
-    p.setColor(QPalette::ToolTipText, QColor(QStringLiteral("#F2F2F7")));
-    p.setColor(QPalette::Link, QColor(QStringLiteral("#64D2FF")));
-    p.setColor(QPalette::PlaceholderText, QColor(QStringLiteral("#8E8E93")));
+    p.setColor(QPalette::ToolTipBase, t.tooltip);
+    p.setColor(QPalette::ToolTipText, t.text);
+    p.setColor(QPalette::Link, t.accent);
+    p.setColor(QPalette::PlaceholderText, t.muted);
+    p.setColor(QPalette::Light, t.raised.lighter(t.dark ? 118 : 106));
+    p.setColor(QPalette::Midlight, t.border.lighter(t.dark ? 112 : 103));
+    p.setColor(QPalette::Mid, t.border);
+    p.setColor(QPalette::Dark, t.border.darker(t.dark ? 135 : 108));
+    p.setColor(QPalette::Shadow, t.window.darker(t.dark ? 155 : 118));
 
-    // Disabled alanlar okunabilir kalır fakat aktif alanlarla karışmaz. macOS
-    // native widget style bazı editable kontrollerde yalnız QPalette'i kısmen
-    // uyguladığı için aşağıdaki semantic QSS ile birlikte kullanılır.
-    p.setColor(QPalette::Disabled, QPalette::WindowText, QColor(QStringLiteral("#8E8E93")));
-    p.setColor(QPalette::Disabled, QPalette::Text, QColor(QStringLiteral("#8E8E93")));
-    p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(QStringLiteral("#8E8E93")));
-    p.setColor(QPalette::Disabled, QPalette::Base, QColor(QStringLiteral("#222224")));
+    p.setColor(QPalette::Disabled, QPalette::WindowText, t.disabledText);
+    p.setColor(QPalette::Disabled, QPalette::Text, t.disabledText);
+    p.setColor(QPalette::Disabled, QPalette::ButtonText, t.disabledText);
+    p.setColor(QPalette::Disabled, QPalette::Base, t.disabledSurface);
+    p.setColor(QPalette::Disabled, QPalette::Button, t.disabledSurface);
     return p;
 }
 
-bool paletteIsDark(const QPalette &palette)
+QString css(const QColor &color)
 {
-    return palette.color(QPalette::Window).lightness() < 128;
+    return color.name(QColor::HexRgb);
 }
 
-QString darkSemanticStyleSheet()
+QString semanticStyleSheet(const ThemeTokens &t)
 {
-    // Alpha.1'de QSS bir skin değildir. Yalnız macOS native widget style'ın
-    // custom palette'i uygulamadığı yüzeylerde semantic palette rollerinin
-    // görünür karşılığını garanti eder. Layout/geometry bu katmanda değişmez.
+    // Bu katman görsel sistemdir; mühendislik widget'larının layout/ownership
+    // mimarisini değiştirmez. Aynı semantic token'lar Açık ve Koyu modda ayrı
+    // değer alır. Böylece bir moddan diğerine geçildiğinde eski QSS/palette
+    // kalıntıları taşınmaz ve Qt'nin macOS style farkları kontrol altına alınır.
     return QStringLiteral(R"(
-        QMainWindow,
-        QFrame#Dynamics26InspectorPanel,
-        QScrollArea,
-        QScrollArea > QWidget > QWidget {
-            background-color: #1D1D1F;
-            color: #F2F2F7;
-        }
-
-        QTreeWidget#Dynamics26Navigator {
-            background-color: #1B1B1D;
-            color: #EDEDF2;
-            border: 0;
-            outline: 0;
-            selection-background-color: #0A5EA8;
-            selection-color: #FFFFFF;
-        }
-        QTreeWidget#Dynamics26Navigator::item {
-            min-height: 22px;
-            padding: 1px 4px;
-            background: transparent;
-            color: #EDEDF2;
-        }
-        QTreeWidget#Dynamics26Navigator::item:hover {
-            background-color: #2A2A2D;
-        }
-        QTreeWidget#Dynamics26Navigator::item:selected {
-            background-color: #0A5EA8;
-            color: #FFFFFF;
-        }
-
-        QLineEdit,
-        QSpinBox,
-        QDoubleSpinBox,
-        QComboBox {
-            background-color: #2C2C2E;
-            color: #F2F2F7;
-            border: 1px solid #48484A;
-            border-radius: 4px;
-            min-height: 24px;
-            padding: 1px 6px;
-            selection-background-color: #0A84FF;
-            selection-color: #FFFFFF;
-        }
-        QLineEdit:focus,
-        QSpinBox:focus,
-        QDoubleSpinBox:focus,
-        QComboBox:focus {
-            border-color: #0A84FF;
-        }
-        QLineEdit:disabled,
-        QSpinBox:disabled,
-        QDoubleSpinBox:disabled,
-        QComboBox:disabled {
-            background-color: #222224;
-            color: #8E8E93;
-            border-color: #3A3A3C;
-        }
-        QComboBox QAbstractItemView {
-            background-color: #2C2C2E;
-            color: #F2F2F7;
-            border: 1px solid #48484A;
-            selection-background-color: #0A5EA8;
-            selection-color: #FFFFFF;
-        }
-
-        QPushButton {
-            background-color: #323234;
-            color: #F2F2F7;
-            border: 1px solid #48484A;
-            border-radius: 5px;
-            min-height: 24px;
-            padding: 2px 10px;
-        }
-        QPushButton:hover {
-            background-color: #3A3A3C;
-        }
-        QPushButton:pressed {
-            background-color: #242426;
-        }
-        QPushButton:disabled {
-            background-color: #252527;
-            color: #77777C;
-            border-color: #343436;
-        }
-
-        QToolButton {
-            color: #F2F2F7;
-            background-color: transparent;
-        }
-        QToolButton#Dynamics26AdvancedSolverDisclosure {
-            background-color: #2C2C2E;
-            color: #F2F2F7;
-            border: 1px solid #48484A;
-            border-radius: 4px;
-            padding: 4px 6px;
-            text-align: left;
-        }
-        QToolButton#Dynamics26AdvancedSolverDisclosure:hover {
-            background-color: #343436;
-        }
-
-        QGroupBox {
-            color: #F2F2F7;
-            border: 0;
-            background-color: transparent;
-        }
-        QLabel {
-            color: #F2F2F7;
-            background-color: transparent;
-        }
-
-        QTableWidget,
-        QPlainTextEdit {
-            background-color: #161618;
-            color: #EDEDF2;
-            border: 1px solid #3A3A3C;
-            gridline-color: #343436;
-            selection-background-color: #0A5EA8;
-            selection-color: #FFFFFF;
-        }
-        QHeaderView::section {
-            background-color: #2C2C2E;
-            color: #D1D1D6;
-            border: 0;
-            border-right: 1px solid #3A3A3C;
-            border-bottom: 1px solid #3A3A3C;
-            padding: 4px 6px;
-        }
-
-        QTabWidget::pane {
-            background-color: #1D1D1F;
-            border: 1px solid #3A3A3C;
-        }
-        QTabBar::tab {
-            background-color: #242426;
-            color: #AEAEB2;
-            border: 0;
-            padding: 5px 11px;
-        }
-        QTabBar::tab:selected {
-            background-color: #343436;
-            color: #FFFFFF;
-        }
-
-        QStatusBar {
-            background-color: #1D1D1F;
-            color: #D1D1D6;
-            border-top: 1px solid #3A3A3C;
-        }
-        QStatusBar QLabel,
-        QStatusBar QToolButton {
-            color: #D1D1D6;
-            background: transparent;
-        }
-
-        QToolTip {
-            background-color: #2C2C2E;
-            color: #F2F2F7;
-            border: 1px solid #48484A;
-            padding: 4px 6px;
-        }
-    )");
+QMainWindow {
+    background: %1;
+    color: %6;
 }
 
-void updateViewportAppearance(QMainWindow &window, bool dark)
+QToolBar#Dynamics26MainToolbar {
+    background: %2;
+    border: 0;
+    border-bottom: 1px solid %9;
+    spacing: 4px;
+    padding: 2px 6px;
+}
+QToolBar#Dynamics26MainToolbar QToolButton {
+    min-width: 26px;
+    min-height: 26px;
+    max-width: 30px;
+    max-height: 30px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 2px;
+    background: transparent;
+    color: %6;
+}
+QToolBar#Dynamics26MainToolbar QToolButton:hover {
+    background: %10;
+    border-color: %9;
+}
+QToolBar#Dynamics26MainToolbar QToolButton:checked {
+    background: %11;
+    border-color: %13;
+}
+
+QFrame#Dynamics26NavigatorPanel,
+QFrame#Dynamics26InspectorPanel {
+    background: %2;
+    color: %6;
+    border: 0;
+}
+QFrame#Dynamics26NavigatorPanel {
+    border-right: 1px solid %9;
+}
+QFrame#Dynamics26InspectorPanel {
+    border-left: 1px solid %9;
+}
+QFrame#Dynamics26NavigatorPanel > QLabel,
+QFrame#Dynamics26InspectorPanel > QLabel {
+    background: transparent;
+    color: %6;
+}
+
+QTreeWidget#Dynamics26Navigator {
+    background: %2;
+    color: %6;
+    border: 0;
+    outline: 0;
+    alternate-background-color: %2;
+    selection-background-color: %11;
+    selection-color: %6;
+}
+QTreeWidget#Dynamics26Navigator::item {
+    min-height: 24px;
+    padding: 1px 5px;
+    border: 0;
+    color: %6;
+}
+QTreeWidget#Dynamics26Navigator::item:hover {
+    background: %10;
+}
+QTreeWidget#Dynamics26Navigator::item:selected {
+    background: %11;
+    color: %6;
+}
+QTreeWidget#Dynamics26Navigator::branch {
+    background: transparent;
+}
+
+QScrollArea,
+QScrollArea > QWidget > QWidget,
+QStackedWidget#Dynamics26EngineeringInspector {
+    background: %2;
+    color: %6;
+    border: 0;
+}
+QGroupBox {
+    background: transparent;
+    color: %6;
+    border: 0;
+    margin-top: 2px;
+}
+QLabel {
+    background: transparent;
+    color: %6;
+}
+
+QLineEdit,
+QSpinBox,
+QDoubleSpinBox,
+QComboBox {
+    background: %4;
+    color: %6;
+    border: 1px solid %9;
+    border-radius: 4px;
+    min-height: 24px;
+    padding: 1px 6px;
+    selection-background-color: %13;
+    selection-color: white;
+}
+QLineEdit:hover,
+QSpinBox:hover,
+QDoubleSpinBox:hover,
+QComboBox:hover {
+    border-color: %8;
+}
+QLineEdit:focus,
+QSpinBox:focus,
+QDoubleSpinBox:focus,
+QComboBox:focus {
+    border-color: %13;
+}
+QLineEdit:disabled,
+QSpinBox:disabled,
+QDoubleSpinBox:disabled,
+QComboBox:disabled {
+    background: %16;
+    color: %15;
+    border-color: %9;
+}
+QComboBox QAbstractItemView {
+    background: %3;
+    color: %6;
+    border: 1px solid %9;
+    selection-background-color: %11;
+    selection-color: %6;
+}
+
+QPushButton {
+    background: %3;
+    color: %6;
+    border: 1px solid %9;
+    border-radius: 4px;
+    min-height: 25px;
+    padding: 2px 10px;
+}
+QPushButton:hover {
+    background: %10;
+    border-color: %8;
+}
+QPushButton:pressed {
+    background: %11;
+}
+QPushButton:disabled {
+    background: %16;
+    color: %15;
+    border-color: %9;
+}
+QPushButton#Dynamics26IntegratedSolve:enabled {
+    background: %13;
+    color: white;
+    border-color: %13;
+    font-weight: 600;
+}
+QPushButton#Dynamics26IntegratedSolve:enabled:hover {
+    background: %14;
+    border-color: %14;
+}
+
+QCheckBox,
+QRadioButton {
+    color: %6;
+    spacing: 6px;
+}
+QCheckBox:disabled,
+QRadioButton:disabled {
+    color: %15;
+}
+
+QToolButton {
+    color: %6;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 3px 5px;
+}
+QToolButton:hover {
+    background: %10;
+    border-color: %9;
+}
+QToolButton#Dynamics26AdvancedSolverDisclosure {
+    background: %3;
+    color: %6;
+    border: 1px solid %9;
+    border-radius: 4px;
+    padding: 5px 7px;
+    text-align: left;
+    font-weight: 500;
+}
+QToolButton#Dynamics26AdvancedSolverDisclosure:hover {
+    background: %10;
+}
+QToolButton#Dynamics26DiagnosticsHandle {
+    color: %7;
+    padding: 1px 6px;
+}
+
+QDockWidget#Dynamics26UtilityArea {
+    background: %2;
+    color: %6;
+    border-top: 1px solid %9;
+}
+QTabWidget#Dynamics26UtilityTabs::pane {
+    background: %2;
+    border: 0;
+    border-top: 1px solid %9;
+}
+QTabWidget#Dynamics26UtilityTabs QTabBar::tab {
+    background: transparent;
+    color: %7;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    min-height: 24px;
+    padding: 3px 12px;
+}
+QTabWidget#Dynamics26UtilityTabs QTabBar::tab:hover {
+    color: %6;
+    background: %10;
+}
+QTabWidget#Dynamics26UtilityTabs QTabBar::tab:selected {
+    color: %6;
+    border-bottom-color: %13;
+    font-weight: 600;
+}
+
+QTableWidget,
+QTableView,
+QPlainTextEdit,
+QTextEdit {
+    background: %3;
+    color: %6;
+    border: 0;
+    gridline-color: %9;
+    selection-background-color: %11;
+    selection-color: %6;
+}
+QHeaderView::section {
+    background: %2;
+    color: %7;
+    border: 0;
+    border-right: 1px solid %9;
+    border-bottom: 1px solid %9;
+    padding: 4px 7px;
+    font-weight: 600;
+}
+
+QStatusBar {
+    background: %2;
+    color: %7;
+    border-top: 1px solid %9;
+    min-height: 22px;
+}
+QStatusBar QLabel,
+QStatusBar QToolButton {
+    background: transparent;
+    color: %7;
+}
+
+QSplitter::handle {
+    background: %9;
+}
+QSplitter::handle:horizontal {
+    width: 1px;
+}
+QSplitter::handle:vertical {
+    height: 1px;
+}
+
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 2px 1px;
+}
+QScrollBar::handle:vertical {
+    background: %8;
+    min-height: 28px;
+    border-radius: 4px;
+}
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: transparent;
+    height: 0;
+}
+QScrollBar:horizontal {
+    background: transparent;
+    height: 10px;
+    margin: 1px 2px;
+}
+QScrollBar::handle:horizontal {
+    background: %8;
+    min-width: 28px;
+    border-radius: 4px;
+}
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal,
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal {
+    background: transparent;
+    width: 0;
+}
+
+QToolTip {
+    background: %17;
+    color: %6;
+    border: 1px solid %9;
+    padding: 4px 6px;
+}
+)")
+        .arg(css(t.window))
+        .arg(css(t.panel))
+        .arg(css(t.raised))
+        .arg(css(t.field))
+        .arg(css(t.viewport))
+        .arg(css(t.text))
+        .arg(css(t.secondary))
+        .arg(css(t.muted))
+        .arg(css(t.border))
+        .arg(css(t.hover))
+        .arg(css(t.selection))
+        .arg(css(t.accent))
+        .arg(css(t.accent))
+        .arg(css(t.accentPressed))
+        .arg(css(t.disabledText))
+        .arg(css(t.disabledSurface))
+        .arg(css(t.tooltip));
+}
+
+void refreshWidgetStyles(QMainWindow &window)
+{
+    const auto widgets = window.findChildren<QWidget *>();
+    for (auto *widget : widgets) {
+        if (widget == nullptr || widget->style() == nullptr) {
+            continue;
+        }
+        widget->style()->unpolish(widget);
+        widget->style()->polish(widget);
+        widget->update();
+    }
+    window.update();
+}
+
+void updateViewportAppearance(QMainWindow &window, const ThemeTokens &t)
 {
 #ifdef FEMCAE_GUI_HAS_VTK
     const auto vtkWidgets = window.findChildren<QVTKOpenGLNativeWidget *>();
@@ -295,41 +525,54 @@ void updateViewportAppearance(QMainWindow &window, bool dark)
         if (renderers == nullptr) {
             continue;
         }
+
         renderers->InitTraversal();
         while (auto *renderer = renderers->GetNextItem()) {
-            if (dark) {
-                renderer->SetBackground(0.055, 0.067, 0.075);
+            if (t.dark) {
+                renderer->SetBackground(0.055, 0.071, 0.083);
             } else {
-                renderer->SetBackground(0.965, 0.968, 0.975);
+                renderer->SetBackground(0.953, 0.961, 0.973);
             }
 
-            // Result scalar map'lerine dokunulmaz. Yalnız neutral/wireframe
-            // geometri ve mesh çizgileri dark viewport üzerinde okunabilir hale
-            // getirilir; böylece Geometry/Mesh/Analysis semantiği korunur.
+            // Result scalar map'leri korunur. Neutral Geometry/Mesh/Analysis
+            // actor'ları ise her tema geçişinde iki yönde de açıkça yeniden
+            // renklendirilir. Bu, Dark -> Light geçişinde kalan koyu/blue actor
+            // kalıntılarını da ortadan kaldırır.
             auto *actors = renderer->GetActors();
-            if (actors != nullptr) {
-                actors->InitTraversal();
-                while (auto *actor = actors->GetNextActor()) {
-                    auto *property = actor->GetProperty();
-                    auto *mapper = actor->GetMapper();
-                    if (property == nullptr) {
-                        continue;
-                    }
+            if (actors == nullptr) {
+                continue;
+            }
+            actors->InitTraversal();
+            while (auto *actor = actors->GetNextActor()) {
+                auto *property = actor->GetProperty();
+                auto *mapper = actor->GetMapper();
+                if (property == nullptr) {
+                    continue;
+                }
 
-                    if (property->GetEdgeVisibility()) {
-                        if (dark) {
-                            property->SetEdgeColor(0.70, 0.74, 0.80);
-                        } else {
-                            property->SetEdgeColor(0.18, 0.20, 0.24);
-                        }
-                    }
+                const bool scalarMapped = mapper != nullptr && mapper->GetScalarVisibility() != 0;
+                if (scalarMapped) {
+                    continue;
+                }
 
-                    const bool scalarMapped = mapper != nullptr && mapper->GetScalarVisibility() != 0;
-                    if (!scalarMapped && property->GetRepresentation() == VTK_WIREFRAME) {
-                        if (dark) {
-                            property->SetColor(0.48, 0.68, 0.92);
-                        }
+                if (property->GetRepresentation() == VTK_WIREFRAME) {
+                    if (t.dark) {
+                        property->SetColor(0.72, 0.78, 0.86);
+                    } else {
+                        property->SetColor(0.24, 0.29, 0.35);
                     }
+                    property->SetLineWidth(1.35);
+                }
+
+                if (property->GetEdgeVisibility()) {
+                    if (t.dark) {
+                        property->SetColor(0.32, 0.36, 0.42);
+                        property->SetEdgeColor(0.62, 0.67, 0.74);
+                    } else {
+                        property->SetColor(0.72, 0.76, 0.82);
+                        property->SetEdgeColor(0.27, 0.31, 0.37);
+                    }
+                    property->SetLineWidth(1.0);
                 }
             }
         }
@@ -337,7 +580,7 @@ void updateViewportAppearance(QMainWindow &window, bool dark)
     }
 #else
     Q_UNUSED(window)
-    Q_UNUSED(dark)
+    Q_UNUSED(t)
 #endif
 }
 
@@ -384,9 +627,9 @@ private:
             group->addAction(action);
         }
 
-        systemAction_->setToolTip(QStringLiteral("Dynamics26 görünümünü macOS sistem görünümüyle başlat"));
-        lightAction_->setToolTip(QStringLiteral("Dynamics26 için açık görünümü kullan"));
-        darkAction_->setToolTip(QStringLiteral("Dynamics26 için koyu görünümü kullan"));
+        systemAction_->setToolTip(QStringLiteral("Dynamics26 görünümünü macOS sistem görünümüyle eşleştir"));
+        lightAction_->setToolTip(QStringLiteral("Dynamics26 açık görünümünü kullan"));
+        darkAction_->setToolTip(QStringLiteral("Dynamics26 koyu görünümünü kullan"));
 
         connect(systemAction_, &QAction::triggered, this, [this] { apply(AppearanceMode::System, true); });
         connect(lightAction_, &QAction::triggered, this, [this] { apply(AppearanceMode::Light, true); });
@@ -413,42 +656,42 @@ private:
         }
         connect(navigator, &QTreeWidget::currentItemChanged, this,
                 [this](QTreeWidgetItem *, QTreeWidgetItem *) {
-                    // Navigator selection handler önce viewport içeriğini değiştirir.
-                    // Bir event-loop tick sonra active theme'in neutral actor renkleri
-                    // yeni VTK actor'larına tekrar uygulanır.
                     QTimer::singleShot(0, this, [this] {
-                        updateViewportAppearance(window_, currentDark_);
+                        updateViewportAppearance(window_, currentTheme_);
                     });
                 });
     }
 
     void apply(AppearanceMode mode, bool persist)
     {
-        QPalette palette;
         QString setting;
         if (mode == AppearanceMode::Dark) {
-            palette = darkPalette(systemPalette_);
+            currentTheme_ = darkTokens();
             setting = QStringLiteral("dark");
             if (darkAction_ != nullptr) darkAction_->setChecked(true);
         } else if (mode == AppearanceMode::Light) {
-            palette = lightPalette(systemPalette_);
+            currentTheme_ = lightTokens();
             setting = QStringLiteral("light");
             if (lightAction_ != nullptr) lightAction_->setChecked(true);
         } else {
-            palette = systemPalette_;
+            currentTheme_ = systemPalette_.color(QPalette::Window).lightness() < 128
+                ? darkTokens() : lightTokens();
             setting = QStringLiteral("system");
             if (systemAction_ != nullptr) systemAction_->setChecked(true);
         }
 
-        currentDark_ = paletteIsDark(palette);
+        const QPalette palette = paletteFor(currentTheme_, systemPalette_);
         app_.setPalette(palette);
         window_.setPalette(palette);
 
-        // System/Light için native Qt/macOS görünümü korunur. Forced Dark'ta ise
-        // yalnız palette'i görmezden gelen native-style kontroller hedefli QSS ile
-        // düzeltilir; bu Alpha.1'in eski global light-only QSS yaklaşımına dönüşmez.
-        window_.setStyleSheet(mode == AppearanceMode::Dark ? darkSemanticStyleSheet() : QString());
-        updateViewportAppearance(window_, currentDark_);
+        // Her geçişte stylesheet tamamen yeniden kurulur. Özellikle Dark -> Light
+        // dönüşünde önceki modun field/tree/table kuralları hiçbir widget üzerinde
+        // kalmaz. Bu yaklaşım Alpha.1'in görünür shell'ini tek bir design-system
+        // otoritesine bağlar.
+        window_.setStyleSheet(QString());
+        window_.setStyleSheet(semanticStyleSheet(currentTheme_));
+        refreshWidgetStyles(window_);
+        updateViewportAppearance(window_, currentTheme_);
 
         if (persist) {
             QSettings settings;
@@ -459,7 +702,7 @@ private:
     QApplication &app_;
     QMainWindow &window_;
     QPalette systemPalette_;
-    bool currentDark_ = false;
+    ThemeTokens currentTheme_ = lightTokens();
     QAction *systemAction_ = nullptr;
     QAction *lightAction_ = nullptr;
     QAction *darkAction_ = nullptr;
