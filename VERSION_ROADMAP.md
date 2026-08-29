@@ -1,220 +1,367 @@
-# FEMCAE — Sürüm Yol Haritası ve Kullanılabilirlik Özeti
+# Dynamics26 — Sürüm Yol Haritası ve Kullanılabilirlik Özeti
 
-Bu belge, `MASTER_ROADMAP.md` içindeki ayrıntılı planın kısa ve sürüm bazlı çalışma özetidir.
-Her sürüm bağımsız ZIP teslimi, test kaydı ve değişiklik günlüğü ile kapatılacaktır.
+Bu belge Dynamics26 için sürüm bazlı ana çalışma planıdır. V0.x–V1.0.2 döneminin ayrıntılı teknik kayıtları `docs/development/*_AUDIT.md`, `CHANGELOG.md` ve mimari belgelerde korunur. V1.1.0 sonrasındaki onaylı uzun dönem planının ayrıntısı `docs/planning/DYNAMICS26_LONG_TERM_PLAN.md` içindedir.
 
-| Sürüm | Ana hedef | Kullanıcı açısından durum |
+## Proje geliştirme ilkesi
+
+Dynamics26, Code_Aster veya başka bir CAE yazılımının kaynak kodunu kopyalayan/port eden bir proje değildir. Dış yazılımlar özellik, kullanıcı akışı, mühendislik davranışı ve sonuç karşılaştırması için araştırma referansı olabilir. Yeni fizik ve sayısal algoritmalar continuum mechanics, FEM teorisi, akademik literatür ve bağımsız benchmark'lardan türetilerek Dynamics26 mimarisinde özgün olarak geliştirilir.
+
+Standart geliştirme zinciri:
+
+```text
+Research
+→ Physics / Mathematics
+→ Mathematical Formulation
+→ Numerical Algorithm
+→ Dynamics26 Architecture
+→ Implementation
+→ Verification / Benchmark
+→ Regression
+→ macOS CI
+→ Version Close
+```
+
+Değişmez mimari kural:
+
+```text
+CAD Geometry != Display Tessellation != FEM Mesh
+```
+
+Ana geliştirme dalı yalnız `main`'dir; sürüm geçmişi version/tag/release ile yönetilir.
+
+## Tamamlanan temel sürümler
+
+| Sürüm | Ana hedef | Durum |
 |---|---|---|
-| **V0.1.1** | Numerical & Architectural Foundation Hardening | Geliştirici çekirdeği; temel sözleşmeler ve CI/test altyapısı |
-| **V0.2.0** | Model / Mesh / Field / DOF / Numbering | **Tamamlandı — gerçek FEM veri modelinin temeli** |
-| **V0.3.0** | Element Kernel / Shape Functions / Quadrature | **Tamamlandı — element-local geometri ve kinematik çekirdeği** |
-| **V0.4.0** | Sparse Assembly / macOS Linear Solver | **Tamamlandı — ilk global assembled lineer çözüm altyapısı** |
-| **V0.5.0** | Linear Structural FEM + İlk Qt GUI | **Core tamamlandı; ilk Qt/VTK GUI kaynak sürümü — native macOS CI gate açık** |
-| **V0.6.0** | Element ailesi genişletme + Modal | **Tamamlandı — modal core + GUI source entegrasyonu; native macOS gate açık** |
-| **V0.7.0** | Finite Strain / Geometric Nonlinearity | **Tamamlandı — TL HEX8 + consistent tangent + nonlinear assembly foundation** |
-| **V0.8.0** | Newton / Line Search / Adaptive Stepping | **Tamamlandı — nonlinear solver + ilk nonlinear GUI source; native macOS gate açık** |
-| **V0.9.0** | Hyperelastic + Plastic Constitutive Models | **Tamamlandı — hyperelastic TL-HEX8/Newton + J2 material-point baseline; native macOS GUI gate açık** |
-| **V0.10.0** | Mixed `u-p` / Incompressibility | **Tamamlandı — HEX8/Q1-P0 mixed core + locking verification; native macOS GUI gate açık** |
-| **V0.11.0** | Contact / Friction | **Tamamlandı — rigid-master node-to-facet contact/friction baseline; native macOS GUI gate açık** |
-| **V0.12.0** | CAD / Geometry / Sections | **Tamamlandı — portable geometry/section core + OCCT STEP source integration; native macOS OCCT/GUI gate açık** |
-| **V0.13.0** | Meshing + Full Pre/Post Integration | **Tamamlandı — structured/external HEX8 + provenance + generic linear solve + pre/post baseline; native macOS CAD/GUI gate açık** |
-| **V1.0.0** | Verification / Hardening / macOS Release | **Portable source verification tamamlandı — 123/123 Debug+Release; native signed/notarized macOS binary gate açık** |
-| **V1.0.1** | macOS Release Engineering Hardening | **Portable 123/123 Debug+Release; project migration + signed/notarized workflow hazır; native binary evidence gate açık** |
-| **V1.0.2** | Repository / Reproducible Release Hardening | **Portable 124/124 Debug+Release; deterministic source + Git bootstrap hazır; remote/native CI evidence gate açık** |
+| **V0.1.1** | Numerical & Architectural Foundation Hardening | Tamamlandı — Modern Fortran/C ABI/test foundation |
+| **V0.2.0** | Model / Mesh / Field / DOF / Numbering | Tamamlandı — gerçek FEM veri modeli temeli |
+| **V0.3.0** | Element Kernel / Shape Functions / Quadrature | Tamamlandı — element-local geometri ve kinematik çekirdeği |
+| **V0.4.0** | Sparse Assembly / macOS Linear Solver | Tamamlandı — global sparse assembly ve solver facade |
+| **V0.5.0** | Linear Structural FEM + İlk Qt GUI | Tamamlandı — lineer core ve ilk Qt/VTK GUI kaynak yapısı |
+| **V0.6.0** | Element ailesi genişletme + Modal | Tamamlandı — modal core ve mode-shape yolu |
+| **V0.7.0** | Finite Strain / Geometric Nonlinearity | Tamamlandı — TL HEX8 ve consistent tangent foundation |
+| **V0.8.0** | Newton / Line Search / Adaptive Stepping | Tamamlandı — nonlinear solver, rollback ve convergence history |
+| **V0.9.0** | Hyperelastic + Plastic Constitutive Models | Tamamlandı — hyperelastic global baseline + J2 material-point baseline |
+| **V0.10.0** | Mixed `u-p` / Incompressibility | Tamamlandı — HEX8/Q1-P0 mixed baseline + locking verification |
+| **V0.11.0** | Contact / Friction | Tamamlandı — rigid-master contact/friction baseline |
+| **V0.12.0** | CAD / Geometry / Sections | Tamamlandı — OCCT STEP source integration ve section foundation |
+| **V0.13.0** | Meshing + Full Pre/Post Integration | Tamamlandı — structured/external HEX8, provenance ve pre/post baseline |
+| **V1.0.0** | Verification / Hardening / macOS Release | Tamamlandı — source verification/hardening foundation |
+| **V1.0.1** | macOS Release Engineering Hardening | Tamamlandı — bundle/release engineering source altyapısı |
+| **V1.0.2** | Repository / Reproducible Release Hardening | Tamamlandı — reproducibility/repository hardening; strict macOS standalone CI kanıtı ayrıca alınmıştır |
 
-## Sürüm özetleri
+> V1.0.2 döneminde GitHub-hosted Apple Silicon koşusunda standalone `.app`, ad-hoc code-sign, bundle smoke, strict Mach-O dependency audit ve artifact upload başarıyla doğrulanmıştır. Bu kanıt production Developer ID notarization anlamına gelmez.
 
-### V0.1.1 — Foundation Hardening
+## Onaylı V1.1.0–V2.0.0 ana yol haritası
 
-- Modern Fortran 2018 foundation, tensor/Voigt ve state sözleşmeleri korunur.
-- C API sürüm sınırı ve schema sürümleri ayrıdır.
-- macOS arm64 CI Debug + Release olarak çalışır.
-- CI yalnızca mimariyi yazdırmaz; `arm64` değilse başarısız olur.
-- Kurulum dizilimi ve kurulu C API consumer smoke testi CI gate'ine eklenir.
-- V0.2 öncesi hata-yolu ve tolerans testleri genişletilir.
+| Sürüm | Ana hedef | Planlanan kullanıcı/teknik kazanım |
+|---|---|---|
+| **V1.1.0** | GUI / UI / UX + Dynamics26 Identity | Profesyonel CAE application shell, project workflow ve kullanıcıya görünen Dynamics26 adı |
+| **V1.2.0** | General CAD & Geometry Platform | Genel CAD import/modelleme, healing/repair ve topology/provenance |
+| **V1.3.0** | General FEM Meshing | 1D/2D/3D genel meshing, local controls ve quality framework |
+| **V1.4.0** | Advanced Element Library | Beam/shell/solid/higher-order/mixed element ailesi ve certification |
+| **V1.5.0** | Physics & Mathematics Verification Audit | Mevcut fiziğin, matematiğin ve tangent/residual zincirinin bağımsız audit'i |
+| **V1.6.0** | Code Quality & Reliability Audit | Fortran/C/C++/ABI static/dynamic quality ve reliability hardening |
+| **V1.7.0** | Inter-module Communication & Performance | Qt/C++/OCCT/VTK/C ABI/Fortran veri yolunun hız ve mimari iyileştirmesi |
+| **V1.8.0** | Advanced Nonlinear Mechanics | İleri nonlinear çözüm kontrolü, finite-strain constitutive ve robust convergence |
+| **V1.9.0** | Advanced Contact | Deformable/deformable, surface-to-surface, finite sliding ve ileri friction/contact |
+| **V1.10.0** | Advanced Meshing & Adaptivity | Error estimation, adaptive refinement, remesh ve state transfer |
+| **V1.11.0** | Large-Scale Solver & Performance | Büyük sparse sistemler, ileri solver backend'leri ve ölçeklenebilir performans |
+| **V1.12.0** | Advanced Postprocessing | Profesyonel contour/probe/path/cut/history/comparison ve large-result workflow |
+| **V1.13.0** | Dynamics | Modal genişletme, harmonic, transient, spectrum, random ve nonlinear dynamics |
+| **V2.0.0** | Integrated CAE Qualification | CAD→mesh→analysis→solve→results zincirinin production qualification sürümü |
 
-### V0.2.0 — Model / Mesh / Field / DOF / Numbering ✅
+Bu başlıklar Dynamics26'nın ana ürün sütunlarıdır. Alt kapsam research sonuçlarına göre değişebilir; ana sütunların kaldırılması açık proje kararı gerektirir.
 
-- Node ve element storage.
-- Persistent entity ID sistemi.
-- Field registry: displacement, pressure ve gelecekte rotational/thermal alanlara açık yapı.
-- Constraint ve deterministic equation numbering.
-- Local coordinate frame.
-- Topology registry, node/element sets ve material/section ID baglantilari.
-- Mixed displacement + pressure + rotation numbering regression testi.
-- Temel kural: `Node ID != Array Index != DOF ID != Equation ID`.
+## V1.1.0 — GUI / UI / UX + Dynamics26 Identity
 
-### V0.3.0 — Element Kernel ✅
+**Aktif sonraki sürüm.**
 
-- Shape functions, doğal koordinatlar ve Jacobian.
-- Gauss quadrature ve isoparametric mapping.
-- BAR/TRUSS, QUAD4, axisymmetric QUAD4 ve HEX8 prototipleri.
-- İlk gerçek patch testleri ve inverted-element kontrolleri.
-- Ölçekten bağımsız Jacobian singularity kontrolü.
-- Beam/shell için rotation + section metadata prototype arayüzü.
+Ana hedef mevcut engineering/debug GUI'yi profesyonel macOS-first CAE iş akışına dönüştürmektir. Yeni solver fiziği bu sürümün ana hedefi değildir.
 
-### V0.4.0 — Sparse Assembly / Linear Solver ✅
+Research kapsamı:
 
-- Element DOF/equation map ve dense adjacency kullanmayan sparsity graph.
-- CSR global matrix, generic matrix/vector scatter ve stiffness/tangent/mass assembly altyapısı.
-- Sıfır olmayan prescribed displacement RHS correction ve DOF-ID tabanlı reaction recovery.
-- Backend bağımsız `LinearSolver` facade.
-- Dense reference + sparse Jacobi-CG solver.
-- macOS için ISO_C_BINDING/C adapter üzerinden Apple Accelerate Sparse direct backend.
-- İlk gerçek assembled two-TRUSS2 verification ve force-equilibrium testi.
+- ANSYS Mechanical,
+- Hexagon Marc / Mentat,
+- Simufact,
+- Abaqus/CAE,
+- COMSOL,
+- Altair HyperMesh / HyperView,
+- gerektiğinde Simcenter,
+- Apple macOS Human Interface Guidelines.
 
-### V0.5.0 — Linear FEM + İlk Qt GUI ✅ core / GUI source
+Research yöntemi:
 
-- Linear elastic material, sections, nodal loads ve generic LinearStaticAnalysis driver.
-- Truss, 2B beam, plane stress/strain, axisymmetric QUAD4 ve HEX8 lineer formulation'ları.
-- Stress/strain recovery, von Mises ve reaction sonuç altyapısı.
-- İlk Qt 6 GUI: model tree, material/section/load/BC/analysis panelleri, results/log ve optional VTK viewport.
-- GUI → public C ABI → Fortran engine sınırı korunur.
-- V0.5 GUI solve preview axial-bar C-API preset'i kullanır; arbitrary mesh/model preprocessor tamamlandı iddiası yoktur.
-- Native macOS Qt/VTK app build sonucu release gate olarak açıktır.
+```text
+Observed Pattern
+→ User Problem
+→ Engineering/UX Benefit
+→ Risk/Trade-off
+→ Dynamics26: Adopt / Adapt / Reject
+```
 
-### V0.6.0 — Modal + Element Ailesi ✅
+Hedef GUI mimarisi:
 
-- TRUSS2, 2B beam, plane/axisymmetric QUAD4 ve HEX8 consistent/lumped mass matrix.
-- Genel `Kφ = λMφ` modal analysis driver.
-- Dense reference, gerçek ARPACK-NG ve macOS Accelerate/LAPACK backend kaynakları.
-- Frequency, mass-normalized mode shape ve modal residual.
-- Beam/shell için `orientation_frame_id` metadata ve frame validation.
-- C API modal preset; Qt mode seçimi ve VTK mode-shape animasyonu.
-- `VER-V060-001` axial discrete-FE ve `VER-V060-002` cantilever beam doğrulaması.
-- Büyük model sparse shift-invert performansı V0.6 kapsam iddiası değildir; native macOS backend/GUI execution gate açıktır.
+```text
+┌────────────────────────────────────────────────────────────┐
+│ Dynamics26       Context Toolbar / Search                  │
+├──────────────┬─────────────────────────────┬───────────────┤
+│ Project      │                             │ Inspector     │
+│ Navigator    │        3D Viewport          │               │
+│              │                             │ Properties    │
+│ Geometry     │                             │ Scope         │
+│ Materials    │                             │ Definition    │
+│ Connections  │                             │ Advanced      │
+│ Mesh         │                             │               │
+│ Analyses     │                             │               │
+│ Results      │                             │               │
+├──────────────┴─────────────────────────────┴───────────────┤
+│ Diagnostics / Solve / Convergence / Messages        ▲     │
+└────────────────────────────────────────────────────────────┘
+```
 
-### V0.7.0 — Finite Strain ✅
+V1.1 aynı zamanda kullanıcıya görünen `FEMCAE → Dynamics26` migration sürümüdür. Internal/public `femcae_*`, `libfemcae`, `FEMCAE_*` gibi API/CMake isimleri ABI/API etkisi denetlenmeden topluca değiştirilmez.
 
-- Reference/current configuration, deformation gradient `F`, `J`, Green-Lagrange ve Euler-Almansi strain.
-- Stress-measure dönüşümleri: PK2 → PK1 / Kirchhoff / Cauchy.
-- Total Lagrangian HEX8 baseline ve StVK reference constitutive law.
-- Material + geometric tangent ayrımı ve 24-DOF finite-difference consistent-tangent verification.
-- Global sparse nonlinear `f_int`, `R=f_ext-f_int` ve tangent evaluator; Newton iterasyonu V0.8'e bırakılır.
-- Pure rigid rotation ve superposed rigid rotation objectivity verification.
-- Follower-load reference/current configuration metadata; gerçek surface follower-load integrasyonu sonraki sürümdedir.
+Ayrıntılı plan: `docs/planning/V1.1_GUI_UX_PLAN.md`.
 
-### V0.8.0 — Nonlinear Solver ✅
+## V1.2.0 — General CAD & Geometry Platform
 
-- Full Newton-Raphson ve modified Newton.
-- Residual, displacement-correction ve opsiyonel energy convergence kriterleri.
-- Backtracking line search.
-- Load stepping, adaptive increment growth, cutback ve retry.
-- Trial/commit/revert ile başarısız step rollback semantiği.
-- Iteration/step convergence history.
-- In-memory checkpoint/restart foundation ve continuation verification.
-- C API üzerinden gerçek TL-HEX8 nonlinear solve + history export.
-- Qt `Nonlinear Static / Large Displacement` paneli, Newton ayarları ve convergence tablosu.
-- VTK nonlinear deformed HEX8 preset görünümü.
-- V0.8 load-control baseline nonzero prescribed-displacement stepping veya arc-length/Riks içermez.
-- StVK yalnız verification material'ıdır; rubber hyperelasticity V0.9 kapsamındadır.
+- arbitrary curved CAD,
+- STEP / IGES / BREP,
+- parts/bodies/faces/edges/assemblies,
+- primitives ve temel modeling operations,
+- boolean,
+- fillet/chamfer,
+- transformations,
+- healing/repair,
+- defeaturing,
+- partition/imprint,
+- named geometry,
+- persistent selection/topological naming research,
+- CAD-to-mesh provenance.
 
-### V0.9.0 — Nonlinear Constitutive Models ✅
+## V1.3.0 — General FEM Meshing
 
-- Ortak constitutive material-point response sınırı; stress/tangent measure explicit metadata.
-- Neo-Hookean, Mooney-Rivlin, Yeoh ve 1–3 terimli Ogden.
-- Isochoric + volumetric penalty strain-energy ayrımı ve production analytic/consistent tangent.
-- Ogden signed `mu_i` fitting desteği; `sum(mu_i)>0` initial shear gate ve near-repeated principal-stretch tangent regression.
-- Hyperelastic Total-Lagrangian HEX8 ve V0.8 Newton solver ile gerçek global entegrasyon.
-- J2 von Mises small-strain + isotropic hardening + radial return + consistent algorithmic tangent.
-- J2 committed/trial state ve rollback-compatible state lifecycle; global plastic element entegrasyonu henüz kapsam dışıdır.
-- Qt Material Studio source: hyperelastic model seçimi, parameter editor, birimler, engine validation, `G0` ve engine-side isochoric uniaxial preview.
-- Sekiz V0.9 verification: energy/stress, material tangent, HEX8 tangent, Newton equilibrium, J2 return-map ve Ogden spectral hardening.
-- Penalty volumetric response mixed `u-p` değildir; nearly incompressible locking çözümü V0.10'a aittir.
+- 1D line mesh,
+- TRIA / QUAD,
+- TET / HEX,
+- wedge/pyramid topology hazırlığı,
+- global/local sizing,
+- curvature-aware controls,
+- boundary-layer research,
+- quality metrics,
+- geometry-aware entity association,
+- mesh import/export.
 
-### V0.10.0 — Mixed `u-p` / Incompressibility ✅
+Tam otomatik production all-hex meshing bu sürüm için zorunlu kapsam değildir.
 
-- `pressure_p0` element-associated pressure field ve Q1/P0 HEX8 mixed DOF map.
-- Perturbed-Lagrangian `W_iso + p(J-1) - p^2/(2K)` residual/tangent formulation.
-- `K_uu`, `K_up`, `K_pu`, `K_pp` bloklarının analytic/consistent assembly'si.
-- Global sparse mixed system ve displacement/pressure blok-bilinçli nonlinear convergence.
-- Symmetric-indefinite sistemlerde CG backend'inin explicit rejection'ı; direct backend baseline.
-- Element-ID tabanlı P0 pressure result recovery ve C API mixed simple-shear verification preset'i.
-- Local + global tangent finite-difference verification, isochoric mixed Newton ve penalty-vs-mixed locking benchmark.
-- Q1/P0 controlled baseline; stabilized Q1/Q1/higher-order mixed element veya universal inf-sup stability iddiası yoktur.
-- Contact bilinçli olarak V0.11'e ayrılmıştır.
+## V1.4.0 — Advanced Element Library
 
-### V0.11.0 — Contact / Friction ✅
+Planlanan aileler:
 
-- Element formulation'dan bağımsız contact registry ve contact-point committed/trial state.
-- Baseline: deformable slave node ↔ rigid planar QUAD4 master facet.
-- Expanded AABB broad-phase ve triangle-split closest-point narrow-phase search.
-- Facet node sırasına bağlı master normal ve signed gap; `g_n<0` penetrasyon convention'ı.
-- Penalty ve committed-gap incremental augmented-Lagrangian normal enforcement.
-- Coulomb friction; tangential penalty predictor, stick/slip active set ve analytic contact tangent.
-- Global sparse nonlinear residual/tangent assembly ve direct-solver contact gate'i.
-- Newton/line-search/cutback ile trial/commit/revert; failed-step contact history rollback verification.
-- Contact summary: active/stick/slip sayıları, maksimum penetrasyon, normal/tangential resultant.
-- C ABI frictionless compression preset'i; Qt/VTK contact verification source workflow.
-- Beş verification: local tangent, AL state invariance, global 1000 N contact equilibrium, rollback ve global Coulomb `T≤μN`.
-- V0.11 baseline deformable-deformable/mortar/self-contact/BVH hierarchy veya arbitrary contact GUI preprocessor iddiası değildir.
-- Contact history disk/restart snapshot formatı henüz yoktur; contact + checkpoint restart açıkça reddedilir.
+- mass/spring/damper,
+- truss,
+- Euler-Bernoulli ve Timoshenko beam,
+- plane stress/strain ve axisymmetric,
+- membrane/shell/layered shell,
+- tetra/hexa/wedge/pyramid,
+- higher-order,
+- reduced/selective integration,
+- mixed `u-p`,
+- assumed/enhanced strain,
+- hourglass control.
 
-### V0.12.0 — CAD / Geometry / Sections ✅
+Her production element için en az patch test, analitik benchmark, distortion/locking kontrolü ve mesh convergence beklenir.
 
-- Ayrı C++20 `femcae_geometry` library ve solver'dan bağımsız `GeometryDocument`.
-- 64-bit deterministic geometry ID; document namespace + persistent key sözleşmesi.
-- Assembly/body/face/edge/vertex geometry hierarchy ve geometry-to-FEM provenance map.
-- OCCT XDE/STEPCAF STEP adapter; OCCT yoksa kontrollü stub, macOS CI'da `FEMCAE_REQUIRE_OCCT=ON`.
-- B-Rep display tessellation ayrı veri yapısında; FEM node/element ID taşımaz.
-- Qt GeometryPanel: STEP import, geometry tree, body/face/edge/vertex filter ve VTK display path.
-- Portable ASCII DXF custom-section reader: LWPOLYLINE/LINE/CIRCLE/ARC.
-- Green-theorem section properties: A, centroid, Ixx/Iyy/Ixy, principal moments/axis ve polar area moment.
-- Rectangle, hollow section, DXF contour ve geometry-separation verification testleri.
-- Persistent ID tam CAD-edit topological naming iddiası değildir; `Jp` genel Saint-Venant torsion constant olarak kullanılmaz.
-- CAD-to-mesher, local sizing/refinement ve tam assignment/pre-post V0.13'e bırakılmıştır.
+## V1.5.0 — Physics & Mathematics Verification Audit
 
-### V0.13.0 — Meshing + Full Pre/Post ✅
+Feature ekleme yerine aşağıdaki zincir yeniden denetlenir:
 
-- Ayrı C++20 `femcae_meshing` library ve solver'dan bağımsız `SimulationMesh`.
-- Structured axis-aligned HEX8 box mesher; deterministic node/element/facet ID ve CAD body/face provenance.
-- Global + geometry-face local structured sizing baseline; center scaled-Jacobian/aspect-ratio quality report.
-- Portable Abaqus ASCII `*NODE` + `C3D8` external mesh import baseline.
-- Geometry-targeted material/section/load/constraint/contact metadata ve boundary-facet provenance tabanlı assignment resolution.
-- V0.12 `GeometryAssociationMap` ile CAD body/face -> FEM element/facet/node köprüsü.
-- Generic `fem_solve_linear_hex8_mesh` C ABI: arbitrary linear HEX8 mesh -> Fortran DOF/sparse assembly/solve/reaction/stress recovery.
-- `ResultDatabase`: displacement, element scalar, nearest-node probe, plane-cut element selection, CSV ve legacy VTK export.
-- Qt `Mesh / Pre-Post` source paneli ve VTK deformed HEX8 + von Mises contour path.
-- Native OCCT build'de axis-aligned STEP box -> bounds/six face IDs -> structured HEX8 provenance verification.
-- General arbitrary curved CAD volume meshing, adaptive unstructured refinement ve interpolated cut-surface contours production-ready iddiası değildir.
+```text
+Theory
+↕
+Mathematical Derivation
+↕
+Numerical Formulation
+↕
+Dynamics26 Source
+↕
+Verification Test
+↕
+Tolerance / Benchmark
+```
 
-### V1.0.0 — Verified Engineering Release ✅ Portable Source Candidate
+Ana audit alanları: units, tensor/Voigt conventions, shape functions, Jacobian, quadrature, kinematics, stress/strain measures, objectivity, constitutive tangents, residual, geometric tangent, Newton/convergence, hyperelasticity, mixed `u-p`, contact, mass/stiffness ve eigenproblem.
 
-- Debug ve Release full matrix: **123/123 PASS**.
-- V1 hardening gate'leri: mesh convergence, disk checkpoint/restart, corrupted input, public C API error paths ve performance smoke.
-- V1 release testleri GCC AddressSanitizer + UndefinedBehaviorSanitizer altında **5/5 PASS**.
-- Versioned/checksum-protected nonlinear checkpoint disk formatı; truncated ve checksum-bozuk dosya rejection.
-- HEX8 cantilever convergence: 4×1×1 → 8×2×2 → 12×3×3 hata monoton azalır, fine mesh ~%3.94.
-- Installed CLI, C API ve public geometry/meshing C++ consumer PASS; final source compiler warning gate 0.
-- Apache-2.0 source license baseline + NOTICE + third-party license inventory.
-- macOS app deployment: Qt deploy script + BundleUtilities dependency fixup + arm64/rpath audit + signing/notarization script altyapısı.
-- Native Apple Silicon Qt/VTK/OCCT/Accelerate app execution, Developer ID signing/notarization, GUI migration ve native memory audit **açık release gate**; Linux hostta PASS sayılmaz.
+## V1.6.0 — Code Quality & Reliability Audit
 
-## Kullanıcı açısından ana kilometre taşları
+- Fortran explicit interfaces/kinds/runtime checks,
+- uninitialized/bounds/allocation/error paths,
+- module/global-state audit,
+- C/C++ warnings ve static analysis,
+- RAII/lifetime,
+- sanitizers,
+- C ABI ownership/lifecycle,
+- malformed/corrupt input tests,
+- compiler warning gate.
 
-- **İlk GUI:** V0.5.0
-- **İlk nonlinear GUI:** V0.8.0
-- **Nearly incompressible rubber:** V0.10.0
-- **Rubber + contact/friction:** V0.11.0
-- **CAD model hazırlama:** V0.12.0
-- **Tam CAE akışı:** V0.13.0
-- **Doğrulanmış mühendislik release'i:** V1.0.0
+Coverage fizik doğruluğunun yerine geçmez; yalnız risk görünürlüğü için kullanılır.
 
-### V1.0.1 — macOS Release Engineering Hardening ✅ Source/Automation Complete
+## V1.7.0 — Inter-module Communication & Performance
 
-- Project JSON schema migration boundary.
-- GUI version single-source hardening.
-- arm64 Mach-O + dependency + LC_RPATH bundle audit.
-- Headless dyld `--bundle-smoke`.
-- Protected manual Developer ID + `notarytool` + stapler + Gatekeeper workflow.
-- Native signed/notarized artifact remains an execution gate, not a portable claim.
+Ana zincir:
 
-### V1.0.2 — Repository / Reproducible Release Hardening ✅ Source/Automation Complete
+```text
+Qt GUI
+→ C++ Application Model
+→ OCCT / Meshing / VTK
+→ Bulk Stable C ABI
+→ Modern Fortran Solver
+```
 
-- Deterministic byte-for-byte source ZIP + internal SHA256 manifest.
-- Repository hygiene gate ve credential/build-artifact rejection.
-- First Git commit/origin/push bootstrap helper.
-- CMake target-order ve shared-library version single-source düzeltmesi.
-- GitHub CI source-integrity/reproducibility gate ve concurrency.
-- Portable Debug/Release 124/124 PASS.
-- Remote FEMCAE repository/native GitHub Actions evidence remains open until repository creation/access.
+Hedefler: chatty API azaltma, bulk transfer, copy azaltma, explicit ownership, reusable buffers, sparse-pattern/factorization reuse, memory layout/cache locality, async solver worker, result streaming ve profiling.
+
+## V1.8.0 — Advanced Nonlinear Mechanics
+
+Research ve geliştirme adayları:
+
+- full/modified/quasi Newton,
+- advanced line search,
+- automatic increment/cutback,
+- displacement control,
+- arc-length / Riks,
+- follower loads,
+- finite-strain plasticity,
+- viscoelasticity,
+- creep,
+- damage foundation,
+- consistent tangent certification.
+
+## V1.9.0 — Advanced Contact
+
+- deformable ↔ deformable,
+- surface-to-surface,
+- finite sliding,
+- self-contact,
+- penalty / augmented Lagrangian geliştirmeleri,
+- mortar ve diğer advanced enforcement research,
+- friction/stick-slip,
+- broad-phase acceleration/BVH research,
+- curved surface contact,
+- contact postprocess,
+- contact history restart.
+
+## V1.10.0 — Advanced Meshing & Adaptivity
+
+```text
+Solve
+→ Error Estimation
+→ Refinement / Remesh
+→ Solution + State Transfer
+→ Continue Solve
+```
+
+Kapsam: error estimators, h-refinement, adaptive refinement, distortion monitoring, rezoning/remeshing, solution/history mapping ve contact recreation.
+
+## V1.11.0 — Large-Scale Solver & Performance
+
+Research adayları: Apple Accelerate, ARPACK-NG, SLEPc, PETSc, MUMPS ve uygun diğer sparse backend'ler. Dependency kararı license/distribution/API/benchmark değerlendirmesi sonrası alınır.
+
+Örnek ölçek basamakları:
+
+```text
+10k DOF
+100k DOF
+500k DOF
+1M DOF
+5M DOF
+```
+
+Assembly time, solve/factorization time, peak RAM, iterations ve parallel efficiency kaydedilir.
+
+## V1.12.0 — Advanced Postprocessing
+
+- raw integration-point vs derived/averaged result ayrımı,
+- contour/deformation/vector glyph,
+- principal/invariant results,
+- probe/path/section cut/clip/iso-surface,
+- XY/history plots,
+- force/displacement/energy curves,
+- contact pressure/opening/slip,
+- case comparison,
+- modal/transient animation,
+- lazy large-result loading,
+- export/report.
+
+## V1.13.0 — Dynamics
+
+- modal ve prestressed modal,
+- harmonic response,
+- transient structural,
+- modal superposition,
+- damping,
+- base excitation,
+- response spectrum,
+- random vibration / PSD,
+- nonlinear dynamics.
+
+İleri araştırma hattı: rotordynamics, gyroscopic effects, Campbell diagram, critical speeds, complex modes ve imbalance response.
+
+## V2.0.0 — Integrated CAE Qualification
+
+Ana qualification workflow:
+
+```text
+CAD
+→ Mesh
+→ Materials / Sections / Connections
+→ Analysis / Loads / BC
+→ Solve
+→ Results
+→ Save / Restart / Reopen
+```
+
+V2.0; independent benchmarks, regression, performance qualification, project compatibility, crash/error recovery, documentation/examples ve production macOS signing/notarization zincirini birlikte değerlendiren ana ürün yeterlilik sürümüdür.
+
+## CI stratejisi
+
+### Fast main CI
+
+```text
+Configure
+→ Core Build
+→ Core Tests
+→ GUI Compile
+→ Small GUI Smoke
+```
+
+### Self-hosted MacBook runner
+
+`self-hosted / macOS / ARM64` runner; trusted/manual engineering workflow için Qt/VTK/OCCT dependency reuse, incremental GUI build, profiling ve uzun doğrulamalarda kullanılabilir. Untrusted PR kodu kişisel runner üzerinde otomatik çalıştırılmaz.
+
+### Clean release CI
+
+```text
+Clean macOS ARM64
+→ Release Build
+→ Full Tests
+→ GUI
+→ Install / Deploy
+→ Bundle Fixup
+→ Strict Mach-O Audit
+→ Codesign
+→ Bundle Smoke
+→ Artifact
+```
+
+Strict bundle audit CI'yı geçirmek için gevşetilmez.
+
+`gui-build` optimizasyonu için dependency setup, configure, compile, test, deploy, fixup, audit/sign ve upload süreleri önce ölçülür; caching/incremental/target-splitting kararları ölçüm sonucuna göre verilir.
+
+## Ana belgeler
+
+- `docs/architecture/MASTER_ROADMAP.md` — V0.x/V1.0 mimari temel ve tarihsel plan
+- `docs/planning/DYNAMICS26_LONG_TERM_PLAN.md` — V1.1–V2.0 ayrıntılı onaylı plan
+- `docs/planning/V1.1_GUI_UX_PLAN.md` — aktif GUI research ve implementation planı
+- `CHANGELOG.md` — tamamlanan değişiklik geçmişi
+- `docs/development/*_AUDIT.md` — sürüm teknik audit kayıtları
