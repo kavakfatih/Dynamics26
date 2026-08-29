@@ -1,0 +1,117 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Dynamics26: Configure Debug Core",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--preset", "macos-debug-core"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Dynamics26: Build Debug Core",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--build", "--preset", "build-debug-core", "--parallel"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "dependsOn": "Dynamics26: Configure Debug Core",
+      "dependsOrder": "sequence",
+      "group": {"kind": "build", "isDefault": true},
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Dynamics26: Test Debug Core",
+      "type": "shell",
+      "command": "ctest",
+      "args": ["--preset", "test-debug-core"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "dependsOn": "Dynamics26: Build Debug Core",
+      "dependsOrder": "sequence",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Dynamics26: Configure Release Core",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--preset", "macos-release-core"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Dynamics26: Build Release Core",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--build", "--preset", "build-release-core", "--parallel"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "dependsOn": "Dynamics26: Configure Release Core",
+      "dependsOrder": "sequence",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Dynamics26: Test Release Core",
+      "type": "shell",
+      "command": "ctest",
+      "args": ["--preset", "test-release-core"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "dependsOn": "Dynamics26: Build Release Core",
+      "dependsOrder": "sequence",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Dynamics26: Configure Debug GUI",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--preset", "macos-debug-gui"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Dynamics26: Build Debug GUI",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--build", "--preset", "build-debug-gui", "--parallel"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "dependsOn": "Dynamics26: Configure Debug GUI",
+      "dependsOrder": "sequence",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Dynamics26: Test Debug GUI",
+      "type": "shell",
+      "command": "ctest",
+      "args": ["--preset", "test-debug-gui"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "dependsOn": "Dynamics26: Build Debug GUI",
+      "dependsOrder": "sequence",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Dynamics26: Release Hardening Tests",
+      "type": "shell",
+      "command": "ctest",
+      "args": [
+        "--test-dir",
+        "build/macos-release-core",
+        "-L",
+        "release",
+        "--output-on-failure"
+      ],
+      "options": {"cwd": "${workspaceFolder}"},
+      "dependsOn": "Dynamics26: Build Release Core",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Dynamics26: Clean Build Trees",
+      "type": "shell",
+      "command": "rm",
+      "args": ["-rf", "build/macos-debug-core", "build/macos-release-core", "build/macos-debug-gui", "build/macos-release-gui"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    }
+  ]
+}

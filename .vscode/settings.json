@@ -1,0 +1,40 @@
+{
+  "cmake.useCMakePresets": "always",
+  "cmake.configureOnOpen": false,
+  "cmake.sourceDirectory": "${workspaceFolder}",
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "fortran.linter.compiler": "gfortran",
+  "fortran.linter.compilerPath": "/opt/homebrew/bin/gfortran-15",
+  "fortran.fortls.path": "fortls",
+  "fortran.linter.includePaths": [
+    "${workspaceFolder}/src/**",
+    "${workspaceFolder}/build/macos-debug-core/fortran-modules"
+  ],
+  "fortran.linter.modOutput": "${workspaceFolder}/build/macos-debug-core/fortran-modules",
+  "files.watcherExclude": {
+    "**/build/**": true,
+    "**/stage-*/**": true,
+    "**/.git/objects/**": true
+  },
+  "search.exclude": {
+    "**/build/**": true,
+    "**/stage-*/**": true,
+    "**/dist/**": true
+  },
+  "editor.rulers": [100],
+  "editor.formatOnSave": false,
+  "terminal.integrated.cwd": "${workspaceFolder}",
+  "[fortran]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false
+  },
+  "[cpp]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true
+  },
+  "[cmake]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true
+  }
+}

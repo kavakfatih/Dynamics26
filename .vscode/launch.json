@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Dynamics26 CLI — Debug",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/macos-debug-core/femcae_cli",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Dynamics26: Build Debug Core"
+    },
+    {
+      "name": "Dynamics26 GUI — Debug",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/macos-debug-gui/gui/FEMCAE.app/Contents/MacOS/FEMCAE",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Dynamics26: Build Debug GUI"
+    }
+  ]
+}

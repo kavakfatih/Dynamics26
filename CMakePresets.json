@@ -1,0 +1,122 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "macos-arm64-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_Fortran_COMPILER": "gfortran-15",
+        "CMAKE_C_COMPILER": "/usr/bin/clang",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "FEMCAE_BUILD_TESTING": "ON",
+        "FEMCAE_ENABLE_RUNTIME_CHECKS": "ON",
+        "FEMCAE_ENABLE_OCCT_GEOMETRY": "ON"
+      }
+    },
+    {
+      "name": "macos-debug-core",
+      "displayName": "Dynamics26 — macOS Debug Core",
+      "description": "Fortran/C/C++ cekirdek, testler acik, GUI kapali",
+      "inherits": "macos-arm64-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "FEMCAE_BUILD_GUI": "OFF",
+        "FEMCAE_REQUIRE_OCCT": "OFF"
+      }
+    },
+    {
+      "name": "macos-release-core",
+      "displayName": "Dynamics26 — macOS Release Core",
+      "description": "Release cekirdek ve tam CTest matrisi",
+      "inherits": "macos-arm64-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "FEMCAE_BUILD_GUI": "OFF",
+        "FEMCAE_REQUIRE_OCCT": "OFF"
+      }
+    },
+    {
+      "name": "macos-debug-gui",
+      "displayName": "Dynamics26 — macOS Debug GUI",
+      "description": "Qt + VTK + OCCT GUI debug derlemesi",
+      "inherits": "macos-arm64-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "/opt/homebrew/opt/qt;/opt/homebrew/opt/vtk;/opt/homebrew/opt/opencascade",
+        "FEMCAE_BUILD_GUI": "ON",
+        "FEMCAE_GUI_WITH_VTK": "ON",
+        "FEMCAE_REQUIRE_OCCT": "ON"
+      }
+    },
+    {
+      "name": "macos-release-gui",
+      "displayName": "Dynamics26 — macOS Release GUI",
+      "description": "Qt + VTK + OCCT release .app derlemesi",
+      "inherits": "macos-arm64-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "/opt/homebrew/opt/qt;/opt/homebrew/opt/vtk;/opt/homebrew/opt/opencascade",
+        "FEMCAE_BUILD_GUI": "ON",
+        "FEMCAE_GUI_WITH_VTK": "ON",
+        "FEMCAE_REQUIRE_OCCT": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build-debug-core",
+      "configurePreset": "macos-debug-core"
+    },
+    {
+      "name": "build-release-core",
+      "configurePreset": "macos-release-core"
+    },
+    {
+      "name": "build-debug-gui",
+      "configurePreset": "macos-debug-gui"
+    },
+    {
+      "name": "build-release-gui",
+      "configurePreset": "macos-release-gui"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-debug-core",
+      "configurePreset": "macos-debug-core",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "test-release-core",
+      "configurePreset": "macos-release-core",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "test-debug-gui",
+      "configurePreset": "macos-debug-gui",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "test-release-gui",
+      "configurePreset": "macos-release-gui",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

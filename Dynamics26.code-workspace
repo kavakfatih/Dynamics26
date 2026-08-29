@@ -1,0 +1,12 @@
+{
+  "folders": [
+    {
+      "name": "Dynamics26",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "cmake.useCMakePresets": "always"
+  }
+}

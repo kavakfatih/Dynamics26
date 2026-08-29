@@ -7,8 +7,15 @@ cmake-build-*/
 *.a
 *.dylib
 *.so
-.vscode/
 .idea/
+
+# VS Code: yalnizca proje tarafindan yonetilen workspace dosyalari Git'te tutulur.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+CMakeUserPresets.json
 
 # Release/build outputs
 stage/
