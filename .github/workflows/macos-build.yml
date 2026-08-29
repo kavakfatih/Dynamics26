@@ -1,0 +1,237 @@
+name: macOS arm64 build and verification
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: femcae-macos-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    timeout-minutes: 75
+    # GitHub-hosted runner tablosunda `macos-15` standard runner Apple Silicon
+    # arm64 (M1) olarak listelenir. Architecture gate yine binary seviyesinde zorunludur.
+    runs-on: macos-15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Repository and reproducible-source integrity gate
+        if: matrix.build_type == 'Debug'
+        run: |
+          set -euxo pipefail
+          git diff --check
+          python3 scripts/github/verify_repository_hygiene.py --root .
+          python3 scripts/release/make_source_archive.py --source . --output "$RUNNER_TEMP/source-a.zip" --version 1.0.2
+          python3 scripts/release/make_source_archive.py --source . --output "$RUNNER_TEMP/source-b.zip" --version 1.0.2
+          cmp "$RUNNER_TEMP/source-a.zip" "$RUNNER_TEMP/source-b.zip"
+          shasum -a 256 "$RUNNER_TEMP/source-a.zip" "$RUNNER_TEMP/source-b.zip"
+
+      - name: Verify toolchain and runner architecture
+        run: |
+          set -euxo pipefail
+          test "$(uname -m)" = "arm64"
+          gfortran-15 --version
+          cmake --version
+          ninja --version
+
+      - name: Install modal and CAD dependencies
+        run: brew install arpack opencascade
+
+      - name: Configure
+        env:
+          FC: gfortran-15
+        run: >-
+          cmake -S . -B build-${{ matrix.build_type }} -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DCMAKE_PREFIX_PATH="$(brew --prefix opencascade)"
+          -DFEMCAE_BUILD_TESTING=ON
+          -DFEMCAE_ENABLE_RUNTIME_CHECKS=ON
+          -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON
+          -DFEMCAE_REQUIRE_OCCT=ON
+
+      - name: Build
+        run: cmake --build build-${{ matrix.build_type }} --parallel
+
+      - name: Test
+        run: ctest --test-dir build-${{ matrix.build_type }} --output-on-failure
+
+      - name: Modal backend gate
+        run: |
+          set -euxo pipefail
+          ctest --test-dir build-${{ matrix.build_type }} -L modal --output-on-failure
+
+      - name: Finite-strain and nonlinear solver gates
+        run: |
+          set -euxo pipefail
+          ctest --test-dir build-${{ matrix.build_type }} -L finite-strain --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L nonlinear --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L newton --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L restart --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L hyperelastic --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L plasticity --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L constitutive --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L mixed-up --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L incompressibility --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L locking --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L pressure --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L contact --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L friction --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L coulomb --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L augmented-lagrangian --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L rollback --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L cad --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L section --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L dxf --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L occt --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L step --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L meshing --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L prepost --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L provenance --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L external-mesh --output-on-failure
+
+
+      - name: V1.0 release-hardening gates
+        run: |
+          set -euxo pipefail
+          ctest --test-dir build-${{ matrix.build_type }} -L release --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L convergence --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L checkpoint-io --output-on-failure
+          ctest --test-dir build-${{ matrix.build_type }} -L corrupted-file --output-on-failure
+
+      - name: V1.0 performance baseline smoke
+        if: matrix.build_type == 'Release'
+        run: |
+          set -euxo pipefail
+          ctest --test-dir build-${{ matrix.build_type }} -L performance --output-on-failure
+
+      - name: Architecture gate
+        run: |
+          set -euxo pipefail
+          file -L build-${{ matrix.build_type }}/femcae_cli | tee /tmp/femcae-cli-arch.txt
+          file -L build-${{ matrix.build_type }}/libfemcae.dylib | tee /tmp/femcae-lib-arch.txt
+          grep -q "arm64" /tmp/femcae-cli-arch.txt
+          grep -q "arm64" /tmp/femcae-lib-arch.txt
+
+      - name: Install layout smoke test
+        run: |
+          set -euxo pipefail
+          prefix="$PWD/stage-${{ matrix.build_type }}"
+          cmake --install build-${{ matrix.build_type }} --prefix "$prefix"
+          test -f "$prefix/include/femcae/femcae.h"
+          test -f "$prefix/include/femcae/geometry/GeometryDocument.h"
+          test -x "$prefix/bin/femcae_cli"
+          test -e "$prefix/lib/libfemcae.dylib"
+          test -e "$prefix/lib/libfemcae_geometry.a"
+          test -e "$prefix/lib/libfemcae_meshing.a"
+          test -f "$prefix/include/femcae/meshing/StructuredHexMesher.h"
+          test -f "$prefix/include/femcae/meshing/ResultDatabase.h"
+          "$prefix/bin/femcae_cli"
+
+      - name: Installed C API consumer smoke test
+        run: |
+          set -euxo pipefail
+          prefix="$PWD/stage-${{ matrix.build_type }}"
+          cc tests/c_api/test_c_api.c \
+            -I"$prefix/include" \
+            -L"$prefix/lib" \
+            -lfemcae \
+            -Wl,-rpath,"$prefix/lib" \
+            -o "$prefix/bin/c_api_install_smoke"
+          "$prefix/bin/c_api_install_smoke"
+
+      - name: Installed C++ meshing consumer smoke test
+        run: |
+          set -euxo pipefail
+          prefix="$PWD/stage-${{ matrix.build_type }}"
+          c++ -std=c++20 tests/meshing/install_consumer.cpp \
+            -I"$prefix/include" \
+            -L"$prefix/lib" \
+            -lfemcae_meshing -lfemcae_geometry \
+            -o "$prefix/bin/meshing_install_smoke"
+          "$prefix/bin/meshing_install_smoke"
+
+  gui-build:
+    timeout-minutes: 90
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt, VTK and CAD dependencies
+        run: |
+          set -euxo pipefail
+          test "$(uname -m)" = "arm64"
+          brew install qt vtk arpack opencascade
+
+      - name: Configure GUI Release
+        env:
+          FC: gfortran-15
+        run: |
+          set -euxo pipefail
+          prefix_path="$(brew --prefix qt);$(brew --prefix vtk);$(brew --prefix opencascade)"
+          cmake -S . -B build-gui -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_PREFIX_PATH="$prefix_path" \
+            -DFEMCAE_BUILD_TESTING=ON \
+            -DFEMCAE_BUILD_GUI=ON \
+            -DFEMCAE_GUI_WITH_VTK=ON \
+            -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON \
+            -DFEMCAE_REQUIRE_OCCT=ON
+
+      - name: Build GUI and core
+        run: cmake --build build-gui --parallel
+
+      - name: Test core with GUI build
+        run: ctest --test-dir build-gui --output-on-failure
+
+      - name: Project schema migration gate
+        run: ctest --test-dir build-gui -L migration --output-on-failure
+
+      - name: GUI architecture gate
+        run: |
+          set -euxo pipefail
+          app="build-gui/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          test -x "$app"
+          file -L "$app" | tee /tmp/femcae-gui-arch.txt
+          grep -q "arm64" /tmp/femcae-gui-arch.txt
+
+      - name: Install and deploy standalone GUI bundle
+        run: |
+          set -euxo pipefail
+          cmake --install build-gui --prefix "$PWD/stage-gui"
+          app="$PWD/stage-gui/FEMCAE.app"
+          test -x "$app/Contents/MacOS/FEMCAE"
+          test -d "$app/Contents/Frameworks"
+          find "$app/Contents/Frameworks" -maxdepth 2 -name 'libfemcae*.dylib' -print -quit | grep -q .
+
+      - name: Ad-hoc sign and standalone dependency audit
+        run: |
+          set -euxo pipefail
+          app="$PWD/stage-gui/FEMCAE.app"
+          codesign --force --deep --sign - --options runtime "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          ./scripts/macos/audit_bundle.sh "$app"
+
+      - name: Upload verified app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: FEMCAE-1.0.2-macos-arm64-adhoc
+          path: stage-gui/FEMCAE.app
+          if-no-files-found: error

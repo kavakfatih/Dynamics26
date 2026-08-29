@@ -1,0 +1,10 @@
+FEMCAE
+Copyright 2026 FEMCAE contributors
+
+This product is licensed under the Apache License, Version 2.0.
+See LICENSE for the complete license text.
+
+FEMCAE can optionally link to third-party libraries including Qt, VTK,
+Open CASCADE Technology (OCCT), ARPACK-NG, and Apple Accelerate.
+Those components remain under their respective licenses. See
+THIRD_PARTY_LICENSES.md and THIRD_PARTY_NOTICES.md.

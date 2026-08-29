@@ -1,0 +1,16 @@
+# Install-time macOS standalone bundle fixup.
+# Qt deployment script once Qt plugins/frameworks are copied; BundleUtilities
+# then closes the remaining VTK/OCCT/ARPACK/gfortran dependency graph.
+if(NOT APPLE)
+    return()
+endif()
+include(BundleUtilities)
+set(BU_CHMOD_BUNDLE_ITEMS TRUE)
+set(_femcae_app "\${CMAKE_INSTALL_PREFIX}/FEMCAE.app")
+set(_femcae_search_dirs "@FEMCAE_BUNDLE_SEARCH_DIRS@")
+if(NOT EXISTS "\${_femcae_app}")
+    message(FATAL_ERROR "FEMCAE bundle fixup: app bulunamadi: \${_femcae_app}")
+endif()
+message(STATUS "FEMCAE bundle fixup: \${_femcae_app}")
+fixup_bundle("\${_femcae_app}" "" "\${_femcae_search_dirs}")
+verify_app("\${_femcae_app}")

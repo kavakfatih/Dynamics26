@@ -1,0 +1,172 @@
+name: macOS Signed Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (must match source PROJECT_VERSION)"
+        required: true
+        default: "1.0.2"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: femcae-macos-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  signed-notarized-release:
+    timeout-minutes: 120
+    runs-on: macos-15
+    environment: macos-release
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      FEMCAE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+      P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+      P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
+      FEMCAE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+      FEMCAE_NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Apple Silicon runner and source version
+        run: |
+          set -euxo pipefail
+          test "$(uname -m)" = "arm64"
+          grep -q "VERSION ${RELEASE_VERSION}" CMakeLists.txt
+          grep -q "FEM_VERSION_STRING = \"${RELEASE_VERSION}\"" src/foundation/fem_version.f90
+
+      - name: Require release secrets
+        run: |
+          set -euo pipefail
+          : "${FEMCAE_SIGN_IDENTITY:?APPLE_SIGN_IDENTITY secret is required}"
+          : "${P12_BASE64:?APPLE_CERTIFICATE_P12_BASE64 secret is required}"
+          : "${P12_PASSWORD:?APPLE_CERTIFICATE_PASSWORD secret is required}"
+          : "${NOTARY_KEY_P8_BASE64:?APPLE_NOTARY_KEY_P8_BASE64 secret is required}"
+          : "${FEMCAE_NOTARY_KEY_ID:?APPLE_NOTARY_KEY_ID secret is required}"
+          : "${FEMCAE_NOTARY_ISSUER:?APPLE_NOTARY_ISSUER_ID secret is required}"
+
+      - name: Install build dependencies
+        run: |
+          set -euxo pipefail
+          brew install cmake ninja gcc qt vtk arpack opencascade
+
+      - name: Import Developer ID certificate into temporary keychain
+        env:
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-femcae
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/femcae-signing.keychain-db"
+          cert="$RUNNER_TEMP/femcae-developer-id.p12"
+          printf '%s' "$P12_BASE64" | base64 -D > "$cert"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security import "$cert" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$keychain"
+          security list-keychains -d user -s "$keychain"
+          security find-identity -v -p codesigning "$keychain"
+          rm -f "$cert"
+
+      - name: Materialize App Store Connect notary API key
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/AuthKey_${FEMCAE_NOTARY_KEY_ID}.p8"
+          printf '%s' "$NOTARY_KEY_P8_BASE64" | base64 -D > "$key"
+          chmod 600 "$key"
+          echo "FEMCAE_NOTARY_KEY_PATH=$key" >> "$GITHUB_ENV"
+
+      - name: Configure native Release GUI
+        env:
+          FC: gfortran-15
+        run: |
+          set -euxo pipefail
+          prefix_path="$(brew --prefix qt);$(brew --prefix vtk);$(brew --prefix opencascade)"
+          cmake -S . -B build-release-native -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_PREFIX_PATH="$prefix_path" \
+            -DFEMCAE_BUILD_TESTING=ON \
+            -DFEMCAE_BUILD_GUI=ON \
+            -DFEMCAE_GUI_WITH_VTK=ON \
+            -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON \
+            -DFEMCAE_REQUIRE_OCCT=ON
+
+      - name: Build and run engineering verification matrix
+        run: |
+          set -euxo pipefail
+          cmake --build build-release-native --parallel
+          ctest --test-dir build-release-native --output-on-failure
+          ctest --test-dir build-release-native -L migration --output-on-failure
+          ctest --test-dir build-release-native -L release --output-on-failure
+
+      - name: Install standalone app bundle
+        run: |
+          set -euxo pipefail
+          cmake --install build-release-native --prefix "$PWD/stage-release"
+          app="$PWD/stage-release/FEMCAE.app"
+          test -x "$app/Contents/MacOS/FEMCAE"
+          ./scripts/macos/audit_bundle.sh --skip-signature "$app"
+
+      - name: Sign, notarize, staple and Gatekeeper-verify
+        env:
+          FEMCAE_APP: ${{ github.workspace }}/stage-release/FEMCAE.app
+          FEMCAE_VERSION: ${{ inputs.version }}
+          FEMCAE_RELEASE_DIR: ${{ github.workspace }}/dist
+        run: |
+          set -euxo pipefail
+          ./scripts/macos/sign_and_notarize.sh
+
+      - name: Create deterministic source archive
+        run: |
+          set -euxo pipefail
+          mkdir -p dist
+          python3 scripts/github/verify_repository_hygiene.py --root .
+          python3 scripts/release/make_source_archive.py \
+            --source . \
+            --output "dist/FEMCAE-${RELEASE_VERSION}-source-macos-arm64.zip" \
+            --version "${RELEASE_VERSION}"
+
+      - name: Write release provenance manifest
+        run: |
+          set -euxo pipefail
+          {
+            echo "FEMCAE_VERSION=${RELEASE_VERSION}"
+            echo "GITHUB_SHA=${GITHUB_SHA}"
+            echo "RUNNER_ARCH=$(uname -m)"
+            echo "MACOS_VERSION=$(sw_vers -productVersion)"
+            echo "XCODE_VERSION=$(xcodebuild -version | tr '\n' ' ')"
+            echo "CMAKE_VERSION=$(cmake --version | head -1)"
+            echo "GFORTRAN_VERSION=$(gfortran-15 --version | head -1)"
+            echo "QT_PREFIX=$(brew --prefix qt)"
+            echo "VTK_PREFIX=$(brew --prefix vtk)"
+            echo "OCCT_PREFIX=$(brew --prefix opencascade)"
+          } > dist/RELEASE_PROVENANCE.txt
+          codesign -dv --verbose=4 stage-release/FEMCAE.app 2> dist/CODESIGN_DETAILS.txt
+          spctl --assess --type execute --verbose=4 stage-release/FEMCAE.app 2> dist/GATEKEEPER_DETAILS.txt
+
+      - name: Upload signed and notarized artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: FEMCAE-${{ inputs.version }}-macos-arm64-signed-notarized
+          path: |
+            dist/FEMCAE-${{ inputs.version }}-macos-arm64.zip
+            dist/FEMCAE-${{ inputs.version }}-macos-arm64.dmg
+            dist/FEMCAE-${{ inputs.version }}-source-macos-arm64.zip
+            dist/FEMCAE-${{ inputs.version }}-source-macos-arm64.zip.sha256
+            dist/SHA256SUMS-macos.txt
+            dist/RELEASE_PROVENANCE.txt
+            dist/CODESIGN_DETAILS.txt
+            dist/GATEKEEPER_DETAILS.txt
+          if-no-files-found: error
+
+      - name: Cleanup temporary credentials
+        if: always()
+        run: |
+          set +e
+          security delete-keychain "$RUNNER_TEMP/femcae-signing.keychain-db"
+          rm -f "$RUNNER_TEMP"/AuthKey_*.p8

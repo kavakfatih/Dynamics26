@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+from hashlib import sha256
+from pathlib import Path
+import os
+import subprocess
+import sys
+import tempfile
+import zipfile
+
+
+def run(cmd: list[str]) -> None:
+    subprocess.run(cmd, check=True)
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print("source root argument required", file=sys.stderr)
+        return 2
+    root = Path(sys.argv[1]).resolve()
+    archive_tool = root / "scripts/release/make_source_archive.py"
+    hygiene_tool = root / "scripts/github/verify_repository_hygiene.py"
+
+    if (root / ".git").exists():
+        run([sys.executable, str(hygiene_tool), "--root", str(root)])
+    else:
+        print("repository hygiene tracked-file gate skipped: source archive has no .git metadata")
+
+    with tempfile.TemporaryDirectory(prefix="femcae-v102-") as tmp:
+        a = Path(tmp) / "a.zip"
+        b = Path(tmp) / "b.zip"
+        base = [sys.executable, str(archive_tool), "--source", str(root), "--version", "1.0.2"]
+        run(base + ["--output", str(a)])
+        run(base + ["--output", str(b)])
+        if a.read_bytes() != b.read_bytes():
+            raise RuntimeError("deterministic source archives differ byte-for-byte")
+        if sha256(a.read_bytes()).digest() != sha256(b.read_bytes()).digest():
+            raise RuntimeError("deterministic source archive SHA256 differs")
+        with zipfile.ZipFile(a) as zf:
+            names = zf.namelist()
+            expected = "FEMCAE-v1.0.2/SHA256SUMS.txt"
+            if expected not in names:
+                raise RuntimeError("internal SHA256SUMS.txt missing")
+            bad = zf.testzip()
+            if bad is not None:
+                raise RuntimeError(f"zip CRC failure: {bad}")
+            extracted = Path(tmp) / "extracted"
+            zf.extractall(extracted)
+
+        repo_root = extracted / "FEMCAE-v1.0.2"
+        home = Path(tmp) / "home"
+        home.mkdir()
+        env = os.environ.copy()
+        env["HOME"] = str(home)
+        subprocess.run(["git", "config", "--global", "user.name", "FEMCAE CI"], check=True, env=env)
+        subprocess.run(["git", "config", "--global", "user.email", "ci@example.invalid"], check=True, env=env)
+        subprocess.run(
+            ["bash", "scripts/github/bootstrap_repo.sh", "example/FEMCAE", "--no-push"],
+            cwd=repo_root,
+            check=True,
+            env=env,
+        )
+        head = subprocess.check_output(["git", "rev-parse", "--verify", "HEAD"], cwd=repo_root, env=env).decode().strip()
+        if len(head) < 12:
+            raise RuntimeError("bootstrap did not create an initial Git commit")
+        origin = subprocess.check_output(["git", "remote", "get-url", "origin"], cwd=repo_root, env=env).decode().strip()
+        if origin != "https://github.com/example/FEMCAE.git":
+            raise RuntimeError(f"unexpected bootstrap remote: {origin}")
+
+    print("PASS V1.0.2 repository/reproducible-source hardening")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

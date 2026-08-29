@@ -1,0 +1,28 @@
+build/
+cmake-build-*/
+.DS_Store
+*.mod
+*.smod
+*.o
+*.a
+*.dylib
+*.so
+.vscode/
+.idea/
+
+# Release/build outputs
+stage/
+stage-*/
+dist/
+*.zip
+*.dmg
+*.dSYM/
+CMakeCache.txt
+compile_commands.json
+
+# Apple signing/notarization credentials
+*.p12
+*.p8
+*.key
+.env
+.env.*
