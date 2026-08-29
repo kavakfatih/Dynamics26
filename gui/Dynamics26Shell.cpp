@@ -4,11 +4,10 @@
 
 #include <QAction>
 #include <QApplication>
-#include <QButtonGroup>
 #include <QDockWidget>
+#include <QFrame>
 #include <QKeySequence>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
@@ -18,12 +17,10 @@
 #include <QSizePolicy>
 #include <QSplitter>
 #include <QStatusBar>
+#include <QStyle>
 #include <QTabWidget>
 #include <QToolBar>
-#include <QToolButton>
 #include <QTreeWidget>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
 #include <QWidget>
 
 #ifndef DYNAMICS26_GUI_MILESTONE
@@ -69,21 +66,13 @@ QWidget *makeExpandingSpacer(QWidget *parent)
     return spacer;
 }
 
-QLabel *makeUtilityPlaceholder(const QString &text, QWidget *parent)
-{
-    auto *label = new QLabel(text, parent);
-    label->setAlignment(Qt::AlignCenter);
-    label->setWordWrap(true);
-    return label;
-}
-
-int tabIndexByText(QTabWidget *tabs, const QString &text)
+int tabIndexContaining(QTabWidget *tabs, const QString &text)
 {
     if (tabs == nullptr) {
         return -1;
     }
     for (int i = 0; i < tabs->count(); ++i) {
-        if (tabs->tabText(i).compare(text, Qt::CaseInsensitive) == 0) {
+        if (tabs->tabText(i).contains(text, Qt::CaseInsensitive)) {
             return i;
         }
     }
@@ -96,7 +85,7 @@ void activateUtilityTab(QDockWidget *dock, QTabWidget *tabs, const QString &text
         return;
     }
     dock->show();
-    const int index = tabIndexByText(tabs, text);
+    const int index = tabIndexContaining(tabs, text);
     if (index >= 0) {
         tabs->setCurrentIndex(index);
     }
@@ -109,7 +98,7 @@ void configureUtilityArea(QDockWidget *dock)
     }
 
     dock->setObjectName(QStringLiteral("Dynamics26UtilityArea"));
-    dock->setWindowTitle(QStringLiteral("Utility"));
+    dock->setWindowTitle(QStringLiteral("Analysis Utility"));
     dock->setAllowedAreas(Qt::BottomDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetClosable);
     dock->setMinimumHeight(150);
@@ -119,56 +108,22 @@ void configureUtilityArea(QDockWidget *dock)
         return;
     }
     tabs->setObjectName(QStringLiteral("Dynamics26UtilityTabs"));
+    tabs->setDocumentMode(true);
 
-    QWidget *tablePage = nullptr;
-    QWidget *convergencePage = nullptr;
-    QWidget *logPage = nullptr;
-
+    // Corrective Alpha.1 kararı:
+    // Gelecek beta sürümlerinin Solver/Graph/Messages placeholder sayfalarını
+    // kullanıcıya çalışıyormuş gibi göstermiyoruz. Yalnız mevcut ve gerçekten
+    // veri üreten Results, Convergence ve Log yüzeyleri görünür kalır.
     for (int i = 0; i < tabs->count(); ++i) {
         const QString title = tabs->tabText(i);
-        QWidget *page = tabs->widget(i);
-        if (title.contains(QStringLiteral("Sonuç"), Qt::CaseInsensitive) ||
-            title.compare(QStringLiteral("Table"), Qt::CaseInsensitive) == 0) {
-            tablePage = page;
-        } else if (title.contains(QStringLiteral("Yakınsama"), Qt::CaseInsensitive) ||
-                   title.contains(QStringLiteral("Convergence"), Qt::CaseInsensitive)) {
-            convergencePage = page;
-        } else if (title.compare(QStringLiteral("Log"), Qt::CaseInsensitive) == 0) {
-            logPage = page;
+        if (title.contains(QStringLiteral("Sonuç"), Qt::CaseInsensitive)) {
+            tabs->setTabText(i, QStringLiteral("Results"));
+        } else if (title.contains(QStringLiteral("Yakınsama"), Qt::CaseInsensitive)) {
+            tabs->setTabText(i, QStringLiteral("Convergence"));
+        } else if (title.contains(QStringLiteral("Log"), Qt::CaseInsensitive)) {
+            tabs->setTabText(i, QStringLiteral("Log"));
         }
     }
-
-    while (tabs->count() > 0) {
-        tabs->removeTab(0);
-    }
-
-    tabs->addTab(makeUtilityPlaceholder(
-        QStringLiteral("Solver monitor V1.1.0-beta.2 paketinde gerçek solver-state modeliyle bağlanacak."), tabs),
-        QStringLiteral("Solver"));
-
-    if (convergencePage == nullptr) {
-        convergencePage = makeUtilityPlaceholder(QStringLiteral("Convergence data"), tabs);
-    }
-    tabs->addTab(convergencePage, QStringLiteral("Convergence"));
-
-    tabs->addTab(makeUtilityPlaceholder(
-        QStringLiteral("Graph workspace V1.1.0-beta.2 / beta.3 paketlerinde etkinleşecek."), tabs),
-        QStringLiteral("Graph"));
-
-    if (tablePage == nullptr) {
-        tablePage = makeUtilityPlaceholder(QStringLiteral("Result tables"), tabs);
-    }
-    tabs->addTab(tablePage, QStringLiteral("Table"));
-
-    tabs->addTab(makeUtilityPlaceholder(
-        QStringLiteral("Model validation, warning ve error mesajları burada toplanacak."), tabs),
-        QStringLiteral("Messages"));
-
-    if (logPage == nullptr) {
-        logPage = makeUtilityPlaceholder(QStringLiteral("Application log"), tabs);
-    }
-    tabs->addTab(logPage, QStringLiteral("Log"));
-    tabs->setCurrentIndex(0);
 }
 
 void replaceLegacyVisibleLogText(QMainWindow &window)
@@ -187,51 +142,85 @@ void replaceLegacyVisibleLogText(QMainWindow &window)
     }
 }
 
+void setStandardIcon(QMainWindow &window, QAction *action, QStyle::StandardPixmap pixmap)
+{
+    if (action != nullptr && window.style() != nullptr) {
+        action->setIcon(window.style()->standardIcon(pixmap));
+    }
+}
+
 } // namespace
 
 namespace dynamics26::gui {
 
 void applyApplicationShell(QMainWindow &window)
 {
-    // V1.0 GUI'si yalnız Light Mode'a göre hard-code edilmiş bir global QSS
-    // kullanıyordu. Alpha.1'de bu QSS temizlenerek Qt'nin native macOS style,
-    // semantic palette ve Light/Dark Mode davranışına geri dönülür.
+    // ---------------------------------------------------------------------
+    // V1.1.0-alpha.1 corrective shell
+    // ---------------------------------------------------------------------
+    // İlk Alpha.1 denemesinde QMainWindow::setUnifiedTitleAndToolBarOnMac(true)
+    // kullanılmıştı. Qt dokümantasyonuna göre unified toolbar, QOpenGLWidget
+    // içeren pencerelerde desteklenmez. Dynamics26 VTK viewport'u
+    // QVTKOpenGLNativeWidget/QOpenGLWidget kullandığından bu kombinasyon gerçek
+    // macOS testinde blank Navigator / siyah Inspector benzeri paint sorunlarına
+    // yol açabilecek bir mimari risktir. Corrective sürümde bu unsupported yol
+    // kapatılır; native macOS frame + system appearance korunur.
+    // ---------------------------------------------------------------------
     window.setStyleSheet(QString());
     window.setWindowTitle(QStringLiteral("Untitled.d26"));
     window.setDocumentMode(true);
     window.setDockNestingEnabled(false);
 #ifdef Q_OS_MACOS
-    window.setUnifiedTitleAndToolBarOnMac(true);
+    window.setUnifiedTitleAndToolBarOnMac(false);
 #endif
 
     auto *mainSplitter = qobject_cast<QSplitter *>(window.centralWidget());
     QTreeWidget *navigator = nullptr;
     QWidget *viewport = nullptr;
     QWidget *inspector = nullptr;
+
     if (mainSplitter != nullptr && mainSplitter->count() >= 3) {
         mainSplitter->setObjectName(QStringLiteral("Dynamics26WorkspaceSplitter"));
         mainSplitter->setHandleWidth(1);
         mainSplitter->setChildrenCollapsible(false);
+
         navigator = qobject_cast<QTreeWidget *>(mainSplitter->widget(0));
         viewport = mainSplitter->widget(1);
         inspector = mainSplitter->widget(2);
+
         if (navigator != nullptr) {
             navigator->setObjectName(QStringLiteral("Dynamics26Navigator"));
-            navigator->setMinimumWidth(190);
+            navigator->setMinimumWidth(210);
+            navigator->setMaximumWidth(420);
+            navigator->setHeaderHidden(true);
+            navigator->setRootIsDecorated(true);
             navigator->setUniformRowHeights(true);
+            navigator->setIndentation(14);
+            navigator->setFrameShape(QFrame::NoFrame);
+            navigator->setAccessibleName(QStringLiteral("Project Navigator"));
         }
+
         if (viewport != nullptr) {
             viewport->setObjectName(QStringLiteral("Dynamics26Viewport"));
-            viewport->setMinimumWidth(420);
+            viewport->setMinimumWidth(480);
+            viewport->setAccessibleName(QStringLiteral("3D Viewport"));
         }
+
         if (inspector != nullptr) {
             inspector->setObjectName(QStringLiteral("Dynamics26Inspector"));
-            inspector->setMinimumWidth(260);
+            inspector->setMinimumWidth(300);
+            inspector->setMaximumWidth(520);
+            inspector->setAccessibleName(QStringLiteral("Inspector"));
+            if (auto *tabs = qobject_cast<QTabWidget *>(inspector)) {
+                tabs->setDocumentMode(true);
+                tabs->setUsesScrollButtons(true);
+            }
         }
+
         mainSplitter->setStretchFactor(0, 0);
         mainSplitter->setStretchFactor(1, 1);
         mainSplitter->setStretchFactor(2, 0);
-        mainSplitter->setSizes({240, 900, 320});
+        mainSplitter->setSizes({250, 930, 340});
     }
 
     QDockWidget *utilityDock = nullptr;
@@ -242,44 +231,62 @@ void applyApplicationShell(QMainWindow &window)
     }
     auto *utilityTabs = utilityDock != nullptr ? utilityDock->findChild<QTabWidget *>() : nullptr;
 
+    // Mevcut çalışan V1.0 action'larını koruyoruz. Corrective Alpha.1'de yeni
+    // sahte command üretmek yerine yalnız gerçekten bağlı action'lar görünürdür.
     QAction *newAction = findAction(window, {QStringLiteral("Yeni"), QStringLiteral("New")});
-    QAction *openAction = findAction(window, {QStringLiteral("Aç"), QStringLiteral("Open")});
+    QAction *openAction = findAction(window, {QStringLiteral("Aç"), QStringLiteral("Open"), QStringLiteral("Open…")});
     QAction *saveAction = findAction(window, {QStringLiteral("Kaydet"), QStringLiteral("Save")});
     QAction *solveAction = findAction(window, {QStringLiteral("Lineer Analiz"), QStringLiteral("Solve")});
-    QAction *modalAction = findAction(window, {QStringLiteral("Modal Analiz"), QStringLiteral("Modal")});
-    QAction *nonlinearAction = findAction(window, {QStringLiteral("Nonlinear Static"), QStringLiteral("Nonlinear")});
+    QAction *modalAction = findAction(window, {QStringLiteral("Modal Analiz"), QStringLiteral("Modal Demo")});
+    QAction *nonlinearAction = findAction(window, {QStringLiteral("Nonlinear Static"), QStringLiteral("Nonlinear Demo")});
     QAction *fitAction = findAction(window, {QStringLiteral("Görünümü Sığdır"), QStringLiteral("Fit View")});
 
     if (newAction != nullptr) {
         newAction->setText(QStringLiteral("New"));
         newAction->setShortcut(QKeySequence::New);
+        newAction->setToolTip(QStringLiteral("New Project"));
+        setStandardIcon(window, newAction, QStyle::SP_FileIcon);
     }
     if (openAction != nullptr) {
         openAction->setText(QStringLiteral("Open…"));
         openAction->setShortcut(QKeySequence::Open);
+        openAction->setToolTip(QStringLiteral("Open Project"));
+        setStandardIcon(window, openAction, QStyle::SP_DialogOpenButton);
     }
     if (saveAction != nullptr) {
         saveAction->setText(QStringLiteral("Save"));
         saveAction->setShortcut(QKeySequence::Save);
+        saveAction->setToolTip(QStringLiteral("Save Project"));
+        setStandardIcon(window, saveAction, QStyle::SP_DialogSaveButton);
     }
     if (solveAction != nullptr) {
         solveAction->setText(QStringLiteral("Solve"));
-        solveAction->setToolTip(QStringLiteral("Current V1.0 linear demo solve path; unified analysis command arrives in V1.1.0-alpha.3."));
+        solveAction->setToolTip(QStringLiteral("Run the current linear verification analysis"));
+        setStandardIcon(window, solveAction, QStyle::SP_MediaPlay);
     }
     if (modalAction != nullptr) {
-        modalAction->setText(QStringLiteral("Modal Demo"));
+        modalAction->setText(QStringLiteral("Modal Verification"));
+        modalAction->setToolTip(QStringLiteral("Run modal verification analysis"));
+        setStandardIcon(window, modalAction, QStyle::SP_MediaPlay);
     }
     if (nonlinearAction != nullptr) {
-        nonlinearAction->setText(QStringLiteral("Nonlinear Demo"));
+        nonlinearAction->setText(QStringLiteral("Nonlinear Verification"));
+        nonlinearAction->setToolTip(QStringLiteral("Run nonlinear verification analysis"));
+        setStandardIcon(window, nonlinearAction, QStyle::SP_MediaPlay);
     }
     if (fitAction != nullptr) {
         fitAction->setText(QStringLiteral("Fit View"));
+        fitAction->setToolTip(QStringLiteral("Fit model to viewport"));
+        setStandardIcon(window, fitAction, QStyle::SP_BrowserReload);
     }
 
-    auto *navigatorAction = new QAction(QStringLiteral("Navigator"), &window);
+    auto *navigatorAction = new QAction(QStringLiteral("Project Navigator"), &window);
     navigatorAction->setCheckable(true);
     navigatorAction->setChecked(navigator == nullptr || navigator->isVisible());
     navigatorAction->setShortcut(QKeySequence(Qt::META | Qt::Key_1));
+    navigatorAction->setToolTip(QStringLiteral("Show or hide Project Navigator (⌘1)"));
+    navigatorAction->setAccessibleName(QStringLiteral("Toggle Project Navigator"));
+    setStandardIcon(window, navigatorAction, QStyle::SP_FileDialogListView);
     QObject::connect(navigatorAction, &QAction::toggled, &window, [navigator](bool visible) {
         if (navigator != nullptr) {
             navigator->setVisible(visible);
@@ -290,16 +297,21 @@ void applyApplicationShell(QMainWindow &window)
     inspectorAction->setCheckable(true);
     inspectorAction->setChecked(inspector == nullptr || inspector->isVisible());
     inspectorAction->setShortcut(QKeySequence(Qt::META | Qt::Key_2));
+    inspectorAction->setToolTip(QStringLiteral("Show or hide Inspector (⌘2)"));
+    inspectorAction->setAccessibleName(QStringLiteral("Toggle Inspector"));
+    setStandardIcon(window, inspectorAction, QStyle::SP_FileDialogDetailedView);
     QObject::connect(inspectorAction, &QAction::toggled, &window, [inspector](bool visible) {
         if (inspector != nullptr) {
             inspector->setVisible(visible);
         }
     });
 
-    auto *utilityAction = new QAction(QStringLiteral("Bottom Utility Area"), &window);
+    auto *utilityAction = new QAction(QStringLiteral("Results & Log"), &window);
     utilityAction->setCheckable(true);
     utilityAction->setChecked(false);
     utilityAction->setShortcut(QKeySequence(Qt::META | Qt::Key_J));
+    utilityAction->setToolTip(QStringLiteral("Show or hide Results, Convergence and Log (⌘J)"));
+    setStandardIcon(window, utilityAction, QStyle::SP_FileDialogContentsView);
     QObject::connect(utilityAction, &QAction::toggled, &window, [utilityDock](bool visible) {
         if (utilityDock != nullptr) {
             utilityDock->setVisible(visible);
@@ -309,30 +321,16 @@ void applyApplicationShell(QMainWindow &window)
         QObject::connect(utilityDock, &QDockWidget::visibilityChanged, utilityAction, &QAction::setChecked);
     }
 
-    auto *undoAction = new QAction(QStringLiteral("Undo"), &window);
-    undoAction->setShortcut(QKeySequence::Undo);
-    undoAction->setEnabled(false);
-    undoAction->setToolTip(QStringLiteral("Unified command/undo model is scheduled for V1.1.0-alpha.3."));
-
-    auto *redoAction = new QAction(QStringLiteral("Redo"), &window);
-    redoAction->setShortcut(QKeySequence::Redo);
-    redoAction->setEnabled(false);
-    redoAction->setToolTip(QStringLiteral("Unified command/undo model is scheduled for V1.1.0-alpha.3."));
-
-    auto *settingsAction = new QAction(QStringLiteral("Settings…"), &window);
-    settingsAction->setMenuRole(QAction::PreferencesRole);
-    settingsAction->setShortcut(QKeySequence::Preferences);
-    QObject::connect(settingsAction, &QAction::triggered, &window, [&window] {
-        window.statusBar()->showMessage(QStringLiteral("Dynamics26 Settings workspace is planned for a later V1.1 package."), 5000);
-    });
-
     auto *aboutAction = new QAction(QStringLiteral("About Dynamics26"), &window);
     aboutAction->setMenuRole(QAction::AboutRole);
     QObject::connect(aboutAction, &QAction::triggered, &window, [&window] {
-        QMessageBox::about(&window, QStringLiteral("Dynamics26"),
-            QStringLiteral("Dynamics26\nGUI milestone %1\nEngine %2.%3.%4\n\nModern macOS-focused FEA/CAE platform.")
+        QMessageBox::about(
+            &window,
+            QStringLiteral("Dynamics26"),
+            QStringLiteral("Dynamics26\nGUI milestone %1\nEngine %2.%3.%4\nC API %5\n\nModern macOS-focused FEA/CAE platform.")
                 .arg(QStringLiteral(DYNAMICS26_GUI_MILESTONE))
-                .arg(fem_version_major()).arg(fem_version_minor()).arg(fem_version_patch()));
+                .arg(fem_version_major()).arg(fem_version_minor()).arg(fem_version_patch())
+                .arg(fem_api_version()));
     });
 
     auto *quitAction = new QAction(QStringLiteral("Quit Dynamics26"), &window);
@@ -340,11 +338,8 @@ void applyApplicationShell(QMainWindow &window)
     quitAction->setShortcut(QKeySequence::Quit);
     QObject::connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
 
-    auto *helpAction = new QAction(QStringLiteral("Dynamics26 Help"), &window);
-    QObject::connect(helpAction, &QAction::triggered, &window, [&window] {
-        window.statusBar()->showMessage(QStringLiteral("Contextual engineering help is scheduled for the V1.1 Inspector packages."), 5000);
-    });
-
+    // Native macOS menu bar: yalnız çalışan komutlar. Alpha.2/3 için planlanan
+    // Model/Geometry/Mesh/Search/Undo placeholder'ları bu aşamada görünmez.
     QMenuBar *bar = window.menuBar();
     bar->clear();
 
@@ -355,12 +350,6 @@ void applyApplicationShell(QMainWindow &window)
     fileMenu->addSeparator();
     fileMenu->addAction(quitAction);
 
-    auto *editMenu = bar->addMenu(QStringLiteral("Edit"));
-    editMenu->addAction(undoAction);
-    editMenu->addAction(redoAction);
-    editMenu->addSeparator();
-    editMenu->addAction(settingsAction);
-
     auto *viewMenu = bar->addMenu(QStringLiteral("View"));
     viewMenu->addAction(navigatorAction);
     viewMenu->addAction(inspectorAction);
@@ -368,25 +357,12 @@ void applyApplicationShell(QMainWindow &window)
     viewMenu->addSeparator();
     addActionIfPresent(viewMenu, fitAction);
 
-    auto addPlannedMenu = [bar](const QString &title, const QString &message) {
-        auto *menu = bar->addMenu(title);
-        auto *planned = menu->addAction(message);
-        planned->setEnabled(false);
-        return menu;
-    };
-
-    addPlannedMenu(QStringLiteral("Model"), QStringLiteral("Model commands — V1.1.0-alpha.2/3"));
-    addPlannedMenu(QStringLiteral("Geometry"), QStringLiteral("Geometry commands — V1.1.0-alpha.3"));
-    addPlannedMenu(QStringLiteral("Mesh"), QStringLiteral("Mesh commands — V1.1.0-alpha.3"));
-
     auto *analysisMenu = bar->addMenu(QStringLiteral("Analysis"));
     addActionIfPresent(analysisMenu, solveAction);
     addActionIfPresent(analysisMenu, modalAction);
     addActionIfPresent(analysisMenu, nonlinearAction);
 
-    addPlannedMenu(QStringLiteral("Window"), QStringLiteral("Workspace window controls — V1.1.0-rc.1"));
     auto *helpMenu = bar->addMenu(QStringLiteral("Help"));
-    helpMenu->addAction(helpAction);
     helpMenu->addAction(aboutAction);
 
     QToolBar *mainToolbar = nullptr;
@@ -399,106 +375,45 @@ void applyApplicationShell(QMainWindow &window)
         window.addToolBar(Qt::TopToolBarArea, mainToolbar);
     }
 
+    // Apple HIG doğrultusunda toolbar tek satır, seyrek ve içerik önceliklidir.
+    // Workspace tab'ları ve sahte command-hint satırı kaldırılmıştır.
     mainToolbar->setObjectName(QStringLiteral("Dynamics26MainToolbar"));
     mainToolbar->setWindowTitle(QStringLiteral("Main Toolbar"));
     mainToolbar->setMovable(false);
     mainToolbar->setFloatable(false);
-    mainToolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    mainToolbar->setIconSize(QSize(16, 16));
+    mainToolbar->setAllowedAreas(Qt::TopToolBarArea);
+    mainToolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    mainToolbar->setIconSize(QSize(18, 18));
     mainToolbar->clear();
+
     mainToolbar->addAction(navigatorAction);
-    mainToolbar->addWidget(makeExpandingSpacer(mainToolbar));
 
     auto *documentTitle = new QLabel(QStringLiteral("Untitled.d26"), mainToolbar);
     documentTitle->setObjectName(QStringLiteral("Dynamics26DocumentTitle"));
-    documentTitle->setAlignment(Qt::AlignCenter);
-    documentTitle->setToolTip(QStringLiteral("Document/project title. Project menu actions are added in a later V1.1 package."));
+    documentTitle->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    documentTitle->setMinimumWidth(120);
+    documentTitle->setAccessibleName(QStringLiteral("Current project"));
     mainToolbar->addWidget(documentTitle);
+
     mainToolbar->addWidget(makeExpandingSpacer(mainToolbar));
 
-    auto *search = new QLineEdit(mainToolbar);
-    search->setObjectName(QStringLiteral("Dynamics26GlobalSearch"));
-    search->setPlaceholderText(QStringLiteral("Search"));
-    search->setClearButtonEnabled(true);
-    search->setMaximumWidth(220);
-    search->setToolTip(QStringLiteral("Command/model/documentation search becomes active in V1.1.0-alpha.3."));
-    QObject::connect(search, &QLineEdit::returnPressed, &window, [&window] {
-        window.statusBar()->showMessage(QStringLiteral("Global Search is a V1.1.0-alpha.3 feature."), 4000);
-    });
-    mainToolbar->addWidget(search);
+    if (fitAction != nullptr) {
+        mainToolbar->addAction(fitAction);
+    }
     if (solveAction != nullptr) {
         mainToolbar->addAction(solveAction);
     }
-    mainToolbar->addAction(aboutAction);
-
-    auto *contextBar = new QToolBar(QStringLiteral("Context Bar"), &window);
-    contextBar->setObjectName(QStringLiteral("Dynamics26ContextBar"));
-    contextBar->setMovable(false);
-    contextBar->setFloatable(false);
-    contextBar->setAllowedAreas(Qt::TopToolBarArea);
-
-    auto *contextContainer = new QWidget(contextBar);
-    auto *contextLayout = new QVBoxLayout(contextContainer);
-    contextLayout->setContentsMargins(6, 2, 6, 4);
-    contextLayout->setSpacing(2);
-
-    auto *tabsRow = new QHBoxLayout;
-    tabsRow->setContentsMargins(0, 0, 0, 0);
-    tabsRow->setSpacing(2);
-    auto *buttonGroup = new QButtonGroup(contextContainer);
-    buttonGroup->setExclusive(true);
-
-    auto *commandsLabel = new QLabel(QStringLiteral("Select  ·  Measure  ·  View  ·  Validate Model"), contextContainer);
-    commandsLabel->setObjectName(QStringLiteral("Dynamics26ContextCommandHint"));
-
-    const QStringList areas = {
-        QStringLiteral("Home"), QStringLiteral("Geometry"), QStringLiteral("Materials"),
-        QStringLiteral("Connections"), QStringLiteral("Mesh"), QStringLiteral("Physics"),
-        QStringLiteral("Analysis"), QStringLiteral("Results")
-    };
-    const QStringList commandHints = {
-        QStringLiteral("Select  ·  Measure  ·  View  ·  Validate Model"),
-        QStringLiteral("Import  ·  Create  ·  Modify  ·  Repair  ·  Inspect  ·  Reference"),
-        QStringLiteral("Create  ·  Assign  ·  Model  ·  Experimental Data  ·  Calibration"),
-        QStringLiteral("Create  ·  Contact  ·  Detection  ·  Inspect"),
-        QStringLiteral("Generate  ·  Dimension  ·  Method  ·  Controls  ·  Quality"),
-        QStringLiteral("Structural  ·  Loads  ·  Constraints  ·  Initial State  ·  Formulation"),
-        QStringLiteral("Study  ·  Steps  ·  Nonlinear  ·  Solver  ·  Restart"),
-        QStringLiteral("Deformation  ·  Stress  ·  Strain  ·  Contact  ·  Evaluate  ·  Explore")
-    };
-
-    for (int i = 0; i < areas.size(); ++i) {
-        auto *button = new QToolButton(contextContainer);
-        button->setText(areas[i]);
-        button->setCheckable(true);
-        button->setAutoRaise(true);
-        button->setToolButtonStyle(Qt::ToolButtonTextOnly);
-        buttonGroup->addButton(button, i);
-        tabsRow->addWidget(button);
-        QObject::connect(button, &QToolButton::clicked, contextContainer, [commandsLabel, commandHints, i] {
-            commandsLabel->setText(commandHints[i]);
-        });
-        if (i == 0) {
-            button->setChecked(true);
-        }
-    }
-    tabsRow->addStretch(1);
-    contextLayout->addLayout(tabsRow);
-    contextLayout->addWidget(commandsLabel);
-    contextContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    contextBar->addWidget(contextContainer);
-
-    window.addToolBarBreak(Qt::TopToolBarArea);
-    window.addToolBar(Qt::TopToolBarArea, contextBar);
+    mainToolbar->addAction(utilityAction);
+    mainToolbar->addAction(inspectorAction);
 
     if (solveAction != nullptr && utilityDock != nullptr && utilityTabs != nullptr) {
         QObject::connect(solveAction, &QAction::triggered, &window, [utilityDock, utilityTabs] {
-            activateUtilityTab(utilityDock, utilityTabs, QStringLiteral("Table"));
+            activateUtilityTab(utilityDock, utilityTabs, QStringLiteral("Results"));
         });
     }
     if (modalAction != nullptr && utilityDock != nullptr && utilityTabs != nullptr) {
         QObject::connect(modalAction, &QAction::triggered, &window, [utilityDock, utilityTabs] {
-            activateUtilityTab(utilityDock, utilityTabs, QStringLiteral("Table"));
+            activateUtilityTab(utilityDock, utilityTabs, QStringLiteral("Results"));
         });
     }
     if (nonlinearAction != nullptr && utilityDock != nullptr && utilityTabs != nullptr) {
@@ -512,11 +427,11 @@ void applyApplicationShell(QMainWindow &window)
     }
 
     replaceLegacyVisibleLogText(window);
-    window.statusBar()->showMessage(
-        QStringLiteral("Dynamics26 GUI %1  •  Engine %2.%3.%4  •  C API %5")
-            .arg(QStringLiteral(DYNAMICS26_GUI_MILESTONE))
-            .arg(fem_version_major()).arg(fem_version_minor()).arg(fem_version_patch())
-            .arg(fem_api_version()));
+
+    // Kalıcı engine/API satırı ana çalışma alanından kaldırılır. Bu bilgi About
+    // ve ileride Diagnostics içinde erişilebilir; viewport alanını tüketmez.
+    window.statusBar()->clearMessage();
+    window.statusBar()->hide();
 }
 
 } // namespace dynamics26::gui
