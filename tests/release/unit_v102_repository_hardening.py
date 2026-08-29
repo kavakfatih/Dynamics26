@@ -27,6 +27,25 @@ def main() -> int:
     else:
         print("repository hygiene tracked-file gate skipped: source archive has no .git metadata")
 
+    # Proje tarafindan yonetilen VS Code dosyalari izinli; rastgele kullanici
+    # dosyalari ise repository hygiene gate tarafindan reddedilmelidir.
+    with tempfile.TemporaryDirectory(prefix="femcae-vscode-hygiene-") as vscode_tmp:
+        vscode_root = Path(vscode_tmp)
+        managed = ["extensions.json", "launch.json", "settings.json", "tasks.json"]
+        (vscode_root / ".vscode").mkdir()
+        for name in managed:
+            (vscode_root / ".vscode" / name).write_text("{}\n", encoding="utf-8")
+        run([sys.executable, str(hygiene_tool), "--root", str(vscode_root)])
+        (vscode_root / ".vscode" / "local-state.json").write_text("{}\n", encoding="utf-8")
+        rejected = subprocess.run(
+            [sys.executable, str(hygiene_tool), "--root", str(vscode_root)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if rejected.returncode == 0:
+            raise RuntimeError("unmanaged .vscode file was not rejected")
+
     with tempfile.TemporaryDirectory(prefix="femcae-v102-") as tmp:
         a = Path(tmp) / "a.zip"
         b = Path(tmp) / "b.zip"

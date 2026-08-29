@@ -21,7 +21,14 @@ static void fem_accelerate_report_error(const char *message) {
 
 int fem_accelerate_sparse_available(void) {
 #ifdef __APPLE__
+#if defined(__clang__)
+    if (__builtin_available(macOS 15.5, *)) {
+        return 1;
+    }
+    return 0;
+#else
     return 1;
+#endif
 #else
     return 0;
 #endif
@@ -102,7 +109,17 @@ int fem_accelerate_sparse_solve(int32_t n,
     sfoptions.free = free;
     sfoptions.reportError = fem_accelerate_report_error;
 
+#if defined(__clang__)
+    if (__builtin_available(macOS 15.5, *)) {
+        symbolic = SparseFactor(SparseFactorizationLU, matrix.structure, sfoptions);
+    } else {
+        SparseCleanup(matrix);
+        free(rows); free(cols);
+        return -12;
+    }
+#else
     symbolic = SparseFactor(SparseFactorizationLU, matrix.structure, sfoptions);
+#endif
     if (symbolic.status < 0 || fem_accelerate_error_seen) {
         SparseCleanup(symbolic);
         SparseCleanup(matrix);

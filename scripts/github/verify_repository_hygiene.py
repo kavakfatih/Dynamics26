@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 FORBIDDEN_PARTS = {
-    "build", "stage", "dist", ".idea", ".vscode", "__pycache__",
+    "build", "stage", "dist", ".idea", "__pycache__",
 }
 FORBIDDEN_PREFIXES = ("build-", "stage-", "cmake-build-")
 FORBIDDEN_SUFFIXES = (
@@ -30,6 +30,12 @@ ALLOW_SECRET_DOCS = {
     ".github/workflows/macos-release.yml",
     "docs/development/V1.0.1_NATIVE_RELEASE_GATES.md",
     "scripts/macos/sign_and_notarize.sh",
+}
+ALLOWED_VSCODE_FILES = {
+    ".vscode/extensions.json",
+    ".vscode/launch.json",
+    ".vscode/settings.json",
+    ".vscode/tasks.json",
 }
 
 
@@ -59,6 +65,8 @@ def tree_files(root: Path) -> list[str]:
 
 
 def violation(path: str) -> str | None:
+    if path.startswith(".vscode/") and path not in ALLOWED_VSCODE_FILES:
+        return "unmanaged VS Code workspace file"
     parts = Path(path).parts
     for part in parts[:-1]:
         if part in FORBIDDEN_PARTS or part.startswith(FORBIDDEN_PREFIXES):

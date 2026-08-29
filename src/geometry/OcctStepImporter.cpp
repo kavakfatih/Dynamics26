@@ -13,6 +13,7 @@
 #include <BRep_Tool.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Poly_Triangulation.hxx>
+#include <Precision.hxx>
 #include <STEPCAFControl_Reader.hxx>
 #include <TCollection_AsciiString.hxx>
 #include <TDF_LabelSequence.hxx>
@@ -255,7 +256,10 @@ std::optional<StepAxisAlignedBoxDescriptor> OcctStepImporter::axisAlignedBoxDesc
     Bnd_Box bodyBox;BRepBndLib::Add(bodyIt->second,bodyBox);
     Standard_Real xmin{},ymin{},zmin{},xmax{},ymax{},zmax{};bodyBox.Get(xmin,ymin,zmin,xmax,ymax,zmax);
     const double scale=std::max({1.0,std::abs(xmax-xmin),std::abs(ymax-ymin),std::abs(zmax-zmin)});
-    const double tol=tolerance*scale;
+    // BRepBndLib kutulari STEP topoloji toleransini da kapsar. Kullanici toleransi
+    // Precision::Confusion() degerinin altinda kalsa bile sifir kalinlikli duzlem
+    // yuzlerini sayisal bbox genislemesi nedeniyle reddetmemeliyiz.
+    const double tol=std::max(tolerance*scale, 10.0*static_cast<double>(Precision::Confusion()));
     StepAxisAlignedBoxDescriptor d;d.bodyId=bodyId;d.min={xmin,ymin,zmin};d.max={xmax,ymax,zmax};
     auto assign=[&](GeometryEntityId& slot,const GeometryEntityId id){if(slot!=InvalidGeometryId) return false;slot=id;return true;};
     for(const auto& [faceId,parent] : impl_->faceParents){

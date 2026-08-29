@@ -9,6 +9,7 @@
 
 #include <femcae/geometry/GeometryDocument.h>
 #include <femcae/geometry/OcctStepImporter.h>
+#include <femcae/geometry/SectionProfile.h>
 
 class QComboBox;
 class QLabel;

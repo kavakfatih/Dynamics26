@@ -522,12 +522,12 @@ void MainWindow::runNonlinearDemo()
             appendLog(tr("Rigid-master contact demo başarısız: status=%1").arg(rc));
             return;
         }
-        nonlinearSummary_->setText(tr("Rigid-Master Contact
-Enforcement: %1
-Aktif contact: %2
-Max penetration: %3 mm
-Normal contact force: %4 N
-Newton corrections: %5")
+        nonlinearSummary_->setText(tr("Rigid-Master Contact\n"
+                            "Enforcement: %1\n"
+                            "Aktif contact: %2\n"
+                            "Max penetration: %3 mm\n"
+                            "Normal contact force: %4 N\n"
+                            "Newton corrections: %5")
             .arg(contactEnforcement_->currentText()).arg(activeContacts).arg(penetration*1000.0,0,'g',8)
             .arg(normalForce,0,'g',10).arg(iterations));
         results_->setRowCount(5);
