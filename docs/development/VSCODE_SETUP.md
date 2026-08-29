@@ -16,7 +16,7 @@ Kontrol:
 ```bash
 which cmake
 which ninja
-which gfortran-15
+which gfortran
 which fortls
 ```
 
@@ -131,7 +131,7 @@ CodeLLDB ile çalıştırılır.
 
 ## 7. Fortran language server
 
-Modern Fortran eklentisi `fortls` kullanır. Workspace ayarları compiler olarak `gfortran-15` seçer ve Debug Core Fortran module dizinini include path'e ekler.
+Modern Fortran eklentisi `fortls` kullanır. Workspace ayarları compiler olarak `gfortran` seçer ve Debug Core Fortran module dizinini include path'e ekler.
 
 `fortls` bulunamıyorsa:
 

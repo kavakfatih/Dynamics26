@@ -144,7 +144,7 @@ ctest --test-dir build --output-on-failure
 brew install cmake ninja gcc arpack qt vtk opencascade
 
 prefix_path="$(brew --prefix qt);$(brew --prefix vtk);$(brew --prefix opencascade)"
-FC=gfortran-15 cmake -S . -B build-macos -G Ninja \
+FC=gfortran cmake -S . -B build-macos -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_OSX_ARCHITECTURES=arm64 \
   -DCMAKE_PREFIX_PATH="$prefix_path" \

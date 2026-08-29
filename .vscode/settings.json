@@ -4,7 +4,7 @@
   "cmake.sourceDirectory": "${workspaceFolder}",
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
   "fortran.linter.compiler": "gfortran",
-  "fortran.linter.compilerPath": "/opt/homebrew/bin/gfortran-15",
+  "fortran.linter.compilerPath": "/opt/homebrew/bin/gfortran",
   "fortran.fortls.path": "fortls",
   "fortran.linter.includePaths": [
     "${workspaceFolder}/src/**",

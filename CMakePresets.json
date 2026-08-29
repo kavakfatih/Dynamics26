@@ -14,7 +14,7 @@
       "cacheVariables": {
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMAKE_Fortran_COMPILER": "gfortran-15",
+        "CMAKE_Fortran_COMPILER": "gfortran",
         "CMAKE_C_COMPILER": "/usr/bin/clang",
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
         "FEMCAE_BUILD_TESTING": "ON",
