@@ -19,9 +19,9 @@
 #include <QSize>
 #include <QSizePolicy>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyle>
-#include <QTabBar>
 #include <QTabWidget>
 #include <QToolBar>
 #include <QTreeWidget>
@@ -46,7 +46,7 @@ struct WorkspaceParts {
 
 struct InspectorShell {
     QFrame *panel = nullptr;
-    QTabWidget *tabs = nullptr;
+    QStackedWidget *pages = nullptr;
     QLabel *context = nullptr;
     QLabel *emptyState = nullptr;
 };
@@ -224,22 +224,32 @@ InspectorShell wrapInspector(QWidget *legacyInspector)
     shell.emptyState->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     layout->addWidget(shell.emptyState, 1);
 
-    shell.tabs = qobject_cast<QTabWidget *>(legacyInspector);
-    if (shell.tabs != nullptr) {
-        shell.tabs->setObjectName(QStringLiteral("Dynamics26EngineeringInspector"));
-        shell.tabs->setDocumentMode(false);
-        shell.tabs->setUsesScrollButtons(false);
-        shell.tabs->setAccessibleName(QStringLiteral("Engineering Inspector"));
-        if (shell.tabs->tabBar() != nullptr) {
-            // Legacy yatay tab strip shell'in ana bilgi mimarisi değildir.
-            // Bölüm seçimi Navigator üzerinden yapılır; gerçek contextual
-            // property modeli Alpha.2'de gelecektir.
-            shell.tabs->tabBar()->hide();
+    shell.pages = new QStackedWidget(shell.panel);
+    shell.pages->setObjectName(QStringLiteral("Dynamics26EngineeringInspector"));
+    shell.pages->setAccessibleName(QStringLiteral("Engineering Inspector"));
+
+    // MainWindow halen Alpha.1 öncesi engineering sayfalarını QTabWidget içinde
+    // üretir. Corrective shell bu tab container'ı görünmez bırakmakla yetinmez:
+    // çalışan sayfaları sırayı bozmadan kendi stacked container'ına taşır ve eski
+    // tab chrome'unu tamamen yaşam döngüsünden çıkarır. Widget pointer'ları aynı
+    // kaldığı için geometry/mesh/material/analysis bağlantıları korunur.
+    if (auto *legacyTabs = qobject_cast<QTabWidget *>(legacyInspector)) {
+        while (legacyTabs->count() > 0) {
+            QWidget *page = legacyTabs->widget(0);
+            legacyTabs->removeTab(0);
+            if (page != nullptr) {
+                shell.pages->addWidget(page);
+            }
         }
-        shell.tabs->hide();
+        legacyTabs->setParent(nullptr);
+        legacyTabs->deleteLater();
+    } else {
+        legacyInspector->setParent(nullptr);
+        shell.pages->addWidget(legacyInspector);
     }
-    layout->addWidget(legacyInspector, 1);
-    legacyInspector->hide();
+
+    shell.pages->hide();
+    layout->addWidget(shell.pages, 1);
     return shell;
 }
 
@@ -334,7 +344,7 @@ void applyApplicationShell(QMainWindow &window)
     // shell bu global override'ı görünür UI'ya taşımadan temizler; böylece
     // Qt/macOS system palette Light/Dark Mode davranışının kaynağı olur.
     window.setStyleSheet(QString());
-    window.setWindowTitle(QStringLiteral("Untitled.d26 — Dynamics26"));
+    window.setWindowTitle(QStringLiteral("Dynamics26"));
     window.setDocumentMode(true);
     window.setDockNestingEnabled(false);
 #ifdef Q_OS_MACOS
@@ -374,7 +384,7 @@ void applyApplicationShell(QMainWindow &window)
         }
         auto *utilityTabs = utilityDock != nullptr ? utilityDock->findChild<QTabWidget *>() : nullptr;
 
-        if (inspectorShell.tabs != nullptr) {
+        if (inspectorShell.pages != nullptr) {
             QObject::connect(
                 parts.navigator,
                 &QTreeWidget::currentItemChanged,
@@ -382,7 +392,9 @@ void applyApplicationShell(QMainWindow &window)
                 [inspectorShell, utilityDock, utilityTabs](QTreeWidgetItem *current, QTreeWidgetItem *) {
                     if (current == nullptr) {
                         inspectorShell.context->setText(QStringLiteral("Seçim yok"));
-                        inspectorShell.tabs->hide();
+                        inspectorShell.pages->hide();
+                        inspectorShell.emptyState->setText(
+                            QStringLiteral("Project Navigator’dan bir öğe seçerek mevcut mühendislik araçlarını görüntüleyin."));
                         inspectorShell.emptyState->show();
                         return;
                     }
@@ -390,14 +402,14 @@ void applyApplicationShell(QMainWindow &window)
                     inspectorShell.context->setText(current->text(0));
                     const QVariant binding = current->data(0, kNavigatorRoleInspectorPage);
                     if (!binding.isValid()) {
-                        inspectorShell.tabs->hide();
+                        inspectorShell.pages->hide();
                         inspectorShell.emptyState->show();
                         return;
                     }
 
                     const int target = binding.toInt();
                     if (target == kNavigatorOpenResults) {
-                        inspectorShell.tabs->hide();
+                        inspectorShell.pages->hide();
                         inspectorShell.emptyState->setText(
                             QStringLiteral("Sonuçlar ve çözüm tanıları alt utility alanında görüntülenir."));
                         inspectorShell.emptyState->show();
@@ -405,10 +417,10 @@ void applyApplicationShell(QMainWindow &window)
                         return;
                     }
 
-                    if (target >= 0 && target < inspectorShell.tabs->count()) {
-                        inspectorShell.tabs->setCurrentIndex(target);
+                    if (target >= 0 && target < inspectorShell.pages->count()) {
+                        inspectorShell.pages->setCurrentIndex(target);
                         inspectorShell.emptyState->hide();
-                        inspectorShell.tabs->show();
+                        inspectorShell.pages->show();
                     }
                 });
         }
@@ -424,7 +436,7 @@ void applyApplicationShell(QMainWindow &window)
         QObject::connect(newAction, &QAction::triggered, &window, [navigator = parts.navigator, inspectorShell] {
             configureNavigatorWidget(navigator);
             inspectorShell.context->setText(QStringLiteral("Seçim yok"));
-            inspectorShell.tabs->hide();
+            inspectorShell.pages->hide();
             inspectorShell.emptyState->setText(
                 QStringLiteral("Project Navigator’dan bir öğe seçerek mevcut mühendislik araçlarını görüntüleyin."));
             inspectorShell.emptyState->show();
@@ -540,10 +552,6 @@ void applyApplicationShell(QMainWindow &window)
         window.addToolBar(Qt::TopToolBarArea, mainToolbar);
 
         mainToolbar->addAction(navigatorAction);
-        auto *documentTitle = new QLabel(QStringLiteral("Untitled.d26"), mainToolbar);
-        documentTitle->setObjectName(QStringLiteral("Dynamics26DocumentTitle"));
-        documentTitle->setAccessibleName(QStringLiteral("Current project"));
-        mainToolbar->addWidget(documentTitle);
         mainToolbar->addWidget(makeExpandingSpacer(mainToolbar));
         mainToolbar->addAction(fitAction);
         mainToolbar->addAction(linearAction);
