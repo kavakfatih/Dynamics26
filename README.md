@@ -1,14 +1,37 @@
-# FEMCAE — V1.0.2
+# Dynamics26 — V1.0.2 Foundation / V1.1 Planning
 
-Modern Fortran tabanlı, macOS / Apple Silicon odaklı açık kaynak nonlinear FEM/CAE projesi.
+Modern Fortran tabanlı, macOS / Apple Silicon odaklı açık kaynak nonlinear FEM/CAE platformu.
 
-> **Release durumu:** V1.0.2 portable/source verification tamamlandı. Bu patch repository bootstrap, reproducible source archive ve GitHub CI/release hygiene katmanını sertleştirir. Native signed/notarized `.app` sonucu yalnız gerçek macOS workflow PASS olduğunda kabul edilir.
+> **Mevcut durum:** V1.0.2 solver/CAD/meshing/pre-post foundation ve macOS standalone deployment hardening tamamlandı. Aktif sonraki faz V1.1.0 GUI / UI / UX + Dynamics26 Identity çalışmasıdır.
 
-> FEMCAE, Code_Aster kaynak kodunu kopyalamaz veya port etmez. Dış projeler yalnız mimari ve mühendislik davranışı açısından referans olabilir; kaynak kod, formülasyon ve doğrulama testleri bağımsız geliştirilir.
+> **Bağımsız geliştirme ilkesi:** Dynamics26, Code_Aster veya başka bir CAE yazılımının kaynak kodunu kopyalamaz ya da port etmez. Dış projeler yalnız özellik, kullanıcı akışı, mühendislik davranışı ve doğrulama karşılaştırması için referans olabilir. Fizik, matematik, formulasyon, sayısal algoritma ve verification zinciri bağımsız olarak geliştirilir.
 
-## V1.0 mühendislik kapsamı
+## Ana geliştirme yaklaşımı
 
-V1.0 yeni solver özelliği eklemekten çok V0.1–V0.13 arasında geliştirilen zinciri sertleştirir:
+```text
+Research
+→ Physics / Mathematics
+→ Mathematical Formulation
+→ Numerical Algorithm
+→ Dynamics26 Architecture
+→ Implementation
+→ Verification / Benchmark
+→ Regression
+→ macOS CI
+→ Version Close
+```
+
+Temel mimari kural:
+
+```text
+CAD Geometry != Display Tessellation != FEM Mesh
+```
+
+Ana geliştirme dalı `main`'dir. Gereksiz feature/fix branch kullanılmaz; sürüm geçmişi version/tag/release ile yönetilir.
+
+## V1.0 mühendislik temeli
+
+V0.1–V0.13 arasında geliştirilen zincir V1.0.x serisinde verification ve release engineering açısından sertleştirildi:
 
 ```text
 CAD / Geometry
@@ -39,11 +62,64 @@ Ana solver özellikleri:
 - structured HEX8 / external Abaqus C3D8 meshing baseline,
 - geometry provenance, assignments, probe, CSV ve VTK export.
 
-## V1.0 hardening
+## Aktif ve gelecek yol haritası
+
+| Sürüm | Ana hedef |
+|---|---|
+| **V1.1.0** | GUI / UI / UX + Dynamics26 Identity |
+| **V1.2.0** | General CAD & Geometry Platform |
+| **V1.3.0** | General FEM Meshing |
+| **V1.4.0** | Advanced Element Library |
+| **V1.5.0** | Physics & Mathematics Verification Audit |
+| **V1.6.0** | Code Quality & Reliability Audit |
+| **V1.7.0** | Inter-module Communication & Performance |
+| **V1.8.0** | Advanced Nonlinear Mechanics |
+| **V1.9.0** | Advanced Contact |
+| **V1.10.0** | Advanced Meshing & Adaptivity |
+| **V1.11.0** | Large-Scale Solver & Performance |
+| **V1.12.0** | Advanced Postprocessing |
+| **V1.13.0** | Dynamics |
+| **V2.0.0** | Integrated CAE Qualification |
+
+Bu başlıklar ana ürün sütunlarıdır. Ayrıntılı plan için:
+
+- `VERSION_ROADMAP.md`
+- `docs/planning/DYNAMICS26_LONG_TERM_PLAN.md`
+- `docs/planning/V1.1_GUI_UX_PLAN.md`
+
+## V1.1 GUI hedefi
+
+V1.1 yeni solver fiziğinden önce mevcut çekirdeğin profesyonel CAE uygulamasına dönüştürülmesine odaklanır.
+
+Research kapsamında ANSYS Mechanical, Hexagon Marc/Mentat, Simufact, Abaqus/CAE, COMSOL, Altair HyperMesh/HyperView, gerektiğinde Simcenter ve Apple macOS Human Interface Guidelines modül bazında incelenecektir.
+
+Hedef application shell:
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│ Dynamics26       Context Toolbar / Search                  │
+├──────────────┬─────────────────────────────┬───────────────┤
+│ Project      │                             │ Inspector     │
+│ Navigator    │        3D Viewport          │               │
+│              │                             │ Properties    │
+│ Geometry     │                             │ Scope         │
+│ Materials    │                             │ Definition    │
+│ Connections  │                             │ Advanced      │
+│ Mesh         │                             │               │
+│ Analyses     │                             │               │
+│ Results      │                             │               │
+├──────────────┴─────────────────────────────┴───────────────┤
+│ Diagnostics / Solve / Convergence / Messages        ▲     │
+└────────────────────────────────────────────────────────────┘
+```
+
+V1.1 kullanıcıya görünen isimlerin **Dynamics26** olarak güncellenmesi için planlanan migration sürümüdür. `femcae_*`, `libfemcae`, `FEMCAE_*` gibi internal/public API, CMake veya compatibility isimleri ABI/API etkisi denetlenmeden topluca değiştirilmez.
+
+## V1.0 hardening notları
 
 ### Disk checkpoint / restart
 
-Nonlinear checkpoint artık yalnız RAM içinde değildir. `fem_checkpoint_io`:
+Nonlinear checkpoint yalnız RAM içinde değildir. `fem_checkpoint_io`:
 
 - sürümlü schema,
 - IEEE real64 bit-exact hexadecimal serialization,
@@ -53,7 +129,7 @@ Nonlinear checkpoint artık yalnız RAM içinde değildir. `fem_checkpoint_io`:
 
 sağlar.
 
-Contact history bu V1.0 checkpoint schema'sında henüz serialize edilmez; contact + checkpoint restart açıkça reddedilmeye devam eder.
+Contact history mevcut V1.0 checkpoint schema'sında henüz serialize edilmez; contact + checkpoint restart bu baseline'da açıkça reddedilir.
 
 ### Mesh convergence
 
@@ -84,48 +160,26 @@ V1.0 testleri en az şu hataları explicit olarak reddeder:
 
 ### Memory-safety gate
 
-V1.0 release testleri ayrı GCC AddressSanitizer + UndefinedBehaviorSanitizer build'inde de çalıştırılır. Portable hostta V1 release label seti **5/5 PASS** olmuştur. Bu gate native macOS Instruments/Leaks yerine geçmez; Apple-side memory audit ayrıca release checklist'indedir.
+V1.0 release testleri ayrı GCC AddressSanitizer + UndefinedBehaviorSanitizer build'inde de çalıştırılmıştır. Bu gate native macOS Instruments/Leaks yerine geçmez; Apple-side memory audit ayrıca ileri code-quality/release çalışmalarındadır.
 
-## Final portable validation
+## V1.0 portable validation kaydı
 
-Aynı V1.0 source snapshot:
+V1.0.0 validation snapshot'ı:
 
 ```text
 Debug   : 123/123 PASS
 Release : 123/123 PASS
 ```
 
-Öne çıkan sayılar:
+V1.0.2 repository/reproducibility hardening snapshot'ında portable Debug/Release **124/124 PASS** kaydı bulunur.
 
-```text
-Unit          : 67
-Verification  : 39
-Release       : 5
-Linear        : 15
-Nonlinear     : 25
-Hyperelastic  : 11
-Mixed u-p     : 7
-Contact       : 9
-Meshing       : 7
-Error path    : 7
-```
-
-Installed-package gate'leri:
-
-```text
-Installed CLI                     PASS
-Installed C API consumer          PASS
-Installed Geometry/Meshing C++    PASS
-macOS workflow YAML parse         PASS
-macOS release shell syntax        PASS
-Release source compiler warnings  0
-```
+V1.0.2 döneminde GitHub-hosted Apple Silicon CI üzerinde standalone `.app`, ad-hoc code-sign, strict Mach-O dependency audit, bundle smoke ve artifact upload da başarıyla doğrulanmıştır. Bu, Developer ID ile production notarization kanıtı değildir.
 
 ## Performance smoke
 
-`perf_v1000_001` bir performans iddiası veya donanımlar arası benchmark değildir. Aynı CI/host üzerinde regression alarmı üretmek için 12×3×3 = 108 HEX8, 208 node ve yaklaşık 605 aktif DOF'lu lineer problemi çözer.
+`perf_v1000_001` donanımlar arası performans iddiası değildir. Aynı CI/host üzerinde regression alarmı üretmek için 12×3×3 = 108 HEX8, 208 node ve yaklaşık 605 aktif DOF'lu lineer problemi çözer.
 
-Bu doğrulama hostundaki Release örnek koşusu yaklaşık **0.43 s** sürmüştür. Testte geniş bir üst süre sınırı kullanılır; farklı donanımlardaki mutlak süreler karşılaştırılmamalıdır.
+Large-scale solver performansı V1.11.0'da ayrı research/benchmark programı olarak ele alınacaktır.
 
 ## Portable build
 
@@ -158,6 +212,8 @@ ctest --test-dir build-macos --output-on-failure
 cmake --install build-macos --prefix stage
 ```
 
+> `FEMCAE_*` build option adları şimdilik compatibility/internal interface olarak korunmaktadır. V1.1 identity audit'i sonrasında API/ABI etkisine göre migration kararı verilecektir.
+
 `.app` deployment kaynakları Qt deployment + CMake `BundleUtilities::fixup_bundle()` kullanır. `scripts/macos/audit_bundle.sh` Mach-O architecture, absolute Homebrew/build-path dependencies ve code-sign verification kontrolleri yapar.
 
 Developer ID/notarization için `scripts/macos/sign_and_notarize.sh` altyapısı bulunur; gerçek Apple Developer kimliği ve notary profile gerektirir.
@@ -177,50 +233,48 @@ auto mesh = mesher.meshBox({{0,0,0}, {1,1,1}}, geometry, 1, options);
 auto quality = evaluateHexMeshQuality(mesh);
 ```
 
+Bu `femcae` namespace/include path'leri şimdilik compatibility API'sidir; kullanıcıya görünen ürün adı Dynamics26'dır.
+
 ## Lisans
 
-FEMCAE kaynak kodu Apache License 2.0 altında sunulur. Üçüncü taraf kütüphaneler kendi lisansları altındadır; `THIRD_PARTY_LICENSES.md` ve `THIRD_PARTY_NOTICES.md` dosyalarına bakın. Gerçek binary dağıtımında kullanılan upstream lisans metinleri app bundle'a dahil edilmelidir.
+Dynamics26 proje kaynakları mevcut repository lisans politikası kapsamında Apache License 2.0 altında sunulur. Üçüncü taraf kütüphaneler kendi lisansları altındadır; `THIRD_PARTY_LICENSES.md` ve `THIRD_PARTY_NOTICES.md` dosyalarına bakın. Gerçek binary dağıtımında kullanılan upstream lisans metinleri app bundle'a dahil edilmelidir.
 
-## V1.0'da bilinçli olarak production-ready denmeyen alanlar
+## Mevcut baseline'da production-ready denmeyen ana alanlar
 
-- arbitrary curved CAD için genel production tetra/hex volume mesher,
-- adaptive error-estimator refinement,
-- higher-order/stabilized geniş mixed-element ailesi,
+Bu alanlar artık doğrudan V1.2–V1.13 roadmap sütunlarına bağlanmıştır:
+
+- arbitrary curved CAD için general geometry/modeling workflow,
+- general 1D/2D/3D FEM meshing,
+- higher-order ve gelişmiş element ailesi,
+- finite-strain/global plasticity ve ileri nonlinear çözüm kontrolü,
 - deformable-deformable/mortar/self-contact,
-- finite-strain/global J2 plasticity,
-- large-scale sparse shift-invert modal optimization,
-- interpolated cut-surface contour,
-- contact-history disk restart,
-- native signed/notarized macOS artifact doğrulaması.
+- adaptive refinement/remeshing/state transfer,
+- large-scale sparse solver/eigensolver optimizasyonu,
+- advanced result interpolation/comparison/postprocess,
+- tam dynamics analysis family,
+- production Developer ID signed/notarized distribution qualification.
 
 ## Temel belgeler
 
 - `VERSION_ROADMAP.md`
+- `docs/planning/DYNAMICS26_LONG_TERM_PLAN.md`
+- `docs/planning/V1.1_GUI_UX_PLAN.md`
+- `docs/architecture/MASTER_ROADMAP.md`
 - `docs/architecture/V1.0.0_ARCHITECTURE.md`
 - `docs/development/V1.0.0_AUDIT.md`
 - `docs/development/BUILD_VALIDATION.md`
 - `docs/development/PERFORMANCE_BASELINE.md`
 - `docs/development/V1.0_RELEASE_CHECKLIST.md`
 - `docs/verification/V1.0_VERIFICATION_MATRIX.md`
-- `docs/verification/VER-V1000-001.md`
-- `docs/verification/VER-V1000-002.md`
 - `RELEASE_NOTES_V1.0.0.md`
 - `SECURITY.md`
 
-## V1.0.2 repository / reproducible release hardening
+## CI yönü
 
-- `femcae_geometry` → `femcae_meshing` CMake target bağımlılığı gerçek target sırasıyla kurulur.
-- Shared-library sürümü `PROJECT_VERSION` üzerinden gelir.
-- `scripts/github/verify_repository_hygiene.py` build/binary/credential artifaktlarını engeller.
-- `scripts/release/make_source_archive.py` byte-for-byte deterministik kaynak ZIP üretir.
-- `scripts/github/bootstrap_repo.sh` ilk Git commit/origin/push akışını hazırlar.
-- CTest geçici kaynak ağacında gerçek no-push Git bootstrap ve reproducible archive doğrulaması yapar.
-- Portable Debug/Release: 124/124 PASS.
-- Uzak FEMCAE GitHub reposu bu release sırasında bağlantıda görünmediği için remote CI çalıştırılmış sayılmaz.
+V1.1 itibarıyla CI üç katmanlı ele alınacaktır:
 
-## V1.0.1 release engineering
+1. **Fast main CI:** core build/tests + GUI compile + small GUI smoke.
+2. **Self-hosted MacBook engineering CI:** trusted/manual incremental GUI, dependency reuse, profiling ve uzun testler.
+3. **Clean GitHub-hosted release CI:** clean arm64 build, full tests, deploy, strict bundle audit, codesign, bundle smoke ve artifact.
 
-- `RELEASE_NOTES_V1.0.1.md`
-- `docs/development/V1.0.1_AUDIT.md`
-- `docs/development/V1.0.1_NATIVE_RELEASE_GATES.md`
-
+`gui-build` yavaşlığı step-bazlı süre ölçümü yapıldıktan sonra optimize edilecektir; strict bundle audit yalnız hız veya CI geçişi için gevşetilmeyecektir.
