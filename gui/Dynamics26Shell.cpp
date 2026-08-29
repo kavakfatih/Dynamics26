@@ -107,13 +107,12 @@ void configureUtilityArea(QDockWidget *dock)
     if (tabs == nullptr) {
         return;
     }
+
     tabs->setObjectName(QStringLiteral("Dynamics26UtilityTabs"));
     tabs->setDocumentMode(true);
 
-    // Corrective Alpha.1 kararı:
-    // Gelecek beta sürümlerinin Solver/Graph/Messages placeholder sayfalarını
-    // kullanıcıya çalışıyormuş gibi göstermiyoruz. Yalnız mevcut ve gerçekten
-    // veri üreten Results, Convergence ve Log yüzeyleri görünür kalır.
+    // Corrective Alpha.1: yalnız çalışan veri yüzeyleri görünür kalır.
+    // Solver/Graph/Messages gibi gelecek sürüm placeholder'ları ana UI'ya eklenmez.
     for (int i = 0; i < tabs->count(); ++i) {
         const QString title = tabs->tabText(i);
         if (title.contains(QStringLiteral("Sonuç"), Qt::CaseInsensitive)) {
@@ -155,17 +154,11 @@ namespace dynamics26::gui {
 
 void applyApplicationShell(QMainWindow &window)
 {
-    // ---------------------------------------------------------------------
-    // V1.1.0-alpha.1 corrective shell
-    // ---------------------------------------------------------------------
-    // İlk Alpha.1 denemesinde QMainWindow::setUnifiedTitleAndToolBarOnMac(true)
-    // kullanılmıştı. Qt dokümantasyonuna göre unified toolbar, QOpenGLWidget
-    // içeren pencerelerde desteklenmez. Dynamics26 VTK viewport'u
-    // QVTKOpenGLNativeWidget/QOpenGLWidget kullandığından bu kombinasyon gerçek
-    // macOS testinde blank Navigator / siyah Inspector benzeri paint sorunlarına
-    // yol açabilecek bir mimari risktir. Corrective sürümde bu unsupported yol
-    // kapatılır; native macOS frame + system appearance korunur.
-    // ---------------------------------------------------------------------
+    // İlk Alpha.1'de unifiedTitleAndToolBarOnMac(true) kullanılmıştı. Qt'nin
+    // kendi dokümantasyonuna göre bu yol QOpenGLWidget içeren pencerelerde
+    // desteklenmez. Dynamics26 VTK viewport'u OpenGL widget kullandığından
+    // gerçek macOS testinde görülen blank/siyah panel davranışının önüne geçmek
+    // için corrective Alpha.1 normal native macOS frame kullanır.
     window.setStyleSheet(QString());
     window.setWindowTitle(QStringLiteral("Untitled.d26"));
     window.setDocumentMode(true);
@@ -231,8 +224,8 @@ void applyApplicationShell(QMainWindow &window)
     }
     auto *utilityTabs = utilityDock != nullptr ? utilityDock->findChild<QTabWidget *>() : nullptr;
 
-    // Mevcut çalışan V1.0 action'larını koruyoruz. Corrective Alpha.1'de yeni
-    // sahte command üretmek yerine yalnız gerçekten bağlı action'lar görünürdür.
+    // Legacy MainWindow'da gerçekten çalışan action'lar korunur. Görünür metin
+    // tabanlı bu adaptör geçicidir; alpha.3 gerçek command registry ile değişir.
     QAction *newAction = findAction(window, {QStringLiteral("Yeni"), QStringLiteral("New")});
     QAction *openAction = findAction(window, {QStringLiteral("Aç"), QStringLiteral("Open"), QStringLiteral("Open…")});
     QAction *saveAction = findAction(window, {QStringLiteral("Kaydet"), QStringLiteral("Save")});
@@ -285,7 +278,6 @@ void applyApplicationShell(QMainWindow &window)
     navigatorAction->setChecked(navigator == nullptr || navigator->isVisible());
     navigatorAction->setShortcut(QKeySequence(Qt::META | Qt::Key_1));
     navigatorAction->setToolTip(QStringLiteral("Show or hide Project Navigator (⌘1)"));
-    navigatorAction->setAccessibleName(QStringLiteral("Toggle Project Navigator"));
     setStandardIcon(window, navigatorAction, QStyle::SP_FileDialogListView);
     QObject::connect(navigatorAction, &QAction::toggled, &window, [navigator](bool visible) {
         if (navigator != nullptr) {
@@ -298,7 +290,6 @@ void applyApplicationShell(QMainWindow &window)
     inspectorAction->setChecked(inspector == nullptr || inspector->isVisible());
     inspectorAction->setShortcut(QKeySequence(Qt::META | Qt::Key_2));
     inspectorAction->setToolTip(QStringLiteral("Show or hide Inspector (⌘2)"));
-    inspectorAction->setAccessibleName(QStringLiteral("Toggle Inspector"));
     setStandardIcon(window, inspectorAction, QStyle::SP_FileDialogDetailedView);
     QObject::connect(inspectorAction, &QAction::toggled, &window, [inspector](bool visible) {
         if (inspector != nullptr) {
@@ -338,8 +329,8 @@ void applyApplicationShell(QMainWindow &window)
     quitAction->setShortcut(QKeySequence::Quit);
     QObject::connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
 
-    // Native macOS menu bar: yalnız çalışan komutlar. Alpha.2/3 için planlanan
-    // Model/Geometry/Mesh/Search/Undo placeholder'ları bu aşamada görünmez.
+    // Menu bar yalnız çalışan komutları içerir. Model/Geometry/Mesh/Search/Undo
+    // placeholder'ları gerçek command modeli gelene kadar ana UI'da gösterilmez.
     QMenuBar *bar = window.menuBar();
     bar->clear();
 
@@ -375,8 +366,9 @@ void applyApplicationShell(QMainWindow &window)
         window.addToolBar(Qt::TopToolBarArea, mainToolbar);
     }
 
-    // Apple HIG doğrultusunda toolbar tek satır, seyrek ve içerik önceliklidir.
-    // Workspace tab'ları ve sahte command-hint satırı kaldırılmıştır.
+    // Apple HIG'e paralel corrective yaklaşım: tek satır, az sayıda komut,
+    // monochrome/system icon, içerik önceliği. Eski workspace text-strip ve
+    // command-hint satırı tamamen kaldırılmıştır.
     mainToolbar->setObjectName(QStringLiteral("Dynamics26MainToolbar"));
     mainToolbar->setWindowTitle(QStringLiteral("Main Toolbar"));
     mainToolbar->setMovable(false);
@@ -428,8 +420,8 @@ void applyApplicationShell(QMainWindow &window)
 
     replaceLegacyVisibleLogText(window);
 
-    // Kalıcı engine/API satırı ana çalışma alanından kaldırılır. Bu bilgi About
-    // ve ileride Diagnostics içinde erişilebilir; viewport alanını tüketmez.
+    // Engine/API sürümleri About/Diagnostics içeriğidir; kalıcı alt satır olarak
+    // viewport alanını tüketmez.
     window.statusBar()->clearMessage();
     window.statusBar()->hide();
 }
