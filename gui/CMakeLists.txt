@@ -4,6 +4,8 @@ set(FEMCAE_GUI_SOURCES
     MainWindow.h
     Dynamics26Shell.cpp
     Dynamics26Shell.h
+    Alpha1UxController.cpp
+    Alpha1UxController.h
     ViewportWidget.cpp
     ViewportWidget.h
     MaterialCurveWidget.cpp
