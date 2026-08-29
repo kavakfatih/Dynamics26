@@ -43,19 +43,25 @@ ViewportTheme currentViewportTheme()
     const bool dark = window.lightnessF() < 0.5;
 
     if (dark) {
+        // Koyu görünümde preprocessing modeli arka plana gömülmemeli. Yüzey
+        // nötr tutulur, edge/wire ise selection rengi gibi bağırmadan yeterli
+        // kontrast verir. Result contour renkleri bu palette dahil değildir.
         return {
-            {0.060, 0.071, 0.082},
-            {0.43, 0.47, 0.53},
-            {0.72, 0.76, 0.82},
-            {0.78, 0.82, 0.88}
+            {0.050, 0.060, 0.070},
+            {0.46, 0.50, 0.56},
+            {0.78, 0.82, 0.87},
+            {0.88, 0.91, 0.95}
         };
     }
 
+    // Açık görünümde yüzey çok beyaz, kenar da çok siyah yapılmaz. ANSYS/COMSOL
+    // benzeri nötr engineering viewport için orta gri gövde + kontrollü edge
+    // kontrastı kullanılır.
     return {
-        {0.960, 0.968, 0.977},
-        {0.70, 0.74, 0.80},
-        {0.28, 0.32, 0.38},
-        {0.24, 0.28, 0.34}
+        {0.965, 0.970, 0.978},
+        {0.68, 0.72, 0.78},
+        {0.31, 0.35, 0.41},
+        {0.25, 0.29, 0.35}
     };
 }
 
@@ -185,13 +191,24 @@ void ViewportWidget::refreshSystemAppearance()
 
             if (property->GetRepresentation() == VTK_WIREFRAME) {
                 setActorColor(property, theme.wire);
-                property->SetLineWidth(1.35);
+                property->SetLineWidth(1.8);
+                property->SetAmbient(1.0);
+                property->SetDiffuse(0.0);
+                property->SetSpecular(0.0);
             }
 
             if (property->GetEdgeVisibility()) {
                 property->SetEdgeColor(theme.edge[0], theme.edge[1], theme.edge[2]);
+                property->SetLineWidth(1.15);
                 if (!scalarMapped) {
                     setActorColor(property, theme.surface);
+                    // Default VTK headlight koyu yan yüzleri gereğinden fazla
+                    // karartabiliyor. Nötr preprocessing gövdesinde düşük ambient
+                    // katkı ile yüzey okunabilirliği dengelenir; result contour
+                    // actor'larına dokunulmaz.
+                    property->SetAmbient(0.28);
+                    property->SetDiffuse(0.72);
+                    property->SetSpecular(0.0);
                 }
             }
         }
