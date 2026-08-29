@@ -2,6 +2,8 @@ set(FEMCAE_GUI_SOURCES
     main.cpp
     MainWindow.cpp
     MainWindow.h
+    Dynamics26Shell.cpp
+    Dynamics26Shell.h
     ViewportWidget.cpp
     ViewportWidget.h
     MaterialCurveWidget.cpp
@@ -25,7 +27,10 @@ target_link_libraries(femcae_gui PRIVATE
     femcae_meshing
 )
 target_include_directories(femcae_gui PRIVATE "${PROJECT_SOURCE_DIR}/include")
-target_compile_definitions(femcae_gui PRIVATE FEMCAE_APP_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(femcae_gui PRIVATE
+    FEMCAE_APP_VERSION="${PROJECT_VERSION}"
+    DYNAMICS26_GUI_MILESTONE="1.1.0-alpha.1"
+)
 
 if(FEMCAE_GUI_WITH_VTK)
     find_package(VTK QUIET COMPONENTS
@@ -49,7 +54,10 @@ endif()
 
 set_target_properties(femcae_gui PROPERTIES
     MACOSX_BUNDLE TRUE
-    MACOSX_BUNDLE_BUNDLE_NAME "FEMCAE"
+    # Alpha.1'de kullanıcıya görünen bundle adı Dynamics26 olur. OUTPUT_NAME ve
+    # bundle-path bilinçli olarak FEMCAE bırakılır; deployment/audit scriptleri
+    # birlikte migrate edilmeden internal path/ABI isimleri değiştirilmez.
+    MACOSX_BUNDLE_BUNDLE_NAME "Dynamics26"
     MACOSX_BUNDLE_GUI_IDENTIFIER "org.femcae.app"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
