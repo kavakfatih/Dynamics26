@@ -45,7 +45,7 @@ struct WorkspaceParts {
 };
 
 struct InspectorShell {
-    QWidget *panel = nullptr;
+    QFrame *panel = nullptr;
     QTabWidget *tabs = nullptr;
     QLabel *context = nullptr;
     QLabel *emptyState = nullptr;
