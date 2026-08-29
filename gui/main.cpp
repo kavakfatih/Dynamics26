@@ -1,8 +1,7 @@
 #include "MainWindow.h"
 #include "Dynamics26Shell.h"
-#include "Alpha1UxController.h"
+#include "CaeWorkbenchController.h"
 #include "AppearanceController.h"
-#include "Alpha1ProductPolish.h"
 
 #include <QApplication>
 #include <QSurfaceFormat>
@@ -56,10 +55,22 @@ int main(int argc, char *argv[])
     app.setOrganizationName("Dynamics26");
 
     MainWindow window;
+
+    // Alpha.1 recovery composition root:
+    // 1) Shell mevcut çalışan engineering widget'larını native macOS workstation
+    //    yerleşimine taşır.
+    // 2) CAE workbench controller görünür Model Tree / Graphics / Details /
+    //    Utility davranışının tek orchestration katmanıdır.
+    // 3) Appearance controller yalnız macOS system appearance -> VTK semantic
+    //    rendering köprüsünü yönetir; Qt widget skin'i uygulamaz.
+    //
+    // Eski Alpha1UxController + Alpha1ProductPolish zinciri artık startup'ta
+    // çalıştırılmaz; aynı widget'ı üst üste değiştiren corrective katmanlar böylece
+    // görünür composition root'tan çıkarılmıştır.
     dynamics26::gui::applyApplicationShell(window);
-    dynamics26::gui::attachAlpha1UxController(window);
+    dynamics26::gui::installCaeWorkbenchController(window);
     dynamics26::gui::installAppearanceController(app, window);
-    dynamics26::gui::installAlpha1ProductPolish(window);
+
     window.show();
     return app.exec();
 }
