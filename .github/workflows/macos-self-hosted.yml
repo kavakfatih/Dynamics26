@@ -1,0 +1,158 @@
+name: Trusted self-hosted macOS native validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dynamics26-self-hosted-main
+  cancel-in-progress: true
+
+jobs:
+  native-release:
+    name: native-release on trusted Mac
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+
+      - name: Trusted-runner guard and host information
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "$GITHUB_REPOSITORY" = "kavakfatih/Dynamics26"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$(uname -m)" = "arm64"
+          sw_vers
+          uname -a
+
+      - name: Prepare Homebrew and native dependencies
+        shell: bash
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          set -euxo pipefail
+          if command -v brew >/dev/null 2>&1; then
+            BREW_BIN="$(command -v brew)"
+          elif [[ -x /opt/homebrew/bin/brew ]]; then
+            BREW_BIN=/opt/homebrew/bin/brew
+          else
+            echo "Homebrew bulunamadi. Self-hosted runner Mac'te Homebrew kurulu olmali." >&2
+            exit 1
+          fi
+
+          eval "$("$BREW_BIN" shellenv)"
+          echo "$(dirname "$BREW_BIN")" >> "$GITHUB_PATH"
+
+          for formula in cmake ninja gcc qt vtk arpack opencascade; do
+            if ! "$BREW_BIN" list --versions "$formula" >/dev/null 2>&1; then
+              "$BREW_BIN" install "$formula"
+            fi
+          done
+
+          FC_PATH="$(command -v gfortran || true)"
+          if [[ -z "$FC_PATH" ]]; then
+            for candidate in /opt/homebrew/bin/gfortran-* /usr/local/bin/gfortran-*; do
+              if [[ -x "$candidate" ]]; then
+                FC_PATH="$candidate"
+              fi
+            done
+          fi
+          test -n "$FC_PATH"
+          test -x "$FC_PATH"
+
+          echo "FC=$FC_PATH" >> "$GITHUB_ENV"
+          echo "QT_PREFIX=$("$BREW_BIN" --prefix qt)" >> "$GITHUB_ENV"
+          echo "VTK_PREFIX=$("$BREW_BIN" --prefix vtk)" >> "$GITHUB_ENV"
+          echo "OCCT_PREFIX=$("$BREW_BIN" --prefix opencascade)" >> "$GITHUB_ENV"
+
+      - name: Configure Release GUI and solver
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf build-selfhosted stage-selfhosted
+          prefix_path="$QT_PREFIX;$VTK_PREFIX;$OCCT_PREFIX"
+          cmake -S . -B build-selfhosted -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_PREFIX_PATH="$prefix_path" \
+            -DFEMCAE_BUILD_TESTING=ON \
+            -DFEMCAE_ENABLE_RUNTIME_CHECKS=ON \
+            -DFEMCAE_BUILD_GUI=ON \
+            -DFEMCAE_GUI_WITH_VTK=ON \
+            -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON \
+            -DFEMCAE_REQUIRE_OCCT=ON
+
+      - name: Build Release GUI and solver
+        run: cmake --build build-selfhosted --parallel
+
+      - name: Full native verification matrix
+        run: ctest --test-dir build-selfhosted --output-on-failure
+
+      - name: Critical native gates
+        shell: bash
+        run: |
+          set -euxo pipefail
+          for label in migration occt meshing nonlinear contact release performance; do
+            ctest --test-dir build-selfhosted -L "$label" --output-on-failure
+          done
+
+      - name: Native arm64 architecture gate
+        shell: bash
+        run: |
+          set -euxo pipefail
+          for binary in build-selfhosted/femcae_cli build-selfhosted/libfemcae.dylib build-selfhosted/gui/FEMCAE.app/Contents/MacOS/FEMCAE; do
+            test -e "$binary"
+            file -L "$binary" | grep -q arm64
+          done
+
+      - name: Install and deploy standalone app
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --install build-selfhosted --prefix "$PWD/stage-selfhosted"
+          app="$PWD/stage-selfhosted/FEMCAE.app"
+          test -x "$app/Contents/MacOS/FEMCAE"
+          test -d "$app/Contents/Frameworks"
+
+      - name: Ad-hoc sign, loader smoke and bundle audit
+        shell: bash
+        run: |
+          set -euxo pipefail
+          app="$PWD/stage-selfhosted/FEMCAE.app"
+          codesign --force --deep --sign - --options runtime "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          "$app/Contents/MacOS/FEMCAE" --bundle-smoke
+          ./scripts/macos/audit_bundle.sh "$app"
+
+      - name: Package verified self-hosted app
+        shell: bash
+        run: |
+          set -euxo pipefail
+          app="$PWD/stage-selfhosted/FEMCAE.app"
+          archive="$RUNNER_TEMP/Dynamics26-1.0.2-macos-arm64-selfhosted-adhoc.zip"
+          rm -f "$archive" "$archive.sha256"
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$archive"
+          shasum -a 256 "$archive" | tee "$archive.sha256"
+
+      - name: Upload verified self-hosted app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dynamics26-1.0.2-macos-arm64-selfhosted-adhoc
+          path: |
+            ${{ runner.temp }}/Dynamics26-1.0.2-macos-arm64-selfhosted-adhoc.zip
+            ${{ runner.temp }}/Dynamics26-1.0.2-macos-arm64-selfhosted-adhoc.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Cleanup self-hosted workspace artifacts
+        if: always()
+        shell: bash
+        run: rm -rf build-selfhosted stage-selfhosted
