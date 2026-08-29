@@ -22,6 +22,7 @@
 #include <vtkMapper.h>
 #include <vtkProperty.h>
 #include <vtkRenderer.h>
+#include <vtkRenderWindow.h>
 #endif
 
 namespace {
