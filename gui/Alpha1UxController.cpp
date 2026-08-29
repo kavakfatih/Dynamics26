@@ -7,6 +7,7 @@
 #include <QDockWidget>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QHeaderView>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMetaObject>
@@ -190,18 +191,33 @@ void normalizeResultTable(QTabWidget *tabs)
         return;
     }
 
+    // Sonuç tablosu Navigator değildir: burada değerler görünür kalır, fakat
+    // ilk sütun nesne adını kırpmadan okuyacak kadar alan kazanır. İkinci sütun
+    // kalan alanı kullanır; legacy row-number chrome'u gösterilmez.
+    if (auto *header = table->horizontalHeader()) {
+        header->setMinimumSectionSize(120);
+        header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+        header->setSectionResizeMode(1, QHeaderView::Stretch);
+    }
+    if (auto *verticalHeader = table->verticalHeader()) {
+        verticalHeader->setVisible(false);
+    }
+
     for (int row = 0; row < table->rowCount(); ++row) {
         auto *item = table->item(row, 0);
         if (item == nullptr) {
             continue;
         }
         const QString source = item->text();
-        if (source.contains(QStringLiteral("Mesh max |u|"), Qt::CaseInsensitive)) {
-            item->setText(QStringLiteral("Maksimum Toplam Deformasyon"));
-        } else if (source.contains(QStringLiteral("Mesh max von Mises"), Qt::CaseInsensitive)) {
-            item->setText(QStringLiteral("Maksimum von Mises Gerilmesi"));
-        } else if (source.contains(QStringLiteral("ΣRx"), Qt::CaseInsensitive)) {
-            item->setText(QStringLiteral("Toplam Reaksiyon Kuvveti X"));
+        if (source.contains(QStringLiteral("Mesh max |u|"), Qt::CaseInsensitive)
+            || source.contains(QStringLiteral("Maksimum Toplam Deformasyon"), Qt::CaseInsensitive)) {
+            item->setText(QStringLiteral("Toplam Deformasyon"));
+        } else if (source.contains(QStringLiteral("Mesh max von Mises"), Qt::CaseInsensitive)
+                   || source.contains(QStringLiteral("Maksimum von Mises Gerilmesi"), Qt::CaseInsensitive)) {
+            item->setText(QStringLiteral("von Mises Gerilmesi"));
+        } else if (source.contains(QStringLiteral("ΣRx"), Qt::CaseInsensitive)
+                   || source.contains(QStringLiteral("Toplam Reaksiyon Kuvveti X"), Qt::CaseInsensitive)) {
+            item->setText(QStringLiteral("Reaksiyon Kuvveti X"));
         } else if (source.contains(QStringLiteral("Probe Node"), Qt::CaseInsensitive)) {
             item->setText(QStringLiteral("Probe Düğümü"));
         } else if (source.contains(QStringLiteral("Probe ux"), Qt::CaseInsensitive)) {
@@ -291,7 +307,7 @@ void configureAnalysisContext(
         solveButton->setEnabled(integratedLinear);
         solveButton->setToolTip(integratedLinear
             ? QStringLiteral("Seçili lineer modeli çöz")
-            : QStringLiteral("Bu analiz türünün entegre GUI workflow bağlantısı sonraki aşamada tamamlanacak; solver doğrulama yolu backend'de korunuyor."));
+            : QStringLiteral("Bu analiz türü henüz GUI Çöz akışına bağlı değil."));
     };
 
     QObject::connect(analysisType, qOverload<int>(&QComboBox::currentIndexChanged), page,
