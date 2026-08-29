@@ -14,6 +14,9 @@ concurrency:
   group: femcae-macos-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+
 jobs:
   build-test:
     timeout-minutes: 75
@@ -165,7 +168,61 @@ jobs:
             -o "$prefix/bin/meshing_install_smoke"
           "$prefix/bin/meshing_install_smoke"
 
-  gui-build:
+  # Günlük GUI geliştirme kapısı: kaynak değişikliklerinde derleme/architecture/migration
+  # kanıtı verir. Standalone deployment, fixup, codesign, tam Mach-O audit ve büyük
+  # artifact upload her push'ta tekrarlanmaz; bunlar aşağıdaki clean bundle gate'inde
+  # workflow_dispatch ile çalıştırılır.
+  gui-fast:
+    if: github.event_name != 'workflow_dispatch'
+    timeout-minutes: 45
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install GUI dependencies
+        run: |
+          set -euxo pipefail
+          test "$(uname -m)" = "arm64"
+          brew install qt vtk arpack opencascade
+
+      - name: Configure fast GUI gate
+        env:
+          FC: gfortran-15
+        run: |
+          set -euxo pipefail
+          prefix_path="$(brew --prefix qt);$(brew --prefix vtk);$(brew --prefix opencascade)"
+          cmake -S . -B build-gui-fast -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_PREFIX_PATH="$prefix_path" \
+            -DFEMCAE_BUILD_TESTING=ON \
+            -DFEMCAE_BUILD_GUI=ON \
+            -DFEMCAE_GUI_WITH_VTK=ON \
+            -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON \
+            -DFEMCAE_REQUIRE_OCCT=ON
+
+      - name: Build GUI target
+        run: cmake --build build-gui-fast --parallel --target femcae_gui
+
+      - name: Build GUI migration test
+        run: cmake --build build-gui-fast --parallel --target femcae_project_migration_test
+
+      - name: Project schema migration gate
+        run: ctest --test-dir build-gui-fast -L migration --output-on-failure
+
+      - name: GUI architecture gate
+        run: |
+          set -euxo pipefail
+          app="build-gui-fast/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          test -x "$app"
+          file -L "$app" | tee /tmp/femcae-gui-arch.txt
+          grep -q "arm64" /tmp/femcae-gui-arch.txt
+
+  # Temiz standalone bundle doğrulaması bilinçli olarak manuel/milestone kapısıdır.
+  # CI hız kazanırken release güvenliği düşürülmez.
+  gui-bundle-audit:
+    if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 90
     runs-on: macos-15
     steps:
