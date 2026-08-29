@@ -18,6 +18,7 @@ class ViewportWidget final : public QWidget
 public:
     explicit ViewportWidget(QWidget *parent = nullptr);
     void resetCamera();
+    void refreshSystemAppearance();
     void showAxialBarResult(double lengthM, double displacementM, double stressPa);
     void showAxialBarMode(double lengthM, double midNormalized, double tipNormalized, double phase);
     void showNonlinearHex8Result(double lengthM, double areaM2, double displacementM);
