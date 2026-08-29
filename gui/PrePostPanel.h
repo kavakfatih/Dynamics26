@@ -24,6 +24,36 @@ public:
     [[nodiscard]] QJsonObject projectJson() const;
     void loadProjectJson(const QJsonObject &object);
 
+    // Alpha.1 viewport bağlamı: preprocessing ekranları result contour'u
+    // taşımamalıdır. Stored result database korunur; yalnız consumer'a geçici
+    // boş result gönderilerek nötr FEM mesh görünümü istenir.
+    [[nodiscard]] bool showMeshPreview()
+    {
+        if (!viewportConsumer_ || mesh_.elements.empty()) {
+            return false;
+        }
+        const femcae::meshing::ResultDatabase neutralResults;
+        viewportConsumer_(mesh_, neutralResults);
+        return true;
+    }
+
+    // Sonuçlar bağlamında ise aynı mesh ve saklanan gerçek sonuçlar tekrar
+    // görüntülenir. Böylece Navigator seçimi yalnız presentation state'i değiştirir;
+    // mesh/result verisi kopyalanmaz veya silinmez.
+    [[nodiscard]] bool showResultsPreview()
+    {
+        if (!viewportConsumer_ || mesh_.elements.empty()) {
+            return false;
+        }
+        const bool hasResults = results_.displacement() != nullptr
+            || results_.elementScalar("von_mises") != nullptr;
+        if (!hasResults) {
+            return false;
+        }
+        viewportConsumer_(mesh_, results_);
+        return true;
+    }
+
 signals:
     void message(const QString &text);
     void solveCompleted(double maxDisplacementMm, double maxVonMisesMPa, double reactionX, qlonglong probeNodeId, double probeUxMm);
