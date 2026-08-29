@@ -8,6 +8,8 @@ set(FEMCAE_GUI_SOURCES
     Alpha1UxController.h
     AppearanceController.cpp
     AppearanceController.h
+    Alpha1ProductPolish.cpp
+    Alpha1ProductPolish.h
     ViewportWidget.cpp
     ViewportWidget.h
     MaterialCurveWidget.cpp
