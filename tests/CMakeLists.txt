@@ -11,7 +11,9 @@ femcae_enable_warnings(femcae_test_support)
 
 function(add_femcae_test test_name source_file label)
     add_executable(${test_name} ${source_file})
-    target_link_libraries(${test_name} PRIVATE femcae_core femcae_test_support)
+    # femcae_test_support already links femcae_core publicly; linking it again here
+    # causes macOS ld to emit "ignoring duplicate libraries: 'libfemcae_core.a'".
+    target_link_libraries(${test_name} PRIVATE femcae_test_support)
     femcae_enable_warnings(${test_name})
     add_test(NAME ${test_name} COMMAND ${test_name})
     set_tests_properties(${test_name} PROPERTIES LABELS "${label}")
