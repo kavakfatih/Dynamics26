@@ -2,6 +2,7 @@
 
 #include <vtkInteractorStyleTrackballCamera.h>
 
+#include <array>
 #include <functional>
 
 namespace d26 {
@@ -17,6 +18,11 @@ public:
 
     using PickCallback = std::function<void(int, int)>;
     void SetPickCallback(PickCallback callback);
+
+    // ViewportCameraController is the only camera-motion owner. The interactor
+    // mirrors its pivot so the application keeps one consistent rotation-center
+    // contract without re-enabling VTK's default camera bindings.
+    void SetCenterOfRotation(const double center[3]) noexcept;
 
     void OnMouseMove() override;
     void OnLeftButtonDown() override;
@@ -35,6 +41,7 @@ protected:
 
 private:
     PickCallback pickCallback_;
+    std::array<double, 3> centerOfRotation_{0.0, 0.0, 0.0};
     int leftPress_[2]{0, 0};
     bool leftPressed_{false};
 };

@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Günlük Alpha.1/GUI geliştirmesi için trusted Mac üzerindeki hızlı kapı.
+  # Günlük V1.1 GUI geliştirmesi için trusted Mac üzerindeki hızlı kapı.
   # build-selfhosted-gui-fast dizini bilinçli olarak korunur: dependency ve
   # object-cache tekrar kullanımı self-hosted runner'ın ana hız avantajıdır.
   gui-fast-native:
@@ -43,17 +43,44 @@ jobs:
           test "$(uname -m)" = "arm64"
           git diff --check
 
-      - name: Alpha.1 shell contract gate
+      - name: V1.1 CAE shell architecture gate
         shell: bash
         run: |
           set -euxo pipefail
-          shell_source="gui/Dynamics26Shell.cpp"
-          test -f "$shell_source"
-          grep -q 'Dynamics26WorkspaceSplitter' "$shell_source"
-          grep -q 'Dynamics26EngineeringInspector' "$shell_source"
-          grep -q 'QStackedWidget' "$shell_source"
-          grep -q 'setUnifiedTitleAndToolBarOnMac(false)' "$shell_source"
 
+          required_sources=(
+            "gui/main.cpp"
+            "gui/core/ProjectModel.cpp"
+            "gui/core/ProjectTreeModel.cpp"
+            "gui/core/DocumentCommandManager.cpp"
+            "gui/core/DependencyEngine.cpp"
+            "gui/commands/DomainCommands.cpp"
+            "gui/services/GeometryService.cpp"
+            "gui/services/MeshService.cpp"
+            "gui/services/MaterialService.cpp"
+            "gui/services/AnalysisService.cpp"
+            "gui/shell/CommandRegistry.cpp"
+            "gui/shell/Dynamics26MainWindow.cpp"
+            "gui/viewport/ViewportInputRouter.cpp"
+            "gui/viewport/ViewportCameraController.cpp"
+            "gui/viewport/Dynamics26InteractorStyle.cpp"
+            "gui/viewport/ViewportWidget.cpp"
+          )
+          for source in "${required_sources[@]}"; do
+            test -f "$source"
+          done
+
+          grep -q 'shell/Dynamics26MainWindow.h' gui/main.cpp
+          grep -q 'class DocumentCommandManager;' gui/shell/Dynamics26MainWindow.h
+          grep -q 'class DependencyEngine;' gui/shell/Dynamics26MainWindow.h
+          grep -q 'ViewportInputRouter.cpp' gui/CMakeLists.txt
+          grep -q 'ViewportCameraController.cpp' gui/CMakeLists.txt
+          grep -q 'Dynamics26InteractorStyle.cpp' gui/CMakeLists.txt
+
+          if [[ -e gui/Dynamics26Shell.cpp || -e gui/MainWindow.cpp ]]; then
+            echo "Legacy corrective GUI shell source reintroduced." >&2
+            exit 1
+          fi
           if grep -R --line-number --fixed-strings 'setUnifiedTitleAndToolBarOnMac(true)' gui; then
             echo "Unsupported unified title/toolbar path reintroduced for the OpenGL window." >&2
             exit 1
@@ -62,8 +89,12 @@ jobs:
             echo "macOS Command shortcuts must use Qt::CTRL semantic mapping." >&2
             exit 1
           fi
-          if grep -E --line-number 'QStringLiteral\("(Search|Undo|Redo)' "$shell_source"; then
-            echo "Placeholder command exposed in Alpha.1 shell." >&2
+          if grep -R --line-number --fixed-strings 'setStyleSheet(' gui; then
+            echo "Application GUI must not reintroduce hand-authored QSS styling." >&2
+            exit 1
+          fi
+          if grep -R --line-number -E 'qApp->setPalette|QApplication::setPalette' gui; then
+            echo "Application-wide palette overrides are not allowed; System Appearance is authoritative." >&2
             exit 1
           fi
 
@@ -124,15 +155,19 @@ jobs:
             -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON \
             -DFEMCAE_REQUIRE_OCCT=ON
 
-      - name: Build GUI target and migration test
+      - name: Build GUI and V1.1 GUI tests
         shell: bash
         run: |
           set -euxo pipefail
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_gui
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_project_migration_test
+          cmake --build build-selfhosted-gui-fast --parallel --target femcae_viewport_navigation_test
 
       - name: Project migration gate
         run: ctest --test-dir build-selfhosted-gui-fast -L migration --output-on-failure
+
+      - name: Viewport navigation gate
+        run: ctest --test-dir build-selfhosted-gui-fast -L navigation --output-on-failure
 
       - name: Native arm64 GUI architecture gate
         shell: bash
@@ -150,7 +185,7 @@ jobs:
           set -euxo pipefail
           source_app="$PWD/build-selfhosted-gui-fast/gui/FEMCAE.app"
           preview_app="$RUNNER_TEMP/Dynamics26.app"
-          archive="$RUNNER_TEMP/Dynamics26-1.1.0-alpha.1-engineering-preview-macos-arm64.zip"
+          archive="$RUNNER_TEMP/Dynamics26-1.1.0-alpha.3.1.1-engineering-preview-macos-arm64.zip"
           notice="$RUNNER_TEMP/Dynamics26-engineering-preview-NOT-STANDALONE.txt"
 
           test -x "$source_app/Contents/MacOS/FEMCAE"
@@ -162,7 +197,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$preview_app" "$archive"
           shasum -a 256 "$archive" | tee "$archive.sha256"
           cat > "$notice" <<'EOF'
-          Dynamics26 V1.1.0-alpha.1 engineering preview
+          Dynamics26 V1.1.0-alpha.3.1.1 engineering preview
 
           This is an engineering/UX preview built on the trusted Apple Silicon Mac.
           It intentionally reuses Homebrew Qt/VTK/OCCT runtime dependencies and is
@@ -175,10 +210,10 @@ jobs:
         if: contains(github.event.head_commit.message, '[preview]')
         uses: actions/upload-artifact@v4
         with:
-          name: Dynamics26-1.1.0-alpha.1-engineering-preview-${{ github.sha }}
+          name: Dynamics26-1.1.0-alpha.3.1.1-engineering-preview-${{ github.sha }}
           path: |
-            ${{ runner.temp }}/Dynamics26-1.1.0-alpha.1-engineering-preview-macos-arm64.zip
-            ${{ runner.temp }}/Dynamics26-1.1.0-alpha.1-engineering-preview-macos-arm64.zip.sha256
+            ${{ runner.temp }}/Dynamics26-1.1.0-alpha.3.1.1-engineering-preview-macos-arm64.zip
+            ${{ runner.temp }}/Dynamics26-1.1.0-alpha.3.1.1-engineering-preview-macos-arm64.zip.sha256
             ${{ runner.temp }}/Dynamics26-engineering-preview-NOT-STANDALONE.txt
           if-no-files-found: error
           retention-days: 3
@@ -275,7 +310,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          for label in migration occt meshing nonlinear contact release performance; do
+          for label in migration viewport navigation camera occt meshing nonlinear contact release performance; do
             ctest --test-dir build-selfhosted -L "$label" --output-on-failure
           done
 

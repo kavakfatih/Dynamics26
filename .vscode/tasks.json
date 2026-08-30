@@ -90,6 +90,13 @@
       "problemMatcher": []
     },
     {
+      "label": "Dynamics26: Configure + Build Debug GUI",
+      "dependsOn": "Dynamics26: Build Debug GUI",
+      "dependsOrder": "sequence",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
       "label": "Dynamics26: Release Hardening Tests",
       "type": "shell",
       "command": "ctest",

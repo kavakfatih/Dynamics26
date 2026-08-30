@@ -15,6 +15,15 @@ void Dynamics26InteractorStyle::SetPickCallback(PickCallback callback)
     pickCallback_ = std::move(callback);
 }
 
+void Dynamics26InteractorStyle::SetCenterOfRotation(const double center[3]) noexcept
+{
+    if (center == nullptr || !std::isfinite(center[0]) || !std::isfinite(center[1])
+        || !std::isfinite(center[2])) {
+        return;
+    }
+    centerOfRotation_ = {center[0], center[1], center[2]};
+}
+
 void Dynamics26InteractorStyle::OnMouseMove()
 {
     // Camera motion is owned by ViewportInputRouter/ViewportCameraController.
