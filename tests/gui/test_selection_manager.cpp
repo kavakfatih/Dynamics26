@@ -1,4 +1,5 @@
 #include "core/SelectionManager.h"
+#include "viewport/ViewportSelectionController.h"
 
 #include <QCoreApplication>
 
@@ -166,6 +167,88 @@ void scopeContractTests()
           "ScopeReference carries stable-key foundation without migrating BC schema");
 }
 
+void selectionInputContractTests()
+{
+    d26::ViewportSelectionController controller;
+
+    check(d26::ViewportSelectionController::operationForModifiers(Qt::NoModifier)
+              == d26::SelectionOperation::Replace,
+          "plain click maps to Replace");
+    check(d26::ViewportSelectionController::operationForModifiers(Qt::ShiftModifier)
+              == d26::SelectionOperation::Add,
+          "Shift click maps to Add");
+    check(d26::ViewportSelectionController::operationForModifiers(Qt::ControlModifier)
+              == d26::SelectionOperation::Toggle,
+          "Qt Control semantic modifier maps macOS Command click to Toggle");
+    check(d26::ViewportSelectionController::operationForModifiers(Qt::ControlModifier | Qt::ShiftModifier)
+              == d26::SelectionOperation::Toggle,
+          "Command toggle has deterministic priority over Shift add");
+
+    d26::SelectionPointerInput hover;
+    hover.type = d26::SelectionPointerEventType::Move;
+    hover.position = QPointF(12.0, 18.0);
+    const auto hoverAction = controller.routePointer(hover);
+    check(hoverAction.has_value() && hoverAction->type == d26::SelectionInputActionType::Hover
+              && hoverAction->position == hover.position,
+          "idle pointer move emits hover/preselection request");
+
+    d26::SelectionPointerInput press;
+    press.type = d26::SelectionPointerEventType::Press;
+    press.position = QPointF(20.0, 20.0);
+    press.button = Qt::LeftButton;
+    press.buttons = Qt::LeftButton;
+    press.modifiers = Qt::ShiftModifier;
+    check(!controller.routePointer(press).has_value() && controller.clickInProgress(),
+          "left press starts selection click candidate without committing");
+
+    d26::SelectionPointerInput moveWhilePressed;
+    moveWhilePressed.type = d26::SelectionPointerEventType::Move;
+    moveWhilePressed.position = QPointF(21.0, 20.0);
+    moveWhilePressed.buttons = Qt::LeftButton;
+    check(!controller.routePointer(moveWhilePressed).has_value(),
+          "pressed pointer move never emits hover");
+
+    d26::SelectionPointerInput release;
+    release.type = d26::SelectionPointerEventType::Release;
+    release.position = QPointF(22.0, 21.0);
+    release.button = Qt::LeftButton;
+    release.buttons = Qt::NoButton;
+    release.modifiers = Qt::NoModifier; // press semantics must win
+    const auto commit = controller.routePointer(release);
+    check(commit.has_value() && commit->type == d26::SelectionInputActionType::Commit
+              && commit->operation == d26::SelectionOperation::Add,
+          "small Shift-left gesture commits Add using press-time modifier state");
+
+    press.position = QPointF(30.0, 30.0);
+    press.modifiers = Qt::NoModifier;
+    (void)controller.routePointer(press);
+    release.position = QPointF(40.0, 30.0);
+    const auto draggedRelease = controller.routePointer(release);
+    check(!draggedRelease.has_value() && !controller.clickInProgress(),
+          "pointer travel beyond click tolerance does not commit selection");
+
+    press.position = QPointF(50.0, 50.0);
+    press.modifiers = Qt::AltModifier;
+    check(!controller.routePointer(press).has_value() && !controller.clickInProgress(),
+          "Option-left is reserved for navigation and never starts selection");
+    release.position = QPointF(50.0, 50.0);
+    check(!controller.routePointer(release).has_value(),
+          "Option navigation release cannot leak into selection commit");
+
+    const auto escape = controller.routeKey(Qt::Key_Escape, Qt::NoModifier);
+    check(escape.has_value() && escape->type == d26::SelectionInputActionType::Clear
+              && escape->operation == d26::SelectionOperation::Clear,
+          "Escape emits clear-selection intent");
+    check(!controller.routeKey(Qt::Key_Escape, Qt::ShiftModifier).has_value(),
+          "modified Escape is not silently reinterpreted");
+
+    d26::SelectionPointerInput leave;
+    leave.type = d26::SelectionPointerEventType::Leave;
+    const auto leaveAction = controller.routePointer(leave);
+    check(leaveAction.has_value() && leaveAction->type == d26::SelectionInputActionType::ClearPreselection,
+          "viewport leave clears hover/preselection only");
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -174,6 +257,7 @@ int main(int argc, char **argv)
     managerStateTests();
     singleSelectionAndDomainTests();
     scopeContractTests();
+    selectionInputContractTests();
     std::cout << (failures == 0 ? "selection manager PASS\n" : "selection manager FAIL\n");
     return failures == 0 ? 0 : 1;
 }
