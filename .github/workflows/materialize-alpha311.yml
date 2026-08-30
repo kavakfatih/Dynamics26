@@ -1,0 +1,85 @@
+name: Materialize Alpha3.1.1 source snapshot
+
+on:
+  push:
+    branches:
+      - snapshot/v1.1.0-alpha.3.1.1
+    paths:
+      - .snapshot/materialize.trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-alpha311
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout snapshot branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard branch and reconstruct verified payload
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "$GITHUB_REF_NAME" = "snapshot/v1.1.0-alpha.3.1.1"
+          test -f .snapshot/materialize.trigger
+          test -n "$(find .snapshot -maxdepth 1 -name 'source-*.b64' -print -quit)"
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, hashlib
+          parts = sorted(Path('.snapshot').glob('source-*.b64'))
+          encoded = ''.join(p.read_text(encoding='ascii') for p in parts)
+          payload = base64.b64decode(encoded, validate=True)
+          expected = '3097200ab53e35595be924a86136dabf9b05ad733a2a776d79d862bc708caddb'
+          actual = hashlib.sha256(payload).hexdigest()
+          if actual != expected:
+              raise SystemExit(f'payload sha256 mismatch: {actual} != {expected}')
+          Path('/tmp/alpha311-source.tar.gz').write_bytes(payload)
+          print(f'payload sha256={actual}, chunks={len(parts)}, bytes={len(payload)}')
+          PY
+
+      - name: Extract and validate source tree
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf /tmp/alpha311-source
+          mkdir -p /tmp/alpha311-source
+          tar -xzf /tmp/alpha311-source.tar.gz -C /tmp/alpha311-source
+          cd /tmp/alpha311-source
+          shasum -a 256 -c SHA256SUMS.txt
+          test -f gui/viewport/ViewportInputRouter.cpp
+          test -f gui/viewport/ViewportCameraController.cpp
+          test -f gui/viewport/Dynamics26InteractorStyle.cpp
+          test -f tests/gui/test_viewport_navigation.cpp
+          test -f .vscode/launch.json
+          grep -q 'Dynamics26 GUI — Debug Input Trace' .vscode/launch.json
+          grep -q 'gui.viewport_navigation' gui/CMakeLists.txt
+          python3 scripts/github/verify_repository_hygiene.py --root .
+
+      - name: Replace snapshot branch with real source tree
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rsync -a --delete --exclude='.git/' /tmp/alpha311-source/ ./
+          test ! -e .snapshot
+          test ! -e .github/workflows/materialize-alpha311.yml
+          git diff --check
+          python3 scripts/github/verify_repository_hygiene.py --root .
+
+      - name: Commit materialized Alpha3.1.1 source
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && { echo 'No materialization changes found' >&2; exit 1; }
+          git commit -m 'snapshot: materialize v1.1.0-alpha.3.1.1 source tree'
+          git push origin HEAD:"$GITHUB_REF_NAME"
