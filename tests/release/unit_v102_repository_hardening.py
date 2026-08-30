@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from hashlib import sha256
 from pathlib import Path
+import json
 import os
 import subprocess
 import sys
@@ -21,6 +22,50 @@ def main() -> int:
     root = Path(sys.argv[1]).resolve()
     archive_tool = root / "scripts/release/make_source_archive.py"
     hygiene_tool = root / "scripts/github/verify_repository_hygiene.py"
+    managed_vscode = {"extensions.json", "launch.json", "settings.json", "tasks.json"}
+
+    for name in managed_vscode:
+        path = root / ".vscode" / name
+        if not path.is_file():
+            raise RuntimeError(f"managed VS Code file missing from source tree: {path}")
+        json.loads(path.read_text(encoding="utf-8"))
+
+    tasks = json.loads((root / ".vscode" / "tasks.json").read_text(encoding="utf-8"))["tasks"]
+    task_labels = {task.get("label") for task in tasks}
+    required_tasks = {
+        "Dynamics26: Configure Debug GUI",
+        "Dynamics26: Build Debug GUI",
+        "Dynamics26: Test Debug GUI",
+        "Dynamics26: Configure + Build Debug GUI",
+    }
+    if not required_tasks.issubset(task_labels):
+        raise RuntimeError("required Debug GUI VS Code tasks are incomplete")
+
+    launches = json.loads((root / ".vscode" / "launch.json").read_text(encoding="utf-8"))["configurations"]
+    gui_launch = next((item for item in launches if item.get("name") == "Dynamics26 GUI — Debug"), None)
+    expected_program = "${workspaceFolder}/build/macos-debug-gui/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+    if (
+        gui_launch is None
+        or gui_launch.get("type") != "lldb"
+        or gui_launch.get("request") != "launch"
+        or gui_launch.get("program") != expected_program
+        or gui_launch.get("preLaunchTask") != "Dynamics26: Build Debug GUI"
+    ):
+        raise RuntimeError("CodeLLDB Debug GUI launch profile does not match CMakePresets output")
+
+    extensions = set(
+        json.loads((root / ".vscode" / "extensions.json").read_text(encoding="utf-8"))["recommendations"]
+    )
+    if not {"ms-vscode.cmake-tools", "vadimcn.vscode-lldb"}.issubset(extensions):
+        raise RuntimeError("required CMake Tools / CodeLLDB recommendations are missing")
+
+    gui_cmake = (root / "gui" / "CMakeLists.txt").read_text(encoding="utf-8")
+    if (
+        "check_cxx_source_compiles" not in gui_cmake
+        or "FEMCAE_VTK_HAS_CAMERA_ORIENTATION_WIDGET" not in gui_cmake
+        or 'VTK_VERSION VERSION_GREATER_EQUAL "9.0"' in gui_cmake
+    ):
+        raise RuntimeError("orientation widget must use compile capability detection, not a VTK version gate")
 
     if (root / ".git").exists():
         run([sys.executable, str(hygiene_tool), "--root", str(root)])
@@ -31,7 +76,7 @@ def main() -> int:
     # dosyalari ise repository hygiene gate tarafindan reddedilmelidir.
     with tempfile.TemporaryDirectory(prefix="femcae-vscode-hygiene-") as vscode_tmp:
         vscode_root = Path(vscode_tmp)
-        managed = ["extensions.json", "launch.json", "settings.json", "tasks.json"]
+        managed = sorted(managed_vscode)
         (vscode_root / ".vscode").mkdir()
         for name in managed:
             (vscode_root / ".vscode" / name).write_text("{}\n", encoding="utf-8")
@@ -61,6 +106,15 @@ def main() -> int:
             expected = "FEMCAE-v1.0.2/SHA256SUMS.txt"
             if expected not in names:
                 raise RuntimeError("internal SHA256SUMS.txt missing")
+            expected_vscode = {
+                f"FEMCAE-v1.0.2/.vscode/{name}" for name in managed_vscode
+            }
+            missing_vscode = expected_vscode.difference(names)
+            if missing_vscode:
+                raise RuntimeError(
+                    "managed VS Code files missing from source archive: "
+                    + ", ".join(sorted(missing_vscode))
+                )
             bad = zf.testzip()
             if bad is not None:
                 raise RuntimeError(f"zip CRC failure: {bad}")

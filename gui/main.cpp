@@ -1,20 +1,34 @@
-#include "MainWindow.h"
-#include "Dynamics26Shell.h"
-#include "CaeWorkbenchController.h"
-#include "AppearanceController.h"
+// Dynamics26 GUI giriş noktası — TEK kompozisyon kökü.
+//
+// Buradan sonra pencereye müdahale eden ikinci bir katman yoktur:
+// Dynamics26MainWindow kendi yerleşiminin, komutlarının ve görünüm
+// davranışının tek sahibidir.
+//
+// Geliştirici bayrakları (normal kullanımda gerekmez):
+//   --bundle-smoke                       macOS bundle audit protokolü
+//   --selftest                           GUI öz-testi (45 mühendislik kontrolü)
+//   --capture <dizin>                    belgeleme ekran görüntüleri
+//   --capture-appearance light|dark      çekim için görünümü sabitler
+//   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
+
+#include "shell/Dynamics26MainWindow.h"
+#include "support/ScreenshotDriver.h"
+#include "support/SelfTest.h"
 
 #include <QApplication>
 #include <QSurfaceFormat>
 
 #include <cstring>
 #include <iostream>
+#include <string>
 
 #ifdef FEMCAE_GUI_HAS_VTK
 #include <QVTKOpenGLNativeWidget.h>
 #endif
 
 namespace {
-bool hasArgument(int argc, char* argv[], const char* expected)
+
+bool hasArgument(const int argc, char *argv[], const char *expected)
 {
     for (int i = 1; i < argc; ++i) {
         if (argv[i] != nullptr && std::strcmp(argv[i], expected) == 0) {
@@ -24,7 +38,17 @@ bool hasArgument(int argc, char* argv[], const char* expected)
     return false;
 }
 
-const char* buildVersion()
+std::string argumentValue(const int argc, char *argv[], const char *expected)
+{
+    for (int i = 1; i + 1 < argc; ++i) {
+        if (argv[i] != nullptr && std::strcmp(argv[i], expected) == 0) {
+            return argv[i + 1];
+        }
+    }
+    return {};
+}
+
+const char *buildVersion()
 {
 #ifdef FEMCAE_APP_VERSION
     return FEMCAE_APP_VERSION;
@@ -32,13 +56,13 @@ const char* buildVersion()
     return "unknown";
 #endif
 }
+
 } // namespace
 
 int main(int argc, char *argv[])
 {
-    // Bu yol QApplication/QPA başlatılmadan önce çalışır. Strict macOS bundle
-    // audit geçmiş release kanıtlarıyla uyumlu kalabilsin diye smoke protokolü
-    // ve engine build version sözleşmesi V1.1 alpha aşamasında değiştirilmez.
+    // Bu yol QApplication/QPA başlatılmadan önce çalışır. macOS bundle audit
+    // protokolü geçmiş release kanıtlarıyla uyumlu kalmalıdır; değiştirilmez.
     if (hasArgument(argc, argv, "--bundle-smoke")) {
         std::cout << "FEMCAE bundle smoke PASS version=" << buildVersion() << '\n';
         return 0;
@@ -49,28 +73,34 @@ int main(int argc, char *argv[])
 #endif
 
     QApplication app(argc, argv);
-    app.setApplicationName("Dynamics26");
-    app.setApplicationDisplayName("Dynamics26");
+    app.setApplicationName(QStringLiteral("Dynamics26"));
+    app.setApplicationDisplayName(QStringLiteral("Dynamics26"));
     app.setApplicationVersion(QString::fromLatin1(buildVersion()));
-    app.setOrganizationName("Dynamics26");
+    app.setOrganizationName(QStringLiteral("Dynamics26"));
 
-    MainWindow window;
-
-    // Alpha.1 recovery composition root:
-    // 1) Shell mevcut çalışan engineering widget'larını native macOS workstation
-    //    yerleşimine taşır.
-    // 2) CAE workbench controller görünür Model Tree / Graphics / Details /
-    //    Utility davranışının tek orchestration katmanıdır.
-    // 3) Appearance controller yalnız macOS system appearance -> VTK semantic
-    //    rendering köprüsünü yönetir; Qt widget skin'i uygulamaz.
-    //
-    // Eski Alpha1UxController + Alpha1ProductPolish zinciri artık startup'ta
-    // çalıştırılmaz; aynı widget'ı üst üste değiştiren corrective katmanlar böylece
-    // görünür composition root'tan çıkarılmıştır.
-    dynamics26::gui::applyApplicationShell(window);
-    dynamics26::gui::installCaeWorkbenchController(window);
-    dynamics26::gui::installAppearanceController(app, window);
-
+    // Uygulama macOS System Appearance'ı kullanır. Global QPalette veya
+    // uygulama çapında QSS ayarlanmaz; Light/Dark tek kaynaktan gelir.
+    d26::Dynamics26MainWindow window;
     window.show();
+
+    // Otomasyon kolaylığı: dosya diyaloğu olmadan STEP yükler.
+    const std::string stepPath = argumentValue(argc, argv, "--import-step");
+    if (!stepPath.empty()) {
+        window.importGeometryFromPath(QString::fromStdString(stepPath));
+    }
+
+    if (hasArgument(argc, argv, "--selftest")) {
+        // Geliştirici öz-testi: gerçek akışı çalıştırır ve sonucu doğrular.
+        return d26::runSelfTest(app, window);
+    }
+
+    const std::string captureDirectory = argumentValue(argc, argv, "--capture");
+    if (!captureDirectory.empty()) {
+        // Geliştirici modu: belgelenmiş ekran görüntülerini üretir ve çıkar.
+        const std::string appearance = argumentValue(argc, argv, "--capture-appearance");
+        return d26::runScreenshotDriver(app, window, QString::fromStdString(captureDirectory),
+                                        QString::fromStdString(appearance));
+    }
+
     return app.exec();
 }

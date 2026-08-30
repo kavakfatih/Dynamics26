@@ -1,0 +1,224 @@
+#pragma once
+
+// Analiz servisi.
+//
+// Analiz nesnelerinin, sınır şartlarının, yüklerin, SONUÇ TANIMLARININ ve
+// hesaplanmış sonuçların sahibidir. Analiz alt ağacını da bu servis kurar;
+// böylece "analiz nesnesi" kavramının tek bir sahibi olur.
+//
+// Model durumu / türetilmiş veri ayrımı:
+//   MODEL STATE     → analiz ayarları, BC/yük tanımları, sonuç TANIMLARI
+//                     (undoable, projede saklanır)
+//   DERIVED STATE   → üretilmiş mesh sonuçları, ResultDatabase alan değerleri
+//                     (Undo yığınına girmez, projede saklanmaz)
+//
+// §11 gereği kullanıcı niyeti (Incompressibility: Automatic) ile solver
+// implementasyonu (mixed u-p / HEX8-P0) ayrılır.
+
+#include "../core/ProjectModel.h"
+#include "../core/ProjectTypes.h"
+#include "MaterialService.h"
+#include "MeshService.h"
+
+#include <QHash>
+#include <QJsonObject>
+#include <QObject>
+#include <QString>
+#include <QVector>
+
+#include <femcae/meshing/Assignments.h>
+#include <femcae/meshing/ResultDatabase.h>
+
+namespace d26 {
+
+struct SupportDefinition {
+    QString name;
+    BoxFace scope{BoxFace::XMin};
+    bool fixX{true};
+    bool fixY{true};
+    bool fixZ{true};
+    [[nodiscard]] QJsonObject toJson() const;
+    static SupportDefinition fromJson(const QJsonObject &object);
+};
+
+struct LoadDefinition {
+    QString name;
+    BoxFace scope{BoxFace::XMax};
+    double fxN{1000.0};
+    double fyN{0.0};
+    double fzN{0.0};
+    [[nodiscard]] double magnitudeN() const;
+    [[nodiscard]] QJsonObject toJson() const;
+    static LoadDefinition fromJson(const QJsonObject &object);
+};
+
+struct ResultDefinition {
+    QString name;
+    ResultDefinitionKind kind{ResultDefinitionKind::TotalDeformation};
+    [[nodiscard]] QJsonObject toJson() const;
+    static ResultDefinition fromJson(const QJsonObject &object);
+};
+
+struct SolveResults {
+    bool valid{false};
+    double maxDisplacementMm{0.0};
+    double maxVonMisesMPa{0.0};
+    double minVonMisesMPa{0.0};
+    double reactionXN{0.0};
+    double reactionYN{0.0};
+    double reactionZN{0.0};
+    qint64 probeNodeId{-1};
+    double probeUxMm{0.0};
+    int dofCount{0};
+    int nodeCount{0};
+    int elementCount{0};
+    double wallClockSeconds{0.0};
+};
+
+// Preflight tek bir kontrol satırı.
+struct PreflightCheck {
+    enum class Status { Passed, Failed, Warning };
+    Status status{Status::Passed};
+    QString label;
+    QString detail;
+    // Hatanın hangi nesneden kaynaklandığı (tree'de gösterilebilir).
+    ObjectId subject{InvalidObjectId};
+};
+
+struct PreflightReport {
+    QVector<PreflightCheck> checks;
+    [[nodiscard]] bool passed() const;
+    [[nodiscard]] bool hasWarnings() const;
+    [[nodiscard]] QString firstFailure() const;
+    [[nodiscard]] QStringList failureMessages() const;
+};
+
+// Çözüm yaşam döngüsü (§26). Şu an eşzamanlı çalışır; state machine
+// gelecekteki asenkron/iptal edilebilir çözüme hazırdır.
+enum class SolveState { Idle, Preflight, Ready, Solving, Completed, Failed, Cancelled };
+
+struct AnalysisRecord {
+    AnalysisType type{AnalysisType::StaticStructural};
+    IncompressibilityIntent incompressibility{IncompressibilityIntent::Automatic};
+    bool largeDeflection{false};
+    ObjectId settingsNode{InvalidObjectId};
+    ObjectId solutionNode{InvalidObjectId};
+    QVector<ObjectId> supports;
+    QVector<ObjectId> loads;
+    QVector<ObjectId> results;
+
+    // --- türetilmiş durum (projede saklanmaz) ---
+    bool solved{false};
+    SolveResults solveResults;
+    femcae::meshing::ResultDatabase resultDatabase;
+    SolveState solveState{SolveState::Idle};
+    // Çözümün üretildiği GİRDİ İMZASI. Monoton sayaç yerine içerik imzası
+    // kullanılır: bir değişikliği Undo ile geri almak sonuçları yeniden
+    // geçerli kılar, çünkü solver girdisi tekrar aynı hale gelir.
+    QByteArray solvedSignature;
+};
+
+class AnalysisService final : public QObject
+{
+    Q_OBJECT
+public:
+    AnalysisService(ProjectModel *project, MeshService *mesh, MaterialService *materials,
+                    QObject *parent = nullptr);
+
+    // --- analiz nesneleri ---
+    ObjectId createAnalysis(AnalysisType type, int row = -1, ObjectId requestedId = InvalidObjectId,
+                            const QString &name = QString(), bool withDefaults = true,
+                            ObjectId requestedSettingsId = InvalidObjectId,
+                            ObjectId requestedSolutionId = InvalidObjectId);
+    bool removeAnalysis(ObjectId analysisId);
+    void clearAll();
+
+    [[nodiscard]] const AnalysisRecord *analysis(ObjectId analysisId) const;
+    [[nodiscard]] const SupportDefinition *support(ObjectId id) const;
+    [[nodiscard]] const LoadDefinition *load(ObjectId id) const;
+    [[nodiscard]] const ResultDefinition *resultDefinition(ObjectId id) const;
+    [[nodiscard]] ObjectId owningAnalysis(ObjectId id) const;
+
+    void setIncompressibility(ObjectId analysisId, IncompressibilityIntent intent);
+    void setLargeDeflection(ObjectId analysisId, bool enabled);
+    void renameObject(ObjectId id, const QString &name);
+
+    // --- sınır şartları / yükler / sonuç tanımları ---
+    ObjectId insertFixedSupport(ObjectId analysisId, const SupportDefinition &definition = {}, int row = -1,
+                                ObjectId requestedId = InvalidObjectId);
+    ObjectId insertForce(ObjectId analysisId, const LoadDefinition &definition = {}, int row = -1,
+                         ObjectId requestedId = InvalidObjectId);
+    ObjectId insertResultDefinition(ObjectId analysisId, ResultDefinitionKind kind, int row = -1,
+                                    ObjectId requestedId = InvalidObjectId, const QString &name = QString());
+    bool removeBoundaryCondition(ObjectId id);
+    bool removeResultDefinition(ObjectId id);
+    void updateSupport(ObjectId id, const SupportDefinition &definition);
+    void updateLoad(ObjectId id, const LoadDefinition &definition);
+
+    // --- suppression ---
+    void setSuppressed(ObjectId id, bool suppressed);
+
+    // --- solver niyeti / implementasyonu ---
+    [[nodiscard]] ResolvedFormulation resolvedFormulation(ObjectId analysisId) const;
+    [[nodiscard]] QString resolvedElementTechnology(ObjectId analysisId) const;
+    [[nodiscard]] QString resolvedLinearSolver() const;
+
+    // --- yaşam döngüsü ---
+    [[nodiscard]] PreflightReport preflight(ObjectId analysisId) const;
+    bool solve(ObjectId analysisId);
+    void clearSolution(ObjectId analysisId);
+    [[nodiscard]] SolveState solveState(ObjectId analysisId) const;
+
+    [[nodiscard]] bool hasResults(ObjectId analysisId) const;
+    // Çözüm var ama girdiler değiştiyse sonuçlar bayattır.
+    [[nodiscard]] bool solutionIsOutOfDate(ObjectId analysisId) const;
+    [[nodiscard]] const femcae::meshing::ResultDatabase *resultDatabase(ObjectId analysisId) const;
+
+    [[nodiscard]] static int warningDofThreshold() noexcept { return 2400; }
+    [[nodiscard]] static int maximumDofThreshold() noexcept { return 6000; }
+
+    // --- kalıcılık ---
+    // Tek bir analizin tam anlık görüntüsü. Undo (Delete Analysis) ve proje
+    // kaydı aynı temsili kullanır.
+    [[nodiscard]] QJsonObject analysisToJson(ObjectId analysisId) const;
+    ObjectId restoreAnalysis(const QJsonObject &entry, int row = -1);
+    [[nodiscard]] int rowOfAnalysis(ObjectId analysisId) const;
+    [[nodiscard]] QJsonObject toJson() const;
+    void fromJson(const QJsonObject &object);
+    [[nodiscard]] QJsonObject toLegacyLoadJson() const;
+    void applyLegacyLoadJson(const QJsonObject &object);
+
+signals:
+    void changed();
+    void message(const QString &text, d26::Severity severity);
+    void solverOutput(const QString &text);
+    void solveStateChanged(ObjectId analysisId, d26::SolveState state);
+    void resultsChanged(ObjectId analysisId);
+
+private:
+    // Solver'ın GERÇEKTEN tükettiği girdilerin imzası: mesh üretimi ve ölçüleri,
+    // atanmış malzemenin elastik parametreleri, AKTİF sınır şartı/yük kapsam ve
+    // değerleri, çözülen formülasyon. Ad değişikliği gibi solver'ı etkilemeyen
+    // düzenlemeler imzayı değiştirmez, dolayısıyla sonuçları bayatlatmaz.
+    [[nodiscard]] QByteArray solverInputSignature(ObjectId analysisId) const;
+    void touchDefinition(ObjectId analysisId);
+    void refreshBoundaryNode(ObjectId id);
+    // supports/loads/results vektörlerini ağaç sırasından yeniden kurar.
+    // Ağaç satırı ile liste indeksi iki farklı uzaydır; tek doğruluk kaynağı
+    // ağaç sırası olsun diye her ekleme/silme sonrası yeniden senkronlanır.
+    void resyncChildLists(ObjectId analysisId);
+    void refreshResultNodes(ObjectId analysisId);
+    [[nodiscard]] QString uniqueChildName(ObjectId analysisId, ObjectType type, const QString &base) const;
+    [[nodiscard]] bool isActive(ObjectId id) const;
+
+    ProjectModel *project_;
+    MeshService *mesh_;
+    MaterialService *materials_;
+    QHash<ObjectId, AnalysisRecord> analyses_;
+    QHash<ObjectId, SupportDefinition> supports_;
+    QHash<ObjectId, LoadDefinition> loads_;
+    QHash<ObjectId, ResultDefinition> results_;
+    int analysisCounter_{0};
+};
+
+} // namespace d26

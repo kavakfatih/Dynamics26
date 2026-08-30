@@ -1,85 +1,47 @@
-# Dynamics26 — VS Code Geliştirme Ortamı
+# Dynamics26 — VS Code ile macOS Debug
 
-Dynamics26 için birincil IDE **Visual Studio Code** olarak kabul edilir. Proje Modern Fortran, C, C++20, Qt 6, VTK, Open CASCADE, CMake/Ninja ve CTest bileşenlerini aynı kaynak ağacında kullanır.
+Bu kurulum Dynamics26 kaynak kökünü, `CMakePresets.json` içindeki Apple Silicon
+GUI preset'lerini ve CodeLLDB'yi kullanır. Ayrı bir VS Code build ağacı veya
+hard-coded CMake konfigürasyonu oluşturmaz.
 
-## 1. macOS / Apple Silicon araçları
+## 1. Gerekli araçlar ve extensions
 
-Homebrew kuruluysa:
+Apple Silicon Homebrew araçları:
 
 ```bash
 brew install cmake ninja gcc qt vtk arpack opencascade pipx
 pipx install fortls
 ```
 
-Kontrol:
-
-```bash
-which cmake
-which ninja
-which gfortran
-which fortls
-```
-
-Apple Silicon Homebrew için beklenen kök dizin `/opt/homebrew`'dur.
-
-## 2. Önerilen VS Code eklentileri
-
-Repo açıldığında VS Code bunları otomatik önerecektir:
+VS Code proje açıldığında `.vscode/extensions.json` şu gerekli eklentileri önerir:
 
 - Modern Fortran — `fortran-lang.linter-gfortran`
 - CMake Tools — `ms-vscode.cmake-tools`
 - C/C++ — `ms-vscode.cpptools`
 - CodeLLDB — `vadimcn.vscode-lldb`
-- GitHub Actions — `github.vscode-github-actions`
-- CMake language support — `twxs.cmake`
 
-Terminalden kurmak istersen:
+## 2. Proje kökünü aç
 
-```bash
-code --install-extension fortran-lang.linter-gfortran
-code --install-extension ms-vscode.cmake-tools
-code --install-extension ms-vscode.cpptools
-code --install-extension vadimcn.vscode-lldb
-code --install-extension github.vscode-github-actions
-code --install-extension twxs.cmake
-```
-
-## 3. Projeyi açma
-
-Tercih edilen yöntem:
+`CMakePresets.json`, `gui/`, `src/` ve `.vscode/` klasörlerini doğrudan içeren
+Dynamics26 kökünü aç:
 
 ```bash
-git clone https://github.com/kavakfatih/Dynamics26.git
-cd Dynamics26
-code Dynamics26.code-workspace
+cd /path/to/FEMCAE-v1.1.0-alpha.3.1.1
+code .
 ```
 
-Alternatif olarak repo kökünde `code .` kullanılabilir.
+`gui/` veya `src/` klasörünü tek başına workspace olarak açma.
 
-`src/` veya `gui/` klasörünü tek başına workspace olarak açma. CMake proje kökü `Dynamics26/` olmalıdır.
+## 3. Configure, build ve test
 
-## 4. CMake preset'leri
+`Terminal → Run Task...` altında gerçek preset'leri kullanan görevler vardır:
 
-Repo `CMakePresets.json` ile dört ana preset sağlar:
+1. `Dynamics26: Configure Debug GUI`
+2. `Dynamics26: Build Debug GUI`
+3. `Dynamics26: Test Debug GUI`
+4. `Dynamics26: Configure + Build Debug GUI`
 
-| Preset | Amaç |
-|---|---|
-| `macos-debug-core` | Solver/core geliştirme ve test |
-| `macos-release-core` | Release optimizasyonu ve doğrulama |
-| `macos-debug-gui` | Qt + VTK + OCCT GUI debug |
-| `macos-release-gui` | Release `.app` derlemesi |
-
-VS Code içinde Command Palette → **CMake: Select Configure Preset** ile seçim yapılabilir.
-
-Terminal eşdeğeri:
-
-```bash
-cmake --preset macos-debug-core
-cmake --build --preset build-debug-core --parallel
-ctest --preset test-debug-core
-```
-
-GUI için:
+Build görevi önce configure görevini çalıştırır. Terminalde aynı sözleşme:
 
 ```bash
 cmake --preset macos-debug-gui
@@ -87,73 +49,55 @@ cmake --build --preset build-debug-gui --parallel
 ctest --preset test-debug-gui
 ```
 
-## 5. VS Code Tasks
-
-`Terminal → Run Task...` altında hazır görevler bulunur:
-
-- Dynamics26: Configure Debug Core
-- Dynamics26: Build Debug Core
-- Dynamics26: Test Debug Core
-- Dynamics26: Configure Release Core
-- Dynamics26: Build Release Core
-- Dynamics26: Test Release Core
-- Dynamics26: Configure Debug GUI
-- Dynamics26: Build Debug GUI
-- Dynamics26: Test Debug GUI
-- Dynamics26: Release Hardening Tests
-- Dynamics26: Clean Build Trees
-
-`Cmd+Shift+B` varsayılan olarak Debug Core build görevini çalıştırır.
-
-## 6. Debug
-
-Run and Debug panelinde iki profil bulunur:
-
-### Dynamics26 CLI — Debug
-
-Önce Debug Core'u configure/build eder, ardından:
-
-```text
-build/macos-debug-core/femcae_cli
-```
-
-CodeLLDB ile başlatılır.
-
-### Dynamics26 GUI — Debug
-
-Önce Qt/VTK/OCCT GUI build'ini oluşturur, ardından:
+Build edilen uygulama:
 
 ```text
 build/macos-debug-gui/gui/FEMCAE.app/Contents/MacOS/FEMCAE
 ```
 
-CodeLLDB ile çalıştırılır.
+## 4. F5 ile GUI debug
 
-## 7. Fortran language server
+1. Sol kenardan **Run and Debug** panelini aç.
+2. `Dynamics26 GUI — Debug` profilini seç.
+3. `F5` tuşuna bas.
 
-Modern Fortran eklentisi `fortls` kullanır. Workspace ayarları compiler olarak `gfortran` seçer ve Debug Core Fortran module dizinini include path'e ekler.
+Profil CodeLLDB kullanır. `preLaunchTask` önce Debug GUI configure/build zincirini
+çalıştırır, sonra yukarıdaki gerçek `.app` executable'ını proje kökünü çalışma
+dizini yaparak başlatır.
 
-`fortls` bulunamıyorsa:
+## 5. macOS input trace
 
-```bash
-pipx install fortls
-pipx ensurepath
-```
-
-ardından VS Code'u yeniden başlat.
-
-## 8. Kişisel CMake override'ları
-
-Repo tarafından yönetilen ayarlar `CMakePresets.json` içindedir. Makineye özel değişiklik gerekiyorsa `CMakeUserPresets.json` kullan. Bu dosya Git'e eklenmez.
-
-Örneğin farklı bir compiler yolu gerekiyorsa kullanıcı preset'i ile override edebilirsin.
-
-## 9. Geliştirme kuralı
-
-IDE yalnız bir frontend'dir. Referans build/test sözleşmesi her zaman:
+Normal debug profilinde input log'u kapalıdır. Gerçek trackpad/mouse olaylarını
+incelemek için **Run and Debug** içinden
+`Dynamics26 GUI — Debug Input Trace` profilini seç. Bu profil yalnız Debug
+derlemesinde bulunan `dynamics26.viewport.input` kategorisini şu kuralla açar:
 
 ```text
-CMake → Ninja → CTest
+QT_LOGGING_RULES=dynamics26.viewport.input.debug=true
 ```
 
-olmalıdır. VS Code dışında yapılan build ile GitHub Actions'ın kullandığı build mantığı mümkün olduğunca aynı kalmalıdır.
+Debug Console çıktısı wheel olaylarında `pixelDelta`, `angleDelta`, `phase`,
+`inverted`, device type/name/capabilities ile normalize edilmiş sonucu gösterir:
+
+```text
+InputSource=PixelScroll Action=Pan
+InputSource=AngleWheel Action=Zoom
+InputSource=NativeZoom Action=Zoom
+```
+
+Native gesture çıktısında gesture type, value ve konum da bulunur. Breakpoint
+için uygun giriş noktaları:
+
+- `d26::ViewportInputRouter::classifyWheel`
+- `d26::ViewportInputRouter::routeWheel`
+- `d26::ViewportInputRouter::routeNativeGesture`
+
+`pixelDelta` bir davranış sinyalidir; tek başına fiziksel cihazın trackpad
+olduğunu kanıtlamaz. Unit testler yalnız normalization/arbitration sözleşmesini
+doğrular; fiziksel MacBook trackpad, mouse ve Magic Mouse sonucu sayılmaz.
+
+## 6. Makineye özel ayarlar
+
+Repo ayarlarını değiştirmeden yerel compiler veya prefix override'ı gerekiyorsa
+Git'e eklenmeyen `CMakeUserPresets.json` kullan. Referans akış her zaman
+`CMakePresets.json → Ninja → CTest → CodeLLDB` olarak kalmalıdır.
