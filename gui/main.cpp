@@ -1,8 +1,9 @@
 // Dynamics26 GUI giriş noktası — TEK kompozisyon kökü.
 //
-// Buradan sonra pencereye müdahale eden ikinci bir katman yoktur:
-// Dynamics26MainWindow kendi yerleşiminin, komutlarının ve görünüm
-// davranışının tek sahibidir.
+// Dynamics26MainWindow görünür pencere yerleşiminin tek sahibidir.
+// SelectionCoordinator ikinci bir shell/pencere katmanı değildir; yalnız
+// transient CAD selection state'ini mevcut servis/navigator/viewport arasında
+// açıkça bağlar.
 //
 // Geliştirici bayrakları (normal kullanımda gerekmez):
 //   --bundle-smoke                       macOS bundle audit protokolü
@@ -12,6 +13,7 @@
 //   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
 
 #include "shell/Dynamics26MainWindow.h"
+#include "shell/SelectionCoordinator.h"
 #include "support/ScreenshotDriver.h"
 #include "support/SelfTest.h"
 
@@ -81,6 +83,8 @@ int main(int argc, char *argv[])
     // Uygulama macOS System Appearance'ı kullanır. Global QPalette veya
     // uygulama çapında QSS ayarlanmaz; Light/Dark tek kaynaktan gelir.
     d26::Dynamics26MainWindow window;
+    auto *selectionCoordinator = new d26::SelectionCoordinator(&window, &window);
+    Q_UNUSED(selectionCoordinator);
     window.show();
 
     // Otomasyon kolaylığı: dosya diyaloğu olmadan STEP yükler.

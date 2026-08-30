@@ -2,10 +2,9 @@
 
 // Dynamics26 Alpha.3.2 — viewport selection input state machine.
 //
-// Bu katman kamera hareketi YAPMAZ ve VTK pick YAPMAZ. Qt pointer/key olayindan
-// "hover / commit / clear" niyetini uretir. ViewportInputRouter navigation
-// olaylarini once tuketir; bu controller yalniz selection'a kalan olaylarla
-// calisir. Boylece macOS modifier kontrati rendering katmanindan ayrilir.
+// Bu katman kamera hareketi YAPMAZ ve VTK pick YAPMAZ. Qt pointer/key olayından
+// "hover / commit / clear" niyetini üretir. Navigation katmanı kamera jestlerini
+// işler; bu state machine yalnız selection'a kalan semantiği sınıflandırır.
 
 #include "../core/SelectionTypes.h"
 
@@ -75,8 +74,8 @@ public:
             if (std::abs(delta.x()) > clickTolerance_ || std::abs(delta.y()) > clickTolerance_) {
                 return std::nullopt;
             }
-            // Press anindaki modifier niyeti kullanilir. Pointer release sirasinda
-            // kullanicinin modifier'i birakmasi selection semantigini degistirmez.
+            // Press anındaki modifier niyeti kullanılır. Pointer release sırasında
+            // kullanıcının modifier'ı bırakması selection semantiğini değiştirmez.
             if (pressModifiers_.testFlag(Qt::AltModifier)) {
                 return std::nullopt;
             }
@@ -106,10 +105,11 @@ public:
 
     [[nodiscard]] static SelectionOperation operationForModifiers(const Qt::KeyboardModifiers modifiers) noexcept
     {
-        // macOS'ta fiziksel Command, Qt shortcut semantiginde ControlModifier
-        // olarak ele alinir. Qt::MetaModifier kullanilmaz. Command daha spesifik
-        // toggle niyetidir; Shift ile birlikte gelse de Toggle onceliklidir.
-        if (modifiers.testFlag(Qt::ControlModifier)) {
+        // Qt raw pointer event'lerinde macOS fiziksel Command tuşu MetaModifier,
+        // standart shortcut gösteriminde ise Ctrl semantiğiyle sunulur. Selection
+        // mouse kontratı her iki kaynağı Toggle olarak kabul eder; platforma özgü
+        // sabit/hack yolu kullanılmaz.
+        if (modifiers.testFlag(Qt::MetaModifier) || modifiers.testFlag(Qt::ControlModifier)) {
             return SelectionOperation::Toggle;
         }
         if (modifiers.testFlag(Qt::ShiftModifier)) {

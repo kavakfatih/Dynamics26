@@ -30,7 +30,9 @@ public:
     void setContextLabel(const QString &text);
     void setSelectionLabel(const QString &text);
     [[nodiscard]] SelectionFilter selectionFilter() const noexcept { return filter_; }
-    // Mesh yokken yüz seçimi anlamlı değildir; komut yalnız desteklendiğinde etkinleşir.
+    void setSelectionFilter(SelectionFilter filter);
+    // Face seçimi FEM mesh'e değil gerçek CAD display provenance'ına bağlıdır.
+    // CAD sahnesi cell -> Face kimliği taşıyabildiğinde etkinleşir.
     void setFaceSelectionAvailable(bool available);
     void refreshIcons();
 

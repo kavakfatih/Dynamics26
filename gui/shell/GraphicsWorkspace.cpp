@@ -79,12 +79,10 @@ GraphicsWorkspace::GraphicsWorkspace(QWidget *parent) : QFrame(parent)
     connect(fit_, &QAction::triggered, this, &GraphicsWorkspace::fitViewRequested);
     connect(isometric_, &QAction::triggered, this, &GraphicsWorkspace::isometricViewRequested);
     connect(selectBody_, &QAction::triggered, this, [this] {
-        filter_ = SelectionFilter::Body;
-        emit selectionFilterChanged(filter_);
+        setSelectionFilter(SelectionFilter::Body);
     });
     connect(selectFace_, &QAction::triggered, this, [this] {
-        filter_ = SelectionFilter::Face;
-        emit selectionFilterChanged(filter_);
+        setSelectionFilter(SelectionFilter::Face);
     });
 
     setFaceSelectionAvailable(false);
@@ -109,16 +107,34 @@ void GraphicsWorkspace::setSelectionLabel(const QString &text)
     selectionLabel_->setText(text);
 }
 
+void GraphicsWorkspace::setSelectionFilter(const SelectionFilter filter)
+{
+    if (filter == SelectionFilter::Face && (selectFace_ == nullptr || !selectFace_->isEnabled())) {
+        return;
+    }
+    if (filter_ == filter) {
+        return;
+    }
+
+    filter_ = filter;
+    if (selectBody_ != nullptr) {
+        selectBody_->setChecked(filter_ == SelectionFilter::Body);
+    }
+    if (selectFace_ != nullptr) {
+        selectFace_->setChecked(filter_ == SelectionFilter::Face);
+    }
+    emit selectionFilterChanged(filter_);
+}
+
 void GraphicsWorkspace::setFaceSelectionAvailable(const bool available)
 {
     selectFace_->setEnabled(available);
-    selectFace_->setToolTip(available ? tr("Yüz seçimi")
-                                      : tr("Yüz seçimi mesh üretildikten sonra kullanılabilir."));
-    if (!available && filter_ == SelectionFilter::Face) {
-        filter_ = SelectionFilter::Body;
-        selectBody_->setChecked(true);
-        emit selectionFilterChanged(filter_);
-    }
+    selectFace_->setToolTip(available
+                                ? tr("CAD Face seçimi")
+                                : tr("Yüz seçimi için CAD Face provenance gerekli."));
+    // Capability değişikliği filter niyetini sessizce değiştirmez. MainWindow'un
+    // eski mesh-temelli ara sync'i Face filter'ı söndürmemeli; topology-aware
+    // coordinator gerçek CAD capability'yi aynı event turunda yeniden uygular.
 }
 
 } // namespace d26

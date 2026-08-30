@@ -50,6 +50,10 @@ set(FEMCAE_GUI_SOURCES
     viewport/ViewportCameraController.h
     viewport/Dynamics26InteractorStyle.cpp
     viewport/Dynamics26InteractorStyle.h
+    viewport/GeometrySelectionScene.h
+    viewport/ViewportSelectionController.h
+    viewport/ViewportSelectionBridge.cpp
+    viewport/ViewportSelectionBridge.h
     viewport/ViewportWidget.cpp
     viewport/ViewportWidget.h
 
@@ -82,6 +86,8 @@ set(FEMCAE_GUI_SOURCES
     shell/UtilityWorkspace.h
     shell/EngineeringStatusBar.cpp
     shell/EngineeringStatusBar.h
+    shell/SelectionCoordinator.cpp
+    shell/SelectionCoordinator.h
     shell/Dynamics26MainWindow.cpp
     shell/Dynamics26MainWindow.h
 
@@ -268,6 +274,21 @@ if(BUILD_TESTING)
     target_link_libraries(femcae_selection_manager_test PRIVATE Qt6::Core)
     add_test(NAME gui.selection_manager COMMAND femcae_selection_manager_test)
     set_tests_properties(gui.selection_manager PROPERTIES LABELS "gui;selection;alpha32")
+
+    qt_add_executable(femcae_viewport_selection_input_test
+        viewport/ViewportSelectionController.h
+        "${PROJECT_SOURCE_DIR}/tests/gui/test_viewport_selection_input.cpp"
+    )
+    target_include_directories(femcae_viewport_selection_input_test PRIVATE
+        "${PROJECT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(femcae_viewport_selection_input_test PRIVATE Qt6::Core)
+    add_test(NAME gui.viewport_selection_input COMMAND femcae_viewport_selection_input_test)
+    set_tests_properties(gui.viewport_selection_input PROPERTIES LABELS "gui;selection;alpha32")
+    # Trusted fast gate femcae_selection_manager_test hedefini açıkça build eder.
+    # Dependency sayesinde modifier kontrat testi de aynı gate içinde binary olarak üretilir.
+    add_dependencies(femcae_selection_manager_test femcae_viewport_selection_input_test)
 
     if(FEMCAE_GUI_WITH_VTK AND VTK_FOUND)
         add_executable(femcae_viewport_navigation_test

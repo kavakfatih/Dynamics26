@@ -1,0 +1,80 @@
+#include "viewport/ViewportSelectionController.h"
+
+#include <QCoreApplication>
+
+#include <iostream>
+#include <string>
+
+namespace {
+
+int failures = 0;
+
+void check(const bool condition, const std::string &message)
+{
+    std::cout << (condition ? "PASS  " : "FAIL  ") << message << '\n';
+    failures += condition ? 0 : 1;
+}
+
+} // namespace
+
+int main(int argc, char **argv)
+{
+    QCoreApplication application(argc, argv);
+
+    using d26::SelectionInputActionType;
+    using d26::SelectionOperation;
+    using d26::SelectionPointerEventType;
+    using d26::SelectionPointerInput;
+    using d26::ViewportSelectionController;
+
+    check(ViewportSelectionController::operationForModifiers(Qt::NoModifier)
+              == SelectionOperation::Replace,
+          "plain click maps to Replace");
+    check(ViewportSelectionController::operationForModifiers(Qt::ShiftModifier)
+              == SelectionOperation::Add,
+          "Shift click maps to Add");
+    check(ViewportSelectionController::operationForModifiers(Qt::MetaModifier)
+              == SelectionOperation::Toggle,
+          "raw macOS Command/Meta click maps to Toggle");
+    check(ViewportSelectionController::operationForModifiers(Qt::ControlModifier)
+              == SelectionOperation::Toggle,
+          "Control semantic click remains Toggle-compatible");
+
+    ViewportSelectionController controller;
+    SelectionPointerInput press;
+    press.type = SelectionPointerEventType::Press;
+    press.position = QPointF(10.0, 10.0);
+    press.button = Qt::LeftButton;
+    press.buttons = Qt::LeftButton;
+    press.modifiers = Qt::MetaModifier;
+    check(!controller.routePointer(press).has_value() && controller.clickInProgress(),
+          "Command-left press starts a selection click candidate");
+
+    SelectionPointerInput release;
+    release.type = SelectionPointerEventType::Release;
+    release.position = QPointF(11.0, 11.0);
+    release.button = Qt::LeftButton;
+    release.buttons = Qt::NoButton;
+    release.modifiers = Qt::NoModifier;
+    const auto commandCommit = controller.routePointer(release);
+    check(commandCommit.has_value()
+              && commandCommit->type == SelectionInputActionType::Commit
+              && commandCommit->operation == SelectionOperation::Toggle,
+          "Command modifier is preserved from press through release");
+
+    press.position = QPointF(20.0, 20.0);
+    press.modifiers = Qt::AltModifier;
+    check(!controller.routePointer(press).has_value() && !controller.clickInProgress(),
+          "Option-left remains reserved for navigation");
+    release.position = press.position;
+    check(!controller.routePointer(release).has_value(),
+          "Option navigation release cannot leak into selection commit");
+
+    const auto escape = controller.routeKey(Qt::Key_Escape, Qt::NoModifier);
+    check(escape.has_value() && escape->type == SelectionInputActionType::Clear,
+          "Escape emits clear-selection intent");
+
+    std::cout << (failures == 0 ? "viewport selection input PASS\n"
+                                : "viewport selection input FAIL\n");
+    return failures == 0 ? 0 : 1;
+}

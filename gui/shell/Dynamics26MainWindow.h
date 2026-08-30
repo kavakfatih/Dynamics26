@@ -42,6 +42,7 @@ class MaterialService;
 class MeshService;
 class ProjectModel;
 class ProjectNavigator;
+class SelectionCoordinator;
 
 class Dynamics26MainWindow final : public QMainWindow
 {
@@ -84,6 +85,12 @@ protected:
     void closeEvent(QCloseEvent *event) override;
 
 private:
+    // SelectionCoordinator görünür ikinci bir shell değildir. Yalnız viewport
+    // kaynaklı transient selection'ın mevcut Navigator/Details bağlamını kamera
+    // sahnesini yeniden kurmadan senkronlayabilmesi için kabuğun kontrollü
+    // composition-helper erişimine sahiptir.
+    friend class SelectionCoordinator;
+
     void buildServices();
     void buildLayout();
     void buildCommands();
