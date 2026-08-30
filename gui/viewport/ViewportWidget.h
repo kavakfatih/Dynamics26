@@ -65,7 +65,13 @@ public:
     [[nodiscard]] ViewportContext context() const noexcept { return context_; }
 
     void clearScene();
+    // Parametrik/legacy body-level display yolu.
     void showGeometry(const femcae::geometry::GeometryTessellation &tessellation);
+    // Alpha.3.2 CAD yolu: birden fazla Body tek display sahnesinde birleştirilir
+    // ve her display cell'in Body/Face provenance'i korunur.
+    void showGeometry(const QVector<femcae::geometry::TopologyTessellation> &bodies);
+    [[nodiscard]] bool hasTopologyFaceProvenance() const noexcept;
+
     void showMesh(const femcae::meshing::SimulationMesh &mesh, bool showNodes = false);
     void showModelWithBoundaryConditions(const femcae::meshing::SimulationMesh &mesh,
                                          const QVector<BoundaryGlyph> &glyphs);
@@ -97,12 +103,15 @@ public:
     // --capture geliştirici modu için render penceresi görüntüsü.
     [[nodiscard]] QImage grabRenderedImage();
 
-    // VTK interactor geri çağırması tarafından kullanılır: ekran konumundan
-    // sınır yüzeyi hücresi seçilir ve provenance geometri kimliği yayınlanır.
+    // VTK interactor geri çağırması tarafından kullanılır. FEM/legacy sahnede
+    // geometryPicked; topology-aware CAD sahnede topologyPicked yayınlanır.
     void handlePick(int x, int y);
 
 signals:
     void geometryPicked(quint64 geometryId);
+    // Rendering katmanı selection kararını vermez; yalnız pick edilen display
+    // cell'in gerçek CAD Body/Face provenance'ini yayınlar.
+    void topologyPicked(quint64 bodyId, quint64 faceId);
 
 protected:
     bool event(QEvent *event) override;

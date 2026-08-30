@@ -1,6 +1,7 @@
 #include "ViewportWidget.h"
 
 #include "Dynamics26InteractorStyle.h"
+#include "GeometrySelectionScene.h"
 #include "ViewportCameraController.h"
 #include "ViewportInputRouter.h"
 
@@ -134,8 +135,10 @@ public:
     };
     std::vector<RoleActor> actors;
 
-    // Picking: hücre indeksi -> geometri kimliği.
+    // Picking: mesh/legacy sahnede hücre -> geometri kimliği; topology-aware
+    // CAD sahnede GeometrySelectionScene hücre -> Body/Face provenance taşır.
     std::vector<GeometryEntityId> facetGeometryIds;
+    GeometrySelectionScene geometryScene;
     vtkSmartPointer<vtkActor> surfaceActor;
     vtkSmartPointer<vtkActor> geometryEdgeActor;
     vtkSmartPointer<vtkActor> highlightActor;
@@ -553,6 +556,7 @@ void ViewportWidget::clearScene()
     impl_->geometryEdgeActor = nullptr;
     impl_->highlightActor = nullptr;
     impl_->facetGeometryIds.clear();
+    impl_->geometryScene.clear();
     impl_->hasCachedMesh = false;
     impl_->cachedMesh = {};
     impl_->scalarBar->SetVisibility(0);
@@ -603,14 +607,82 @@ void ViewportWidget::showGeometry(const femcae::geometry::GeometryTessellation &
     impl_->geometryEdgeActor = impl_->addActor(edgeData, RenderRole::GeometryEdge, RenderRole::GeometryEdge, false);
     impl_->geometryEdgeActor->GetProperty()->SetLineWidth(1.4);
     impl_->geometryEdgeActor->GetProperty()->SetLighting(false);
-    // Gövde seviyesinde seçim: her üçgen kaynak gövdeye aittir. CAD yüz
-    // seviyesinde seçim için üçgen->face provenance gerekir; Alpha.1'de yoktur.
+    // Legacy/parametrik body-level seçim: her üçgen tek kaynak gövdeye aittir.
     impl_->facetGeometryIds.assign(tessellation.triangles.size(), tessellation.sourceGeometryId);
     impl_->applyPalette();
     setRepresentation(representation_);
     setStandardView(StandardView::Isometric);
 #else
     Q_UNUSED(tessellation)
+#endif
+}
+
+void ViewportWidget::showGeometry(const QVector<femcae::geometry::TopologyTessellation> &bodies)
+{
+#ifdef FEMCAE_GUI_HAS_VTK
+    clearScene();
+    for (const auto &body : bodies) {
+        if (!impl_->geometryScene.append(body)) {
+            impl_->geometryScene.clear();
+            impl_->render();
+            return;
+        }
+    }
+    if (impl_->geometryScene.empty()) {
+        impl_->render();
+        return;
+    }
+
+    vtkNew<vtkPoints> points;
+    points->SetNumberOfPoints(static_cast<vtkIdType>(impl_->geometryScene.points().size()));
+    for (std::size_t i = 0; i < impl_->geometryScene.points().size(); ++i) {
+        const auto &p = impl_->geometryScene.points()[i];
+        points->SetPoint(static_cast<vtkIdType>(i), p.x, p.y, p.z);
+    }
+    vtkNew<vtkCellArray> triangles;
+    for (const auto &triangle : impl_->geometryScene.triangles()) {
+        const vtkIdType ids[3] = {static_cast<vtkIdType>(triangle[0]), static_cast<vtkIdType>(triangle[1]),
+                                  static_cast<vtkIdType>(triangle[2])};
+        triangles->InsertNextCell(3, ids);
+    }
+    vtkSmartPointer<vtkPolyData> data = vtkSmartPointer<vtkPolyData>::New();
+    data->SetPoints(points);
+    data->SetPolys(triangles);
+
+    impl_->surfaceActor = impl_->addActor(data, RenderRole::GeometrySurface, RenderRole::GeometryEdge, false);
+
+    vtkNew<vtkFeatureEdges> featureEdges;
+    featureEdges->SetInputData(data);
+    featureEdges->BoundaryEdgesOn();
+    featureEdges->FeatureEdgesOn();
+    featureEdges->SetFeatureAngle(24.0);
+    featureEdges->ManifoldEdgesOff();
+    featureEdges->NonManifoldEdgesOff();
+    featureEdges->ColoringOff();
+    featureEdges->Update();
+    vtkSmartPointer<vtkPolyData> edgeData = vtkSmartPointer<vtkPolyData>::New();
+    edgeData->DeepCopy(featureEdges->GetOutput());
+    impl_->geometryEdgeActor = impl_->addActor(edgeData, RenderRole::GeometryEdge, RenderRole::GeometryEdge, false);
+    impl_->geometryEdgeActor->GetProperty()->SetLineWidth(1.4);
+    impl_->geometryEdgeActor->GetProperty()->SetLighting(false);
+
+    // Topology-aware sahnede facetGeometryIds kullanılmaz. Pick edilen VTK cell
+    // GeometrySelectionScene üzerinden Body + Face kimliklerine çözülür.
+    impl_->facetGeometryIds.clear();
+    impl_->applyPalette();
+    setRepresentation(representation_);
+    setStandardView(StandardView::Isometric);
+#else
+    Q_UNUSED(bodies)
+#endif
+}
+
+bool ViewportWidget::hasTopologyFaceProvenance() const noexcept
+{
+#ifdef FEMCAE_GUI_HAS_VTK
+    return !impl_->geometryScene.empty() && impl_->geometryScene.hasFaceProvenance();
+#else
+    return false;
 #endif
 }
 
@@ -1143,18 +1215,34 @@ QImage ViewportWidget::grabRenderedImage()
 void ViewportWidget::handlePick(const int x, const int y)
 {
 #ifdef FEMCAE_GUI_HAS_VTK
-    if (impl_->surfaceActor == nullptr || impl_->facetGeometryIds.empty()) {
+    if (impl_->surfaceActor == nullptr || (impl_->facetGeometryIds.empty() && impl_->geometryScene.empty())) {
         return;
     }
     impl_->picker->InitializePickList();
     impl_->picker->AddPickList(impl_->surfaceActor);
     impl_->picker->PickFromListOn();
     if (impl_->picker->Pick(x, y, 0, impl_->renderer) == 0) {
-        emit geometryPicked(0);
+        if (!impl_->geometryScene.empty()) {
+            emit topologyPicked(0, 0);
+        } else {
+            emit geometryPicked(0);
+        }
         return;
     }
     const vtkIdType cellId = impl_->picker->GetCellId();
-    if (cellId < 0 || cellId >= static_cast<vtkIdType>(impl_->facetGeometryIds.size())) {
+    if (cellId < 0) {
+        return;
+    }
+    if (!impl_->geometryScene.empty()) {
+        const auto provenance = impl_->geometryScene.provenanceForCell(static_cast<std::size_t>(cellId));
+        if (!provenance.has_value()) {
+            return;
+        }
+        emit topologyPicked(static_cast<quint64>(provenance->bodyId),
+                            static_cast<quint64>(provenance->faceId));
+        return;
+    }
+    if (cellId >= static_cast<vtkIdType>(impl_->facetGeometryIds.size())) {
         return;
     }
     emit geometryPicked(static_cast<quint64>(impl_->facetGeometryIds[static_cast<std::size_t>(cellId)]));
