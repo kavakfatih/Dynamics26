@@ -122,22 +122,36 @@ QString GeometryService::bodyName(const GeometryEntityId id) const
     return QString::fromStdString(entity->name);
 }
 
-std::optional<GeometryTessellation> GeometryService::displayTessellation(const GeometryEntityId bodyId,
-                                                                        const double linearDeflection) const
+std::optional<TopologyTessellation> GeometryService::displayTopologyTessellation(
+    const GeometryEntityId bodyId, const double linearDeflection) const
 {
-    if (document_.find(bodyId) == nullptr) {
+    const auto *entity = document_.find(bodyId);
+    if (entity == nullptr || entity->kind != GeometryEntityKind::Body) {
         return std::nullopt;
     }
     try {
-        auto tessellation = importer_.tessellate(bodyId, linearDeflection);
-        if (tessellation.triangles.empty()) {
+        auto tessellation = importer_.tessellateWithTopology(bodyId, linearDeflection);
+        if (tessellation.display.triangles.empty() || !tessellation.hasConsistentProvenance()) {
             return std::nullopt;
         }
-        tessellation.sourceRevision = document_.revision();
+        // Service, importer cache'inin import anindaki revision bilgisini guncel
+        // GeometryDocument revision'iyle hizalar. Selection stale kontrolunun
+        // tek dogruluk kaynagi GUI'nin sahip oldugu document revision'idir.
+        tessellation.display.sourceRevision = document_.revision();
         return tessellation;
     } catch (const std::exception &) {
         return std::nullopt;
     }
+}
+
+std::optional<GeometryTessellation> GeometryService::displayTessellation(const GeometryEntityId bodyId,
+                                                                        const double linearDeflection) const
+{
+    const auto topology = displayTopologyTessellation(bodyId, linearDeflection);
+    if (!topology.has_value()) {
+        return std::nullopt;
+    }
+    return topology->display;
 }
 
 std::optional<GeometryTessellation> GeometryService::firstBodyTessellation() const

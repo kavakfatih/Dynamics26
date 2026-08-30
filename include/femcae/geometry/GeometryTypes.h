@@ -57,6 +57,21 @@ struct GeometryTessellation {
     std::vector<std::array<std::uint32_t, 3>> triangles;
 };
 
+// CAD topolojisi ile display tessellation arasindaki provenance yan-karti.
+//
+// KRITIK: triangleFaceIds içindeki bir kimlik CAD Face kimligidir; display
+// triangle'in kendisi CAD Face veya FEM elemani DEĞILDIR. Mevcut
+// GeometryTessellation yapisinin layout'unu degistirmeden Alpha.3.2 Face
+// selection icin gereken bire-bir triangle -> Face bagini tasir.
+struct TopologyTessellation {
+    GeometryTessellation display;
+    std::vector<GeometryEntityId> triangleFaceIds;
+
+    [[nodiscard]] bool hasConsistentProvenance() const noexcept {
+        return triangleFaceIds.size() == display.triangles.size();
+    }
+};
+
 struct GeometryAssociation {
     GeometryEntityId geometryId{InvalidGeometryId};
     std::vector<std::int64_t> femNodeIds;

@@ -5,6 +5,7 @@
 #include <cmath>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #if defined(FEMCAE_GEOMETRY_HAS_OCCT)
 #include <BRepMesh_IncrementalMesh.hxx>
@@ -40,6 +41,10 @@ public:
 #if defined(FEMCAE_GEOMETRY_HAS_OCCT)
     std::unordered_map<GeometryEntityId, TopoDS_Shape> shapes;
     std::unordered_map<GeometryEntityId, GeometryEntityId> faceParents;
+    // Her body icin OCCT explorer sirasi ile kaydedilen kararlı Face kimlikleri.
+    // Tessellation ayni body shape'i uzerinden yurudugu icin triangle provenance
+    // bu liste ve IsSame dogrulamasi ile gercek CAD Face'e baglanir.
+    std::unordered_map<GeometryEntityId, std::vector<GeometryEntityId>> bodyFaces;
     std::unordered_map<GeometryEntityId, std::uint64_t> sourceRevisions;
 #endif
 };
@@ -68,6 +73,7 @@ StepImportResult OcctStepImporter::importFile(const std::string& path, GeometryD
     try {
         impl_->shapes.clear();
         impl_->faceParents.clear();
+        impl_->bodyFaces.clear();
         impl_->sourceRevisions.clear();
         Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
         Handle(TDocStd_Document) xdeDoc;
@@ -124,6 +130,7 @@ StepImportResult OcctStepImporter::importFile(const std::string& path, GeometryD
                 const auto bodyId = document.addEntity(GeometryEntityKind::Body, assemblyId,
                                                        "Body " + std::to_string(solidOrdinal), bodyKey, path);
                 impl_->shapes.emplace(bodyId, bodyShape);
+                auto& orderedFaces = impl_->bodyFaces[bodyId];
                 ++result.bodyCount;
 
                 std::size_t faceOrdinal = 0;
@@ -134,6 +141,7 @@ StepImportResult OcctStepImporter::importFile(const std::string& path, GeometryD
                                        "Face " + std::to_string(faceOrdinal), faceKey, path);
                     impl_->shapes.emplace(faceId, faceIt.Current());
                     impl_->faceParents.emplace(faceId, bodyId);
+                    orderedFaces.push_back(faceId);
                     ++result.faceCount;
                 }
                 std::size_t edgeOrdinal = 0;
@@ -159,6 +167,7 @@ StepImportResult OcctStepImporter::importFile(const std::string& path, GeometryD
                 const std::string bodyKey = rootKey + "/body/root-shape";
                 const auto bodyId = document.addEntity(GeometryEntityKind::Body, assemblyId, rootName, bodyKey, path);
                 impl_->shapes.emplace(bodyId, rootShape);
+                auto& orderedFaces = impl_->bodyFaces[bodyId];
                 ++result.bodyCount;
                 std::size_t faceOrdinal = 0;
                 for (TopExp_Explorer faceIt(rootShape, TopAbs_FACE); faceIt.More(); faceIt.Next()) {
@@ -168,6 +177,7 @@ StepImportResult OcctStepImporter::importFile(const std::string& path, GeometryD
                                        bodyKey + "/face/" + std::to_string(faceOrdinal), path);
                     impl_->shapes.emplace(faceId, faceIt.Current());
                     impl_->faceParents.emplace(faceId, bodyId);
+                    orderedFaces.push_back(faceId);
                     ++result.faceCount;
                 }
             }
@@ -198,49 +208,78 @@ StepImportResult OcctStepImporter::importFile(const std::string& path, GeometryD
 #endif
 }
 
-GeometryTessellation OcctStepImporter::tessellate(const GeometryEntityId bodyId,
-                                                   const double linearDeflection,
-                                                   const double angularDeflectionRad) const {
+TopologyTessellation OcctStepImporter::tessellateWithTopology(const GeometryEntityId bodyId,
+                                                               const double linearDeflection,
+                                                               const double angularDeflectionRad) const {
 #if !defined(FEMCAE_GEOMETRY_HAS_OCCT)
     (void)bodyId; (void)linearDeflection; (void)angularDeflectionRad;
-    throw std::runtime_error("OCCT bulunamadi; CAD tessellation kullanilamaz.");
+    throw std::runtime_error("OCCT bulunamadi; CAD topology tessellation kullanilamaz.");
 #else
     if (linearDeflection <= 0.0 || angularDeflectionRad <= 0.0) {
         throw std::invalid_argument("OCCT tessellation toleranslari pozitif olmali.");
     }
     const auto found = impl_->shapes.find(bodyId);
     if (found == impl_->shapes.end()) throw std::invalid_argument("Tessellation body ID importer cache'inde yok.");
+    const auto bodyFaces = impl_->bodyFaces.find(bodyId);
+    if (bodyFaces == impl_->bodyFaces.end()) {
+        throw std::runtime_error("Tessellation body Face provenance cache'inde yok.");
+    }
 
     const TopoDS_Shape& shape = found->second;
     BRepMesh_IncrementalMesh mesher(shape, linearDeflection, Standard_False, angularDeflectionRad, Standard_True);
     (void)mesher;
 
-    GeometryTessellation out;
-    out.sourceGeometryId = bodyId;
+    TopologyTessellation out;
+    out.display.sourceGeometryId = bodyId;
     const auto rev = impl_->sourceRevisions.find(bodyId);
-    if (rev != impl_->sourceRevisions.end()) out.sourceRevision = rev->second;
-    for (TopExp_Explorer faceIt(shape, TopAbs_FACE); faceIt.More(); faceIt.Next()) {
+    if (rev != impl_->sourceRevisions.end()) out.display.sourceRevision = rev->second;
+
+    std::size_t faceOrdinal = 0;
+    for (TopExp_Explorer faceIt(shape, TopAbs_FACE); faceIt.More(); faceIt.Next(), ++faceOrdinal) {
+        if (faceOrdinal >= bodyFaces->second.size()) {
+            throw std::runtime_error("OCCT Face sayisi importer provenance kaydiyla uyusmuyor.");
+        }
         const TopoDS_Face face = TopoDS::Face(faceIt.Current());
+        const GeometryEntityId faceId = bodyFaces->second[faceOrdinal];
+        const auto storedFace = impl_->shapes.find(faceId);
+        if (storedFace == impl_->shapes.end() || !storedFace->second.IsSame(face)) {
+            throw std::runtime_error("OCCT Face kimligi tessellation topolojisiyle eslesmiyor.");
+        }
+
         TopLoc_Location location;
         const Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(face, location);
         if (triangulation.IsNull()) continue;
-        const std::uint32_t base = static_cast<std::uint32_t>(out.points.size());
+        const std::uint32_t base = static_cast<std::uint32_t>(out.display.points.size());
         for (Standard_Integer n = 1; n <= triangulation->NbNodes(); ++n) {
             gp_Pnt p = triangulation->Node(n);
             p.Transform(location.Transformation());
-            out.points.push_back({p.X(), p.Y(), p.Z()});
+            out.display.points.push_back({p.X(), p.Y(), p.Z()});
         }
         for (Standard_Integer t = 1; t <= triangulation->NbTriangles(); ++t) {
             Standard_Integer n1{}, n2{}, n3{};
             triangulation->Triangle(t).Get(n1, n2, n3);
             if (face.Orientation() == TopAbs_REVERSED) std::swap(n2, n3);
-            out.triangles.push_back({base + static_cast<std::uint32_t>(n1 - 1),
-                                     base + static_cast<std::uint32_t>(n2 - 1),
-                                     base + static_cast<std::uint32_t>(n3 - 1)});
+            out.display.triangles.push_back({base + static_cast<std::uint32_t>(n1 - 1),
+                                             base + static_cast<std::uint32_t>(n2 - 1),
+                                             base + static_cast<std::uint32_t>(n3 - 1)});
+            out.triangleFaceIds.push_back(faceId);
         }
+    }
+
+    if (faceOrdinal != bodyFaces->second.size()) {
+        throw std::runtime_error("OCCT Face provenance kaydi eksik veya fazla entity iceriyor.");
+    }
+    if (!out.hasConsistentProvenance()) {
+        throw std::runtime_error("Display triangle / CAD Face provenance boyutlari uyusmuyor.");
     }
     return out;
 #endif
+}
+
+GeometryTessellation OcctStepImporter::tessellate(const GeometryEntityId bodyId,
+                                                   const double linearDeflection,
+                                                   const double angularDeflectionRad) const {
+    return tessellateWithTopology(bodyId, linearDeflection, angularDeflectionRad).display;
 }
 
 

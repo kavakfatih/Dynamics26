@@ -42,9 +42,16 @@ public:
 
     [[nodiscard]] static bool available() noexcept;
     [[nodiscard]] StepImportResult importFile(const std::string& path, GeometryDocument& document);
+
+    // Geriye uyumlu body-level display tessellation API'si. Face provenance
+    // gereken GUI yolları tessellateWithTopology() kullanir.
     [[nodiscard]] GeometryTessellation tessellate(GeometryEntityId bodyId,
                                                    double linearDeflection,
                                                    double angularDeflectionRad = 0.5) const;
+    [[nodiscard]] TopologyTessellation tessellateWithTopology(GeometryEntityId bodyId,
+                                                               double linearDeflection,
+                                                               double angularDeflectionRad = 0.5) const;
+
     [[nodiscard]] std::optional<StepAxisAlignedBoxDescriptor> axisAlignedBoxDescriptor(GeometryEntityId bodyId,
                                                                                        double tolerance = 1.0e-8) const;
 

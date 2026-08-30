@@ -66,6 +66,14 @@ public:
     // kullanamaz; ViewportWidget bunu GeometrySurface rolüyle çizer.
     [[nodiscard]] std::optional<femcae::geometry::GeometryTessellation>
         displayTessellation(femcae::geometry::GeometryEntityId bodyId, double linearDeflection = 0.15) const;
+
+    // Alpha.3.2 topology-aware display yolu. display verisi ile her triangle'in
+    // gercek CAD Face kimligi birlikte gelir; Face ID display triangle ID'si
+    // veya FEM facet ID'si olarak yorumlanamaz.
+    [[nodiscard]] std::optional<femcae::geometry::TopologyTessellation>
+        displayTopologyTessellation(femcae::geometry::GeometryEntityId bodyId,
+                                    double linearDeflection = 0.15) const;
+
     [[nodiscard]] std::optional<femcae::geometry::GeometryTessellation> firstBodyTessellation() const;
 
     // Eksen hizalı sınır kutusu tanımı (yalnız OCCT + kutu benzeri gövde için).
