@@ -18,7 +18,7 @@ import sys
 import zipfile
 
 EXCLUDED_DIRS = {
-    ".git", "build", "stage", "dist", "__pycache__", ".idea", ".vscode",
+    ".git", "build", "stage", "dist", "__pycache__", ".idea",
 }
 EXCLUDED_PREFIXES = ("build-", "stage-", "cmake-build-")
 EXCLUDED_FILES = {"SHA256SUMS.txt", ".DS_Store", "CMakeCache.txt"}

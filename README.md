@@ -2,7 +2,7 @@
 
 Modern Fortran tabanlı, macOS / Apple Silicon odaklı açık kaynak nonlinear FEM/CAE platformu.
 
-> **Mevcut durum:** V1.0.2 solver/CAD/meshing/pre-post foundation ve macOS standalone deployment hardening tamamlandı. Aktif sonraki faz V1.1.0 GUI / UI / UX + Dynamics26 Identity çalışmasıdır.
+> **Mevcut durum:** V1.0.2 solver/CAD/meshing/pre-post foundation ve macOS standalone deployment hardening tamamlandı. **V1.1.0-alpha.3.1.1 viewport navigation corrective pass kuruldu**: alpha.3.1 kamera/navigation mimarisi, VS Code Debug GUI akışı, incelenebilir macOS input classification ve capability-tabanlı orientation widget kontrolü. Ayrıntı: [`GUI_ARCHITECTURE.md`](GUI_ARCHITECTURE.md), [`GUI_REDESIGN_REPORT.md`](GUI_REDESIGN_REPORT.md) ve [`docs/development/VSCODE_SETUP.md`](docs/development/VSCODE_SETUP.md).
 
 > **Bağımsız geliştirme ilkesi:** Dynamics26, Code_Aster veya başka bir CAE yazılımının kaynak kodunu kopyalamaz ya da port etmez. Dış projeler yalnız özellik, kullanıcı akışı, mühendislik davranışı ve doğrulama karşılaştırması için referans olabilir. Fizik, matematik, formulasyon, sayısal algoritma ve verification zinciri bağımsız olarak geliştirilir.
 
@@ -90,6 +90,21 @@ Bu başlıklar ana ürün sütunlarıdır. Ayrıntılı plan için:
 ## V1.1 GUI hedefi
 
 V1.1 yeni solver fiziğinden önce mevcut çekirdeğin profesyonel CAE uygulamasına dönüştürülmesine odaklanır.
+
+**Alpha.2 durumu (uygulandı):** Doküman komut sistemi (QUndoStack + 18 domain
+command) · Undo/Redo · dirty/clean doküman durumu · bağımlılık motoru
+(Out-of-Date) · Suppress/Unsuppress · Rename/Duplicate/Delete/Cut/Copy/Paste ·
+nesne türüne duyarlı bağlam menüleri · Preflight · Clear Generated Mesh · Clear
+Solution · tam nesne kalıcılığı (ObjectId/ordering/suppression round-trip) ·
+Dark Mode düzeltmesi · Qt 6.5+ uyumluluğu · standart macOS menü ve kısayolları.
+
+**Alpha.1 durumu (uygulandı):** Model Tree (gerçek `ObjectId`/`ObjectType` nesne
+grafiği) · baskın 3B grafik alanı · bağlamsal Details paneli · tek kayıt
+defterinden yönetilen komut yüzeyi · mühendislik durum çubuğu · başlangıçta
+kapalı alt yardımcı alan · macOS System Appearance ile Light/Dark. Eski
+`MainWindow` → `Dynamics26Shell` → `CaeWorkbenchController` → `Alpha1UxController`
+→ `Alpha1ProductPolish` → `AppearanceController` düzeltme zinciri kaldırıldı
+(~4 760 satır). Bkz. [`GUI_REDESIGN_REPORT.md`](GUI_REDESIGN_REPORT.md).
 
 Research kapsamında ANSYS Mechanical, Hexagon Marc/Mentat, Simufact, Abaqus/CAE, COMSOL, Altair HyperMesh/HyperView, gerektiğinde Simcenter ve Apple macOS Human Interface Guidelines modül bazında incelenecektir.
 

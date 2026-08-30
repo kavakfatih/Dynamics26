@@ -1,21 +1,94 @@
+# Dynamics26 V1.1 GUI kaynak ağacı.
+#
+#   core/      proje nesne modeli, ağaç adaptörü, semantik CAE ikonları
+#   services/  mühendislik durumunun sahibi (geometri / mesh / malzeme / analiz)
+#   viewport/  semantik rol tabanlı VTK render katmanı
+#   details/   nesne türüne bağlı Details sayfaları
+#   shell/     görünür kompozisyonun tek sahibi (pencere, komutlar, paneller)
+#   support/   geliştirici araçları (ekran görüntüsü sürücüsü)
 set(FEMCAE_GUI_SOURCES
     main.cpp
-    MainWindow.cpp
-    MainWindow.h
-    Dynamics26Shell.cpp
-    Dynamics26Shell.h
-    CaeWorkbenchController.cpp
-    CaeWorkbenchController.h
-    AppearanceController.cpp
-    AppearanceController.h
-    ViewportWidget.cpp
-    ViewportWidget.h
-    MaterialCurveWidget.cpp
-    MaterialCurveWidget.h
-    GeometryPanel.cpp
-    GeometryPanel.h
-    PrePostPanel.cpp
-    PrePostPanel.h
+
+    core/ProjectTypes.cpp
+    core/ProjectTypes.h
+    core/ProjectModel.cpp
+    core/ProjectModel.h
+    core/ProjectTreeModel.cpp
+    core/ProjectTreeModel.h
+    core/CaeIcons.cpp
+    core/CaeIcons.h
+    core/ServiceContext.h
+    core/UiTheme.cpp
+    core/UiTheme.h
+    core/DocumentCommandManager.cpp
+    core/DocumentCommandManager.h
+    core/DependencyEngine.cpp
+    core/DependencyEngine.h
+
+    commands/DomainCommands.cpp
+    commands/DomainCommands.h
+
+    services/GeometryService.cpp
+    services/GeometryService.h
+    services/MeshService.cpp
+    services/MeshService.h
+    services/MaterialService.cpp
+    services/MaterialService.h
+    services/AnalysisService.cpp
+    services/AnalysisService.h
+
+    viewport/RenderRoles.cpp
+    viewport/RenderRoles.h
+    viewport/ViewportNavigation.h
+    viewport/ViewportInputRouter.cpp
+    viewport/ViewportInputRouter.h
+    viewport/ViewportCameraController.cpp
+    viewport/ViewportCameraController.h
+    viewport/Dynamics26InteractorStyle.cpp
+    viewport/Dynamics26InteractorStyle.h
+    viewport/ViewportWidget.cpp
+    viewport/ViewportWidget.h
+
+    details/DetailsPage.cpp
+    details/DetailsPage.h
+    details/GeometryDetails.cpp
+    details/GeometryDetails.h
+    details/MeshDetails.cpp
+    details/MeshDetails.h
+    details/MaterialDetails.cpp
+    details/MaterialDetails.h
+    details/AnalysisDetails.cpp
+    details/AnalysisDetails.h
+    details/BoundaryConditionDetails.cpp
+    details/BoundaryConditionDetails.h
+    details/ResultDetails.cpp
+    details/ResultDetails.h
+    details/ObjectDetails.cpp
+    details/ObjectDetails.h
+
+    shell/CommandRegistry.cpp
+    shell/CommandRegistry.h
+    shell/ProjectNavigator.cpp
+    shell/ProjectNavigator.h
+    shell/GraphicsWorkspace.cpp
+    shell/GraphicsWorkspace.h
+    shell/DetailsHost.cpp
+    shell/DetailsHost.h
+    shell/UtilityWorkspace.cpp
+    shell/UtilityWorkspace.h
+    shell/EngineeringStatusBar.cpp
+    shell/EngineeringStatusBar.h
+    shell/Dynamics26MainWindow.cpp
+    shell/Dynamics26MainWindow.h
+
+    support/ScreenshotDriver.cpp
+    support/ScreenshotDriver.h
+    support/SelfTest.cpp
+    support/SelfTest.h
+
+    widgets/MaterialCurveWidget.cpp
+    widgets/MaterialCurveWidget.h
+
     ProjectFileMigrator.cpp
     ProjectFileMigrator.h
 )
@@ -30,24 +103,67 @@ target_link_libraries(femcae_gui PRIVATE
     femcae_geometry
     femcae_meshing
 )
-target_include_directories(femcae_gui PRIVATE "${PROJECT_SOURCE_DIR}/include")
+target_include_directories(femcae_gui PRIVATE
+    "${PROJECT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+)
 target_compile_definitions(femcae_gui PRIVATE
     FEMCAE_APP_VERSION="${PROJECT_VERSION}"
-    DYNAMICS26_GUI_MILESTONE="1.1.0-alpha.1"
+    DYNAMICS26_GUI_MILESTONE="1.1.0-alpha.3.1.1"
+    $<$<CONFIG:Debug>:DYNAMICS26_VIEWPORT_INPUT_TRACE=1>
 )
 
 if(FEMCAE_GUI_WITH_VTK)
+    # RenderingAnnotation: sonuç legend'i (vtkScalarBarActor)
+    # FiltersCore: sınır şartı / yük sembolleri (vtkGlyph3D)
     find_package(VTK QUIET COMPONENTS
         CommonCore
         CommonDataModel
+        FiltersCore
         FiltersSources
         RenderingCore
+        RenderingAnnotation
+        RenderingFreeType
         RenderingOpenGL2
         InteractionStyle
+        InteractionWidgets
         GUISupportQt
     )
     if(VTK_FOUND)
         target_compile_definitions(femcae_gui PRIVATE FEMCAE_GUI_HAS_VTK=1)
+
+        # vtkCameraOrientationWidget availability is an API capability, not a
+        # version-number promise. Compile the exact header/method surface used
+        # by ViewportWidget so older or differently packaged VTK builds fall
+        # back safely without raising the project-wide VTK minimum.
+        include(CheckCXXSourceCompiles)
+        include(CMakePushCheckState)
+        cmake_push_check_state(RESET)
+        set(CMAKE_REQUIRED_LIBRARIES ${VTK_LIBRARIES})
+        unset(FEMCAE_VTK_HAS_CAMERA_ORIENTATION_WIDGET CACHE)
+        check_cxx_source_compiles([=[
+            #include <vtkCameraOrientationWidget.h>
+            #include <vtkNew.h>
+            #include <vtkRenderer.h>
+            int main()
+            {
+                vtkNew<vtkRenderer> renderer;
+                vtkNew<vtkCameraOrientationWidget> widget;
+                widget->SetParentRenderer(renderer);
+                widget->AnimateOff();
+                widget->ShouldResetCameraOn();
+                widget->SetEnabled(0);
+                return widget->GetEnabled();
+            }
+        ]=] FEMCAE_VTK_HAS_CAMERA_ORIENTATION_WIDGET)
+        cmake_pop_check_state()
+
+        if(FEMCAE_VTK_HAS_CAMERA_ORIENTATION_WIDGET)
+            target_compile_definitions(femcae_gui PRIVATE FEMCAE_GUI_HAS_CAMERA_ORIENTATION_WIDGET=1)
+            message(STATUS "FEMCAE GUI: vtkCameraOrientationWidget API available")
+        else()
+            message(STATUS "FEMCAE GUI: vtkCameraOrientationWidget unavailable; axis-triad fallback enabled")
+        endif()
         target_link_libraries(femcae_gui PRIVATE ${VTK_LIBRARIES})
         vtk_module_autoinit(TARGETS femcae_gui MODULES ${VTK_LIBRARIES})
         message(STATUS "FEMCAE GUI: VTK viewport enabled")
@@ -133,4 +249,38 @@ if(BUILD_TESTING)
     target_link_libraries(femcae_project_migration_test PRIVATE Qt6::Core)
     add_test(NAME gui.project_schema_migration COMMAND femcae_project_migration_test)
     set_tests_properties(gui.project_schema_migration PROPERTIES LABELS "gui;migration;release")
+
+    if(FEMCAE_GUI_WITH_VTK AND VTK_FOUND)
+        add_executable(femcae_viewport_navigation_test
+            viewport/ViewportInputRouter.cpp
+            viewport/ViewportInputRouter.h
+            viewport/ViewportNavigation.h
+            viewport/ViewportCameraController.cpp
+            viewport/ViewportCameraController.h
+            viewport/Dynamics26InteractorStyle.cpp
+            viewport/Dynamics26InteractorStyle.h
+            "${PROJECT_SOURCE_DIR}/tests/gui/test_viewport_navigation.cpp"
+        )
+        target_include_directories(femcae_viewport_navigation_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+        target_link_libraries(femcae_viewport_navigation_test PRIVATE
+            Qt6::Core
+            Qt6::Gui
+            Qt6::Widgets
+            ${VTK_LIBRARIES}
+        )
+        target_compile_definitions(femcae_viewport_navigation_test PRIVATE FEMCAE_GUI_HAS_VTK=1)
+        target_compile_definitions(femcae_viewport_navigation_test PRIVATE
+            $<$<CONFIG:Debug>:DYNAMICS26_VIEWPORT_INPUT_TRACE=1>
+        )
+        if(FEMCAE_VTK_HAS_CAMERA_ORIENTATION_WIDGET)
+            target_compile_definitions(femcae_viewport_navigation_test
+                PRIVATE FEMCAE_GUI_HAS_CAMERA_ORIENTATION_WIDGET=1)
+        endif()
+        vtk_module_autoinit(TARGETS femcae_viewport_navigation_test MODULES ${VTK_LIBRARIES})
+        add_test(NAME gui.viewport_navigation COMMAND femcae_viewport_navigation_test)
+        set_tests_properties(gui.viewport_navigation PROPERTIES
+            LABELS "gui;viewport;navigation;camera"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        )
+    endif()
 endif()

@@ -1,5 +1,178 @@
 # Changelog
 
+## [1.1.0-alpha.3.1.1] - 2026-08-30
+
+Corrective pass over the alpha.3.1 navigation foundation; no selection,
+solver, GUI-shell or camera redesign is included.
+
+### Fixed
+- Restored the managed `.vscode` settings, extension recommendations, preset
+  tasks and CodeLLDB GUI launch profiles.
+- Source archives now retain the four managed `.vscode` files; the existing
+  reproducibility test validates both source-tree presence and ZIP contents.
+- Added Debug-only, opt-in `dynamics26.viewport.input` traces for wheel/native
+  gesture metadata, normalized input source/action and duplicate suppression.
+- Kept pixel scroll classification behavioral: `pixelDelta` is not treated as
+  proof of trackpad hardware, and natural scrolling is not inverted twice.
+- Replaced the orientation cube's VTK version gate with a configure-time
+  compile check for the exact header/API surface used by the application.
+
+### Validation
+- Clean macOS/arm64 Debug GUI configure and 932-step build: **PASS**.
+- Debug CTest: **128/128 PASS**.
+- Native macOS GUI self-test: **122/122 PASS**.
+- Physical MacBook trackpad, mouse and Magic Mouse interaction: **NOT TESTED**.
+
+## [1.1.0-alpha.3.1] - 2026-08-30
+
+Professional CAE viewport navigation and camera foundation. Existing shell,
+document, dependency, persistence, geometry, mesh, solver, results and semantic
+render-role architecture is preserved.
+
+### Added
+- `ViewportInputRouter` with centralized Qt mouse/wheel/native-gesture/key
+  normalization and one-physical-gesture/one-action arbitration.
+- `ViewportCameraController`: Orbit, Pan, Zoom, Fit, zoom-to-bounds,
+  `StandardView` and rotation-center APIs.
+- Single application-owned `Dynamics26InteractorStyle`; default VTK left/right/
+  middle/wheel camera paths cannot compete with Qt routing.
+- CAD navigation: middle Orbit, Shift+middle Pan, wheel Zoom, Option+left Orbit;
+  plain left remains Selection and right remains context menu.
+- Viewport-only `F / 0 / 1 / Shift+1 / 2 / Shift+2 / 3 / Shift+3` shortcuts.
+- Non-interactive lower-left `vtkAxesActor` triad and VTK 9.7 camera orientation
+  cube in the upper-right.
+- Rotation-center controls in the viewport context menu and future-facing
+  zoom-to-selection bounds API.
+- `gui.viewport_navigation` CTest covering routing, de-duplication, camera
+  directions, Fit, overlays, and the single-interactor contract.
+
+### Validation
+- Debug CTest: **128/128 PASS** (36.30 s).
+- Release GUI full build: PASS; Release CTest **128/128 PASS** (36.51 s).
+- Native macOS Release GUI self-test: **122/122 PASS**.
+- Physical trackpad/mouse interaction remains explicitly **NOT TESTED**;
+  automated input-contract tests are not presented as physical-device PASS.
+
+## [1.1.0-alpha.2] - 2026-08-30
+
+CAE desktop interaction foundation. Alpha.1 GUI mimarisi korundu ve üzerine
+inşa edildi; solver çekirdeği (Fortran), C ABI ve geometry/meshing C++ katmanı
+değiştirilmedi.
+
+### Fixed
+- **Dark Mode blocker.** `ui::SecondaryLabel` ikincil metin rengini widget'ın
+  kendi (mutasyona uğramış) paletinden türetiyordu; Qt açıkça atanmış rolü
+  "resolved" işaretlediği için Light → Dark geçişinde eski koyu renk kalıyor ve
+  bölüm başlıkları (DEFINITION / DISPLAY / STATISTICS …) okunmuyordu. Türetme
+  artık her zaman `QApplication::palette()` üzerinden yapılır.
+- Mesh güncelliği monoton sayaç yerine **içerik karşılaştırmasıyla** belirlenir:
+  bir ayar değişikliğini Undo ile geri almak mesh'i yeniden geçerli kılar.
+- Çözüm güncelliği `solverInputSignature()` içerik imzasıyla belirlenir; mesh
+  ayarı değişimi artık çözümü bayatlatır, yeniden adlandırma bayatlatmaz.
+- Proje yüklerken kimlik sayacı **yüklemeden önce** rezerve edilir; ObjectId
+  çakışması nedeniyle nesne kaybı giderildi.
+- Sınır şartları ve yükler tek sıralı listede saklanır; ağaç sıralaması
+  round-trip'te korunur.
+- `QToolBar::clear()` sonrası bağlam başlığı widget'ına asılı işaretçi.
+- Bayat sonuç durum çubuğunda artık "çözüme hazır değil" olarak gösterilmiyor.
+
+### Added
+- **DocumentCommandManager** (`QUndoStack`) ve **18 domain command**:
+  Undo/Redo, dirty/clean doküman durumu, macro/transaction, 700 ms birleştirme
+  penceresi, dinamik Undo metni ("Geri Al Add Force").
+- **DependencyEngine** — nesne durumlarının tek yazarı; UpToDate / OutOfDate /
+  Ready / NotReady / Warning / Error / Suppressed / Solving.
+- **Tam nesne kalıcılığı** — `dynamics26_document` bölümü: ObjectId, DisplayName,
+  ordering, analiz ayarları, çoklu malzeme/mesnet/yük, Fx/Fy/Fz, scope,
+  suppression ve sonuç tanımları round-trip eder. V1.0 şeması korunur.
+- **Suppress / Unsuppress** — Body, Fixed Support, Force ve sonuç tanımlarında;
+  bastırılmış nesne modelde kalır, solver girdisine ve preflight'a girmez.
+- **Rename / Duplicate / Delete / Cut / Copy / Paste** — hepsi undoable; silme
+  nesneyi aynı kimlik ve konumla geri getirir. Pano sistem panosunu kullanır.
+- **Nesne türüne duyarlı bağlam menüleri** ve ağaç içi yeniden adlandırma.
+- **Preflight** (`⌘R`) — 12 kontrol; Solve doğrudan solver'ı çağırmaz. Rapor
+  AnalysisDetails `VALIDATION` bölümünde ve Messages'ta gösterilir.
+- **Clear Generated Mesh** ve **Clear Solution** yaşam döngüsü komutları.
+- **Sonuç tanımları model durumudur**: analiz oluşturulduğunda gerçek nesne
+  olarak doğar, undoable eklenir/silinir; hesaplanmış değerler türetilmiş veridir.
+- Standart macOS menüleri: Dosya (Son Kullanılanlar · Farklı Kaydet ·
+  Kaydedilene Dön · Kapat), Düzenle, Malzeme, Yardım (Klavye Kısayolları ·
+  Sistem Bilgisi · Hakkında) ve tam kısayol seti.
+- Durum çubuğunda `Düzenlendi` ve `Mesh/Solution Out of Date` göstergeleri.
+- Çoklu malzeme desteği (`MaterialService` artık Material düğümlerinin sahibi).
+
+### Changed
+- Qt minimum sürümü **6.5** olarak korundu; `QStyleHints::setColorScheme`
+  (Qt 6.8+) sürüm koruması altına alındı ve yalnız belgeleme/test yolunda çağrılır.
+- Details sayfaları servisleri doğrudan mutasyona uğratmaz; domain command iter.
+- Servisler nesne DURUMU yazmaz; yalnız ad senkronlar.
+- CI gate genişletildi: DocumentCommandManager / DependencyEngine / DomainCommands
+  zorunlu, Details'ten doğrudan servis mutasyonu yasak, `UiTheme` app paletinden
+  türetmek zorunda, Qt 6.5 minimum sürümü korunmalı.
+
+### Validation
+- Temiz Release GUI build: 0 hata, 0 uyarı (922 hedef).
+- CTest **127/127** PASS (mevcut testler silinmedi).
+- GUI öz-testi **118/118** PASS (Alpha.1: 45).
+- Bundle smoke PASS.
+- macOS/Apple Silicon üzerinde uçtan uca doğrulandı; 24 ekran görüntüsü
+  (`docs/gui-preview/`, light + dark) otomatik üretildi.
+
+## [1.1.0-alpha.1] - 2026-08-30
+
+GUI ve application-shell yeniden kurulumu. Solver çekirdeği (Fortran), C ABI ve
+geometry/meshing C++ katmanı değiştirilmedi.
+
+### Added
+- Gerçek proje nesne modeli: `ProjectModel` (`ObjectId` / `ObjectType` / `ObjectState`)
+  ve `QAbstractItemModel` tabanlı `ProjectTreeModel`.
+- Mühendislik servis katmanı: `GeometryService`, `MeshService`, `MaterialService`,
+  `AnalysisService` — mühendislik durumu artık widget ömrüne bağlı değil.
+- Semantik rol tabanlı VTK viewport (`RenderRole` + `ViewportPalette`): geometri /
+  mesh / yük / sonuç bağlamları, feature-edge CAD kenarları, sınır şartı ve yük
+  sembolleri, `vtkScalarBarActor` legend, `vtkCellPicker` ile yüz seçimi.
+- Nesne türüne bağlı Details sayfaları: Geometry, Mesh, Material, Analysis,
+  BoundaryCondition, Result, Object.
+- Tek `CommandRegistry`: menü, komut yüzeyi, bağlam şeridi ve Details düğmeleri
+  aynı `QAction`'ı paylaşır; pasif komutun nedeni tooltip'te görünür.
+- Mühendislik durum çubuğu (body / element / DOF / seçim / çözücü durumu).
+- Başlangıçta kapalı alt yardımcı alan: Messages, Convergence, Solver Output,
+  Results Table, Timings.
+- Semantik CAE ikon seti (`CaeIcons`, QPainter — ek bağımlılık yok).
+- Geometry → mesh provenance: eksen hizalı STEP gövdesinin sınır kutusu ve
+  **gerçek CAD yüz kimlikleri** structured HEX8 mesh'e devrediliyor; sınır
+  şartları bu yüzlere kapsamlanıyor.
+- Çoklu Fixed Support / Force nesnesi, DOF bazlı kısıt ve üç bileşenli yük.
+- Çözüm sonrası gerçek result nesneleri: Total Deformation, Equivalent Stress,
+  Reaction Force.
+- `ScreenshotDriver` (`--capture`, `--capture-appearance`) ve `--import-step`
+  geliştirici bayrakları; `docs/gui-preview/` görselleri buradan üretilir.
+- `GUI_ARCHITECTURE.md` ve `GUI_REDESIGN_REPORT.md`.
+
+### Changed
+- `gui/main.cpp` tek kompozisyon kökü oldu; `--bundle-smoke` sözleşmesi korundu.
+- Self-hosted CI gate "Alpha.1 shell contract" → "V1.1 CAE shell architecture":
+  widget keşfi, metin eşleştirme, `setStyleSheet` ve uygulama çapında
+  `setPalette` kullanımı artık build'i kırar.
+- Kullanıcı niyeti (Incompressibility: Automatic) ile solver implementasyonu
+  (mixed u-p / HEX8-P0 / dense direct) ayrıldı; implementasyon yalnız
+  "Advanced Solver Settings" altında salt-okunur gösteriliyor.
+
+### Removed
+- `MainWindow`, `Dynamics26Shell`, `CaeWorkbenchController`, `AppearanceController`,
+  `Alpha1UxController`, `Alpha1ProductPolish`, `GeometryPanel`, `PrePostPanel` ve
+  eski `ViewportWidget` (~4 760 satır corrective GUI kodu).
+- `MainWindow::applyMacStyle()` global QSS teması.
+
+### Validation
+- Temiz Release GUI build: 0 hata, 0 uyarı (918 hedef).
+- CTest 127/127 PASS (baseline ile aynı — regresyon yok).
+- `gui.project_schema_migration` PASS (proje şeması değişmedi).
+- Bundle smoke PASS.
+- macOS/Apple Silicon üzerinde uçtan uca doğrulandı: STEP import → structured
+  HEX8 mesh → sınır şartı kapsamı → Fortran lineer çözüm → sonuç konturu,
+  Light ve Dark görünümde.
+
 ## [1.0.2] - 2026-08-29
 
 ### Added
