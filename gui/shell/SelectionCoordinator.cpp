@@ -11,7 +11,6 @@
 #include "EngineeringStatusBar.h"
 #include "ProjectNavigator.h"
 
-#include <QSet>
 #include <QSignalBlocker>
 #include <QStatusBar>
 #include <QTimer>
@@ -114,9 +113,9 @@ void SelectionCoordinator::configurePolicy(const SelectionFilter filter)
         return;
     }
     SelectionPolicy policy = SelectionPolicy::preset(SelectionPolicyPreset::NeutralGeometry);
-    policy.allowedKinds = filter == SelectionFilter::Face
-        ? QSet<SelectionKind>{SelectionKind::Face}
-        : QSet<SelectionKind>{SelectionKind::Body};
+    policy.allowedKinds = {filter == SelectionFilter::Face
+        ? SelectionKind::Face
+        : SelectionKind::Body};
     policy.allowMultiple = true;
     selection_->setPolicy(policy);
 }
