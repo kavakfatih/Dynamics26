@@ -37,11 +37,11 @@ jobs:
           parts = sorted(Path('.snapshot').glob('source-*.b64'))
           encoded = ''.join(p.read_text(encoding='ascii') for p in parts)
           payload = base64.b64decode(encoded, validate=True)
-          expected = '3097200ab53e35595be924a86136dabf9b05ad733a2a776d79d862bc708caddb'
+          expected = 'ad8d2a7327f7088700a8ff5c0c995518323cd092094e5f6c046ae6af89e134ac'
           actual = hashlib.sha256(payload).hexdigest()
           if actual != expected:
               raise SystemExit(f'payload sha256 mismatch: {actual} != {expected}')
-          Path('/tmp/alpha311-source.tar.gz').write_bytes(payload)
+          Path('/tmp/alpha311-source.tar.xz').write_bytes(payload)
           print(f'payload sha256={actual}, chunks={len(parts)}, bytes={len(payload)}')
           PY
 
@@ -51,7 +51,7 @@ jobs:
           set -euxo pipefail
           rm -rf /tmp/alpha311-source
           mkdir -p /tmp/alpha311-source
-          tar -xzf /tmp/alpha311-source.tar.gz -C /tmp/alpha311-source
+          tar -xJf /tmp/alpha311-source.tar.xz -C /tmp/alpha311-source
           cd /tmp/alpha311-source
           shasum -a 256 -c SHA256SUMS.txt
           test -f gui/viewport/ViewportInputRouter.cpp
@@ -61,6 +61,8 @@ jobs:
           test -f .vscode/launch.json
           grep -q 'Dynamics26 GUI — Debug Input Trace' .vscode/launch.json
           grep -q 'gui.viewport_navigation' gui/CMakeLists.txt
+          grep -q 'Viewport navigation architecture gate' .github/workflows/macos-build.yml
+          grep -q 'Viewport navigation architecture gate' .github/workflows/macos-self-hosted.yml
           python3 scripts/github/verify_repository_hygiene.py --root .
 
       - name: Replace snapshot branch with real source tree
