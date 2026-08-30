@@ -54,6 +54,9 @@ jobs:
             "gui/core/ProjectTreeModel.cpp"
             "gui/core/DocumentCommandManager.cpp"
             "gui/core/DependencyEngine.cpp"
+            "gui/core/SelectionManager.cpp"
+            "gui/core/SelectionPolicy.h"
+            "gui/core/SelectionTypes.h"
             "gui/commands/DomainCommands.cpp"
             "gui/services/GeometryService.cpp"
             "gui/services/MeshService.cpp"
@@ -73,6 +76,8 @@ jobs:
           grep -q 'shell/Dynamics26MainWindow.h' gui/main.cpp
           grep -q 'class DocumentCommandManager;' gui/shell/Dynamics26MainWindow.h
           grep -q 'class DependencyEngine;' gui/shell/Dynamics26MainWindow.h
+          grep -q 'SelectionManager.cpp' gui/CMakeLists.txt
+          grep -q 'femcae_selection_manager_test' gui/CMakeLists.txt
           grep -q 'ViewportInputRouter.cpp' gui/CMakeLists.txt
           grep -q 'ViewportCameraController.cpp' gui/CMakeLists.txt
           grep -q 'Dynamics26InteractorStyle.cpp' gui/CMakeLists.txt
@@ -161,10 +166,14 @@ jobs:
           set -euxo pipefail
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_gui
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_project_migration_test
+          cmake --build build-selfhosted-gui-fast --parallel --target femcae_selection_manager_test
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_viewport_navigation_test
 
       - name: Project migration gate
         run: ctest --test-dir build-selfhosted-gui-fast -L migration --output-on-failure
+
+      - name: Selection state gate
+        run: ctest --test-dir build-selfhosted-gui-fast -L selection --output-on-failure
 
       - name: Viewport navigation gate
         run: ctest --test-dir build-selfhosted-gui-fast -L navigation --output-on-failure
@@ -310,7 +319,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          for label in migration viewport navigation camera occt meshing nonlinear contact release performance; do
+          for label in migration selection viewport navigation camera occt meshing nonlinear contact release performance; do
             ctest --test-dir build-selfhosted -L "$label" --output-on-failure
           done
 
