@@ -26,6 +26,9 @@ ViewportPalette ViewportPalette::forAppearance(const bool dark)
         set(RenderRole::MeshEdge,           0.729, 0.776, 0.839);
         set(RenderRole::MeshNode,           0.851, 0.882, 0.925);
         set(RenderRole::Selection,          0.298, 0.686, 1.000);
+        // Hover seçimin bir tonu değil, ayrı semantic state'tir. Selection'dan
+        // daha düşük kontrast/opaklıkla çizilir; actor opacity ayrıca uygulanır.
+        set(RenderRole::Preselection,       0.522, 0.780, 1.000);
         set(RenderRole::BoundaryCondition,  0.353, 0.784, 0.620);
         set(RenderRole::LoadGlyph,          0.961, 0.706, 0.278);
         set(RenderRole::ReferenceShape,     0.361, 0.388, 0.435);
@@ -41,6 +44,7 @@ ViewportPalette ViewportPalette::forAppearance(const bool dark)
         set(RenderRole::MeshEdge,           0.235, 0.267, 0.318);
         set(RenderRole::MeshNode,           0.169, 0.196, 0.239);
         set(RenderRole::Selection,          0.000, 0.427, 0.859);
+        set(RenderRole::Preselection,       0.208, 0.592, 0.914);
         set(RenderRole::BoundaryCondition,  0.110, 0.529, 0.400);
         set(RenderRole::LoadGlyph,          0.839, 0.514, 0.075);
         set(RenderRole::ReferenceShape,     0.616, 0.639, 0.678);

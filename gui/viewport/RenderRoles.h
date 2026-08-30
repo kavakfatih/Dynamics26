@@ -20,6 +20,7 @@ enum class RenderRole {
     MeshEdge,
     MeshNode,
     Selection,
+    Preselection,
     BoundaryCondition,
     LoadGlyph,
     ReferenceShape,
@@ -52,7 +53,7 @@ public:
 
 private:
     bool dark_{false};
-    std::array<Rgb, 14> colors_{};
+    std::array<Rgb, 15> colors_{};
 };
 
 } // namespace d26

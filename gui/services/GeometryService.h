@@ -74,6 +74,12 @@ public:
         displayTopologyTessellation(femcae::geometry::GeometryEntityId bodyId,
                                     double linearDeflection = 0.15) const;
 
+    // Tüm imported Body'leri tek viewport sahnesine hazırlayan all-or-nothing
+    // contract. Herhangi bir Body topology provenance üretemezse eksik/geçici
+    // bir sahne döndürülmez; Navigator ile viewport birbirinden ayrışmaz.
+    [[nodiscard]] QVector<femcae::geometry::TopologyTessellation>
+        displayTopologyScene(double linearDeflection = 0.15) const;
+
     [[nodiscard]] std::optional<femcae::geometry::GeometryTessellation> firstBodyTessellation() const;
 
     // Eksen hizalı sınır kutusu tanımı (yalnız OCCT + kutu benzeri gövde için).

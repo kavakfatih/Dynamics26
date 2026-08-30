@@ -140,6 +140,47 @@ public:
         return std::nullopt;
     }
 
+    // Committed selection veya hover overlay'i olusturacak display cell
+    // indekslerini verir. Burada render actor uretilmez; VTK katmani bu indeksleri
+    // sahnenin triangle/point verisiyle cizer. Stale revision veya baska domain
+    // secimleri CAD overlay'ine sessizce dahil edilmez.
+    [[nodiscard]] std::vector<std::size_t> cellIndicesForSelection(const QVector<SelectionItem> &items) const
+    {
+        std::vector<std::size_t> cells;
+        if (items.isEmpty() || revision_ == 0) {
+            return cells;
+        }
+        cells.reserve(provenance_.size());
+        for (std::size_t cell = 0; cell < provenance_.size(); ++cell) {
+            const auto &entry = provenance_[cell];
+            bool selected = false;
+            for (const SelectionItem &item : items) {
+                if (item.domain != SelectionDomain::Geometry || item.sourceRevision != revision_) {
+                    continue;
+                }
+                if (item.kind == SelectionKind::Body && item.geometryEntityId == entry.bodyId) {
+                    selected = true;
+                    break;
+                }
+                if (item.kind == SelectionKind::Face && item.geometryEntityId == entry.faceId
+                    && (item.parentGeometryId == femcae::geometry::InvalidGeometryId
+                        || item.parentGeometryId == entry.bodyId)) {
+                    selected = true;
+                    break;
+                }
+            }
+            if (selected) {
+                cells.push_back(cell);
+            }
+        }
+        return cells;
+    }
+
+    [[nodiscard]] std::vector<std::size_t> cellIndicesForSelection(const SelectionItem &item) const
+    {
+        return cellIndicesForSelection(QVector<SelectionItem>{item});
+    }
+
 private:
     quint64 revision_{0};
     std::vector<femcae::geometry::Vec3> points_;

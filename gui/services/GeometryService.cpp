@@ -144,6 +144,23 @@ std::optional<TopologyTessellation> GeometryService::displayTopologyTessellation
     }
 }
 
+QVector<TopologyTessellation> GeometryService::displayTopologyScene(const double linearDeflection) const
+{
+    QVector<TopologyTessellation> scene;
+    const auto bodyIds = document_.entitiesOfKind(GeometryEntityKind::Body);
+    scene.reserve(static_cast<qsizetype>(bodyIds.size()));
+    for (const GeometryEntityId bodyId : bodyIds) {
+        const auto tessellation = displayTopologyTessellation(bodyId, linearDeflection);
+        if (!tessellation.has_value()) {
+            // Eksik bir Body'yi sessizce atlamak Navigator/viewport modelini
+            // farklılaştırır. Topology scene bu nedenle all-or-nothing'dir.
+            return {};
+        }
+        scene.push_back(*tessellation);
+    }
+    return scene;
+}
+
 std::optional<GeometryTessellation> GeometryService::displayTessellation(const GeometryEntityId bodyId,
                                                                         const double linearDeflection) const
 {
