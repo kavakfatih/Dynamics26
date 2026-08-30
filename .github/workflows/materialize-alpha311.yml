@@ -1,4 +1,4 @@
-name: Materialize Alpha3.1.1 source snapshot
+name: Materialize Alpha3.1.1 corrective integration
 
 on:
   push:
@@ -24,36 +24,36 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Guard branch and reconstruct verified payload
+      - name: Reconstruct and verify corrective payload
         shell: bash
         run: |
           set -euxo pipefail
           test "$GITHUB_REF_NAME" = "snapshot/v1.1.0-alpha.3.1.1"
           test -f .snapshot/materialize.trigger
-          test -n "$(find .snapshot -maxdepth 1 -name 'source-*.b64' -print -quit)"
           python3 - <<'PY'
           from pathlib import Path
           import base64, hashlib
           parts = sorted(Path('.snapshot').glob('source-*.b64'))
+          if not parts:
+              raise SystemExit('source payload chunks missing')
           encoded = ''.join(p.read_text(encoding='ascii') for p in parts)
           payload = base64.b64decode(encoded, validate=True)
-          expected = 'ad8d2a7327f7088700a8ff5c0c995518323cd092094e5f6c046ae6af89e134ac'
+          expected = '74eb3c521bcd659d55b4bcd9847acc5b3849c68bd807dabc3fca2a0d20b40f93'
           actual = hashlib.sha256(payload).hexdigest()
           if actual != expected:
               raise SystemExit(f'payload sha256 mismatch: {actual} != {expected}')
-          Path('/tmp/alpha311-source.tar.xz').write_bytes(payload)
+          Path('/tmp/alpha311-critical.tar.xz').write_bytes(payload)
           print(f'payload sha256={actual}, chunks={len(parts)}, bytes={len(payload)}')
           PY
 
-      - name: Extract and validate source tree
+      - name: Extract and validate Alpha3.1.1 integration roots
         shell: bash
         run: |
           set -euxo pipefail
-          rm -rf /tmp/alpha311-source
-          mkdir -p /tmp/alpha311-source
-          tar -xJf /tmp/alpha311-source.tar.xz -C /tmp/alpha311-source
-          cd /tmp/alpha311-source
-          shasum -a 256 -c SHA256SUMS.txt
+          rm -rf /tmp/alpha311-critical
+          mkdir -p /tmp/alpha311-critical
+          tar -xJf /tmp/alpha311-critical.tar.xz -C /tmp/alpha311-critical
+          cd /tmp/alpha311-critical
           test -f gui/viewport/ViewportInputRouter.cpp
           test -f gui/viewport/ViewportCameraController.cpp
           test -f gui/viewport/Dynamics26InteractorStyle.cpp
@@ -63,19 +63,25 @@ jobs:
           grep -q 'gui.viewport_navigation' gui/CMakeLists.txt
           grep -q 'Viewport navigation architecture gate' .github/workflows/macos-build.yml
           grep -q 'Viewport navigation architecture gate' .github/workflows/macos-self-hosted.yml
-          python3 scripts/github/verify_repository_hygiene.py --root .
 
-      - name: Replace snapshot branch with real source tree
+      - name: Replace controlled integration roots
         shell: bash
         run: |
           set -euxo pipefail
-          rsync -a --delete --exclude='.git/' /tmp/alpha311-source/ ./
-          test ! -e .snapshot
+          rm -rf gui .vscode tests/gui .github/workflows
+          cp -a /tmp/alpha311-critical/gui ./gui
+          cp -a /tmp/alpha311-critical/.vscode ./.vscode
+          mkdir -p tests .github
+          cp -a /tmp/alpha311-critical/tests/gui ./tests/gui
+          cp -a /tmp/alpha311-critical/.github/workflows ./.github/workflows
+          cp /tmp/alpha311-critical/CMakeLists.txt ./CMakeLists.txt
+          cp /tmp/alpha311-critical/CMakePresets.json ./CMakePresets.json
+          rm -rf .snapshot
           test ! -e .github/workflows/materialize-alpha311.yml
           git diff --check
           python3 scripts/github/verify_repository_hygiene.py --root .
 
-      - name: Commit materialized Alpha3.1.1 source
+      - name: Commit materialized Alpha3.1.1 integration
         shell: bash
         run: |
           set -euxo pipefail
@@ -83,5 +89,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           git diff --cached --quiet && { echo 'No materialization changes found' >&2; exit 1; }
-          git commit -m 'snapshot: materialize v1.1.0-alpha.3.1.1 source tree'
+          git commit -m 'gui: materialize v1.1.0-alpha.3.1.1 integration roots'
           git push origin HEAD:"$GITHUB_REF_NAME"
