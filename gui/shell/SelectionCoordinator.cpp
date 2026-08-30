@@ -2,7 +2,7 @@
 
 #include "../core/DocumentCommandManager.h"
 #include "../core/ProjectModel.h"
-#include "../details/DetailsHost.h"
+#include "DetailsHost.h"
 #include "../details/GeometryDetails.h"
 #include "../services/AnalysisService.h"
 #include "../services/GeometryService.h"
