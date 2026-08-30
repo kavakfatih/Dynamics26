@@ -1,4 +1,5 @@
 #include "core/SelectionManager.h"
+#include "viewport/GeometrySelectionScene.h"
 #include "viewport/ViewportSelectionController.h"
 
 #include <QCoreApplication>
@@ -35,6 +36,20 @@ d26::SelectionItem face(const quint64 id, const quint64 parent, const quint64 re
     item.parentGeometryId = parent;
     item.sourceRevision = revision;
     return item;
+}
+
+femcae::geometry::TopologyTessellation topologyBody(const quint64 bodyId, const quint64 revision,
+                                                     const quint64 faceA, const quint64 faceB,
+                                                     const double xOffset)
+{
+    femcae::geometry::TopologyTessellation topology;
+    topology.display.sourceGeometryId = bodyId;
+    topology.display.sourceRevision = revision;
+    topology.display.points = {{xOffset + 0.0, 0.0, 0.0}, {xOffset + 1.0, 0.0, 0.0},
+                               {xOffset + 1.0, 1.0, 0.0}, {xOffset + 0.0, 1.0, 0.0}};
+    topology.display.triangles = {{{0, 1, 2}}, {{0, 2, 3}}};
+    topology.triangleFaceIds = {faceA, faceB};
+    return topology;
 }
 
 void managerStateTests()
@@ -213,7 +228,7 @@ void selectionInputContractTests()
     release.position = QPointF(22.0, 21.0);
     release.button = Qt::LeftButton;
     release.buttons = Qt::NoButton;
-    release.modifiers = Qt::NoModifier; // press semantics must win
+    release.modifiers = Qt::NoModifier;
     const auto commit = controller.routePointer(release);
     check(commit.has_value() && commit->type == d26::SelectionInputActionType::Commit
               && commit->operation == d26::SelectionOperation::Add,
@@ -249,6 +264,59 @@ void selectionInputContractTests()
           "viewport leave clears hover/preselection only");
 }
 
+void geometrySelectionSceneTests()
+{
+    d26::GeometrySelectionScene scene;
+    const auto body1 = topologyBody(1001, 44, 1101, 1102, 0.0);
+    const auto body2 = topologyBody(2001, 44, 2101, 2102, 10.0);
+
+    check(scene.append(body1) && scene.append(body2),
+          "two CAD Bodies with one revision aggregate into one display scene");
+    check(scene.sourceRevision() == 44 && scene.points().size() == 8
+              && scene.triangles().size() == 4 && scene.provenance().size() == 4,
+          "multi-body scene preserves aggregate geometry and one provenance record per cell");
+    check(scene.triangles()[2][0] == 4 && scene.triangles()[2][1] == 5 && scene.triangles()[2][2] == 6,
+          "second Body triangle indices are offset into aggregate point storage");
+    check(scene.hasFaceProvenance(), "aggregate scene reports complete CAD Face provenance");
+
+    const auto firstBodyCell = scene.provenanceForCell(0);
+    const auto secondBodyCell = scene.provenanceForCell(3);
+    check(firstBodyCell.has_value() && firstBodyCell->bodyId == 1001 && firstBodyCell->faceId == 1101,
+          "cell 0 resolves to Body 1 / Face 1 provenance");
+    check(secondBodyCell.has_value() && secondBodyCell->bodyId == 2001 && secondBodyCell->faceId == 2102,
+          "cell 3 resolves to Body 2 / Face 2 provenance");
+
+    const auto bodySelection = scene.selectionItemForCell(2, d26::SelectionKind::Body);
+    const auto faceSelection = scene.selectionItemForCell(2, d26::SelectionKind::Face);
+    check(bodySelection.has_value() && bodySelection->geometryEntityId == 2001
+              && bodySelection->sourceRevision == 44,
+          "Body filter resolves picked cell to parent CAD Body selection");
+    check(faceSelection.has_value() && faceSelection->geometryEntityId == 2101
+              && faceSelection->parentGeometryId == 2001 && faceSelection->sourceRevision == 44,
+          "Face filter resolves picked cell to CAD Face with parent Body");
+    check(!scene.selectionItemForCell(2, d26::SelectionKind::Edge).has_value(),
+          "Alpha.3.2 scene refuses unsupported Edge selection kind");
+    check(!scene.provenanceForCell(99).has_value(), "out-of-range display cell is never a valid CAD hit");
+
+    const auto oldPointCount = scene.points().size();
+    const auto oldCellCount = scene.triangles().size();
+    const auto staleBody = topologyBody(3001, 45, 3101, 3102, 20.0);
+    check(!scene.append(staleBody) && scene.points().size() == oldPointCount
+              && scene.triangles().size() == oldCellCount && scene.sourceRevision() == 44,
+          "mixed CAD revisions are rejected without mutating the existing scene");
+
+    auto broken = topologyBody(4001, 44, 4101, 4102, 30.0);
+    broken.display.triangles[1] = {0, 2, 99};
+    check(!scene.append(broken) && scene.points().size() == oldPointCount
+              && scene.triangles().size() == oldCellCount,
+          "invalid display triangle append rolls back atomically");
+
+    scene.clear();
+    check(scene.empty() && scene.sourceRevision() == 0 && scene.points().empty()
+              && scene.provenance().empty(),
+          "clearing display scene also clears provenance and revision state");
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -258,6 +326,7 @@ int main(int argc, char **argv)
     singleSelectionAndDomainTests();
     scopeContractTests();
     selectionInputContractTests();
+    geometrySelectionSceneTests();
     std::cout << (failures == 0 ? "selection manager PASS\n" : "selection manager FAIL\n");
     return failures == 0 ? 0 : 1;
 }
