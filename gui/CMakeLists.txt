@@ -24,6 +24,10 @@ set(FEMCAE_GUI_SOURCES
     core/DocumentCommandManager.h
     core/DependencyEngine.cpp
     core/DependencyEngine.h
+    core/SelectionTypes.h
+    core/SelectionPolicy.h
+    core/SelectionManager.cpp
+    core/SelectionManager.h
 
     commands/DomainCommands.cpp
     commands/DomainCommands.h
@@ -249,6 +253,21 @@ if(BUILD_TESTING)
     target_link_libraries(femcae_project_migration_test PRIVATE Qt6::Core)
     add_test(NAME gui.project_schema_migration COMMAND femcae_project_migration_test)
     set_tests_properties(gui.project_schema_migration PROPERTIES LABELS "gui;migration;release")
+
+    qt_add_executable(femcae_selection_manager_test
+        core/SelectionTypes.h
+        core/SelectionPolicy.h
+        core/SelectionManager.cpp
+        core/SelectionManager.h
+        "${PROJECT_SOURCE_DIR}/tests/gui/test_selection_manager.cpp"
+    )
+    target_include_directories(femcae_selection_manager_test PRIVATE
+        "${PROJECT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(femcae_selection_manager_test PRIVATE Qt6::Core)
+    add_test(NAME gui.selection_manager COMMAND femcae_selection_manager_test)
+    set_tests_properties(gui.selection_manager PROPERTIES LABELS "gui;selection;alpha32")
 
     if(FEMCAE_GUI_WITH_VTK AND VTK_FOUND)
         add_executable(femcae_viewport_navigation_test
