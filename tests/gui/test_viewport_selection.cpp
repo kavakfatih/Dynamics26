@@ -1,4 +1,5 @@
 #include "viewport/GeometrySelectionScene.h"
+#include "viewport/GeometryTopologyScene.h"
 #include "viewport/RenderRoles.h"
 
 #include <QCoreApplication>
@@ -11,6 +12,7 @@
 #include <vtkPoints.h>
 #include <vtkPolyData.h>
 #include <vtkPolyDataMapper.h>
+#include <vtkProperty.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderer.h>
 
@@ -50,6 +52,38 @@ femcae::geometry::TopologyTessellation makeBody(const quint64 bodyId,
     return body;
 }
 
+femcae::geometry::EdgeDisplayTessellation makeEdges(const quint64 bodyId,
+                                                     const quint64 revision,
+                                                     const quint64 edgeA,
+                                                     const quint64 edgeB,
+                                                     const double x0,
+                                                     const double x1)
+{
+    femcae::geometry::EdgeDisplayTessellation edges;
+    edges.sourceGeometryId = bodyId;
+    edges.sourceRevision = revision;
+    edges.points = {{x0, -1.0, 0.02}, {x1, -1.0, 0.02},
+                    {x0,  1.0, 0.02}, {x1,  1.0, 0.02}};
+    edges.lines = {{{0, 1}}, {{2, 3}}};
+    edges.lineEdgeIds = {edgeA, edgeB};
+    return edges;
+}
+
+femcae::geometry::VertexDisplayPoints makeVertices(const quint64 bodyId,
+                                                    const quint64 revision,
+                                                    const quint64 vertexA,
+                                                    const quint64 vertexB,
+                                                    const double x0,
+                                                    const double x1)
+{
+    femcae::geometry::VertexDisplayPoints vertices;
+    vertices.sourceGeometryId = bodyId;
+    vertices.sourceRevision = revision;
+    vertices.points = {{x0, 0.0, 0.04}, {x1, 0.0, 0.04}};
+    vertices.pointVertexIds = {vertexA, vertexB};
+    return vertices;
+}
+
 vtkSmartPointer<vtkActor> makeSurfaceActor(const d26::GeometrySelectionScene &scene)
 {
     vtkNew<vtkPoints> points;
@@ -76,6 +110,54 @@ vtkSmartPointer<vtkActor> makeSurfaceActor(const d26::GeometrySelectionScene &sc
 
     vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
     actor->SetMapper(mapper);
+    actor->PickableOn();
+    return actor;
+}
+
+vtkSmartPointer<vtkActor> makeEdgeActor(const d26::GeometryTopologyScene &scene)
+{
+    vtkNew<vtkPoints> points;
+    points->SetNumberOfPoints(static_cast<vtkIdType>(scene.edgePoints().size()));
+    for (std::size_t i = 0; i < scene.edgePoints().size(); ++i) {
+        const auto &p = scene.edgePoints()[i];
+        points->SetPoint(static_cast<vtkIdType>(i), p.x, p.y, p.z);
+    }
+    vtkNew<vtkCellArray> lines;
+    for (const auto &line : scene.edgeLines()) {
+        const vtkIdType ids[2] = {static_cast<vtkIdType>(line[0]), static_cast<vtkIdType>(line[1])};
+        lines->InsertNextCell(2, ids);
+    }
+    vtkNew<vtkPolyData> data;
+    data->SetPoints(points);
+    data->SetLines(lines);
+    vtkNew<vtkPolyDataMapper> mapper;
+    mapper->SetInputData(data);
+    vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+    actor->SetMapper(mapper);
+    actor->GetProperty()->SetLineWidth(5.0);
+    actor->PickableOn();
+    return actor;
+}
+
+vtkSmartPointer<vtkActor> makeVertexActor(const d26::GeometryTopologyScene &scene)
+{
+    vtkNew<vtkPoints> points;
+    points->SetNumberOfPoints(static_cast<vtkIdType>(scene.vertexPoints().size()));
+    vtkNew<vtkCellArray> verts;
+    for (std::size_t i = 0; i < scene.vertexPoints().size(); ++i) {
+        const auto &p = scene.vertexPoints()[i];
+        points->SetPoint(static_cast<vtkIdType>(i), p.x, p.y, p.z);
+        const vtkIdType id = static_cast<vtkIdType>(i);
+        verts->InsertNextCell(1, &id);
+    }
+    vtkNew<vtkPolyData> data;
+    data->SetPoints(points);
+    data->SetVerts(verts);
+    vtkNew<vtkPolyDataMapper> mapper;
+    mapper->SetInputData(data);
+    vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+    actor->SetMapper(mapper);
+    actor->GetProperty()->SetPointSize(10.0);
     actor->PickableOn();
     return actor;
 }
@@ -224,6 +306,73 @@ void pickerAndProvenanceTests()
           "empty viewport location between Bodies produces no CAD provenance hit");
 }
 
+void edgeVertexTopologyTests()
+{
+    constexpr quint64 revision = 88;
+    d26::GeometryTopologyScene scene;
+    check(scene.append(makeBody(3001, 3101, revision, -3.0, -1.0),
+                       makeEdges(3001, revision, 3201, 3202, -3.0, -1.0),
+                       makeVertices(3001, revision, 3301, 3302, -2.8, -1.2))
+              && scene.append(makeBody(4001, 4101, revision, 1.0, 3.0),
+                              makeEdges(4001, revision, 4201, 4202, 1.0, 3.0),
+                              makeVertices(4001, revision, 4301, 4302, 1.2, 2.8)),
+          "Body/Face/Edge/Vertex provenance aggregates atomically across multiple Bodies");
+    check(scene.complete() && scene.edgeLines().size() == 4 && scene.vertexPoints().size() == 4,
+          "topology scene reports complete Face Edge Vertex provenance");
+
+    const auto edge = scene.selectionItemForEdgeCell(2);
+    const auto vertex = scene.selectionItemForVertexCell(3);
+    check(edge.has_value() && edge->kind == d26::SelectionKind::Edge
+              && edge->geometryEntityId == 4201 && edge->parentGeometryId == 4001,
+          "display line resolves to canonical CAD Edge + parent Body");
+    check(vertex.has_value() && vertex->kind == d26::SelectionKind::Vertex
+              && vertex->geometryEntityId == 4302 && vertex->parentGeometryId == 4001,
+          "display point resolves to canonical CAD Vertex + parent Body");
+    check(edge.has_value() && scene.lineIndicesForSelection(QVector<d26::SelectionItem>{*edge}).size() == 1,
+          "CAD Edge selection resolves back to its display line overlay");
+    check(vertex.has_value() && scene.pointIndicesForSelection(QVector<d26::SelectionItem>{*vertex}).size() == 1,
+          "CAD Vertex selection resolves back to its display point overlay");
+
+    auto wrongRevisionEdges = makeEdges(5001, revision + 1, 5201, 5202, 5.0, 7.0);
+    check(!scene.append(makeBody(5001, 5101, revision, 5.0, 7.0), wrongRevisionEdges,
+                        makeVertices(5001, revision, 5301, 5302, 5.2, 6.8)),
+          "mixed primitive revisions are rejected before scene mutation");
+
+    vtkNew<vtkRenderer> renderer;
+    vtkNew<vtkRenderWindow> window;
+    window->SetOffScreenRendering(1);
+    window->SetSize(800, 480);
+    window->AddRenderer(renderer);
+    const auto edgeActor = makeEdgeActor(scene);
+    const auto vertexActor = makeVertexActor(scene);
+    renderer->AddActor(edgeActor);
+    renderer->AddActor(vertexActor);
+    renderer->ResetCamera();
+    renderer->GetActiveCamera()->ParallelProjectionOn();
+    renderer->ResetCameraClippingRange();
+    window->Render();
+
+    vtkNew<vtkCellPicker> picker;
+    picker->SetTolerance(0.01);
+    picker->PickFromListOn();
+
+    picker->InitializePickList();
+    picker->AddPickList(edgeActor);
+    auto edgeDisplay = worldToDisplay(renderer, {2.0, -1.0, 0.02});
+    check(picker->Pick(edgeDisplay[0], edgeDisplay[1], 0.0, renderer) != 0
+              && picker->GetCellId() >= 0
+              && scene.selectionItemForEdgeCell(static_cast<std::size_t>(picker->GetCellId())).has_value(),
+          "real vtkCellPicker line hit resolves through line provenance to CAD Edge");
+
+    picker->InitializePickList();
+    picker->AddPickList(vertexActor);
+    auto vertexDisplay = worldToDisplay(renderer, {2.8, 0.0, 0.04});
+    check(picker->Pick(vertexDisplay[0], vertexDisplay[1], 0.0, renderer) != 0
+              && picker->GetCellId() >= 0
+              && scene.selectionItemForVertexCell(static_cast<std::size_t>(picker->GetCellId())).has_value(),
+          "real vtkCellPicker vertex hit resolves through point provenance to CAD Vertex");
+}
+
 void appearanceSemanticTests()
 {
     for (const bool dark : {false, true}) {
@@ -253,6 +402,7 @@ int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
     pickerAndProvenanceTests();
+    edgeVertexTopologyTests();
     appearanceSemanticTests();
     std::cout << (failures == 0 ? "viewport topology selection PASS\n"
                                 : "viewport topology selection FAIL\n");
