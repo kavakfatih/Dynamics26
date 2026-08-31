@@ -78,6 +78,20 @@ int main(int argc, char **argv)
     press.position = QPointF(20.0, 20.0);
     press.modifiers = Qt::NoModifier;
     (void)controller.routePointer(press);
+
+    SelectionPointerInput dragMove;
+    dragMove.type = SelectionPointerEventType::Move;
+    dragMove.position = QPointF(34.0, 30.0);
+    dragMove.buttons = Qt::LeftButton;
+    dragMove.modifiers = Qt::NoModifier;
+    const auto preview = controller.routePointer(dragMove);
+    check(preview.has_value()
+              && preview->type == SelectionInputActionType::WindowPreview
+              && preview->anchor == QPointF(20.0, 20.0)
+              && preview->position == QPointF(34.0, 30.0)
+              && preview->operation == SelectionOperation::Replace,
+          "left drag beyond click tolerance emits non-committing WindowPreview intent");
+
     release.position = QPointF(36.0, 31.0);
     const auto windowCommit = controller.routePointer(release);
     check(windowCommit.has_value()
@@ -85,18 +99,25 @@ int main(int argc, char **argv)
               && windowCommit->anchor == QPointF(20.0, 20.0)
               && windowCommit->position == QPointF(36.0, 31.0)
               && windowCommit->operation == SelectionOperation::Replace,
-          "left drag beyond click tolerance emits WindowCommit with both corners");
+          "left drag release emits WindowCommit with both corners");
 
     press.position = QPointF(25.0, 25.0);
     press.modifiers = Qt::ShiftModifier;
     (void)controller.routePointer(press);
+    dragMove.position = QPointF(42.0, 37.0);
+    dragMove.modifiers = Qt::NoModifier;
+    const auto shiftPreview = controller.routePointer(dragMove);
+    check(shiftPreview.has_value()
+              && shiftPreview->type == SelectionInputActionType::WindowPreview
+              && shiftPreview->operation == SelectionOperation::Add,
+          "window preview preserves Shift Add intent from press time");
     release.position = QPointF(45.0, 40.0);
     release.modifiers = Qt::NoModifier;
     const auto shiftWindow = controller.routePointer(release);
     check(shiftWindow.has_value()
               && shiftWindow->type == SelectionInputActionType::WindowCommit
               && shiftWindow->operation == SelectionOperation::Add,
-          "window selection preserves Shift Add intent from press time");
+          "window selection preserves Shift Add intent through release");
 
     press.position = QPointF(50.0, 50.0);
     press.modifiers = Qt::AltModifier;
