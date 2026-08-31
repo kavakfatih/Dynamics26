@@ -482,12 +482,33 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
         return QObject::eventFilter(watched, event);
     }
 
+    // Mesh context'te selection ve camera navigation aynı Qt widget'i izler.
+    // Plain Left/Right selection gesture'ları burada sahiplenilir ve consume
+    // edilir; böylece aynı click eski CAD bridge'e veya VTK legacy pick yoluna
+    // ikinci kez düşmez. Alt+Left, Middle, wheel/native gesture ve camera
+    // keyboard komutlari bu blok tarafindan sahiplenilmez ve navigation router'a
+    // aynen geçer.
+    bool selectionOwnedEvent = false;
+    const bool gestureWasInProgress = input_.clickInProgress();
     std::optional<SelectionInputAction> action;
+
     switch (event->type()) {
     case QEvent::MouseButtonPress:
     case QEvent::MouseButtonRelease:
     case QEvent::MouseMove: {
         auto *mouse = static_cast<QMouseEvent *>(event);
+        if (event->type() == QEvent::MouseButtonPress) {
+            const bool plainLeft = mouse->button() == Qt::LeftButton
+                && !mouse->modifiers().testFlag(Qt::AltModifier);
+            const bool secondary = mouse->button() == Qt::RightButton;
+            selectionOwnedEvent = plainLeft || secondary;
+        } else if (gestureWasInProgress) {
+            selectionOwnedEvent = true;
+        } else if (event->type() == QEvent::MouseMove && mouse->buttons() == Qt::NoButton) {
+            // Hover/preselection Mesh selection domain'inin sorumlulugudur.
+            selectionOwnedEvent = true;
+        }
+
         SelectionPointerInput input;
         input.position = mouse->position();
         input.button = mouse->button();
@@ -505,11 +526,15 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
         SelectionPointerInput input;
         input.type = SelectionPointerEventType::Leave;
         action = input_.routePointer(input);
+        selectionOwnedEvent = action.has_value();
         break;
     }
     case QEvent::KeyPress: {
         auto *key = static_cast<QKeyEvent *>(event);
         action = input_.routeKey(key->key(), key->modifiers());
+        // Yalnız selection state machine'in gerçekten tanıdığı key (şimdilik
+        // Esc) consume edilir. F/0/1..3 gibi camera kısayolları geçmeye devam eder.
+        selectionOwnedEvent = action.has_value();
         break;
     }
     case QEvent::PaletteChange:
@@ -521,45 +546,47 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
         break;
     }
 
-    if (!action.has_value()) {
-        return QObject::eventFilter(watched, event);
-    }
-
-    switch (action->type) {
-    case SelectionInputActionType::Clear:
-        emit selectionClearRequested();
-        break;
-    case SelectionInputActionType::ClearPreselection:
-        emit preselectionClearRequested();
-        break;
-    case SelectionInputActionType::Hover: {
-        const auto hit = impl_->pick(action->position);
-        if (hit.has_value()) {
-            emit preselectionRequested(hit->kind, static_cast<qint64>(hit->meshEntityId));
-        } else {
-            emit preselectionClearRequested();
-        }
-        break;
-    }
-    case SelectionInputActionType::Commit: {
-        const auto hit = impl_->pick(action->position);
-        if (hit.has_value()) {
-            emit selectionRequested(hit->kind, static_cast<qint64>(hit->meshEntityId), action->operation);
-        } else {
+    if (action.has_value()) {
+        switch (action->type) {
+        case SelectionInputActionType::Clear:
             emit selectionClearRequested();
+            break;
+        case SelectionInputActionType::ClearPreselection:
+            emit preselectionClearRequested();
+            break;
+        case SelectionInputActionType::Hover: {
+            const auto hit = impl_->pick(action->position);
+            if (hit.has_value()) {
+                emit preselectionRequested(hit->kind, static_cast<qint64>(hit->meshEntityId));
+            } else {
+                emit preselectionClearRequested();
+            }
+            break;
         }
-        break;
-    }
-    case SelectionInputActionType::ContextMenu: {
-        const auto hit = impl_->pick(action->position);
-        if (hit.has_value()) {
-            emit contextMenuRequested(hit->kind, static_cast<qint64>(hit->meshEntityId),
-                                      impl_->widget->mapToGlobal(action->position.toPoint()));
+        case SelectionInputActionType::Commit: {
+            const auto hit = impl_->pick(action->position);
+            if (hit.has_value()) {
+                emit selectionRequested(hit->kind, static_cast<qint64>(hit->meshEntityId), action->operation);
+            } else {
+                emit selectionClearRequested();
+            }
+            break;
         }
-        break;
-    }
+        case SelectionInputActionType::ContextMenu: {
+            const auto hit = impl_->pick(action->position);
+            if (hit.has_value()) {
+                emit contextMenuRequested(hit->kind, static_cast<qint64>(hit->meshEntityId),
+                                          impl_->widget->mapToGlobal(action->position.toPoint()));
+            }
+            break;
+        }
+        }
     }
 
+    if (selectionOwnedEvent) {
+        event->accept();
+        return true;
+    }
     return QObject::eventFilter(watched, event);
 #else
     Q_UNUSED(watched)
