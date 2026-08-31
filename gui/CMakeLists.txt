@@ -339,5 +339,35 @@ if(BUILD_TESTING)
             LABELS "gui;viewport;navigation;camera"
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         )
+
+        # Alpha.3.2 gerçek render/pick zinciri: vtkCellPicker yalnız display cell
+        # döndürür; GeometrySelectionScene bu cell'i CAD Body/Face provenance'e
+        # çevirir. Bu test triangle index'inin CAD kimliği sanılmasını engeller.
+        add_executable(femcae_viewport_selection_test
+            viewport/GeometrySelectionScene.h
+            viewport/RenderRoles.cpp
+            viewport/RenderRoles.h
+            "${PROJECT_SOURCE_DIR}/tests/gui/test_viewport_selection.cpp"
+        )
+        target_include_directories(femcae_viewport_selection_test PRIVATE
+            "${PROJECT_SOURCE_DIR}/include"
+            "${CMAKE_CURRENT_SOURCE_DIR}"
+        )
+        target_link_libraries(femcae_viewport_selection_test PRIVATE
+            Qt6::Core
+            Qt6::Gui
+            ${VTK_LIBRARIES}
+        )
+        vtk_module_autoinit(TARGETS femcae_viewport_selection_test MODULES ${VTK_LIBRARIES})
+        add_test(NAME gui.viewport_selection COMMAND femcae_viewport_selection_test)
+        set_tests_properties(gui.viewport_selection PROPERTIES
+            LABELS "gui;viewport;selection;alpha32"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        )
+
+        # Self-hosted fast gate selection-manager hedefini build ettiğinde VTK
+        # picker contract binary'si de mutlaka üretilmiş olur. VTK-OFF hosted
+        # lightweight gate bu bağımlılığı doğal olarak görmez.
+        add_dependencies(femcae_selection_manager_test femcae_viewport_selection_test)
     endif()
 endif()
