@@ -1,27 +1,42 @@
-name: Alpha.3.2 hosted VTK selection verification
+name: CAD topology selection verification
 
 on:
   push:
     branches: [ main ]
     paths:
+      - "include/femcae/geometry/GeometryTypes.h"
+      - "include/femcae/geometry/OcctStepImporter.h"
+      - "src/geometry/OcctStepImporter.cpp"
+      - "tests/geometry/unit_v120_occt_adapter.cpp"
+      - "tests/geometry/ver_v120_004_occt_step_box.cpp"
       - "gui/CMakeLists.txt"
       - "gui/main.cpp"
       - "gui/core/SelectionTypes.h"
       - "gui/core/SelectionPolicy.h"
       - "gui/core/SelectionManager.cpp"
       - "gui/core/SelectionManager.h"
+      - "gui/services/GeometryService.cpp"
+      - "gui/services/GeometryService.h"
       - "gui/shell/DetailsHost.cpp"
+      - "gui/shell/GraphicsWorkspace.cpp"
+      - "gui/shell/GraphicsWorkspace.h"
       - "gui/shell/SelectionCoordinator.cpp"
       - "gui/shell/SelectionCoordinator.h"
       - "gui/support/SelectionAcceptanceTest.h"
       - "gui/viewport/GeometrySelectionScene.h"
+      - "gui/viewport/GeometryTopologyScene.h"
       - "gui/viewport/RenderRoles.cpp"
       - "gui/viewport/RenderRoles.h"
+      - "gui/viewport/ViewportSelectionBridge.cpp"
+      - "gui/viewport/ViewportSelectionBridge.h"
       - "gui/viewport/ViewportSelectionController.h"
+      - "gui/viewport/ViewportWidget.cpp"
+      - "gui/viewport/ViewportWidget.h"
       - "tests/gui/test_selection_manager.cpp"
       - "tests/gui/test_scope_reference.cpp"
       - "tests/gui/test_viewport_selection_input.cpp"
       - "tests/gui/test_viewport_selection.cpp"
+      - "tests/gui/test_topology_selection.cpp"
       - ".github/workflows/macos-vtk-selection.yml"
   workflow_dispatch:
 
@@ -29,14 +44,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: dynamics26-alpha32-vtk-selection-${{ github.ref }}
+  group: dynamics26-cad-topology-selection-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  vtk-selection:
-    name: VTK Body/Face picker + shell contract arm64
+  topology-selection:
+    name: OCCT + VTK topology selection arm64
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 50
 
     steps:
       - name: Checkout
@@ -48,54 +63,61 @@ jobs:
           set -euxo pipefail
           test "$(uname -m)" = "arm64"
           git diff --check
+          test -f tests/geometry/ver_v120_004_occt_step_box.cpp
           test -f tests/gui/test_viewport_selection.cpp
           test -f gui/viewport/GeometrySelectionScene.h
           test -f gui/support/SelectionAcceptanceTest.h
 
-      - name: Install Qt and VTK dependencies
+      - name: Install Qt VTK and OCCT dependencies
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
         shell: bash
-        run: brew install qtbase vtk
+        run: brew install qtbase vtk opencascade
 
-      - name: Configure VTK selection gate
+      - name: Configure topology selection gate
         env:
           FC: gfortran-15
         shell: bash
         run: |
           set -euxo pipefail
-          prefix_path="$(brew --prefix qtbase);$(brew --prefix vtk)"
-          cmake -S . -B build-vtk-selection -G Ninja \
+          prefix_path="$(brew --prefix qtbase);$(brew --prefix vtk);$(brew --prefix opencascade)"
+          cmake -S . -B build-topology-selection -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_PREFIX_PATH="$prefix_path" \
             -DFEMCAE_BUILD_TESTING=ON \
             -DFEMCAE_BUILD_GUI=ON \
             -DFEMCAE_GUI_WITH_VTK=ON \
-            -DFEMCAE_ENABLE_OCCT_GEOMETRY=OFF
+            -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON \
+            -DFEMCAE_REQUIRE_OCCT=ON
 
-      - name: Build Alpha.3.2 selection tests
+      - name: Build canonical CAD topology verification
         shell: bash
         run: |
           set -euxo pipefail
-          # VTK-enabled CMake graph makes the core selection target depend on
-          # the real offscreen vtkCellPicker provenance regression binary.
-          cmake --build build-vtk-selection --parallel --target femcae_selection_manager_test
+          cmake --build build-topology-selection --parallel --target ver_v120_004
+          ctest --test-dir build-topology-selection -R '^ver_v120_004$' --output-on-failure
 
-      - name: Run selection contract matrix
-        run: ctest --test-dir build-vtk-selection -L selection --output-on-failure
-
-      - name: Native arm64 picker-binary gate
+      - name: Build selection contract matrix
         shell: bash
         run: |
           set -euxo pipefail
-          binary="build-vtk-selection/gui/femcae_viewport_selection_test"
-          test -x "$binary"
-          file -L "$binary" | tee /tmp/dynamics26-alpha32-vtk-selection-arch.txt
-          grep -q arm64 /tmp/dynamics26-alpha32-vtk-selection-arch.txt
+          cmake --build build-topology-selection --parallel --target femcae_selection_manager_test
+          ctest --test-dir build-topology-selection -L selection --output-on-failure
+
+      - name: Native arm64 topology binaries gate
+        shell: bash
+        run: |
+          set -euxo pipefail
+          for binary in \
+            build-topology-selection/tests/ver_v120_004 \
+            build-topology-selection/gui/femcae_viewport_selection_test; do
+            test -x "$binary"
+            file -L "$binary" | grep -q arm64
+          done
 
       - name: Build application shell
-        run: cmake --build build-vtk-selection --parallel --target femcae_gui
+        run: cmake --build build-topology-selection --parallel --target femcae_gui
 
       - name: Selection Coordinator shell acceptance
         env:
@@ -103,7 +125,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          app="build-vtk-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          app="build-topology-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
           test -x "$app"
           "$app" --selection-selftest
 
@@ -111,6 +133,6 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          app="build-vtk-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
-          file -L "$app" | tee /tmp/dynamics26-alpha32-shell-arch.txt
-          grep -q arm64 /tmp/dynamics26-alpha32-shell-arch.txt
+          app="build-topology-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          file -L "$app" | tee /tmp/dynamics26-topology-shell-arch.txt
+          grep -q arm64 /tmp/dynamics26-topology-shell-arch.txt
