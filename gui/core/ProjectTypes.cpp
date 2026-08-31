@@ -7,26 +7,28 @@ namespace d26 {
 QString displayName(const ObjectType type)
 {
     switch (type) {
-    case ObjectType::Project:           return QStringLiteral("Project");
-    case ObjectType::Model:             return QStringLiteral("Model");
-    case ObjectType::GeometryFolder:    return QStringLiteral("Geometry");
-    case ObjectType::Body:              return QStringLiteral("Body");
-    case ObjectType::MaterialsFolder:   return QStringLiteral("Materials");
-    case ObjectType::Material:          return QStringLiteral("Material");
-    case ObjectType::SectionsFolder:    return QStringLiteral("Sections");
-    case ObjectType::Section:           return QStringLiteral("Section");
-    case ObjectType::ConnectionsFolder: return QStringLiteral("Connections");
-    case ObjectType::ContactRegion:     return QStringLiteral("Contact Region");
-    case ObjectType::Mesh:              return QStringLiteral("Mesh");
-    case ObjectType::Analysis:          return QStringLiteral("Analysis");
-    case ObjectType::AnalysisSettings:  return QStringLiteral("Analysis Settings");
-    case ObjectType::FixedSupport:      return QStringLiteral("Fixed Support");
-    case ObjectType::Force:             return QStringLiteral("Force");
-    case ObjectType::Solution:          return QStringLiteral("Solution");
-    case ObjectType::TotalDeformation:  return QStringLiteral("Total Deformation");
-    case ObjectType::EquivalentStress:  return QStringLiteral("Equivalent Stress");
-    case ObjectType::ReactionForce:     return QStringLiteral("Reaction Force");
-    case ObjectType::ModeShape:         return QStringLiteral("Mode");
+    case ObjectType::Project:               return QStringLiteral("Project");
+    case ObjectType::Model:                 return QStringLiteral("Model");
+    case ObjectType::GeometryFolder:        return QStringLiteral("Geometry");
+    case ObjectType::Body:                  return QStringLiteral("Body");
+    case ObjectType::MaterialsFolder:       return QStringLiteral("Materials");
+    case ObjectType::Material:              return QStringLiteral("Material");
+    case ObjectType::SectionsFolder:        return QStringLiteral("Sections");
+    case ObjectType::Section:               return QStringLiteral("Section");
+    case ObjectType::ConnectionsFolder:     return QStringLiteral("Connections");
+    case ObjectType::ContactRegion:         return QStringLiteral("Contact Region");
+    case ObjectType::Mesh:                  return QStringLiteral("Mesh");
+    case ObjectType::Analysis:              return QStringLiteral("Analysis");
+    case ObjectType::AnalysisSettings:      return QStringLiteral("Analysis Settings");
+    case ObjectType::FixedSupport:          return QStringLiteral("Fixed Support");
+    case ObjectType::Force:                 return QStringLiteral("Force");
+    case ObjectType::Solution:              return QStringLiteral("Solution");
+    case ObjectType::TotalDeformation:      return QStringLiteral("Total Deformation");
+    case ObjectType::EquivalentStress:      return QStringLiteral("Equivalent Stress");
+    case ObjectType::ReactionForce:         return QStringLiteral("Reaction Force");
+    case ObjectType::ModeShape:             return QStringLiteral("Mode");
+    case ObjectType::NamedSelectionsFolder: return QStringLiteral("Named Selections");
+    case ObjectType::NamedSelection:        return QStringLiteral("Named Selection");
     }
     return QStringLiteral("Object");
 }
@@ -104,18 +106,20 @@ bool supportsSuppression(const ObjectType type)
 bool supportsRename(const ObjectType type)
 {
     return type == ObjectType::Body || type == ObjectType::Material || type == ObjectType::Analysis
-        || type == ObjectType::FixedSupport || type == ObjectType::Force || isResultDefinition(type);
+        || type == ObjectType::FixedSupport || type == ObjectType::Force || type == ObjectType::NamedSelection
+        || isResultDefinition(type);
 }
 
 bool supportsDuplicate(const ObjectType type)
 {
-    return type == ObjectType::Material || type == ObjectType::FixedSupport || type == ObjectType::Force;
+    return type == ObjectType::Material || type == ObjectType::FixedSupport || type == ObjectType::Force
+        || type == ObjectType::NamedSelection;
 }
 
 bool supportsDelete(const ObjectType type)
 {
     return type == ObjectType::Material || type == ObjectType::Analysis || type == ObjectType::FixedSupport
-        || type == ObjectType::Force || isResultDefinition(type);
+        || type == ObjectType::Force || type == ObjectType::NamedSelection || isResultDefinition(type);
 }
 
 ViewportContext viewportContextFor(const ObjectType type)
@@ -150,6 +154,11 @@ ViewportContext viewportContextFor(const ObjectType type)
         return ViewportContext::Results;
     case ObjectType::ModeShape:
         return ViewportContext::Modal;
+    case ObjectType::NamedSelectionsFolder:
+    case ObjectType::NamedSelection:
+        // Named Selection kendi başına Geometry veya Mesh bağlamı değildir;
+        // gerçek viewport domain'i saved ScopeReference üzerinden çözülür.
+        return ViewportContext::Empty;
     }
     return ViewportContext::Empty;
 }
