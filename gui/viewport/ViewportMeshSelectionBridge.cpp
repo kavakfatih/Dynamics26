@@ -10,10 +10,13 @@
 #include <QPalette>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <utility>
 
 #ifdef FEMCAE_GUI_HAS_VTK
+#include "MeshHardwareSelector.h"
+
 #include <QVTKOpenGLNativeWidget.h>
 
 #include <vtkActor.h>
@@ -312,27 +315,22 @@ public:
         }
     }
 
-    [[nodiscard]] std::optional<SelectionItem> pick(const QPointF &position)
+    [[nodiscard]] vtkActor *targetActor() const noexcept
     {
-        if (widget == nullptr || renderer == nullptr || picker == nullptr
-            || widget->renderWindow() == nullptr || scene.empty()) {
-            return std::nullopt;
-        }
-
-        vtkActor *target = nullptr;
         if (activeKind == SelectionKind::Node) {
-            target = nodeActor;
-            picker->SetTolerance(0.014);
-        } else if (activeKind == SelectionKind::Element || activeKind == SelectionKind::Facet) {
-            target = surfaceActor;
-            picker->SetTolerance(0.005);
-        } else {
-            return std::nullopt;
+            return nodeActor;
         }
-        if (target == nullptr) {
-            return std::nullopt;
+        if (activeKind == SelectionKind::Element || activeKind == SelectionKind::Facet) {
+            return surfaceActor;
         }
+        return nullptr;
+    }
 
+    [[nodiscard]] std::optional<std::array<unsigned int, 2>> renderPosition(const QPointF &position) const
+    {
+        if (widget == nullptr || widget->renderWindow() == nullptr) {
+            return std::nullopt;
+        }
         const int *renderSize = widget->renderWindow()->GetSize();
         if (renderSize == nullptr || renderSize[0] <= 0 || renderSize[1] <= 0
             || widget->width() <= 0 || widget->height() <= 0) {
@@ -344,11 +342,31 @@ public:
         const int y = std::clamp(static_cast<int>(std::lround(
                                      (static_cast<double>(widget->height() - 1) - position.y()) * sy)),
                                  0, renderSize[1] - 1);
+        return std::array<unsigned int, 2>{static_cast<unsigned int>(x), static_cast<unsigned int>(y)};
+    }
+
+    [[nodiscard]] std::optional<SelectionItem> pick(const QPointF &position)
+    {
+        if (widget == nullptr || renderer == nullptr || picker == nullptr
+            || widget->renderWindow() == nullptr || scene.empty()) {
+            return std::nullopt;
+        }
+
+        vtkActor *target = targetActor();
+        if (target == nullptr) {
+            return std::nullopt;
+        }
+        picker->SetTolerance(activeKind == SelectionKind::Node ? 0.014 : 0.005);
+
+        const auto renderPoint = renderPosition(position);
+        if (!renderPoint.has_value()) {
+            return std::nullopt;
+        }
 
         picker->InitializePickList();
         picker->AddPickList(target);
         picker->PickFromListOn();
-        if (picker->Pick(x, y, 0.0, renderer) == 0) {
+        if (picker->Pick((*renderPoint)[0], (*renderPoint)[1], 0.0, renderer) == 0) {
             return std::nullopt;
         }
         const vtkIdType cellId = picker->GetCellId();
@@ -360,6 +378,25 @@ public:
             return scene.selectionItemForVisibleNode(cell);
         }
         return scene.selectionItemForBoundaryCell(cell, activeKind);
+    }
+
+    [[nodiscard]] QVector<SelectionItem> pickWindow(const QPointF &anchor, const QPointF &position)
+    {
+        QVector<SelectionItem> items;
+        if (renderer == nullptr || scene.empty()) {
+            return items;
+        }
+        vtkActor *target = targetActor();
+        if (target == nullptr) {
+            return items;
+        }
+        const auto a = renderPosition(anchor);
+        const auto b = renderPosition(position);
+        if (!a.has_value() || !b.has_value()) {
+            return items;
+        }
+        return selectVisibleMeshArea(renderer, target, scene, activeKind,
+                                     {(*a)[0], (*a)[1], (*b)[0], (*b)[1]});
     }
 #endif
 };
@@ -482,12 +519,12 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
         return QObject::eventFilter(watched, event);
     }
 
-    // Mesh context'te selection ve camera navigation aynı Qt widget'i izler.
-    // Plain Left/Right selection gesture'ları burada sahiplenilir ve consume
-    // edilir; böylece aynı click eski CAD bridge'e veya VTK legacy pick yoluna
-    // ikinci kez düşmez. Alt+Left, Middle, wheel/native gesture ve camera
+    // Mesh context'te selection ve camera navigation ayni Qt widget'i izler.
+    // Plain Left/Right selection gesture'lari burada sahiplenilir ve consume
+    // edilir; boylece ayni click/drag eski CAD bridge'e veya VTK legacy pick
+    // yoluna ikinci kez dusmez. Alt+Left, Middle, wheel/native gesture ve camera
     // keyboard komutlari bu blok tarafindan sahiplenilmez ve navigation router'a
-    // aynen geçer.
+    // aynen gecer.
     bool selectionOwnedEvent = false;
     const bool gestureWasInProgress = input_.clickInProgress();
     std::optional<SelectionInputAction> action;
@@ -505,7 +542,6 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
         } else if (gestureWasInProgress) {
             selectionOwnedEvent = true;
         } else if (event->type() == QEvent::MouseMove && mouse->buttons() == Qt::NoButton) {
-            // Hover/preselection Mesh selection domain'inin sorumlulugudur.
             selectionOwnedEvent = true;
         }
 
@@ -532,8 +568,6 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
     case QEvent::KeyPress: {
         auto *key = static_cast<QKeyEvent *>(event);
         action = input_.routeKey(key->key(), key->modifiers());
-        // Yalnız selection state machine'in gerçekten tanıdığı key (şimdilik
-        // Esc) consume edilir. F/0/1..3 gibi camera kısayolları geçmeye devam eder.
         selectionOwnedEvent = action.has_value();
         break;
     }
@@ -569,6 +603,32 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
                 emit selectionRequested(hit->kind, static_cast<qint64>(hit->meshEntityId), action->operation);
             } else {
                 emit selectionClearRequested();
+            }
+            break;
+        }
+        case SelectionInputActionType::WindowCommit: {
+            emit preselectionClearRequested();
+            const QVector<SelectionItem> hits = impl_->pickWindow(action->anchor, action->position);
+            if (hits.isEmpty()) {
+                if (action->operation == SelectionOperation::Replace) {
+                    emit selectionClearRequested();
+                }
+                break;
+            }
+
+            // Coordinator halen single-hit signal contract'ini kullanir. Replace
+            // window semantigi ilk engineering entity ile Replace, kalanlarla Add
+            // olarak uygulanir. SelectionManager'in Alpha.3.5 batch API'si sonraki
+            // coordinator contract adiminda bu sequence'i tek signal/state
+            // transition'a indirecektir.
+            for (qsizetype i = 0; i < hits.size(); ++i) {
+                SelectionOperation operation = action->operation;
+                if (action->operation == SelectionOperation::Replace && i > 0) {
+                    operation = SelectionOperation::Add;
+                }
+                emit selectionRequested(hits[i].kind,
+                                        static_cast<qint64>(hits[i].meshEntityId),
+                                        operation);
             }
             break;
         }
