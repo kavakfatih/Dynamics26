@@ -35,6 +35,9 @@ public:
     explicit DetailsHost(const ServiceContext &services, QWidget *parent = nullptr);
 
     void showObject(ObjectId id);
+    // Committed CAD selection transient view state'tir; document object başlığını
+    // değiştirmez. Inspector başlığında yalnız ikincil bir seçim özeti gösterilir.
+    void setSelectionSummary(const QString &text);
     // Yalnız değerleri tazeler: sayfa değiştirmez, kaydırma konumunu korur.
     void refresh();
     [[nodiscard]] ObjectId currentObject() const noexcept { return current_; }
@@ -55,6 +58,7 @@ private:
 
     QLabel *title_{nullptr};
     QLabel *subtitle_{nullptr};
+    QLabel *selectionSummary_{nullptr};
     QStackedWidget *stack_{nullptr};
     QScrollArea *scroll_{nullptr};
     QWidget *emptyState_{nullptr};

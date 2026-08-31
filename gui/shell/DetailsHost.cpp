@@ -49,6 +49,18 @@ DetailsHost::DetailsHost(const ServiceContext &services, QWidget *parent)
     title_->setFont(titleFont);
     title_->setWordWrap(true);
     headerLayout->addWidget(title_);
+
+    // Document object ile transient viewport selection ayni şey değildir.
+    // Selection özeti bu nedenle title/subtitle yerine ayrı, ikincil bir satırda
+    // yaşar; hover burada gösterilmez, yalnız committed seçim görünür.
+    selectionSummary_ = new ui::SecondaryLabel(QString(), 0.58, 0.78, header);
+    QFont selectionFont = selectionSummary_->font();
+    selectionFont.setPointSizeF(qMax(9.0, selectionFont.pointSizeF() - 1.5));
+    selectionSummary_->setFont(selectionFont);
+    selectionSummary_->setWordWrap(true);
+    selectionSummary_->setVisible(false);
+    headerLayout->addWidget(selectionSummary_);
+
     layout->addWidget(header);
 
     layout->addWidget(new ui::Hairline(this));
@@ -135,6 +147,16 @@ void DetailsHost::showObject(const ObjectId id)
     page->setObject(id);
     stack_->setCurrentWidget(page);
     scroll_->verticalScrollBar()->setValue(0);
+}
+
+void DetailsHost::setSelectionSummary(const QString &text)
+{
+    if (selectionSummary_ == nullptr) {
+        return;
+    }
+    const QString normalized = text.trimmed();
+    selectionSummary_->setText(normalized);
+    selectionSummary_->setVisible(!normalized.isEmpty());
 }
 
 void DetailsHost::refresh()

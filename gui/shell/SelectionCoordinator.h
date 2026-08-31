@@ -6,6 +6,7 @@
 // topology kimlikleri ve Viewport transient selection state'i arasında açık
 // koordinasyon kurar. Selection document undo/redo verisi değildir.
 
+#include "../core/ScopeReferenceBuilder.h"
 #include "../core/SelectionManager.h"
 #include "../core/ServiceContext.h"
 #include "GraphicsWorkspace.h"
@@ -29,6 +30,10 @@ public:
     explicit SelectionCoordinator(Dynamics26MainWindow *window, QObject *parent = nullptr);
 
     [[nodiscard]] SelectionManager *selectionManager() const noexcept { return selection_; }
+    // Committed transient CAD selection'i current GeometryDocument ile doğrular
+    // ve persistentKey taşıyan engineering scope kontratına çevirir. Existing
+    // BC/Load BoxFace şeması Alpha.3.2'de bu API'ye migrate edilmez.
+    [[nodiscard]] ScopeReferenceBuildResult currentGeometryScope() const;
 
 private:
     void configurePolicy(SelectionFilter filter);

@@ -11,6 +11,7 @@
 #include "EngineeringStatusBar.h"
 #include "ProjectNavigator.h"
 
+#include <QSet>
 #include <QSignalBlocker>
 #include <QStatusBar>
 #include <QTimer>
@@ -105,6 +106,16 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
         refreshGeometryScene();
         updateFeedback();
     });
+}
+
+ScopeReferenceBuildResult SelectionCoordinator::currentGeometryScope() const
+{
+    if (selection_ == nullptr || services_.geometry == nullptr) {
+        ScopeReferenceBuildResult result;
+        result.error = ScopeReferenceBuildError::EmptySelection;
+        return result;
+    }
+    return buildGeometryScopeReference(selection_->items(), services_.geometry->document());
 }
 
 void SelectionCoordinator::configurePolicy(const SelectionFilter filter)
@@ -376,16 +387,46 @@ void SelectionCoordinator::updateFeedback()
         const QString kind = primary.kind == SelectionKind::Face ? tr("Face") : tr("Body");
         graphics_->setSelectionLabel(tr("%1 %2 seçildi").arg(items.size()).arg(kind));
 
+        QSet<GeometryEntityId> bodyIds;
+        for (const SelectionItem &item : items) {
+            if (item.kind == SelectionKind::Body) {
+                bodyIds.insert(item.geometryEntityId);
+            } else if (item.kind == SelectionKind::Face) {
+                bodyIds.insert(item.parentGeometryId);
+            }
+        }
+
+        if (details_ != nullptr) {
+            if (primary.kind == SelectionKind::Face) {
+                const QString scopeText = bodyIds.size() == 1
+                    ? tr("SELECTION  ·  %1 Face  ·  %2").arg(items.size()).arg(bodyNameFor(primary))
+                    : tr("SELECTION  ·  %1 Face  ·  %2 Body").arg(items.size()).arg(bodyIds.size());
+                details_->setSelectionSummary(scopeText);
+            } else {
+                details_->setSelectionSummary(tr("SELECTION  ·  %1 Body").arg(items.size()));
+            }
+        }
+
         if (status_ != nullptr) {
             if (primary.kind == SelectionKind::Face) {
-                status_->setSelection(tr("%1 Face  •  %2  •  Global Coordinate System")
-                                          .arg(items.size())
-                                          .arg(bodyNameFor(primary)));
+                if (bodyIds.size() == 1) {
+                    status_->setSelection(tr("%1 Face  •  %2  •  Global Coordinate System")
+                                              .arg(items.size())
+                                              .arg(bodyNameFor(primary)));
+                } else {
+                    status_->setSelection(tr("%1 Face  •  %2 Body  •  Global Coordinate System")
+                                              .arg(items.size())
+                                              .arg(bodyIds.size()));
+                }
             } else {
                 status_->setSelection(tr("%1 Body  •  Global Coordinate System").arg(items.size()));
             }
         }
         return;
+    }
+
+    if (details_ != nullptr) {
+        details_->setSelectionSummary(QString());
     }
 
     const auto hover = selection_->preselection();

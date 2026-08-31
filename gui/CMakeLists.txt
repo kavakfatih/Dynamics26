@@ -28,6 +28,7 @@ set(FEMCAE_GUI_SOURCES
     core/SelectionPolicy.h
     core/SelectionManager.cpp
     core/SelectionManager.h
+    core/ScopeReferenceBuilder.h
 
     commands/DomainCommands.cpp
     commands/DomainCommands.h
@@ -275,6 +276,19 @@ if(BUILD_TESTING)
     add_test(NAME gui.selection_manager COMMAND femcae_selection_manager_test)
     set_tests_properties(gui.selection_manager PROPERTIES LABELS "gui;selection;alpha32")
 
+    add_executable(femcae_scope_reference_test
+        core/SelectionTypes.h
+        core/ScopeReferenceBuilder.h
+        "${PROJECT_SOURCE_DIR}/tests/gui/test_scope_reference.cpp"
+    )
+    target_include_directories(femcae_scope_reference_test PRIVATE
+        "${PROJECT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(femcae_scope_reference_test PRIVATE Qt6::Core femcae_geometry)
+    add_test(NAME gui.scope_reference COMMAND femcae_scope_reference_test)
+    set_tests_properties(gui.scope_reference PROPERTIES LABELS "gui;selection;scope;alpha32")
+
     qt_add_executable(femcae_viewport_selection_input_test
         viewport/ViewportSelectionController.h
         "${PROJECT_SOURCE_DIR}/tests/gui/test_viewport_selection_input.cpp"
@@ -287,8 +301,11 @@ if(BUILD_TESTING)
     add_test(NAME gui.viewport_selection_input COMMAND femcae_viewport_selection_input_test)
     set_tests_properties(gui.viewport_selection_input PROPERTIES LABELS "gui;selection;alpha32")
     # Trusted fast gate femcae_selection_manager_test hedefini açıkça build eder.
-    # Dependency sayesinde modifier kontrat testi de aynı gate içinde binary olarak üretilir.
-    add_dependencies(femcae_selection_manager_test femcae_viewport_selection_input_test)
+    # Dependency sayesinde selection contract testlerinin tamami ayni gate icinde binary olarak üretilir.
+    add_dependencies(femcae_selection_manager_test
+        femcae_scope_reference_test
+        femcae_viewport_selection_input_test
+    )
 
     if(FEMCAE_GUI_WITH_VTK AND VTK_FOUND)
         add_executable(femcae_viewport_navigation_test
