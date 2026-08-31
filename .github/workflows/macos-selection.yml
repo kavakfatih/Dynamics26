@@ -1,0 +1,92 @@
+name: Alpha.3.2 hosted selection contract
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "gui/core/SelectionTypes.h"
+      - "gui/core/SelectionPolicy.h"
+      - "gui/core/SelectionManager.cpp"
+      - "gui/core/SelectionManager.h"
+      - "gui/core/ScopeReferenceBuilder.h"
+      - "gui/shell/SelectionCoordinator.cpp"
+      - "gui/shell/SelectionCoordinator.h"
+      - "gui/viewport/GeometrySelectionScene.h"
+      - "gui/viewport/ViewportSelectionController.h"
+      - "gui/viewport/ViewportSelectionBridge.cpp"
+      - "gui/viewport/ViewportSelectionBridge.h"
+      - "tests/gui/test_selection_manager.cpp"
+      - "tests/gui/test_scope_reference.cpp"
+      - "tests/gui/test_viewport_selection_input.cpp"
+      - "gui/CMakeLists.txt"
+      - ".github/workflows/macos-selection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dynamics26-alpha32-selection-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selection-contract:
+    name: selection-contract arm64
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Source and architecture guard
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "$(uname -m)" = "arm64"
+          git diff --check
+          test -f gui/core/ScopeReferenceBuilder.h
+          test -f gui/shell/SelectionCoordinator.cpp
+          test -f gui/viewport/ViewportSelectionController.h
+          test -f tests/gui/test_scope_reference.cpp
+          test -f tests/gui/test_viewport_selection_input.cpp
+
+      - name: Install minimal Qt dependency
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        shell: bash
+        run: brew install qtbase
+
+      - name: Configure lightweight GUI selection gate
+        env:
+          FC: gfortran-15
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake -S . -B build-selection -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)" \
+            -DFEMCAE_BUILD_TESTING=ON \
+            -DFEMCAE_BUILD_GUI=ON \
+            -DFEMCAE_GUI_WITH_VTK=OFF \
+            -DFEMCAE_ENABLE_OCCT_GEOMETRY=OFF
+
+      - name: Build selection contracts and GUI composition
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build build-selection --parallel --target femcae_selection_manager_test
+          cmake --build build-selection --parallel --target femcae_gui
+
+      - name: Selection and scope regression gate
+        run: ctest --test-dir build-selection -L selection --output-on-failure
+
+      - name: Native arm64 GUI composition gate
+        shell: bash
+        run: |
+          set -euxo pipefail
+          app="build-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          test -x "$app"
+          file -L "$app" | tee /tmp/dynamics26-alpha32-selection-arch.txt
+          grep -q arm64 /tmp/dynamics26-alpha32-selection-arch.txt
