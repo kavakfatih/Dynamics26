@@ -161,6 +161,73 @@ QVector<TopologyTessellation> GeometryService::displayTopologyScene(const double
     return scene;
 }
 
+std::optional<EdgeDisplayTessellation> GeometryService::displayEdgeTessellation(
+    const GeometryEntityId bodyId, const double linearDeflection) const
+{
+    const auto *entity = document_.find(bodyId);
+    if (entity == nullptr || entity->kind != GeometryEntityKind::Body) {
+        return std::nullopt;
+    }
+    try {
+        auto display = importer_.tessellateEdges(bodyId, linearDeflection);
+        if (display.lines.empty() || !display.hasConsistentProvenance()) {
+            return std::nullopt;
+        }
+        display.sourceRevision = document_.revision();
+        return display;
+    } catch (const std::exception &) {
+        return std::nullopt;
+    }
+}
+
+std::optional<VertexDisplayPoints> GeometryService::displayVertexPoints(const GeometryEntityId bodyId) const
+{
+    const auto *entity = document_.find(bodyId);
+    if (entity == nullptr || entity->kind != GeometryEntityKind::Body) {
+        return std::nullopt;
+    }
+    try {
+        auto display = importer_.displayVertices(bodyId);
+        if (display.points.empty() || !display.hasConsistentProvenance()) {
+            return std::nullopt;
+        }
+        display.sourceRevision = document_.revision();
+        return display;
+    } catch (const std::exception &) {
+        return std::nullopt;
+    }
+}
+
+QVector<EdgeDisplayTessellation> GeometryService::displayEdgeScene(const double linearDeflection) const
+{
+    QVector<EdgeDisplayTessellation> scene;
+    const auto bodyIds = document_.entitiesOfKind(GeometryEntityKind::Body);
+    scene.reserve(static_cast<qsizetype>(bodyIds.size()));
+    for (const GeometryEntityId bodyId : bodyIds) {
+        const auto display = displayEdgeTessellation(bodyId, linearDeflection);
+        if (!display.has_value()) {
+            return {};
+        }
+        scene.push_back(*display);
+    }
+    return scene;
+}
+
+QVector<VertexDisplayPoints> GeometryService::displayVertexScene() const
+{
+    QVector<VertexDisplayPoints> scene;
+    const auto bodyIds = document_.entitiesOfKind(GeometryEntityKind::Body);
+    scene.reserve(static_cast<qsizetype>(bodyIds.size()));
+    for (const GeometryEntityId bodyId : bodyIds) {
+        const auto display = displayVertexPoints(bodyId);
+        if (!display.has_value()) {
+            return {};
+        }
+        scene.push_back(*display);
+    }
+    return scene;
+}
+
 std::optional<GeometryTessellation> GeometryService::displayTessellation(const GeometryEntityId bodyId,
                                                                         const double linearDeflection) const
 {
