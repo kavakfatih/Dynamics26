@@ -68,6 +68,7 @@ jobs:
             "gui/shell/SelectionCoordinator.cpp"
             "gui/shell/SelectionCoordinator.h"
             "gui/shell/Dynamics26MainWindow.cpp"
+            "gui/support/SelectionAcceptanceTest.h"
             "gui/viewport/ViewportInputRouter.cpp"
             "gui/viewport/ViewportCameraController.cpp"
             "gui/viewport/Dynamics26InteractorStyle.cpp"
@@ -78,6 +79,7 @@ jobs:
             "gui/viewport/ViewportWidget.cpp"
             "tests/gui/test_scope_reference.cpp"
             "tests/gui/test_viewport_selection_input.cpp"
+            "tests/gui/test_viewport_selection.cpp"
           )
           for source in "${required_sources[@]}"; do
             test -f "$source"
@@ -90,11 +92,13 @@ jobs:
           grep -q 'ScopeReferenceBuilder.h' gui/CMakeLists.txt
           grep -q 'femcae_selection_manager_test' gui/CMakeLists.txt
           grep -q 'femcae_scope_reference_test' gui/CMakeLists.txt
+          grep -q 'femcae_viewport_selection_test' gui/CMakeLists.txt
           grep -q 'ViewportInputRouter.cpp' gui/CMakeLists.txt
           grep -q 'ViewportCameraController.cpp' gui/CMakeLists.txt
           grep -q 'Dynamics26InteractorStyle.cpp' gui/CMakeLists.txt
           grep -q 'ViewportSelectionBridge.cpp' gui/CMakeLists.txt
           grep -q 'SelectionCoordinator.cpp' gui/CMakeLists.txt
+          grep -q '1.1.0-alpha.3.2' gui/CMakeLists.txt
 
           if [[ -e gui/Dynamics26Shell.cpp || -e gui/MainWindow.cpp ]]; then
             echo "Legacy corrective GUI shell source reintroduced." >&2
@@ -186,8 +190,13 @@ jobs:
       - name: Project migration gate
         run: ctest --test-dir build-selfhosted-gui-fast -L migration --output-on-failure
 
-      - name: Selection state gate
+      - name: Selection state and VTK picker gate
         run: ctest --test-dir build-selfhosted-gui-fast -L selection --output-on-failure
+
+      - name: Selection Coordinator shell acceptance
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: build-selfhosted-gui-fast/gui/FEMCAE.app/Contents/MacOS/FEMCAE --selection-selftest
 
       - name: Viewport navigation gate
         run: ctest --test-dir build-selfhosted-gui-fast -L navigation --output-on-failure
@@ -208,7 +217,7 @@ jobs:
           set -euxo pipefail
           source_app="$PWD/build-selfhosted-gui-fast/gui/FEMCAE.app"
           preview_app="$RUNNER_TEMP/Dynamics26.app"
-          archive="$RUNNER_TEMP/Dynamics26-1.1.0-alpha.3.1.1-engineering-preview-macos-arm64.zip"
+          archive="$RUNNER_TEMP/Dynamics26-1.1.0-alpha.3.2-engineering-preview-macos-arm64.zip"
           notice="$RUNNER_TEMP/Dynamics26-engineering-preview-NOT-STANDALONE.txt"
 
           test -x "$source_app/Contents/MacOS/FEMCAE"
@@ -220,23 +229,25 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$preview_app" "$archive"
           shasum -a 256 "$archive" | tee "$archive.sha256"
           cat > "$notice" <<'EOF'
-          Dynamics26 V1.1.0-alpha.3.1.1 engineering preview
+          Dynamics26 V1.1.0-alpha.3.2 engineering acceptance preview
 
           This is an engineering/UX preview built on the trusted Apple Silicon Mac.
-          It intentionally reuses Homebrew Qt/VTK/OCCT runtime dependencies and is
-          NOT the standalone release bundle. Use it only for real macOS visual and
-          interaction acceptance. The manual native-release/full bundle audit remains
-          mandatory before a distributable build can be called verified.
+          Automated Alpha.3.2 selection/scoping, VTK picker provenance and shell
+          synchronization gates have passed before packaging. It intentionally reuses
+          Homebrew Qt/VTK/OCCT runtime dependencies and is NOT the standalone release
+          bundle. Use it only for real macOS mouse/trackpad and Light/Dark visual
+          acceptance. The manual native-release/full bundle audit remains mandatory
+          before a distributable build can be called verified.
           EOF
 
       - name: Upload engineering preview
         if: contains(github.event.head_commit.message, '[preview]')
         uses: actions/upload-artifact@v4
         with:
-          name: Dynamics26-1.1.0-alpha.3.1.1-engineering-preview-${{ github.sha }}
+          name: Dynamics26-1.1.0-alpha.3.2-engineering-preview-${{ github.sha }}
           path: |
-            ${{ runner.temp }}/Dynamics26-1.1.0-alpha.3.1.1-engineering-preview-macos-arm64.zip
-            ${{ runner.temp }}/Dynamics26-1.1.0-alpha.3.1.1-engineering-preview-macos-arm64.zip.sha256
+            ${{ runner.temp }}/Dynamics26-1.1.0-alpha.3.2-engineering-preview-macos-arm64.zip
+            ${{ runner.temp }}/Dynamics26-1.1.0-alpha.3.2-engineering-preview-macos-arm64.zip.sha256
             ${{ runner.temp }}/Dynamics26-engineering-preview-NOT-STANDALONE.txt
           if-no-files-found: error
           retention-days: 3
