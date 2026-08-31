@@ -37,7 +37,13 @@ enum class ObjectType {
     TotalDeformation,
     EquivalentStress,
     ReactionForce,
-    ModeShape
+    ModeShape,
+
+    // Alpha.3.6 — enum değerleri bilinçli olarak listenin SONUNA eklenir.
+    // Project persistence ObjectType'ı integer olarak sakladığı için araya yeni
+    // değer eklemek eski dosyalardaki Material/Analysis/Result kimliğini kaydırır.
+    NamedSelectionsFolder,
+    NamedSelection
 };
 
 // Nesne durumu ANSYS Mechanical'daki ikon rozetine karşılık gelir.
