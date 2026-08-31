@@ -8,12 +8,17 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPalette>
+#include <QRect>
+#include <QRubberBand>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <utility>
 
 #ifdef FEMCAE_GUI_HAS_VTK
+#include "GeometryHardwareSelector.h"
+
 #include <QVTKOpenGLNativeWidget.h>
 
 #include <vtkActor.h>
@@ -65,6 +70,7 @@ public:
 
 #ifdef FEMCAE_GUI_HAS_VTK
     QVTKOpenGLNativeWidget *widget{nullptr};
+    QRubberBand *windowBand{nullptr};
     vtkWeakPointer<vtkRenderer> renderer;
     vtkWeakPointer<vtkActor> surfaceActor;
     vtkSmartPointer<vtkCellPicker> picker;
@@ -82,6 +88,10 @@ public:
         if (widget == nullptr || widget->renderWindow() == nullptr) {
             return;
         }
+        if (windowBand == nullptr) {
+            windowBand = new QRubberBand(QRubberBand::Rectangle, widget);
+            windowBand->hide();
+        }
         vtkRendererCollection *renderers = widget->renderWindow()->GetRenderers();
         if (renderers == nullptr) {
             return;
@@ -89,6 +99,29 @@ public:
         renderer = renderers->GetFirstRenderer();
         if (picker == nullptr) {
             picker = vtkSmartPointer<vtkCellPicker>::New();
+        }
+    }
+
+    void showWindowPreview(const QPointF &anchor, const QPointF &position)
+    {
+        if (windowBand == nullptr || widget == nullptr) {
+            return;
+        }
+        QRect area(anchor.toPoint(), position.toPoint());
+        area = area.normalized().intersected(widget->rect());
+        if (area.width() <= 0 || area.height() <= 0) {
+            windowBand->hide();
+            return;
+        }
+        windowBand->setGeometry(area);
+        windowBand->show();
+        windowBand->raise();
+    }
+
+    void hideWindowPreview()
+    {
+        if (windowBand != nullptr) {
+            windowBand->hide();
         }
     }
 
@@ -102,6 +135,7 @@ public:
 
     void clearVisualState()
     {
+        hideWindowPreview();
         removeActor(selectionActor);
         removeActor(preselectionActor);
         removeActor(edgeActor);
@@ -408,35 +442,26 @@ public:
         }
     }
 
-    [[nodiscard]] std::optional<SelectionItem> pick(const QPointF &position)
+    [[nodiscard]] vtkActor *targetActor() const noexcept
     {
-        if (widget == nullptr || renderer == nullptr || picker == nullptr
-            || widget->renderWindow() == nullptr || scene.empty()) {
-            return std::nullopt;
-        }
-
-        vtkActor *target = nullptr;
         switch (activeKind) {
         case SelectionKind::Body:
         case SelectionKind::Face:
-            target = surfaceActor;
-            picker->SetTolerance(0.005);
-            break;
+            return surfaceActor;
         case SelectionKind::Edge:
-            target = edgeActor;
-            picker->SetTolerance(0.010);
-            break;
+            return edgeActor;
         case SelectionKind::Vertex:
-            target = vertexActor;
-            picker->SetTolerance(0.014);
-            break;
+            return vertexActor;
         default:
-            return std::nullopt;
+            return nullptr;
         }
-        if (target == nullptr) {
-            return std::nullopt;
-        }
+    }
 
+    [[nodiscard]] std::optional<std::array<unsigned int, 2>> renderPosition(const QPointF &position) const
+    {
+        if (widget == nullptr || widget->renderWindow() == nullptr) {
+            return std::nullopt;
+        }
         const int *renderSize = widget->renderWindow()->GetSize();
         if (renderSize == nullptr || renderSize[0] <= 0 || renderSize[1] <= 0
             || widget->width() <= 0 || widget->height() <= 0) {
@@ -449,11 +474,44 @@ public:
         const int y = std::clamp(static_cast<int>(std::lround(
                                      (static_cast<double>(widget->height() - 1) - position.y()) * sy)),
                                  0, renderSize[1] - 1);
+        return std::array<unsigned int, 2>{static_cast<unsigned int>(x), static_cast<unsigned int>(y)};
+    }
+
+    [[nodiscard]] std::optional<SelectionItem> pick(const QPointF &position)
+    {
+        if (widget == nullptr || renderer == nullptr || picker == nullptr
+            || widget->renderWindow() == nullptr || scene.empty()) {
+            return std::nullopt;
+        }
+
+        vtkActor *target = targetActor();
+        if (target == nullptr) {
+            return std::nullopt;
+        }
+        switch (activeKind) {
+        case SelectionKind::Body:
+        case SelectionKind::Face:
+            picker->SetTolerance(0.005);
+            break;
+        case SelectionKind::Edge:
+            picker->SetTolerance(0.010);
+            break;
+        case SelectionKind::Vertex:
+            picker->SetTolerance(0.014);
+            break;
+        default:
+            return std::nullopt;
+        }
+
+        const auto renderPoint = renderPosition(position);
+        if (!renderPoint.has_value()) {
+            return std::nullopt;
+        }
 
         picker->InitializePickList();
         picker->AddPickList(target);
         picker->PickFromListOn();
-        if (picker->Pick(x, y, 0.0, renderer) == 0) {
+        if (picker->Pick((*renderPoint)[0], (*renderPoint)[1], 0.0, renderer) == 0) {
             return std::nullopt;
         }
         const vtkIdType cellId = picker->GetCellId();
@@ -473,6 +531,25 @@ public:
             return std::nullopt;
         }
     }
+
+    [[nodiscard]] QVector<SelectionItem> pickWindow(const QPointF &anchor, const QPointF &position)
+    {
+        QVector<SelectionItem> items;
+        if (renderer == nullptr || scene.empty()) {
+            return items;
+        }
+        vtkActor *target = targetActor();
+        if (target == nullptr) {
+            return items;
+        }
+        const auto a = renderPosition(anchor);
+        const auto b = renderPosition(position);
+        if (!a.has_value() || !b.has_value()) {
+            return items;
+        }
+        return selectVisibleGeometryArea(renderer, target, scene, activeKind,
+                                         {(*a)[0], (*a)[1], (*b)[0], (*b)[1]});
+    }
 #endif
 };
 
@@ -482,8 +559,6 @@ ViewportSelectionBridge::ViewportSelectionBridge(ViewportWidget *viewport, QObje
 #ifdef FEMCAE_GUI_HAS_VTK
     impl_->bind(viewport_);
     if (impl_->widget != nullptr) {
-        // Event filtreleme gözlemci kalır; navigation event'leri mevcut
-        // ViewportInputRouter'a ulaşmaya devam eder.
         impl_->widget->installEventFilter(this);
     }
 #else
@@ -580,6 +655,7 @@ void ViewportSelectionBridge::setActiveKind(const SelectionKind kind)
     }
     impl_->activeKind = resolved;
 #ifdef FEMCAE_GUI_HAS_VTK
+    impl_->hideWindowPreview();
     impl_->updateBaseTopologyVisibility();
     impl_->rebuildSelectionOverlay();
     impl_->rebuildPreselectionOverlay();
@@ -662,9 +738,11 @@ bool ViewportSelectionBridge::eventFilter(QObject *watched, QEvent *event)
 
     switch (action->type) {
     case SelectionInputActionType::Clear:
+        impl_->hideWindowPreview();
         emit selectionClearRequested();
         break;
     case SelectionInputActionType::ClearPreselection:
+        impl_->hideWindowPreview();
         emit preselectionClearRequested();
         break;
     case SelectionInputActionType::Hover: {
@@ -679,6 +757,7 @@ bool ViewportSelectionBridge::eventFilter(QObject *watched, QEvent *event)
         break;
     }
     case SelectionInputActionType::Commit: {
+        impl_->hideWindowPreview();
         const auto hit = impl_->pick(action->position);
         if (hit.has_value()) {
             emit selectionRequested(hit->kind,
@@ -687,6 +766,31 @@ bool ViewportSelectionBridge::eventFilter(QObject *watched, QEvent *event)
                                     action->operation);
         } else {
             emit selectionClearRequested();
+        }
+        break;
+    }
+    case SelectionInputActionType::WindowPreview:
+        impl_->showWindowPreview(action->anchor, action->position);
+        break;
+    case SelectionInputActionType::WindowCommit: {
+        impl_->hideWindowPreview();
+        emit preselectionClearRequested();
+        const QVector<SelectionItem> hits = impl_->pickWindow(action->anchor, action->position);
+        if (hits.isEmpty()) {
+            if (action->operation == SelectionOperation::Replace) {
+                emit selectionClearRequested();
+            }
+            break;
+        }
+        for (qsizetype i = 0; i < hits.size(); ++i) {
+            SelectionOperation operation = action->operation;
+            if (action->operation == SelectionOperation::Replace && i > 0) {
+                operation = SelectionOperation::Add;
+            }
+            emit selectionRequested(hits[i].kind,
+                                    static_cast<quint64>(bodyIdFor(hits[i])),
+                                    static_cast<quint64>(hits[i].geometryEntityId),
+                                    operation);
         }
         break;
     }
