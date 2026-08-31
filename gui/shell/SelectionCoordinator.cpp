@@ -7,6 +7,7 @@
 #include "../services/AnalysisService.h"
 #include "../services/GeometryService.h"
 #include "../services/MeshService.h"
+#include "../viewport/ViewportMeshSelectionBridge.h"
 #include "../viewport/ViewportSelectionBridge.h"
 #include "Dynamics26MainWindow.h"
 #include "EngineeringStatusBar.h"
@@ -19,6 +20,8 @@
 
 using femcae::geometry::GeometryEntityId;
 using femcae::geometry::InvalidGeometryId;
+using femcae::meshing::InvalidMeshId;
+using femcae::meshing::MeshEntityId;
 
 namespace d26 {
 namespace {
@@ -30,8 +33,32 @@ SelectionKind selectionKindForFilter(const SelectionFilter filter) noexcept
     case SelectionFilter::Face: return SelectionKind::Face;
     case SelectionFilter::Edge: return SelectionKind::Edge;
     case SelectionFilter::Vertex: return SelectionKind::Vertex;
+    case SelectionFilter::Node: return SelectionKind::Node;
+    case SelectionFilter::Element: return SelectionKind::Element;
+    case SelectionFilter::Facet: return SelectionKind::Facet;
     }
     return SelectionKind::Body;
+}
+
+SelectionDomain selectionDomainForFilter(const SelectionFilter filter) noexcept
+{
+    switch (filter) {
+    case SelectionFilter::Body:
+    case SelectionFilter::Face:
+    case SelectionFilter::Edge:
+    case SelectionFilter::Vertex:
+        return SelectionDomain::Geometry;
+    case SelectionFilter::Node:
+    case SelectionFilter::Element:
+    case SelectionFilter::Facet:
+        return SelectionDomain::Mesh;
+    }
+    return SelectionDomain::Geometry;
+}
+
+bool isMeshFilter(const SelectionFilter filter) noexcept
+{
+    return selectionDomainForFilter(filter) == SelectionDomain::Mesh;
 }
 
 QString selectionKindText(const SelectionKind kind)
@@ -41,6 +68,9 @@ QString selectionKindText(const SelectionKind kind)
     case SelectionKind::Face: return QStringLiteral("Face");
     case SelectionKind::Edge: return QStringLiteral("Edge");
     case SelectionKind::Vertex: return QStringLiteral("Vertex");
+    case SelectionKind::Node: return QStringLiteral("Node");
+    case SelectionKind::Element: return QStringLiteral("Element");
+    case SelectionKind::Facet: return QStringLiteral("Facet");
     default: return QStringLiteral("Entity");
     }
 }
@@ -80,13 +110,14 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
     details_ = window_->detailsHost();
     status_ = qobject_cast<EngineeringStatusBar *>(window_->statusBar());
 
-    if (services_.project == nullptr || services_.geometry == nullptr
+    if (services_.project == nullptr || services_.geometry == nullptr || services_.mesh == nullptr
         || navigator_ == nullptr || graphics_ == nullptr || details_ == nullptr) {
         return;
     }
 
     selection_ = new SelectionManager(this);
     bridge_ = new ViewportSelectionBridge(graphics_->viewport(), this);
+    meshBridge_ = new ViewportMeshSelectionBridge(graphics_->viewport(), this);
 
     connect(graphics_, &GraphicsWorkspace::selectionFilterChanged,
             this, [this](const SelectionFilter filter) {
@@ -103,19 +134,29 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
             this, &SelectionCoordinator::handleViewportPreselection);
     connect(bridge_, &ViewportSelectionBridge::contextMenuRequested,
             this, &SelectionCoordinator::handleViewportContextMenu);
-    connect(bridge_, &ViewportSelectionBridge::selectionClearRequested,
-            this, [this] {
-                if (selection_ != nullptr) {
-                    selection_->clearPreselection();
-                    (void)selection_->clear();
-                }
-            });
-    connect(bridge_, &ViewportSelectionBridge::preselectionClearRequested,
-            this, [this] {
-                if (selection_ != nullptr) {
-                    selection_->clearPreselection();
-                }
-            });
+
+    connect(meshBridge_, &ViewportMeshSelectionBridge::selectionRequested,
+            this, &SelectionCoordinator::handleMeshSelection);
+    connect(meshBridge_, &ViewportMeshSelectionBridge::preselectionRequested,
+            this, &SelectionCoordinator::handleMeshPreselection);
+    connect(meshBridge_, &ViewportMeshSelectionBridge::contextMenuRequested,
+            this, &SelectionCoordinator::handleMeshContextMenu);
+
+    const auto clearSelection = [this] {
+        if (selection_ != nullptr) {
+            selection_->clearPreselection();
+            (void)selection_->clear();
+        }
+    };
+    const auto clearPreselection = [this] {
+        if (selection_ != nullptr) {
+            selection_->clearPreselection();
+        }
+    };
+    connect(bridge_, &ViewportSelectionBridge::selectionClearRequested, this, clearSelection);
+    connect(bridge_, &ViewportSelectionBridge::preselectionClearRequested, this, clearPreselection);
+    connect(meshBridge_, &ViewportMeshSelectionBridge::selectionClearRequested, this, clearSelection);
+    connect(meshBridge_, &ViewportMeshSelectionBridge::preselectionClearRequested, this, clearPreselection);
 
     connect(selection_, &SelectionManager::selectionChanged,
             this, &SelectionCoordinator::handleSelectionChanged);
@@ -127,28 +168,32 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
             selection_->clearPreselection();
             (void)selection_->clear();
         }
-        if (bridge_ != nullptr) {
-            bridge_->clearScene();
-        }
-        QTimer::singleShot(0, this, [this] { refreshGeometryScene(); });
+        bridge_->clearScene();
+        meshBridge_->clearScene();
+        meshBridge_->setInputEnabled(false);
+        QTimer::singleShot(0, this, [this] { refreshSelectionScene(); });
+    });
+
+    connect(services_.mesh, &MeshService::changed, this, [this] {
+        QTimer::singleShot(0, this, [this] { refreshSelectionScene(); });
     });
 
     if (services_.commands != nullptr) {
         connect(services_.commands, &DocumentCommandManager::documentMutated,
-                this, [this] { QTimer::singleShot(0, this, [this] { refreshGeometryScene(); }); });
+                this, [this] { QTimer::singleShot(0, this, [this] { refreshSelectionScene(); }); });
     }
 
     connect(details_, &DetailsHost::modelEdited,
-            this, [this] { QTimer::singleShot(0, this, [this] { refreshGeometryScene(); }); });
+            this, [this] { QTimer::singleShot(0, this, [this] { refreshSelectionScene(); }); });
     connect(details_->geometryPage(), &GeometryDetails::tessellationQualityChanged,
             this, [this](const double value) {
                 tessellationDeflection_ = value;
-                QTimer::singleShot(0, this, [this] { refreshGeometryScene(); });
+                QTimer::singleShot(0, this, [this] { refreshSelectionScene(); });
             });
 
     configurePolicy(graphics_->selectionFilter());
     QTimer::singleShot(0, this, [this] {
-        refreshGeometryScene();
+        refreshSelectionScene();
         updateFeedback();
     });
 }
@@ -169,20 +214,31 @@ void SelectionCoordinator::configurePolicy(const SelectionFilter filter)
         return;
     }
     const SelectionKind kind = selectionKindForFilter(filter);
-    if (bridge_ != nullptr) {
-        // Picker actor/filter önce değiştirilir; policy değişimi eski selection'ı
-        // temizlerken kısa süreli olarak yanlış primitive actor'ı aktif kalmaz.
+    const SelectionDomain domain = selectionDomainForFilter(filter);
+
+    if (domain == SelectionDomain::Geometry) {
         bridge_->setActiveKind(kind);
+        SelectionPolicy policy = SelectionPolicy::preset(SelectionPolicyPreset::NeutralGeometry);
+        policy.allowedKinds = {kind};
+        policy.allowMultiple = true;
+        selection_->setPolicy(policy);
+        return;
     }
-    SelectionPolicy policy = SelectionPolicy::preset(SelectionPolicyPreset::NeutralGeometry);
-    policy.allowedKinds = {kind};
-    policy.allowMultiple = true;
-    selection_->setPolicy(policy);
+
+    meshBridge_->setActiveKind(kind);
+    SelectionPolicyPreset preset = SelectionPolicyPreset::MeshNodeScope;
+    if (kind == SelectionKind::Element) {
+        preset = SelectionPolicyPreset::MeshElementScope;
+    } else if (kind == SelectionKind::Facet) {
+        preset = SelectionPolicyPreset::MeshFacetScope;
+    }
+    selection_->setPolicy(SelectionPolicy::preset(preset));
 }
 
-void SelectionCoordinator::refreshGeometryScene()
+void SelectionCoordinator::refreshSelectionScene()
 {
-    if (bridge_ == nullptr || graphics_ == nullptr || services_.geometry == nullptr) {
+    if (bridge_ == nullptr || meshBridge_ == nullptr || graphics_ == nullptr
+        || services_.geometry == nullptr || services_.mesh == nullptr) {
         return;
     }
 
@@ -194,64 +250,97 @@ void SelectionCoordinator::refreshGeometryScene()
     const ViewportContext context = viewport->context();
     const GeometrySummary summary = services_.geometry->summary();
 
-    if (context != ViewportContext::Geometry) {
-        bridge_->clearScene();
-        graphics_->setTopologySelectionAvailable(false, false, false);
-        if (selection_ != nullptr) {
-            selection_->clearPreselection();
-            (void)selection_->clear();
-        }
-        graphics_->setSelectionLabel(QString());
+    if (context == ViewportContext::Geometry) {
+        meshBridge_->setInputEnabled(false);
+        meshBridge_->clearScene();
+        graphics_->setSelectionFilterDomain(SelectionDomain::Geometry);
+        graphics_->setMeshSelectionAvailable(false, false, false);
 
-        // MainWindow'un legacy model-backdrop yolu tek Body tessellation'i
-        // çiziyordu. SelectionCoordinator burada selection actor'ı kurmaz;
-        // yalnız CAD-backdrop kullanan bağlamlarda all-body display scene'i
-        // yeniden gösterir. Gerçek FEM mesh/results mevcutsa viewport'a dokunmaz.
-        const bool hasMesh = services_.mesh != nullptr && services_.mesh->hasMesh();
-        if (summary.hasGeometry && usesPassiveCadBackdrop(context, hasMesh)) {
-            const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
-            if (surfaces.size() == static_cast<qsizetype>(summary.bodyCount)) {
-                viewport->showGeometry(surfaces);
+        if (!summary.hasGeometry) {
+            bridge_->clearScene();
+            graphics_->setTopologySelectionAvailable(false, false, false);
+            graphics_->setSelectionFilter(SelectionFilter::Body);
+            if (selection_ != nullptr) {
+                selection_->clearPreselection();
+                (void)selection_->clear();
             }
+            return;
         }
-        return;
-    }
 
-    if (!summary.hasGeometry) {
-        bridge_->clearScene();
-        graphics_->setTopologySelectionAvailable(false, false, false);
-        graphics_->setSelectionFilter(SelectionFilter::Body);
-        if (selection_ != nullptr) {
-            selection_->clearPreselection();
-            (void)selection_->clear();
+        const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
+        const auto edges = services_.geometry->displayEdgeScene(tessellationDeflection_);
+        const auto vertices = services_.geometry->displayVertexScene();
+        const qsizetype expected = static_cast<qsizetype>(summary.bodyCount);
+        if (surfaces.size() != expected || edges.size() != expected || vertices.size() != expected
+            || !bridge_->setScene(surfaces, edges, vertices)) {
+            bridge_->clearScene();
+            graphics_->setTopologySelectionAvailable(false, false, false);
+            graphics_->setSelectionFilter(SelectionFilter::Body);
+            if (selection_ != nullptr) {
+                selection_->clearPreselection();
+                (void)selection_->clear();
+            }
+            return;
         }
-        return;
-    }
 
-    const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
-    const auto edges = services_.geometry->displayEdgeScene(tessellationDeflection_);
-    const auto vertices = services_.geometry->displayVertexScene();
-    const qsizetype expected = static_cast<qsizetype>(summary.bodyCount);
-    if (surfaces.size() != expected || edges.size() != expected || vertices.size() != expected
-        || !bridge_->setScene(surfaces, edges, vertices)) {
-        bridge_->clearScene();
-        graphics_->setTopologySelectionAvailable(false, false, false);
-        graphics_->setSelectionFilter(SelectionFilter::Body);
-        if (selection_ != nullptr) {
-            selection_->clearPreselection();
-            (void)selection_->clear();
+        graphics_->setTopologySelectionAvailable(bridge_->hasFaceProvenance(),
+                                                 bridge_->hasEdgeProvenance(),
+                                                 bridge_->hasVertexProvenance());
+        if (isMeshFilter(graphics_->selectionFilter())) {
+            graphics_->setSelectionFilter(SelectionFilter::Body);
         }
-        return;
-    }
-
-    graphics_->setTopologySelectionAvailable(bridge_->hasFaceProvenance(),
-                                             bridge_->hasEdgeProvenance(),
-                                             bridge_->hasVertexProvenance());
-    configurePolicy(graphics_->selectionFilter());
-    if (selection_ != nullptr) {
+        configurePolicy(graphics_->selectionFilter());
         (void)selection_->invalidateGeometryRevision(summary.revision);
         bridge_->setSelection(selection_->items());
         bridge_->setPreselection(selection_->preselection());
+        return;
+    }
+
+    // Geometry picker/overlay bu noktadan sonra aktif degildir.
+    bridge_->clearScene();
+    graphics_->setTopologySelectionAvailable(false, false, false);
+
+    if (context == ViewportContext::Mesh && services_.mesh->hasMesh()) {
+        graphics_->setSelectionFilterDomain(SelectionDomain::Mesh);
+        graphics_->setMeshSelectionAvailable(true, true, true);
+        if (!isMeshFilter(graphics_->selectionFilter())) {
+            graphics_->setSelectionFilter(SelectionFilter::Node);
+        }
+        configurePolicy(graphics_->selectionFilter());
+
+        if (!meshBridge_->setScene(services_.mesh->mesh(), services_.mesh->generation())) {
+            meshBridge_->setInputEnabled(false);
+            meshBridge_->clearScene();
+            graphics_->setMeshSelectionAvailable(false, false, false);
+            graphics_->setSelectionFilterDomain(std::nullopt);
+            selection_->clearPreselection();
+            (void)selection_->clear();
+            return;
+        }
+
+        meshBridge_->setInputEnabled(true);
+        (void)selection_->invalidateMeshGeneration(services_.mesh->generation());
+        meshBridge_->setSelection(selection_->items());
+        meshBridge_->setPreselection(selection_->preselection());
+        return;
+    }
+
+    meshBridge_->setInputEnabled(false);
+    meshBridge_->clearScene();
+    graphics_->setMeshSelectionAvailable(false, false, false);
+    graphics_->setSelectionFilterDomain(std::nullopt);
+    selection_->clearPreselection();
+    (void)selection_->clear();
+    graphics_->setSelectionLabel(QString());
+
+    // CAD backdrop kullanan non-selection bağlamlarında bütün imported Body'ler
+    // görünür kalır. Gerçek FEM mesh/results sahnesi varsa üzerine yazılmaz.
+    const bool hasMesh = services_.mesh->hasMesh();
+    if (summary.hasGeometry && usesPassiveCadBackdrop(context, hasMesh)) {
+        const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
+        if (surfaces.size() == static_cast<qsizetype>(summary.bodyCount)) {
+            viewport->showGeometry(surfaces);
+        }
     }
 }
 
@@ -261,7 +350,7 @@ void SelectionCoordinator::handleNavigatorSelection(const ObjectId id)
         return;
     }
 
-    refreshGeometryScene();
+    refreshSelectionScene();
 
     const ProjectObject *object = services_.project->object(id);
     if (object == nullptr || object->type != ObjectType::Body || object->tag <= 0
@@ -284,7 +373,8 @@ std::optional<SelectionItem> SelectionCoordinator::selectionItemForHit(const Sel
                                                                        const quint64 geometryId) const
 {
     if (graphics_ == nullptr || services_.geometry == nullptr || bodyId == 0 || geometryId == 0
-        || kind != selectionKindForFilter(graphics_->selectionFilter())) {
+        || kind != selectionKindForFilter(graphics_->selectionFilter())
+        || selectionDomainForFilter(graphics_->selectionFilter()) != SelectionDomain::Geometry) {
         return std::nullopt;
     }
 
@@ -310,6 +400,45 @@ std::optional<SelectionItem> SelectionCoordinator::selectionItemForHit(const Sel
     if (kind != SelectionKind::Body && entity->parentId != item.parentGeometryId) {
         return std::nullopt;
     }
+    return item;
+}
+
+std::optional<SelectionItem> SelectionCoordinator::meshSelectionItemForHit(const SelectionKind kind,
+                                                                           const qint64 meshEntityId) const
+{
+    if (graphics_ == nullptr || services_.mesh == nullptr || !services_.mesh->hasMesh()
+        || selectionDomainForFilter(graphics_->selectionFilter()) != SelectionDomain::Mesh
+        || kind != selectionKindForFilter(graphics_->selectionFilter())) {
+        return std::nullopt;
+    }
+
+    const MeshEntityId id = static_cast<MeshEntityId>(meshEntityId);
+    if (id == InvalidMeshId) {
+        return std::nullopt;
+    }
+    const auto &mesh = services_.mesh->mesh();
+    bool exists = false;
+    if (kind == SelectionKind::Node) {
+        exists = mesh.findNode(id) != nullptr;
+    } else if (kind == SelectionKind::Element) {
+        exists = mesh.findElement(id) != nullptr;
+    } else if (kind == SelectionKind::Facet) {
+        for (const auto &facet : mesh.boundaryFacets) {
+            if (facet.id == id) {
+                exists = true;
+                break;
+            }
+        }
+    }
+    if (!exists) {
+        return std::nullopt;
+    }
+
+    SelectionItem item;
+    item.domain = SelectionDomain::Mesh;
+    item.kind = kind;
+    item.meshEntityId = id;
+    item.sourceRevision = services_.mesh->generation();
     return item;
 }
 
@@ -347,10 +476,9 @@ void SelectionCoordinator::handleViewportPreselection(const SelectionKind kind,
                                                        const quint64 bodyId,
                                                        const quint64 geometryId)
 {
-    if (selection_ == nullptr) {
-        return;
+    if (selection_ != nullptr) {
+        selection_->setPreselection(selectionItemForHit(kind, bodyId, geometryId));
     }
-    selection_->setPreselection(selectionItemForHit(kind, bodyId, geometryId));
 }
 
 void SelectionCoordinator::handleViewportContextMenu(const SelectionKind kind,
@@ -361,66 +489,128 @@ void SelectionCoordinator::handleViewportContextMenu(const SelectionKind kind,
     if (selection_ == nullptr || window_ == nullptr) {
         return;
     }
-
     const auto item = selectionItemForHit(kind, bodyId, geometryId);
     if (!item.has_value()) {
         return;
     }
-
     selection_->clearPreselection();
     if (!selectionContains(*item)) {
         (void)selection_->apply(*item, SelectionOperation::Replace);
     }
-
-    const GeometryEntityId contextBodyId = parentBodyFor(*item);
-    const ObjectId contextObject = bodyObjectForGeometryId(contextBodyId);
-    if (contextObject == InvalidObjectId) {
+    const GeometryEntityId body = parentBodyFor(*item);
+    const ObjectId object = bodyObjectForGeometryId(body);
+    if (object == InvalidObjectId) {
         return;
     }
+    (void)syncNavigatorToGeometryBody(body);
+    window_->showObjectContextMenu(object, globalPosition);
+}
 
-    (void)syncNavigatorToGeometryBody(contextBodyId);
-    window_->showObjectContextMenu(contextObject, globalPosition);
+void SelectionCoordinator::handleMeshSelection(const SelectionKind kind,
+                                                const qint64 meshEntityId,
+                                                const SelectionOperation operation)
+{
+    if (selection_ == nullptr) {
+        return;
+    }
+    selection_->clearPreselection();
+    const auto item = meshSelectionItemForHit(kind, meshEntityId);
+    if (!item.has_value()) {
+        (void)selection_->clear();
+        return;
+    }
+    (void)selection_->apply(*item, operation);
+}
+
+void SelectionCoordinator::handleMeshPreselection(const SelectionKind kind, const qint64 meshEntityId)
+{
+    if (selection_ != nullptr) {
+        selection_->setPreselection(meshSelectionItemForHit(kind, meshEntityId));
+    }
+}
+
+void SelectionCoordinator::handleMeshContextMenu(const SelectionKind kind,
+                                                  const qint64 meshEntityId,
+                                                  const QPoint &globalPosition)
+{
+    if (selection_ == nullptr || window_ == nullptr || services_.project == nullptr) {
+        return;
+    }
+    const auto item = meshSelectionItemForHit(kind, meshEntityId);
+    if (!item.has_value()) {
+        return;
+    }
+    selection_->clearPreselection();
+    if (!selectionContains(*item)) {
+        (void)selection_->apply(*item, SelectionOperation::Replace);
+    }
+    const ObjectId meshObject = services_.project->meshNode();
+    if (meshObject == InvalidObjectId) {
+        return;
+    }
+    (void)syncNavigatorToObject(meshObject);
+    window_->showObjectContextMenu(meshObject, globalPosition);
 }
 
 void SelectionCoordinator::handleSelectionChanged()
 {
-    if (selection_ == nullptr || bridge_ == nullptr) {
+    if (selection_ == nullptr) {
         return;
     }
     (void)syncNavigatorToPrimary();
-    bridge_->setSelection(selection_->items());
+    if (bridge_ != nullptr) {
+        bridge_->setSelection(selection_->items());
+    }
+    if (meshBridge_ != nullptr) {
+        meshBridge_->setSelection(selection_->items());
+    }
     updateFeedback();
 }
 
 void SelectionCoordinator::handlePreselectionChanged()
 {
-    if (selection_ == nullptr || bridge_ == nullptr) {
+    if (selection_ == nullptr) {
         return;
     }
-    bridge_->setPreselection(selection_->preselection());
+    if (bridge_ != nullptr) {
+        bridge_->setPreselection(selection_->preselection());
+    }
+    if (meshBridge_ != nullptr) {
+        meshBridge_->setPreselection(selection_->preselection());
+    }
     updateFeedback();
 }
 
 bool SelectionCoordinator::syncNavigatorToPrimary()
 {
-    if (selection_ == nullptr) {
+    if (selection_ == nullptr || services_.project == nullptr) {
         return false;
     }
     const auto primary = selection_->primary();
-    if (!primary.has_value() || primary->domain != SelectionDomain::Geometry) {
+    if (!primary.has_value()) {
         return false;
     }
-    return syncNavigatorToGeometryBody(parentBodyFor(*primary));
+    if (primary->domain == SelectionDomain::Geometry) {
+        return syncNavigatorToGeometryBody(parentBodyFor(*primary));
+    }
+    if (primary->domain == SelectionDomain::Mesh) {
+        return syncNavigatorToObject(services_.project->meshNode());
+    }
+    return false;
 }
 
 bool SelectionCoordinator::syncNavigatorToGeometryBody(const GeometryEntityId bodyId)
 {
-    if (bodyId == InvalidGeometryId || window_ == nullptr || navigator_ == nullptr) {
+    if (bodyId == InvalidGeometryId) {
         return false;
     }
+    return syncNavigatorToObject(bodyObjectForGeometryId(bodyId));
+}
 
-    const ObjectId objectId = bodyObjectForGeometryId(bodyId);
-    if (objectId == InvalidObjectId || navigator_->selectedObject() == objectId) {
+bool SelectionCoordinator::syncNavigatorToObject(const ObjectId objectId)
+{
+    if (objectId == InvalidObjectId || window_ == nullptr || navigator_ == nullptr
+        || details_ == nullptr || navigator_->selectedObject() == objectId) {
         return false;
     }
 
@@ -430,9 +620,9 @@ bool SelectionCoordinator::syncNavigatorToGeometryBody(const GeometryEntityId bo
         navigator_->selectObject(objectId);
     }
 
-    // SelectionCoordinator kontrollü composition-helper'dır. Bu yol viewport
-    // scene/camera rebuild'i yapmadan yalnız current project-object bağlamını
-    // günceller; MainWindow friend sınırı dışında kullanılmaz.
+    // Viewport-originated subentity selection current project object'i izler,
+    // fakat MainWindow::selectObject() çağrılmaz; o yol sahne/kamerayı yeniden
+    // kurabilir. Selection overlay aynı render scene üzerinde kalır.
     window_->selected_ = objectId;
     const ObjectId owning = window_->analysis_->owningAnalysis(objectId);
     if (owning != InvalidObjectId) {
@@ -493,6 +683,18 @@ void SelectionCoordinator::updateFeedback()
         const QString kind = selectionKindText(primary.kind);
         graphics_->setSelectionLabel(tr("%1 %2 seçildi").arg(items.size()).arg(kind));
 
+        if (primary.domain == SelectionDomain::Mesh) {
+            if (details_ != nullptr) {
+                details_->setSelectionSummary(tr("SELECTION  ·  %1 %2  ·  Mesh Gen %3")
+                                                  .arg(items.size()).arg(kind).arg(primary.sourceRevision));
+            }
+            if (status_ != nullptr) {
+                status_->setSelection(tr("%1 %2  •  Mesh Generation %3  •  Global Coordinate System")
+                                          .arg(items.size()).arg(kind).arg(primary.sourceRevision));
+            }
+            return;
+        }
+
         QSet<GeometryEntityId> bodyIds;
         for (const SelectionItem &item : items) {
             const GeometryEntityId bodyId = parentBodyFor(item);
@@ -531,12 +733,18 @@ void SelectionCoordinator::updateFeedback()
     }
 
     const auto hover = selection_->preselection();
-    if (hover.has_value() && graphics_->viewport()->context() == ViewportContext::Geometry) {
+    if (hover.has_value() && hover->domain == SelectionDomain::Geometry
+        && graphics_->viewport()->context() == ViewportContext::Geometry) {
         QString label = geometryEntityName(hover->geometryEntityId);
         if (label.isEmpty()) {
             label = selectionKindText(hover->kind);
         }
         graphics_->setSelectionLabel(tr("%1  ·  ön seçim").arg(label));
+    } else if (hover.has_value() && hover->domain == SelectionDomain::Mesh
+               && graphics_->viewport()->context() == ViewportContext::Mesh) {
+        graphics_->setSelectionLabel(tr("%1 %2  ·  ön seçim")
+                                         .arg(selectionKindText(hover->kind))
+                                         .arg(static_cast<qint64>(hover->meshEntityId)));
     } else {
         graphics_->setSelectionLabel(QString());
     }
