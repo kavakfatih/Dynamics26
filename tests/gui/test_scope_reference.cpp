@@ -106,10 +106,16 @@ void scopeBuilderTests()
               && wrongDomain.error == d26::ScopeReferenceBuildError::UnsupportedDomain,
           "ProjectObject identity cannot leak into CAD engineering scope");
 
+    // GeometryDocument public API boş persistentKey üretimini zaten reddeder.
+    // Builder savunmasını ayrıca doğrulamak için geçerli entity kontrollü olarak
+    // bozulur; findMutable revision'i artırdığı için selection yeni revision ile kurulur.
     femcae::geometry::GeometryDocument noKey("scope-no-key");
     const auto noKeyBody = noKey.addEntity(femcae::geometry::GeometryEntityKind::Body,
                                            femcae::geometry::InvalidGeometryId,
-                                           "Body", "");
+                                           "Body", "step/body/1");
+    if (auto *entity = noKey.findMutable(noKeyBody)) {
+        entity->persistentKey.clear();
+    }
     const auto missingKey = d26::buildGeometryScopeReference(
         QVector<d26::SelectionItem>{body(noKeyBody, noKey.revision())}, noKey);
     check(!missingKey.success()
