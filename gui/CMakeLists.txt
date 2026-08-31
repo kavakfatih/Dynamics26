@@ -37,6 +37,8 @@ set(FEMCAE_GUI_SOURCES
     services/GeometryService.h
     services/MeshService.cpp
     services/MeshService.h
+    services/NamedSelectionService.cpp
+    services/NamedSelectionService.h
     services/MaterialService.cpp
     services/MaterialService.h
     services/AnalysisService.cpp
@@ -295,6 +297,35 @@ if(BUILD_TESTING)
     add_test(NAME gui.scope_reference COMMAND femcae_scope_reference_test)
     set_tests_properties(gui.scope_reference PROPERTIES LABELS "gui;selection;scope;alpha32;alpha33;alpha34")
 
+    qt_add_executable(femcae_named_selection_test
+        core/ProjectTypes.cpp
+        core/ProjectTypes.h
+        core/ProjectModel.cpp
+        core/ProjectModel.h
+        core/SelectionTypes.h
+        core/ScopeReferenceBuilder.h
+        services/GeometryService.cpp
+        services/GeometryService.h
+        services/MeshService.cpp
+        services/MeshService.h
+        services/NamedSelectionService.cpp
+        services/NamedSelectionService.h
+        "${PROJECT_SOURCE_DIR}/tests/gui/test_named_selection.cpp"
+    )
+    target_include_directories(femcae_named_selection_test PRIVATE
+        "${PROJECT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(femcae_named_selection_test PRIVATE
+        Qt6::Core
+        femcae_geometry
+        femcae_meshing
+    )
+    add_test(NAME gui.named_selection COMMAND femcae_named_selection_test)
+    set_tests_properties(gui.named_selection PROPERTIES
+        LABELS "gui;selection;scope;named-selection;alpha36"
+    )
+
     qt_add_executable(femcae_viewport_selection_input_test
         viewport/ViewportSelectionController.h
         "${PROJECT_SOURCE_DIR}/tests/gui/test_viewport_selection_input.cpp"
@@ -328,6 +359,7 @@ if(BUILD_TESTING)
     # Dependency sayesinde selection contract testlerinin tamami ayni gate icinde binary olarak üretilir.
     add_dependencies(femcae_selection_manager_test
         femcae_scope_reference_test
+        femcae_named_selection_test
         femcae_viewport_selection_input_test
         femcae_mesh_selection_test
     )
