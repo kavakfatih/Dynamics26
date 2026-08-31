@@ -68,9 +68,12 @@ public:
     void refreshValidation();
 
     // Alpha.3.6 persistence data contract. Main project save/load wiring bu JSON
-    // payload'u dynamics26_document içine bağlayacaktır.
+    // payload'u dynamics26_document içine bağlayacaktır. 64-bit engineering ID
+    // ve revision/generation değerleri JSON number değil string olarak tutulur.
+    // Parse/overflow hatası sessizce yutulmaz; false + errorMessage döner ve
+    // mevcut service state'i değiştirilmez.
     [[nodiscard]] QJsonObject toJson() const;
-    void fromJson(const QJsonObject &object);
+    bool fromJson(const QJsonObject &object, QString *errorMessage = nullptr);
 
 signals:
     void changed();
