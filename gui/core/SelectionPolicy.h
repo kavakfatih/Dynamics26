@@ -18,7 +18,10 @@ enum class SelectionPolicyPreset {
     VertexScope,
     ContactSide,
     BodyMeshControl,
-    FaceMeshControl
+    FaceMeshControl,
+    MeshNodeScope,
+    MeshElementScope,
+    MeshFacetScope
 };
 
 struct SelectionPolicy {
@@ -76,6 +79,24 @@ struct SelectionPolicy {
             policy.domain = SelectionDomain::Geometry;
             policy.allowedKinds = {SelectionKind::Body};
             policy.allowMultiple = true;
+            break;
+        case SelectionPolicyPreset::MeshNodeScope:
+            policy.domain = SelectionDomain::Mesh;
+            policy.allowedKinds = {SelectionKind::Node};
+            policy.allowMultiple = true;
+            policy.visibleOnly = true;
+            break;
+        case SelectionPolicyPreset::MeshElementScope:
+            policy.domain = SelectionDomain::Mesh;
+            policy.allowedKinds = {SelectionKind::Element};
+            policy.allowMultiple = true;
+            policy.visibleOnly = true;
+            break;
+        case SelectionPolicyPreset::MeshFacetScope:
+            policy.domain = SelectionDomain::Mesh;
+            policy.allowedKinds = {SelectionKind::Facet};
+            policy.allowMultiple = true;
+            policy.visibleOnly = true;
             break;
         }
         return policy;
