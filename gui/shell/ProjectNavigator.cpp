@@ -3,12 +3,14 @@
 #include "../core/CaeIcons.h"
 #include "../core/UiTheme.h"
 
+#include <QApplication>
 #include <QFont>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QPainter>
+#include <QStyle>
 #include <QTreeView>
 #include <QVBoxLayout>
 
@@ -36,6 +38,21 @@ QColor stateColor(const ObjectState state)
 
 void NavigatorDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
+    // Status rozeti için metin/ikon alanını daraltıyoruz; fakat macOS native
+    // selection arka planı tüm satır boyunca devam etmelidir. Eski kod option
+    // rect'ini paint'ten önce daralttığı için seçili satır sağ tarafta kesiliyor
+    // ve badge beyaz/boş bir şeritte kalıyordu. Önce yalnız native selection
+    // panelini tam rect'e çiz, sonra içerik için güvenli alanı kullan.
+    if (option.state.testFlag(QStyle::State_Selected)) {
+        QStyleOptionViewItem background(option);
+        initStyleOption(&background, index);
+        background.text.clear();
+        background.icon = {};
+        background.state &= ~QStyle::State_HasFocus;
+        const QStyle *style = option.widget != nullptr ? option.widget->style() : QApplication::style();
+        style->drawControl(QStyle::CE_ItemViewItem, &background, painter, option.widget);
+    }
+
     QStyleOptionViewItem adjusted(option);
     adjusted.rect.adjust(0, 0, -(kBadgeDiameter + 2 * kBadgeMargin), 0);
 
