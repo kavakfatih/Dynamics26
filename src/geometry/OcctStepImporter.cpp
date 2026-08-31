@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -9,10 +10,12 @@
 #include <vector>
 
 #if defined(FEMCAE_GEOMETRY_HAS_OCCT)
+#include <BRepAdaptor_Curve.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
+#include <GCPnts_QuasiUniformDeflection.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Poly_Triangulation.hxx>
 #include <Precision.hxx>
@@ -29,8 +32,10 @@
 #include <TopLoc_Location.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopoDS.hxx>
+#include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
+#include <TopoDS_Vertex.hxx>
 #include <XCAFApp_Application.hxx>
 #include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
@@ -316,6 +321,108 @@ GeometryTessellation OcctStepImporter::tessellate(const GeometryEntityId bodyId,
                                                    const double linearDeflection,
                                                    const double angularDeflectionRad) const {
     return tessellateWithTopology(bodyId, linearDeflection, angularDeflectionRad).display;
+}
+
+EdgeDisplayTessellation OcctStepImporter::tessellateEdges(const GeometryEntityId bodyId,
+                                                          const double linearDeflection) const {
+#if !defined(FEMCAE_GEOMETRY_HAS_OCCT)
+    (void)bodyId; (void)linearDeflection;
+    throw std::runtime_error("OCCT bulunamadi; CAD Edge display provenance kullanilamaz.");
+#else
+    if (linearDeflection <= 0.0) {
+        throw std::invalid_argument("CAD Edge display deflection pozitif olmali.");
+    }
+    const auto bodyShape = impl_->shapes.find(bodyId);
+    if (bodyShape == impl_->shapes.end()) {
+        throw std::invalid_argument("CAD Edge display body ID importer cache'inde yok.");
+    }
+    const auto edgeIds = impl_->bodyEdges.find(bodyId);
+    if (edgeIds == impl_->bodyEdges.end()) {
+        throw std::runtime_error("CAD Edge provenance cache body icin bulunamadi.");
+    }
+    const auto revision = impl_->sourceRevisions.find(bodyId);
+    if (revision == impl_->sourceRevisions.end()) {
+        throw std::runtime_error("CAD Edge display source revision bulunamadi.");
+    }
+
+    EdgeDisplayTessellation out;
+    out.sourceGeometryId = bodyId;
+    out.sourceRevision = revision->second;
+
+    for (const GeometryEntityId edgeId : edgeIds->second) {
+        const auto stored = impl_->shapes.find(edgeId);
+        if (stored == impl_->shapes.end() || stored->second.ShapeType() != TopAbs_EDGE) {
+            throw std::runtime_error("Canonical CAD Edge shape cache'i tutarsiz.");
+        }
+
+        const TopoDS_Edge edge = TopoDS::Edge(stored->second);
+        BRepAdaptor_Curve curve(edge);
+        GCPnts_QuasiUniformDeflection sampler(curve, linearDeflection);
+        if (!sampler.IsDone() || sampler.NbPoints() < 2) {
+            throw std::runtime_error("CAD Edge display discretization basarisiz.");
+        }
+        const std::size_t sampleCount = static_cast<std::size_t>(sampler.NbPoints());
+        if (sampleCount > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) - out.points.size()) {
+            throw std::overflow_error("CAD Edge display point index kapasitesi asildi.");
+        }
+
+        const std::uint32_t base = static_cast<std::uint32_t>(out.points.size());
+        for (Standard_Integer i = 1; i <= sampler.NbPoints(); ++i) {
+            const gp_Pnt p = sampler.Value(i);
+            out.points.push_back({p.X(), p.Y(), p.Z()});
+        }
+        for (std::uint32_t i = 0; i + 1 < static_cast<std::uint32_t>(sampleCount); ++i) {
+            out.lines.push_back({base + i, base + i + 1});
+            out.lineEdgeIds.push_back(edgeId);
+        }
+    }
+
+    if (!out.hasConsistentProvenance()) {
+        throw std::runtime_error("CAD Edge line/provenance boyutlari uyusmuyor.");
+    }
+    return out;
+#endif
+}
+
+VertexDisplayPoints OcctStepImporter::displayVertices(const GeometryEntityId bodyId) const {
+#if !defined(FEMCAE_GEOMETRY_HAS_OCCT)
+    (void)bodyId;
+    throw std::runtime_error("OCCT bulunamadi; CAD Vertex display provenance kullanilamaz.");
+#else
+    const auto bodyShape = impl_->shapes.find(bodyId);
+    if (bodyShape == impl_->shapes.end()) {
+        throw std::invalid_argument("CAD Vertex display body ID importer cache'inde yok.");
+    }
+    const auto vertexIds = impl_->bodyVertices.find(bodyId);
+    if (vertexIds == impl_->bodyVertices.end()) {
+        throw std::runtime_error("CAD Vertex provenance cache body icin bulunamadi.");
+    }
+    const auto revision = impl_->sourceRevisions.find(bodyId);
+    if (revision == impl_->sourceRevisions.end()) {
+        throw std::runtime_error("CAD Vertex display source revision bulunamadi.");
+    }
+
+    VertexDisplayPoints out;
+    out.sourceGeometryId = bodyId;
+    out.sourceRevision = revision->second;
+    out.points.reserve(vertexIds->second.size());
+    out.pointVertexIds.reserve(vertexIds->second.size());
+
+    for (const GeometryEntityId vertexId : vertexIds->second) {
+        const auto stored = impl_->shapes.find(vertexId);
+        if (stored == impl_->shapes.end() || stored->second.ShapeType() != TopAbs_VERTEX) {
+            throw std::runtime_error("Canonical CAD Vertex shape cache'i tutarsiz.");
+        }
+        const gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(stored->second));
+        out.points.push_back({p.X(), p.Y(), p.Z()});
+        out.pointVertexIds.push_back(vertexId);
+    }
+
+    if (!out.hasConsistentProvenance()) {
+        throw std::runtime_error("CAD Vertex point/provenance boyutlari uyusmuyor.");
+    }
+    return out;
+#endif
 }
 
 std::optional<StepAxisAlignedBoxDescriptor> OcctStepImporter::axisAlignedBoxDescriptor(const GeometryEntityId bodyId,
