@@ -73,6 +73,9 @@ void ProjectModel::resetToEmptyProject()
     sections_ = create(model_, ObjectType::SectionsFolder, QStringLiteral("Sections"));
     connections_ = create(model_, ObjectType::ConnectionsFolder, QStringLiteral("Connections"));
     mesh_ = create(model_, ObjectType::Mesh, QStringLiteral("Mesh"));
+    // Alpha.3.6: engineering scope verisi ProjectModel'de yaşamaz. Bu düğüm
+    // yalnız Navigator identity/container'dır; gerçek ScopeReference service'tedir.
+    namedSelections_ = create(model_, ObjectType::NamedSelectionsFolder, QStringLiteral("Named Selections"));
 
     objects_[geometry_].state = ObjectState::NotReady;
     objects_[geometry_].statusText = QStringLiteral("Geometri içe aktarılmadı");
