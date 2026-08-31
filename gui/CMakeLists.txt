@@ -124,7 +124,7 @@ target_include_directories(femcae_gui PRIVATE
 )
 target_compile_definitions(femcae_gui PRIVATE
     FEMCAE_APP_VERSION="${PROJECT_VERSION}"
-    DYNAMICS26_GUI_MILESTONE="1.1.0-alpha.3.3"
+    DYNAMICS26_GUI_MILESTONE="1.1.0-alpha.3.4"
     $<$<CONFIG:Debug>:DYNAMICS26_VIEWPORT_INPUT_TRACE=1>
 )
 
@@ -213,7 +213,7 @@ if(APPLE)
     install(TARGETS femcae_api LIBRARY DESTINATION "FEMCAE.app/Contents/Frameworks")
 endif()
 
-# Qt frameworks/plugins are deployed with Qt's supported deploy helper. On macOS
+# Qt frameworks/plugins are deployed with Qt'nin supported deploy helper. On macOS
 # BundleUtilities runs afterwards to make VTK/OCCT/ARPACK/gfortran dependencies
 # self-contained and relocatable inside FEMCAE.app.
 qt_generate_deploy_app_script(
