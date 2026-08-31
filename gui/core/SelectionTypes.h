@@ -1,6 +1,6 @@
 #pragma once
 
-// Dynamics26 Alpha.3.3 — transient selection ve persistent scope kontratlari.
+// Dynamics26 Alpha.3.4 — transient selection ve persistent scope kontratlari.
 //
 // Project object, CAD topology ve FEM entity kimlikleri ayni uzay DEGILDIR.
 // Bu tipler kimlik alanlarini acik tutarak selection state'in ProjectModel,
@@ -104,22 +104,26 @@ struct SelectionItem {
     [[nodiscard]] bool operator!=(const SelectionItem &other) const noexcept { return !(*this == other); }
 };
 
-// Persistent engineering scope icin DATA-ONLY temel kontrat. Mevcut
-// SupportDefinition / LoadDefinition BoxFace semasi bu milestone'da migrate
-// edilmez. persistentKey ileride sessionlar arasi topology rebind icin kullanilir;
-// sourceRevision tek basina kalici kimlik degildir.
+// Persistent engineering scope icin DATA-ONLY temel kontrat.
+// Geometry scope stable CAD identity + persistentKey tasir. Mesh scope ise
+// SimulationMesh icindeki MeshEntityId'yi ve ScopeReference sourceRevision
+// alaninda mesh generation'i tasir. Mesh yeniden uretildiginde eski FEM scope
+// otomatik rebind edilmez; acikca stale kabul edilir.
 struct ScopeEntityReference {
     SelectionDomain domain{SelectionDomain::Geometry};
     SelectionKind kind{SelectionKind::Face};
     femcae::geometry::GeometryEntityId geometryEntityId{femcae::geometry::InvalidGeometryId};
     femcae::geometry::GeometryEntityId parentGeometryId{femcae::geometry::InvalidGeometryId};
+    femcae::meshing::MeshEntityId meshEntityId{femcae::meshing::InvalidMeshId};
     QString persistentKey;
 };
 
 struct ScopeReference {
-    // Scope'un olusturuldugu CAD document revision'i. Kalici kimlik olarak
-    // kullanilmaz; geometry replace/edit sonrasi scope'un sessizce gecerli
-    // kabul edilmesini engelleyen stale-detection guard'idir.
+    // Domain'e gore source guard:
+    // - Geometry scope: GeometryDocument revision
+    // - Mesh scope: MeshService generation
+    // Tek basina kalici kimlik degildir; stale scope'un sessizce kullanilmasini
+    // engelleyen lifecycle kontratidir.
     quint64 sourceRevision{0};
     QVector<ScopeEntityReference> entities;
     [[nodiscard]] bool isEmpty() const noexcept { return entities.isEmpty(); }
