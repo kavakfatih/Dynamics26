@@ -170,6 +170,9 @@ void persistenceTests()
     constexpr quint64 hugeGeometryId = 9007199254740995ULL;
     constexpr quint64 hugeParentId = 9007199254740997ULL;
     constexpr quint64 hugeRevision = 9007199254740999ULL;
+    constexpr quint64 hugeMeshObjectId = 9007199254741001ULL;
+    constexpr quint64 hugeMeshEntityId = 9007199254741003ULL;
+    constexpr quint64 hugeMeshGeneration = 9007199254741005ULL;
 
     d26::ProjectModel sourceProject;
     d26::GeometryService sourceGeometry;
@@ -188,20 +191,38 @@ void persistenceTests()
     check(created == hugeObjectId,
           "requested ObjectId is restored exactly instead of allocating a replacement identity");
 
+    d26::NamedSelectionDefinition meshDefinition;
+    meshDefinition.name = QStringLiteral("64-bit FEM Scope");
+    meshDefinition.scope = meshScope(
+        hugeMeshGeneration,
+        d26::SelectionKind::Facet,
+        static_cast<femcae::meshing::MeshEntityId>(hugeMeshEntityId));
+    const d26::ObjectId meshCreated = source.createWithScope(
+        meshDefinition, -1, hugeMeshObjectId);
+    check(meshCreated == hugeMeshObjectId,
+          "requested ObjectId restore also preserves a large FEM scope identity");
+
     const QJsonObject json = source.toJson();
     const QJsonArray items = json.value(QStringLiteral("items")).toArray();
     const QJsonObject item = items.at(0).toObject();
     const QJsonObject entity = item.value(QStringLiteral("entities")).toArray().at(0).toObject();
+    const QJsonObject meshItemJson = items.at(1).toObject();
+    const QJsonObject meshEntityJson = meshItemJson.value(QStringLiteral("entities")).toArray().at(0).toObject();
     check(item.value(QStringLiteral("object_id")).isString()
               && item.value(QStringLiteral("object_id")).toString() == QString::number(hugeObjectId),
           "ObjectId above IEEE-754 exact integer range is serialized as decimal string");
     check(item.value(QStringLiteral("source_revision")).isString()
               && item.value(QStringLiteral("source_revision")).toString() == QString::number(hugeRevision),
-          "geometry revision/generation lifecycle guard is serialized as 64-bit string");
+          "geometry revision lifecycle guard is serialized as 64-bit string");
     check(entity.value(QStringLiteral("geometry_entity_id")).isString()
               && entity.value(QStringLiteral("geometry_entity_id")).toString() == QString::number(hugeGeometryId)
               && entity.value(QStringLiteral("parent_geometry_id")).toString() == QString::number(hugeParentId),
           "GeometryEntityId and parent identity preserve full 64-bit precision in JSON");
+    check(meshItemJson.value(QStringLiteral("object_id")).toString() == QString::number(hugeMeshObjectId)
+              && meshItemJson.value(QStringLiteral("source_revision")).toString() == QString::number(hugeMeshGeneration)
+              && meshEntityJson.value(QStringLiteral("mesh_entity_id")).isString()
+              && meshEntityJson.value(QStringLiteral("mesh_entity_id")).toString() == QString::number(hugeMeshEntityId),
+          "MeshEntityId and mesh generation above 2^53 are serialized as exact decimal strings");
 
     d26::ProjectModel restoredProject;
     d26::GeometryService restoredGeometry;
@@ -216,10 +237,17 @@ void persistenceTests()
               && roundTrip->scope.sourceRevision == hugeRevision
               && static_cast<quint64>(roundTrip->scope.entities.front().geometryEntityId) == hugeGeometryId
               && static_cast<quint64>(roundTrip->scope.entities.front().parentGeometryId) == hugeParentId,
-          "64-bit engineering identities survive JSON round-trip exactly");
+          "64-bit CAD engineering identities survive JSON round-trip exactly");
+    const d26::NamedSelectionDefinition *meshRoundTrip = restored.byId(hugeMeshObjectId);
+    check(meshRoundTrip != nullptr
+              && meshRoundTrip->scope.sourceRevision == hugeMeshGeneration
+              && static_cast<quint64>(meshRoundTrip->scope.entities.front().meshEntityId) == hugeMeshEntityId,
+          "64-bit FEM engineering identity and generation survive JSON round-trip exactly");
     check(restoredProject.object(hugeObjectId) != nullptr
-              && restoredProject.typeOf(hugeObjectId) == d26::ObjectType::NamedSelection,
-          "JSON restore recreates matching ProjectObject with requested ObjectId");
+              && restoredProject.typeOf(hugeObjectId) == d26::ObjectType::NamedSelection
+              && restoredProject.object(hugeMeshObjectId) != nullptr
+              && restoredProject.typeOf(hugeMeshObjectId) == d26::ObjectType::NamedSelection,
+          "JSON restore recreates matching ProjectObjects with requested ObjectIds");
 
     QJsonObject malformed = json;
     QJsonArray malformedItems = malformed.value(QStringLiteral("items")).toArray();
@@ -232,8 +260,25 @@ void persistenceTests()
     error.clear();
     check(!restored.fromJson(malformed, &error) && !error.isEmpty(),
           "numeric/precision-risk ObjectId input is rejected with an explicit diagnostic");
-    check(restored.count() == countBeforeFailure && restored.byId(hugeObjectId) != nullptr,
+    check(restored.count() == countBeforeFailure && restored.byId(hugeObjectId) != nullptr
+              && restored.byId(hugeMeshObjectId) != nullptr,
           "failed JSON parse is atomic and leaves existing Named Selection state unchanged");
+
+    QJsonObject overflow = json;
+    QJsonArray overflowItems = overflow.value(QStringLiteral("items")).toArray();
+    QJsonObject overflowMeshItem = overflowItems.at(1).toObject();
+    QJsonArray overflowEntities = overflowMeshItem.value(QStringLiteral("entities")).toArray();
+    QJsonObject overflowMeshEntity = overflowEntities.at(0).toObject();
+    overflowMeshEntity[QStringLiteral("mesh_entity_id")] = QStringLiteral("18446744073709551616");
+    overflowEntities[0] = overflowMeshEntity;
+    overflowMeshItem[QStringLiteral("entities")] = overflowEntities;
+    overflowItems[1] = overflowMeshItem;
+    overflow[QStringLiteral("items")] = overflowItems;
+    error.clear();
+    check(!restored.fromJson(overflow, &error) && !error.isEmpty(),
+          "unsigned 64-bit overflow in MeshEntityId is rejected explicitly");
+    check(restored.count() == countBeforeFailure && restored.byId(hugeMeshObjectId) != nullptr,
+          "overflow rejection is atomic and cannot damage restored engineering scope state");
 }
 
 } // namespace
