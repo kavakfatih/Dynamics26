@@ -53,7 +53,9 @@ set(FEMCAE_GUI_SOURCES
     viewport/Dynamics26InteractorStyle.h
     viewport/GeometrySelectionScene.h
     viewport/GeometryTopologyScene.h
+    viewport/GeometryHardwareSelector.h
     viewport/MeshSelectionScene.h
+    viewport/MeshHardwareSelector.h
     viewport/ViewportSelectionController.h
     viewport/ViewportSelectionBridge.cpp
     viewport/ViewportSelectionBridge.h
@@ -213,7 +215,7 @@ if(APPLE)
     install(TARGETS femcae_api LIBRARY DESTINATION "FEMCAE.app/Contents/Frameworks")
 endif()
 
-# Qt frameworks/plugins are deployed with Qt'nin supported deploy helper. On macOS
+# Qt frameworks/plugins are deployed with Qt's supported deploy helper. On macOS
 # BundleUtilities runs afterwards to make VTK/OCCT/ARPACK/gfortran dependencies
 # self-contained and relocatable inside FEMCAE.app.
 qt_generate_deploy_app_script(
@@ -278,7 +280,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(femcae_selection_manager_test PRIVATE Qt6::Core)
     add_test(NAME gui.selection_manager COMMAND femcae_selection_manager_test)
-    set_tests_properties(gui.selection_manager PROPERTIES LABELS "gui;selection;alpha32;alpha33;alpha34")
+    set_tests_properties(gui.selection_manager PROPERTIES LABELS "gui;selection;alpha32;alpha33;alpha34;alpha35")
 
     add_executable(femcae_scope_reference_test
         core/SelectionTypes.h
@@ -303,7 +305,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(femcae_viewport_selection_input_test PRIVATE Qt6::Core)
     add_test(NAME gui.viewport_selection_input COMMAND femcae_viewport_selection_input_test)
-    set_tests_properties(gui.viewport_selection_input PROPERTIES LABELS "gui;selection;alpha32;alpha33;alpha34")
+    set_tests_properties(gui.viewport_selection_input PROPERTIES LABELS "gui;selection;window;alpha32;alpha33;alpha34;alpha35")
 
     add_executable(femcae_mesh_selection_test
         core/SelectionTypes.h
@@ -320,7 +322,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(femcae_mesh_selection_test PRIVATE Qt6::Core femcae_meshing)
     add_test(NAME gui.mesh_selection COMMAND femcae_mesh_selection_test)
-    set_tests_properties(gui.mesh_selection PROPERTIES LABELS "gui;selection;mesh;scope;alpha34")
+    set_tests_properties(gui.mesh_selection PROPERTIES LABELS "gui;selection;mesh;scope;alpha34;alpha35")
 
     # Trusted fast gate femcae_selection_manager_test hedefini açıkça build eder.
     # Dependency sayesinde selection contract testlerinin tamami ayni gate icinde binary olarak üretilir.
@@ -389,12 +391,39 @@ if(BUILD_TESTING)
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         )
 
-        # Alpha.3.4 gerçek VTK FEM pick zinciri: visible vertex -> Node,
+        # Alpha.3.5 visible-only CAD window selection: Body/Face/Edge CELL,
+        # Vertex POINT association; VTK primitive ID her zaman topology
+        # provenance'i uzerinden GeometryEntityId'ye cevrilir.
+        add_executable(femcae_geometry_window_selection_test
+            core/SelectionTypes.h
+            viewport/GeometrySelectionScene.h
+            viewport/GeometryTopologyScene.h
+            viewport/GeometryHardwareSelector.h
+            "${PROJECT_SOURCE_DIR}/tests/gui/test_geometry_window_selection.cpp"
+        )
+        target_include_directories(femcae_geometry_window_selection_test PRIVATE
+            "${PROJECT_SOURCE_DIR}/include"
+            "${CMAKE_CURRENT_SOURCE_DIR}"
+        )
+        target_link_libraries(femcae_geometry_window_selection_test PRIVATE
+            Qt6::Core
+            Qt6::Gui
+            ${VTK_LIBRARIES}
+        )
+        vtk_module_autoinit(TARGETS femcae_geometry_window_selection_test MODULES ${VTK_LIBRARIES})
+        add_test(NAME gui.geometry_window_selection COMMAND femcae_geometry_window_selection_test)
+        set_tests_properties(gui.geometry_window_selection PROPERTIES
+            LABELS "gui;viewport;selection;geometry;window;alpha35"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        )
+
+        # Alpha.3.4/3.5 gerçek VTK FEM pick/window zinciri: visible vertex -> Node,
         # boundary cell -> Facet veya owner Element. Display VTK cell/point
         # indeksleri MeshEntityId olarak yorumlanmaz.
         add_executable(femcae_mesh_viewport_selection_test
             core/SelectionTypes.h
             viewport/MeshSelectionScene.h
+            viewport/MeshHardwareSelector.h
             "${PROJECT_SOURCE_DIR}/tests/gui/test_mesh_viewport_selection.cpp"
         )
         target_include_directories(femcae_mesh_viewport_selection_test PRIVATE
@@ -409,14 +438,15 @@ if(BUILD_TESTING)
         vtk_module_autoinit(TARGETS femcae_mesh_viewport_selection_test MODULES ${VTK_LIBRARIES})
         add_test(NAME gui.mesh_viewport_selection COMMAND femcae_mesh_viewport_selection_test)
         set_tests_properties(gui.mesh_viewport_selection PROPERTIES
-            LABELS "gui;viewport;selection;mesh;alpha34"
+            LABELS "gui;viewport;selection;mesh;window;alpha34;alpha35"
         )
 
-        # Self-hosted fast gate selection-manager hedefini build ettiğinde hem
-        # CAD hem FEM picker contract binary'leri mutlaka üretilmiş olur. VTK-OFF
-        # hosted lightweight gate bu bağımlılığı doğal olarak görmez.
+        # Self-hosted fast gate selection-manager hedefini build ettiğinde CAD
+        # click + CAD window + FEM click/window contract binary'leri de uretilir.
+        # VTK-OFF hosted lightweight gate bu bağımlılığı doğal olarak görmez.
         add_dependencies(femcae_selection_manager_test
             femcae_viewport_selection_test
+            femcae_geometry_window_selection_test
             femcae_mesh_viewport_selection_test
         )
     endif()
