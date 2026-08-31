@@ -3,9 +3,9 @@
 // Dynamics26 — proje nesne grafiği.
 //
 // Bu sınıf model ağacının TEK sahibidir. Mühendislik verisi (CAD belgesi,
-// FEM mesh, sonuç veritabanı) servislerde yaşar; burada yalnız nesne kimliği,
-// türü, adı, ebeveyni ve durumu tutulur. Böylece ağaç görünümü ile mühendislik
-// durumu birbirine karışmaz.
+// FEM mesh, sonuç veritabanı, Named Selection scope collection) servislerde
+// yaşar; burada yalnız nesne kimliği, türü, adı, ebeveyni ve durumu tutulur.
+// Böylece ağaç görünümü ile mühendislik durumu birbirine karışmaz.
 
 #include "ProjectTypes.h"
 
@@ -79,6 +79,7 @@ public:
     [[nodiscard]] ObjectId sectionsNode() const noexcept { return sections_; }
     [[nodiscard]] ObjectId connectionsNode() const noexcept { return connections_; }
     [[nodiscard]] ObjectId meshNode() const noexcept { return mesh_; }
+    [[nodiscard]] ObjectId namedSelectionsNode() const noexcept { return namedSelections_; }
 
     // Verilen düğümden yukarı doğru ilk eşleşen türü bulur (ör. bir sonuç
     // nesnesinden sahibi olan analize çıkmak).
@@ -106,6 +107,7 @@ private:
     ObjectId sections_{InvalidObjectId};
     ObjectId connections_{InvalidObjectId};
     ObjectId mesh_{InvalidObjectId};
+    ObjectId namedSelections_{InvalidObjectId};
 
     void detach(ObjectId id);
     void collectSubtree(ObjectId id, QVector<ObjectId> &out) const;
