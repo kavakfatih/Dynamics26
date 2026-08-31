@@ -1,11 +1,12 @@
 #pragma once
 
-// Dynamics26 Alpha.3.2 — viewport selection input state machine.
+// Dynamics26 Alpha.3.4 — viewport selection input state machine.
 //
 // Bu katman kamera hareketi YAPMAZ ve VTK pick YAPMAZ. Qt pointer/key olayından
 // "hover / commit / clear / secondary-context" niyetini üretir. Navigation
 // katmanı kamera jestlerini işler; bu state machine yalnız selection'a kalan
-// semantiği sınıflandırır.
+// semantiği sınıflandırır. Geometry ve Mesh bridge'leri ayni state machine'i
+// kullanir; baglam degisiminde yarim gesture acikca iptal edilir.
 
 #include "../core/SelectionTypes.h"
 
@@ -102,8 +103,7 @@ public:
         }
 
         case SelectionPointerEventType::Leave:
-            leftPressed_ = false;
-            rightPressed_ = false;
+            cancelPointerGesture();
             return SelectionInputAction{SelectionInputActionType::ClearPreselection, {},
                                         SelectionOperation::Clear};
         }
@@ -114,11 +114,17 @@ public:
                                                                 const Qt::KeyboardModifiers modifiers)
     {
         if (key == Qt::Key_Escape && modifiers == Qt::NoModifier) {
-            leftPressed_ = false;
-            rightPressed_ = false;
+            cancelPointerGesture();
             return SelectionInputAction{SelectionInputActionType::Clear, {}, SelectionOperation::Clear};
         }
         return std::nullopt;
+    }
+
+    void cancelPointerGesture() noexcept
+    {
+        leftPressed_ = false;
+        rightPressed_ = false;
+        leftPressModifiers_ = Qt::NoModifier;
     }
 
     [[nodiscard]] bool clickInProgress() const noexcept { return leftPressed_ || rightPressed_; }
