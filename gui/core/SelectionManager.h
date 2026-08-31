@@ -27,6 +27,12 @@ public:
 
     // Returns true only when committed selection state changes.
     bool apply(const SelectionItem &item, SelectionOperation operation);
+
+    // Alpha.3.5 window/area selection birden fazla engineering entity dondurur.
+    // Batch apply state'i atomik degistirir ve en fazla bir selectionChanged
+    // sinyali uretir; VTK/display primitive sirasi document Undo tarihcesine
+    // sizdirilmaz.
+    bool apply(const QVector<SelectionItem> &items, SelectionOperation operation);
     bool clear();
 
     // Source identity lifecycle guard'lari birbirinden bağımsızdır. CAD belge

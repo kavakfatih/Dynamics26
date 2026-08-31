@@ -116,61 +116,112 @@ bool SelectionManager::clear()
 
 bool SelectionManager::apply(const SelectionItem &item, const SelectionOperation operation)
 {
+    return apply(QVector<SelectionItem>{item}, operation);
+}
+
+bool SelectionManager::apply(const QVector<SelectionItem> &items,
+                             const SelectionOperation operation)
+{
     if (operation == SelectionOperation::Clear) {
         return clear();
     }
-    if (!policy_.accepts(item)) {
-        return false;
+
+    QVector<SelectionItem> accepted;
+    accepted.reserve(items.size());
+    for (const SelectionItem &item : items) {
+        if (!policy_.accepts(item)) {
+            continue;
+        }
+
+        int duplicate = -1;
+        for (qsizetype i = 0; i < accepted.size(); ++i) {
+            if (accepted[i].sameIdentity(item)) {
+                duplicate = static_cast<int>(i);
+                break;
+            }
+        }
+        if (duplicate >= 0) {
+            // Ayni engineering identity area selector'dan birden fazla display
+            // primitive ile gelebilir. Kimligi tek tut, metadata'yi tazele.
+            accepted[duplicate] = item;
+        } else {
+            accepted.push_back(item);
+        }
+    }
+
+    if (accepted.isEmpty()) {
+        // Empty window Replace, profesyonel CAE davranisinda selection clear'dir.
+        // Add/Remove/Toggle empty hit ise mevcut selection'i korur.
+        return operation == SelectionOperation::Replace ? clear() : false;
     }
 
     const QVector<SelectionItem> oldItems = items_;
     const std::optional<SelectionItem> oldPrimary = primary_;
-    const int existing = indexOfIdentity(item);
 
     switch (operation) {
     case SelectionOperation::Replace:
-        items_ = {item};
-        primary_ = item;
+        if (!policy_.allowMultiple && accepted.size() > 1) {
+            items_ = {accepted.back()};
+        } else {
+            items_ = accepted;
+        }
+        primary_ = items_.isEmpty() ? std::optional<SelectionItem>{}
+                                    : std::optional<SelectionItem>{items_.back()};
         break;
 
     case SelectionOperation::Add:
-        if (!policy_.allowMultiple) {
-            items_ = {item};
-        } else if (existing >= 0) {
-            // Kimlik tekrar eklenmez; guncel revision/parent metadata'si yenilenir.
-            items_[existing] = item;
-        } else {
-            items_.push_back(item);
+        for (const SelectionItem &item : accepted) {
+            const int existing = indexOfIdentity(item);
+            if (!policy_.allowMultiple) {
+                items_ = {item};
+            } else if (existing >= 0) {
+                items_[existing] = item;
+            } else {
+                items_.push_back(item);
+            }
+            primary_ = item;
         }
-        primary_ = item;
         break;
 
     case SelectionOperation::Remove:
-        if (existing < 0) {
-            return false;
-        }
-        items_.removeAt(existing);
-        if (oldPrimary.has_value() && oldPrimary->sameIdentity(item)) {
-            primary_.reset();
+        for (const SelectionItem &item : accepted) {
+            const int existing = indexOfIdentity(item);
+            if (existing < 0) {
+                continue;
+            }
+            items_.removeAt(existing);
+            if (primary_.has_value() && primary_->sameIdentity(item)) {
+                primary_.reset();
+            }
         }
         normalizePrimary();
         break;
 
-    case SelectionOperation::Toggle:
-        if (existing >= 0) {
-            items_.removeAt(existing);
-            if (oldPrimary.has_value() && oldPrimary->sameIdentity(item)) {
-                primary_.reset();
+    case SelectionOperation::Toggle: {
+        std::optional<SelectionItem> lastAdded;
+        for (const SelectionItem &item : accepted) {
+            const int existing = indexOfIdentity(item);
+            if (existing >= 0) {
+                items_.removeAt(existing);
+                if (primary_.has_value() && primary_->sameIdentity(item)) {
+                    primary_.reset();
+                }
+                continue;
             }
-            normalizePrimary();
-        } else if (!policy_.allowMultiple) {
-            items_ = {item};
-            primary_ = item;
+            if (!policy_.allowMultiple) {
+                items_ = {item};
+            } else {
+                items_.push_back(item);
+            }
+            lastAdded = item;
+        }
+        if (lastAdded.has_value()) {
+            primary_ = lastAdded;
         } else {
-            items_.push_back(item);
-            primary_ = item;
+            normalizePrimary();
         }
         break;
+    }
 
     case SelectionOperation::Clear:
         break;

@@ -152,6 +152,46 @@ void managerStateTests()
           "selection and preselection changes publish explicit signals");
 }
 
+void batchSelectionTests()
+{
+    d26::SelectionManager manager;
+    manager.setPolicy(d26::SelectionPolicy::preset(d26::SelectionPolicyPreset::SurfaceScope));
+
+    int selectionSignals = 0;
+    QObject::connect(&manager, &d26::SelectionManager::selectionChanged,
+                     [&selectionSignals] { ++selectionSignals; });
+
+    const auto face1 = face(6101, 6001, 19);
+    const auto face2 = face(6102, 6001, 19);
+    const auto face3 = face(6103, 6001, 19);
+
+    check(manager.apply(QVector<d26::SelectionItem>{face1, face2, face1},
+                        d26::SelectionOperation::Replace)
+              && manager.items().size() == 2 && manager.items()[0] == face1
+              && manager.items()[1] == face2 && manager.primary() == face2
+              && selectionSignals == 1,
+          "batch Replace de-duplicates engineering identity and emits one selectionChanged");
+
+    check(manager.apply(QVector<d26::SelectionItem>{face3}, d26::SelectionOperation::Add)
+              && manager.items().size() == 3 && manager.primary() == face3
+              && selectionSignals == 2,
+          "batch Add appends area hits atomically and keeps the newest hit primary");
+
+    check(manager.apply(QVector<d26::SelectionItem>{face1, face3},
+                        d26::SelectionOperation::Toggle)
+              && manager.items().size() == 1 && manager.items().front() == face2
+              && manager.primary() == face2 && selectionSignals == 3,
+          "batch Toggle removes every matching identity in one state transition");
+
+    check(manager.apply(QVector<d26::SelectionItem>{}, d26::SelectionOperation::Replace)
+              && manager.items().isEmpty() && !manager.primary().has_value()
+              && selectionSignals == 4,
+          "empty window Replace clears committed selection once");
+    check(!manager.apply(QVector<d26::SelectionItem>{}, d26::SelectionOperation::Add)
+              && selectionSignals == 4,
+          "empty window Add preserves committed selection and emits no signal noise");
+}
+
 void edgeVertexStateTests()
 {
     d26::SelectionManager manager;
@@ -310,8 +350,13 @@ void selectionInputContractTests()
     (void)controller.routePointer(press);
     release.position = QPointF(40.0, 30.0);
     const auto draggedRelease = controller.routePointer(release);
-    check(!draggedRelease.has_value() && !controller.clickInProgress(),
-          "pointer travel beyond click tolerance does not commit selection");
+    check(draggedRelease.has_value()
+              && draggedRelease->type == d26::SelectionInputActionType::WindowCommit
+              && draggedRelease->anchor == QPointF(30.0, 30.0)
+              && draggedRelease->position == QPointF(40.0, 30.0)
+              && draggedRelease->operation == d26::SelectionOperation::Replace
+              && !controller.clickInProgress(),
+          "pointer travel beyond click tolerance emits window-selection intent");
 
     press.position = QPointF(50.0, 50.0);
     press.modifiers = Qt::AltModifier;
@@ -394,6 +439,7 @@ int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
     managerStateTests();
+    batchSelectionTests();
     edgeVertexStateTests();
     singleSelectionAndDomainTests();
     scopeContractTests();

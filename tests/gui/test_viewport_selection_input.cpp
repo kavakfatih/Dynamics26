@@ -76,6 +76,29 @@ int main(int argc, char **argv)
           "physical Control click remains an ordinary Replace selection");
 
     press.position = QPointF(20.0, 20.0);
+    press.modifiers = Qt::NoModifier;
+    (void)controller.routePointer(press);
+    release.position = QPointF(36.0, 31.0);
+    const auto windowCommit = controller.routePointer(release);
+    check(windowCommit.has_value()
+              && windowCommit->type == SelectionInputActionType::WindowCommit
+              && windowCommit->anchor == QPointF(20.0, 20.0)
+              && windowCommit->position == QPointF(36.0, 31.0)
+              && windowCommit->operation == SelectionOperation::Replace,
+          "left drag beyond click tolerance emits WindowCommit with both corners");
+
+    press.position = QPointF(25.0, 25.0);
+    press.modifiers = Qt::ShiftModifier;
+    (void)controller.routePointer(press);
+    release.position = QPointF(45.0, 40.0);
+    release.modifiers = Qt::NoModifier;
+    const auto shiftWindow = controller.routePointer(release);
+    check(shiftWindow.has_value()
+              && shiftWindow->type == SelectionInputActionType::WindowCommit
+              && shiftWindow->operation == SelectionOperation::Add,
+          "window selection preserves Shift Add intent from press time");
+
+    press.position = QPointF(50.0, 50.0);
     press.modifiers = Qt::AltModifier;
     check(!controller.routePointer(press).has_value() && !controller.clickInProgress(),
           "Option-left remains reserved for navigation");

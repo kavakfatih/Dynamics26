@@ -1,12 +1,12 @@
 #pragma once
 
-// Dynamics26 Alpha.3.4 — viewport selection input state machine.
+// Dynamics26 Alpha.3.5 — viewport selection input state machine.
 //
-// Bu katman kamera hareketi YAPMAZ ve VTK pick YAPMAZ. Qt pointer/key olayından
-// "hover / commit / clear / secondary-context" niyetini üretir. Navigation
-// katmanı kamera jestlerini işler; bu state machine yalnız selection'a kalan
-// semantiği sınıflandırır. Geometry ve Mesh bridge'leri ayni state machine'i
-// kullanir; baglam degisiminde yarim gesture acikca iptal edilir.
+// Bu katman kamera hareketi YAPMAZ ve VTK pick YAPMAZ. Qt pointer/key olayindan
+// hover / click-commit / window-commit / clear / secondary-context niyetini
+// uretir. Navigation katmani kamera jestlerini işler; bu state machine yalnız
+// selection'a kalan semantigi siniflandirir. Geometry ve Mesh bridge'leri ayni
+// state machine'i kullanir; baglam degisiminde yarim gesture acikca iptal edilir.
 
 #include "../core/SelectionTypes.h"
 
@@ -36,6 +36,7 @@ struct SelectionPointerInput {
 enum class SelectionInputActionType {
     Hover,
     Commit,
+    WindowCommit,
     ContextMenu,
     Clear,
     ClearPreselection
@@ -45,6 +46,8 @@ struct SelectionInputAction {
     SelectionInputActionType type{SelectionInputActionType::Hover};
     QPointF position;
     SelectionOperation operation{SelectionOperation::Replace};
+    // WindowCommit icin press baslangici. Diger action tiplerinde default kalir.
+    QPointF anchor;
 };
 
 class ViewportSelectionController final
@@ -90,16 +93,18 @@ public:
             }
             leftPressed_ = false;
             const QPointF delta = input.position - leftPressPosition_;
-            if (std::abs(delta.x()) > clickTolerance_ || std::abs(delta.y()) > clickTolerance_) {
-                return std::nullopt;
-            }
+
             // Press anındaki modifier niyeti kullanılır. Pointer release sırasında
             // kullanıcının modifier'ı bırakması selection semantiğini değiştirmez.
             if (leftPressModifiers_.testFlag(Qt::AltModifier)) {
                 return std::nullopt;
             }
-            return SelectionInputAction{SelectionInputActionType::Commit, input.position,
-                                        operationForModifiers(leftPressModifiers_)};
+            const SelectionOperation operation = operationForModifiers(leftPressModifiers_);
+            if (std::abs(delta.x()) > clickTolerance_ || std::abs(delta.y()) > clickTolerance_) {
+                return SelectionInputAction{SelectionInputActionType::WindowCommit, input.position,
+                                            operation, leftPressPosition_};
+            }
+            return SelectionInputAction{SelectionInputActionType::Commit, input.position, operation};
         }
 
         case SelectionPointerEventType::Leave:
@@ -133,8 +138,8 @@ public:
     {
         // Qt'nin varsayılan Apple platform eşlemesinde fiziksel Command tuşu
         // Qt::ControlModifier, fiziksel Control tuşu ise Qt::MetaModifier olarak
-        // raporlanır. Dynamics26 selection kontratı yalnız Command+Click'i Toggle
-        // kabul eder; fiziksel Control+Click sessizce aynı komut gibi davranmaz.
+        // raporlanır. Dynamics26 selection kontratı yalnız Command+Click/Drag'i
+        // Toggle kabul eder; fiziksel Control sessizce ayni komut gibi davranmaz.
         if (modifiers.testFlag(Qt::ControlModifier)) {
             return SelectionOperation::Toggle;
         }
