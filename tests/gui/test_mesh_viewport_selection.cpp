@@ -1,3 +1,4 @@
+#include "viewport/MeshHardwareSelector.h"
 #include "viewport/MeshSelectionScene.h"
 
 #include <QCoreApplication>
@@ -21,6 +22,7 @@
 #include <cstddef>
 #include <iostream>
 #include <optional>
+#include <set>
 #include <string>
 
 namespace {
@@ -113,6 +115,32 @@ vtkSmartPointer<vtkActor> makeNodeActor(const d26::MeshSelectionScene &scene)
     vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
     actor->SetMapper(mapper);
     actor->GetProperty()->SetPointSize(12.0);
+    actor->PickableOn();
+    return actor;
+}
+
+vtkSmartPointer<vtkActor> makeDecoyActor()
+{
+    vtkNew<vtkPoints> points;
+    points->InsertNextPoint(4.0, 0.0, 0.5);
+    points->InsertNextPoint(5.0, 0.0, 0.5);
+    points->InsertNextPoint(5.0, 1.0, 0.5);
+    points->InsertNextPoint(4.0, 1.0, 0.5);
+
+    vtkNew<vtkCellArray> cells;
+    const vtkIdType ids[4] = {0, 1, 2, 3};
+    cells->InsertNextCell(4, ids);
+
+    vtkNew<vtkPolyData> data;
+    data->SetPoints(points);
+    data->SetPolys(cells);
+
+    vtkNew<vtkPolyDataMapper> mapper;
+    mapper->SetInputData(data);
+    mapper->ScalarVisibilityOff();
+
+    vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+    actor->SetMapper(mapper);
     actor->PickableOn();
     return actor;
 }
@@ -245,7 +273,7 @@ void pickerTests()
     renderer->AddActor(nodeActor);
     window->Render();
 
-    // Isometric camera prevents front/back nodes with equal x-y coordinates
+    // Isometric camera prevents most front/back nodes with equal x-y coordinates
     // from projecting to the same display location.
     renderer->GetActiveCamera()->SetPosition(3.0, 3.0, 3.0);
     renderer->GetActiveCamera()->SetFocalPoint(0.5, 0.5, 0.5);
@@ -305,13 +333,129 @@ void pickerTests()
     }
 }
 
+void hardwareWindowTests()
+{
+    constexpr quint64 generation = 13;
+    const auto mesh = makeMesh();
+    d26::MeshSelectionScene scene;
+    check(scene.set(mesh, generation) && scene.complete(),
+          "generated HEX8 mesh builds complete hardware-window provenance scene");
+    if (!scene.complete()) {
+        return;
+    }
+
+    vtkNew<vtkRenderer> renderer;
+    vtkNew<vtkRenderWindow> window;
+    window->SetOffScreenRendering(1);
+    window->SetSize(640, 480);
+    window->AddRenderer(renderer);
+
+    const auto surfaceActor = makeBoundaryActor(scene);
+    renderer->AddActor(surfaceActor);
+    renderer->GetActiveCamera()->SetPosition(3.0, 3.0, 3.0);
+    renderer->GetActiveCamera()->SetFocalPoint(0.5, 0.5, 0.5);
+    renderer->GetActiveCamera()->SetViewUp(0.0, 0.0, 1.0);
+    renderer->GetActiveCamera()->ParallelProjectionOn();
+    renderer->ResetCamera();
+    renderer->ResetCameraClippingRange();
+    window->Render();
+
+    const std::array<unsigned int, 4> fullArea{0U, 0U, 639U, 479U};
+    const auto facets = d26::selectVisibleMeshArea(renderer, surfaceActor, scene,
+                                                    d26::SelectionKind::Facet, fullArea);
+    check(!facets.isEmpty(),
+          "vtkHardwareSelector returns visible FEM boundary Facets in a full window");
+    bool facetIdsAreCanonical = !facets.isEmpty();
+    for (const d26::SelectionItem &item : facets) {
+        bool found = false;
+        for (const auto &facet : mesh.boundaryFacets) {
+            if (facet.id == item.meshEntityId) {
+                found = true;
+                break;
+            }
+        }
+        facetIdsAreCanonical = facetIdsAreCanonical && found
+            && item.kind == d26::SelectionKind::Facet
+            && item.sourceRevision == generation;
+    }
+    check(facetIdsAreCanonical,
+          "hardware-selected display cells resolve only to canonical Facet MeshEntityIds");
+
+    const auto elements = d26::selectVisibleMeshArea(renderer, surfaceActor, scene,
+                                                      d26::SelectionKind::Element, fullArea);
+    std::set<femcae::meshing::MeshEntityId> uniqueElements;
+    bool elementIdsAreCanonical = !elements.isEmpty();
+    for (const d26::SelectionItem &item : elements) {
+        uniqueElements.insert(item.meshEntityId);
+        elementIdsAreCanonical = elementIdsAreCanonical
+            && mesh.findElement(item.meshEntityId) != nullptr
+            && item.kind == d26::SelectionKind::Element
+            && item.sourceRevision == generation;
+    }
+    check(elementIdsAreCanonical && uniqueElements.size() == static_cast<std::size_t>(elements.size()),
+          "Element window selection de-duplicates multiple visible facets of the same owner Element");
+
+    renderer->RemoveActor(surfaceActor);
+    const auto nodeActor = makeNodeActor(scene);
+    renderer->AddActor(nodeActor);
+    renderer->ResetCamera();
+    renderer->ResetCameraClippingRange();
+    window->Render();
+
+    const auto nodes = d26::selectVisibleMeshArea(renderer, nodeActor, scene,
+                                                   d26::SelectionKind::Node, fullArea);
+    bool nodeIdsAreCanonical = !nodes.isEmpty();
+    for (const d26::SelectionItem &item : nodes) {
+        nodeIdsAreCanonical = nodeIdsAreCanonical
+            && mesh.findNode(item.meshEntityId) != nullptr
+            && item.kind == d26::SelectionKind::Node
+            && item.sourceRevision == generation;
+    }
+    check(nodeIdsAreCanonical,
+          "hardware-selected display points resolve only to canonical Node MeshEntityIds");
+    if (!nodes.isEmpty()) {
+        check(nodes.front().meshEntityId >= 10,
+              "hardware point index is not exposed as the FEM Node identity");
+    }
+
+    // PROP filter regression: decoy cell ayni renderer'da secim alanina girer,
+    // fakat hedef surfaceActor olmadigi icin provenance lookup'a dusmemelidir.
+    renderer->RemoveActor(nodeActor);
+    renderer->AddActor(surfaceActor);
+    const auto decoyActor = makeDecoyActor();
+    renderer->AddActor(decoyActor);
+    renderer->ResetCamera();
+    renderer->ResetCameraClippingRange();
+    window->Render();
+
+    const auto decoyCentre = worldToDisplay(renderer, {4.5, 0.5, 0.5});
+    const unsigned int dx = static_cast<unsigned int>(std::clamp(decoyCentre[0], 0.0, 639.0));
+    const unsigned int dy = static_cast<unsigned int>(std::clamp(decoyCentre[1], 0.0, 479.0));
+    const unsigned int xmin = dx > 12U ? dx - 12U : 0U;
+    const unsigned int ymin = dy > 12U ? dy - 12U : 0U;
+    const unsigned int xmax = std::min(639U, dx + 12U);
+    const unsigned int ymax = std::min(479U, dy + 12U);
+    const auto wrongPropArea = d26::selectVisibleMeshArea(renderer, surfaceActor, scene,
+                                                           d26::SelectionKind::Facet,
+                                                           {xmin, ymin, xmax, ymax});
+    check(wrongPropArea.isEmpty(),
+          "hardware selector ignores visible cells that belong to a different VTK Prop");
+
+    const auto empty = d26::selectVisibleMeshArea(renderer, surfaceActor, scene,
+                                                   d26::SelectionKind::Facet,
+                                                   {0U, 0U, 1U, 1U});
+    check(empty.isEmpty(),
+          "background-only hardware window produces an empty engineering selection");
+}
+
 } // namespace
 
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
     pickerTests();
-    std::cout << (failures == 0 ? "FEM VTK picker provenance PASS\n"
-                                : "FEM VTK picker provenance FAIL\n");
+    hardwareWindowTests();
+    std::cout << (failures == 0 ? "FEM VTK picker/window provenance PASS\n"
+                                : "FEM VTK picker/window provenance FAIL\n");
     return failures == 0 ? 0 : 1;
 }
