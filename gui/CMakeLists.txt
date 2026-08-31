@@ -53,9 +53,12 @@ set(FEMCAE_GUI_SOURCES
     viewport/Dynamics26InteractorStyle.h
     viewport/GeometrySelectionScene.h
     viewport/GeometryTopologyScene.h
+    viewport/MeshSelectionScene.h
     viewport/ViewportSelectionController.h
     viewport/ViewportSelectionBridge.cpp
     viewport/ViewportSelectionBridge.h
+    viewport/ViewportMeshSelectionBridge.cpp
+    viewport/ViewportMeshSelectionBridge.h
     viewport/ViewportWidget.cpp
     viewport/ViewportWidget.h
 
@@ -275,7 +278,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(femcae_selection_manager_test PRIVATE Qt6::Core)
     add_test(NAME gui.selection_manager COMMAND femcae_selection_manager_test)
-    set_tests_properties(gui.selection_manager PROPERTIES LABELS "gui;selection;alpha32;alpha33")
+    set_tests_properties(gui.selection_manager PROPERTIES LABELS "gui;selection;alpha32;alpha33;alpha34")
 
     add_executable(femcae_scope_reference_test
         core/SelectionTypes.h
@@ -300,12 +303,30 @@ if(BUILD_TESTING)
     )
     target_link_libraries(femcae_viewport_selection_input_test PRIVATE Qt6::Core)
     add_test(NAME gui.viewport_selection_input COMMAND femcae_viewport_selection_input_test)
-    set_tests_properties(gui.viewport_selection_input PROPERTIES LABELS "gui;selection;alpha32;alpha33")
+    set_tests_properties(gui.viewport_selection_input PROPERTIES LABELS "gui;selection;alpha32;alpha33;alpha34")
+
+    add_executable(femcae_mesh_selection_test
+        core/SelectionTypes.h
+        core/SelectionPolicy.h
+        core/SelectionManager.cpp
+        core/SelectionManager.h
+        viewport/MeshSelectionScene.h
+        "${PROJECT_SOURCE_DIR}/tests/gui/test_mesh_selection.cpp"
+    )
+    target_include_directories(femcae_mesh_selection_test PRIVATE
+        "${PROJECT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(femcae_mesh_selection_test PRIVATE Qt6::Core femcae_meshing)
+    add_test(NAME gui.mesh_selection COMMAND femcae_mesh_selection_test)
+    set_tests_properties(gui.mesh_selection PROPERTIES LABELS "gui;selection;mesh;alpha34")
+
     # Trusted fast gate femcae_selection_manager_test hedefini açıkça build eder.
     # Dependency sayesinde selection contract testlerinin tamami ayni gate icinde binary olarak üretilir.
     add_dependencies(femcae_selection_manager_test
         femcae_scope_reference_test
         femcae_viewport_selection_input_test
+        femcae_mesh_selection_test
     )
 
     if(FEMCAE_GUI_WITH_VTK AND VTK_FOUND)
