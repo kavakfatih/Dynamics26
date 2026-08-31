@@ -1,20 +1,22 @@
 #include "femcae/geometry/OcctStepImporter.h"
 
-#include <stdexcept>
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #if defined(FEMCAE_GEOMETRY_HAS_OCCT)
-#include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepBndLib.hxx>
-#include <Bnd_Box.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
+#include <Bnd_Box.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Poly_Triangulation.hxx>
 #include <Precision.hxx>
+#include <Quantity_Color.hxx>
 #include <STEPCAFControl_Reader.hxx>
 #include <TCollection_AsciiString.hxx>
 #include <TDF_LabelSequence.hxx>
@@ -22,8 +24,10 @@
 #include <TDocStd_Document.hxx>
 #include <TopAbs_Orientation.hxx>
 #include <TopAbs_ShapeEnum.hxx>
+#include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopLoc_Location.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
@@ -31,7 +35,6 @@
 #include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
-#include <Quantity_Color.hxx>
 #endif
 
 namespace femcae::geometry {
@@ -41,10 +44,14 @@ public:
 #if defined(FEMCAE_GEOMETRY_HAS_OCCT)
     std::unordered_map<GeometryEntityId, TopoDS_Shape> shapes;
     std::unordered_map<GeometryEntityId, GeometryEntityId> faceParents;
-    // Her body icin OCCT explorer sirasi ile kaydedilen kararlı Face kimlikleri.
-    // Tessellation ayni body shape'i uzerinden yurudugu icin triangle provenance
-    // bu liste ve IsSame dogrulamasi ile gercek CAD Face'e baglanir.
+
+    // Alpha.3.3: Body altindaki CAD topology kimlikleri explorer tekrarlarina
+    // gore degil, TopExp::MapShapes ile uretilen canonical/unique body-local
+    // subshape map'lerine gore kaydedilir. Face/Edge/Vertex display provenance
+    // bu GeometryEntityId -> TopoDS_Shape bagini kullanir.
     std::unordered_map<GeometryEntityId, std::vector<GeometryEntityId>> bodyFaces;
+    std::unordered_map<GeometryEntityId, std::vector<GeometryEntityId>> bodyEdges;
+    std::unordered_map<GeometryEntityId, std::vector<GeometryEntityId>> bodyVertices;
     std::unordered_map<GeometryEntityId, std::uint64_t> sourceRevisions;
 #endif
 };
@@ -74,7 +81,10 @@ StepImportResult OcctStepImporter::importFile(const std::string& path, GeometryD
         impl_->shapes.clear();
         impl_->faceParents.clear();
         impl_->bodyFaces.clear();
+        impl_->bodyEdges.clear();
+        impl_->bodyVertices.clear();
         impl_->sourceRevisions.clear();
+
         Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
         Handle(TDocStd_Document) xdeDoc;
         app->NewDocument("MDTV-XCAF", xdeDoc);
@@ -98,6 +108,58 @@ StepImportResult OcctStepImporter::importFile(const std::string& path, GeometryD
         shapeTool->GetFreeShapes(roots);
 
         document.clear();
+
+        // Solid ve shell/surface fallback ayni topology registration yolunu
+        // kullanir. Boylece bir STEP'in temsil bicimi degisse bile Body altinda
+        // Face/Edge/Vertex entity completeness farkli davranmaz.
+        const auto registerBodyTopology = [&](const GeometryEntityId bodyId,
+                                              const TopoDS_Shape& bodyShape,
+                                              const std::string& bodyKey) {
+            impl_->shapes.emplace(bodyId, bodyShape);
+
+            TopTools_IndexedMapOfShape faceMap;
+            TopTools_IndexedMapOfShape edgeMap;
+            TopTools_IndexedMapOfShape vertexMap;
+            TopExp::MapShapes(bodyShape, TopAbs_FACE, faceMap);
+            TopExp::MapShapes(bodyShape, TopAbs_EDGE, edgeMap);
+            TopExp::MapShapes(bodyShape, TopAbs_VERTEX, vertexMap);
+
+            auto& bodyFaces = impl_->bodyFaces[bodyId];
+            auto& bodyEdges = impl_->bodyEdges[bodyId];
+            auto& bodyVertices = impl_->bodyVertices[bodyId];
+            bodyFaces.reserve(static_cast<std::size_t>(faceMap.Extent()));
+            bodyEdges.reserve(static_cast<std::size_t>(edgeMap.Extent()));
+            bodyVertices.reserve(static_cast<std::size_t>(vertexMap.Extent()));
+
+            for (Standard_Integer ordinal = 1; ordinal <= faceMap.Extent(); ++ordinal) {
+                const std::string key = bodyKey + "/face/" + std::to_string(ordinal);
+                const auto id = document.addEntity(GeometryEntityKind::Face, bodyId,
+                                                   "Face " + std::to_string(ordinal), key, path);
+                impl_->shapes.emplace(id, faceMap.FindKey(ordinal));
+                impl_->faceParents.emplace(id, bodyId);
+                bodyFaces.push_back(id);
+                ++result.faceCount;
+            }
+
+            for (Standard_Integer ordinal = 1; ordinal <= edgeMap.Extent(); ++ordinal) {
+                const std::string key = bodyKey + "/edge/" + std::to_string(ordinal);
+                const auto id = document.addEntity(GeometryEntityKind::Edge, bodyId,
+                                                   "Edge " + std::to_string(ordinal), key, path);
+                impl_->shapes.emplace(id, edgeMap.FindKey(ordinal));
+                bodyEdges.push_back(id);
+                ++result.edgeCount;
+            }
+
+            for (Standard_Integer ordinal = 1; ordinal <= vertexMap.Extent(); ++ordinal) {
+                const std::string key = bodyKey + "/vertex/" + std::to_string(ordinal);
+                const auto id = document.addEntity(GeometryEntityKind::Vertex, bodyId,
+                                                   "Vertex " + std::to_string(ordinal), key, path);
+                impl_->shapes.emplace(id, vertexMap.FindKey(ordinal));
+                bodyVertices.push_back(id);
+                ++result.vertexCount;
+            }
+        };
+
         for (Standard_Integer rootIndex = 1; rootIndex <= roots.Length(); ++rootIndex) {
             const TDF_Label& rootLabel = roots.Value(rootIndex);
             TopoDS_Shape rootShape;
@@ -129,57 +191,19 @@ StepImportResult OcctStepImporter::importFile(const std::string& path, GeometryD
                 const std::string bodyKey = rootKey + "/body/" + std::to_string(solidOrdinal);
                 const auto bodyId = document.addEntity(GeometryEntityKind::Body, assemblyId,
                                                        "Body " + std::to_string(solidOrdinal), bodyKey, path);
-                impl_->shapes.emplace(bodyId, bodyShape);
-                auto& orderedFaces = impl_->bodyFaces[bodyId];
                 ++result.bodyCount;
-
-                std::size_t faceOrdinal = 0;
-                for (TopExp_Explorer faceIt(bodyShape, TopAbs_FACE); faceIt.More(); faceIt.Next()) {
-                    ++faceOrdinal;
-                    const std::string faceKey = bodyKey + "/face/" + std::to_string(faceOrdinal);
-                    const auto faceId = document.addEntity(GeometryEntityKind::Face, bodyId,
-                                       "Face " + std::to_string(faceOrdinal), faceKey, path);
-                    impl_->shapes.emplace(faceId, faceIt.Current());
-                    impl_->faceParents.emplace(faceId, bodyId);
-                    orderedFaces.push_back(faceId);
-                    ++result.faceCount;
-                }
-                std::size_t edgeOrdinal = 0;
-                for (TopExp_Explorer edgeIt(bodyShape, TopAbs_EDGE); edgeIt.More(); edgeIt.Next()) {
-                    ++edgeOrdinal;
-                    const std::string edgeKey = bodyKey + "/edge/" + std::to_string(edgeOrdinal);
-                    document.addEntity(GeometryEntityKind::Edge, bodyId,
-                                       "Edge " + std::to_string(edgeOrdinal), edgeKey, path);
-                    ++result.edgeCount;
-                }
-                std::size_t vertexOrdinal = 0;
-                for (TopExp_Explorer vertexIt(bodyShape, TopAbs_VERTEX); vertexIt.More(); vertexIt.Next()) {
-                    ++vertexOrdinal;
-                    const std::string vertexKey = bodyKey + "/vertex/" + std::to_string(vertexOrdinal);
-                    document.addEntity(GeometryEntityKind::Vertex, bodyId,
-                                       "Vertex " + std::to_string(vertexOrdinal), vertexKey, path);
-                    ++result.vertexCount;
-                }
+                registerBodyTopology(bodyId, bodyShape, bodyKey);
             }
 
-            // STEP dosyasi shell/surface olarak gelebilir; solid yoksa root'u body olarak sakla.
+            // STEP dosyasi solid yerine shell/surface/face olarak gelebilir.
+            // Fallback Body de solid Body ile ayni canonical Face/Edge/Vertex
+            // registration kontratini kullanir.
             if (solidOrdinal == 0) {
                 const std::string bodyKey = rootKey + "/body/root-shape";
-                const auto bodyId = document.addEntity(GeometryEntityKind::Body, assemblyId, rootName, bodyKey, path);
-                impl_->shapes.emplace(bodyId, rootShape);
-                auto& orderedFaces = impl_->bodyFaces[bodyId];
+                const auto bodyId = document.addEntity(GeometryEntityKind::Body, assemblyId,
+                                                       rootName, bodyKey, path);
                 ++result.bodyCount;
-                std::size_t faceOrdinal = 0;
-                for (TopExp_Explorer faceIt(rootShape, TopAbs_FACE); faceIt.More(); faceIt.Next()) {
-                    ++faceOrdinal;
-                    const auto faceId = document.addEntity(GeometryEntityKind::Face, bodyId,
-                                       "Face " + std::to_string(faceOrdinal),
-                                       bodyKey + "/face/" + std::to_string(faceOrdinal), path);
-                    impl_->shapes.emplace(faceId, faceIt.Current());
-                    impl_->faceParents.emplace(faceId, bodyId);
-                    orderedFaces.push_back(faceId);
-                    ++result.faceCount;
-                }
+                registerBodyTopology(bodyId, rootShape, bodyKey);
             }
         }
 
@@ -187,14 +211,16 @@ StepImportResult OcctStepImporter::importFile(const std::string& path, GeometryD
             result.message = "STEP transfer edildi fakat body/surface geometry bulunamadi.";
             return result;
         }
-        // Display tessellation CAD dokumaninin hangi revision'undan uretildigini
-        // tasir. Boylece GUI eski triangulation'i solver mesh veya guncel CAD
-        // sanmaz; provenance yalniz CAD katmaninda kalir.
+
+        // Display topology verisi CAD dokumaninin hangi revision'undan
+        // uretildigini tasir. Edge/Vertex dahil butun cache'lenmis topology
+        // entity'leri ayni import revision'ina baglanir.
         const auto importedRevision = document.revision();
         for (const auto& [geometryId, ignoredShape] : impl_->shapes) {
             (void)ignoredShape;
             impl_->sourceRevisions[geometryId] = importedRevision;
         }
+
         result.success = true;
         result.message = "OK";
         return result;
@@ -234,16 +260,26 @@ TopologyTessellation OcctStepImporter::tessellateWithTopology(const GeometryEnti
     const auto rev = impl_->sourceRevisions.find(bodyId);
     if (rev != impl_->sourceRevisions.end()) out.display.sourceRevision = rev->second;
 
-    std::size_t faceOrdinal = 0;
-    for (TopExp_Explorer faceIt(shape, TopAbs_FACE); faceIt.More(); faceIt.Next(), ++faceOrdinal) {
-        if (faceOrdinal >= bodyFaces->second.size()) {
-            throw std::runtime_error("OCCT Face sayisi importer provenance kaydiyla uyusmuyor.");
-        }
+    std::unordered_set<GeometryEntityId> visitedFaceIds;
+    for (TopExp_Explorer faceIt(shape, TopAbs_FACE); faceIt.More(); faceIt.Next()) {
         const TopoDS_Face face = TopoDS::Face(faceIt.Current());
-        const GeometryEntityId faceId = bodyFaces->second[faceOrdinal];
-        const auto storedFace = impl_->shapes.find(faceId);
-        if (storedFace == impl_->shapes.end() || !storedFace->second.IsSame(face)) {
-            throw std::runtime_error("OCCT Face kimligi tessellation topolojisiyle eslesmiyor.");
+
+        // Canonical Face map sirasi ile TopExp_Explorer traversal sirasi ayni
+        // olmak zorunda degildir. Face identity ordinal'dan degil IsSame ile
+        // bulunur; Alpha.3.2 triangle->Face provenance bu sayede korunur.
+        GeometryEntityId faceId = InvalidGeometryId;
+        for (const GeometryEntityId candidateId : bodyFaces->second) {
+            const auto storedFace = impl_->shapes.find(candidateId);
+            if (storedFace != impl_->shapes.end() && storedFace->second.IsSame(face)) {
+                faceId = candidateId;
+                break;
+            }
+        }
+        if (faceId == InvalidGeometryId) {
+            throw std::runtime_error("OCCT tessellation Face'i canonical provenance map'inde bulunamadi.");
+        }
+        if (!visitedFaceIds.insert(faceId).second) {
+            throw std::runtime_error("OCCT tessellation ayni canonical Face'i birden fazla kez traverse etti.");
         }
 
         TopLoc_Location location;
@@ -266,8 +302,8 @@ TopologyTessellation OcctStepImporter::tessellateWithTopology(const GeometryEnti
         }
     }
 
-    if (faceOrdinal != bodyFaces->second.size()) {
-        throw std::runtime_error("OCCT Face provenance kaydi eksik veya fazla entity iceriyor.");
+    if (visitedFaceIds.size() != bodyFaces->second.size()) {
+        throw std::runtime_error("OCCT Face provenance map'i ile tessellation traversal'i uyusmuyor.");
     }
     if (!out.hasConsistentProvenance()) {
         throw std::runtime_error("Display triangle / CAD Face provenance boyutlari uyusmuyor.");
@@ -281,7 +317,6 @@ GeometryTessellation OcctStepImporter::tessellate(const GeometryEntityId bodyId,
                                                    const double angularDeflectionRad) const {
     return tessellateWithTopology(bodyId, linearDeflection, angularDeflectionRad).display;
 }
-
 
 std::optional<StepAxisAlignedBoxDescriptor> OcctStepImporter::axisAlignedBoxDescriptor(const GeometryEntityId bodyId,
                                                                                         const double tolerance) const {
