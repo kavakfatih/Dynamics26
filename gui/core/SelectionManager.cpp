@@ -183,18 +183,18 @@ bool SelectionManager::apply(const SelectionItem &item, const SelectionOperation
     return true;
 }
 
-bool SelectionManager::invalidateGeometryRevision(const quint64 currentRevision)
+bool SelectionManager::invalidateSourceRevision(const SelectionDomain domain, const quint64 currentRevision)
 {
     const QVector<SelectionItem> oldItems = items_;
     const std::optional<SelectionItem> oldPrimary = primary_;
     const std::optional<SelectionItem> oldPreselection = preselection_;
 
-    items_.erase(std::remove_if(items_.begin(), items_.end(), [currentRevision](const SelectionItem &item) {
-        return item.domain == SelectionDomain::Geometry && item.sourceRevision != currentRevision;
+    items_.erase(std::remove_if(items_.begin(), items_.end(), [domain, currentRevision](const SelectionItem &item) {
+        return item.domain == domain && item.sourceRevision != currentRevision;
     }), items_.end());
     normalizePrimary();
 
-    if (preselection_.has_value() && preselection_->domain == SelectionDomain::Geometry
+    if (preselection_.has_value() && preselection_->domain == domain
         && preselection_->sourceRevision != currentRevision) {
         preselection_.reset();
     }
@@ -209,6 +209,16 @@ bool SelectionManager::invalidateGeometryRevision(const quint64 currentRevision)
         changed = true;
     }
     return changed;
+}
+
+bool SelectionManager::invalidateGeometryRevision(const quint64 currentRevision)
+{
+    return invalidateSourceRevision(SelectionDomain::Geometry, currentRevision);
+}
+
+bool SelectionManager::invalidateMeshGeneration(const quint64 currentGeneration)
+{
+    return invalidateSourceRevision(SelectionDomain::Mesh, currentGeneration);
 }
 
 } // namespace d26
