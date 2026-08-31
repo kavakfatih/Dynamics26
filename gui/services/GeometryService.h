@@ -8,8 +8,8 @@
 //
 // KRİTİK MİMARİ KURAL (ADR-0013):
 //   CAD Geometry  !=  Display Tessellation  !=  FEM Mesh
-// Bu servis yalnız ilk ikisini üretir. Üçgenler asla solver elemanı değildir;
-// FEM mesh üretimi MeshService'in işidir.
+// Bu servis yalnız ilk ikisini üretir. Üçgenler/çizgiler/noktalar asla solver
+// entity'si değildir; FEM mesh üretimi MeshService'in işidir.
 
 #include "../core/ProjectTypes.h"
 
@@ -79,6 +79,22 @@ public:
     // bir sahne döndürülmez; Navigator ile viewport birbirinden ayrışmaz.
     [[nodiscard]] QVector<femcae::geometry::TopologyTessellation>
         displayTopologyScene(double linearDeflection = 0.15) const;
+
+    // Alpha.3.3 CAD Edge/Vertex display provenance. Surface triangle edge veya
+    // display point index'i topology kimligi DEGILDIR. Service importer'in
+    // import-revision bilgisini current GeometryDocument revision'ina hizalar.
+    [[nodiscard]] std::optional<femcae::geometry::EdgeDisplayTessellation>
+        displayEdgeTessellation(femcae::geometry::GeometryEntityId bodyId,
+                                double linearDeflection = 0.15) const;
+    [[nodiscard]] std::optional<femcae::geometry::VertexDisplayPoints>
+        displayVertexPoints(femcae::geometry::GeometryEntityId bodyId) const;
+
+    // Multi-body CAD sahnesi all-or-nothing kalir. Bir Body Edge/Vertex display
+    // provenance uretemiyorsa kismi bir topology sahnesi kullaniciya sunulmaz.
+    [[nodiscard]] QVector<femcae::geometry::EdgeDisplayTessellation>
+        displayEdgeScene(double linearDeflection = 0.15) const;
+    [[nodiscard]] QVector<femcae::geometry::VertexDisplayPoints>
+        displayVertexScene() const;
 
     [[nodiscard]] std::optional<femcae::geometry::GeometryTessellation> firstBodyTessellation() const;
 
