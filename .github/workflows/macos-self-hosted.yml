@@ -62,6 +62,8 @@ jobs:
             "gui/commands/DomainCommands.cpp"
             "gui/services/GeometryService.cpp"
             "gui/services/MeshService.cpp"
+            "gui/services/NamedSelectionService.cpp"
+            "gui/services/NamedSelectionService.h"
             "gui/services/MaterialService.cpp"
             "gui/services/AnalysisService.cpp"
             "gui/shell/CommandRegistry.cpp"
@@ -84,6 +86,7 @@ jobs:
             "gui/viewport/ViewportMeshSelectionBridge.h"
             "gui/viewport/ViewportWidget.cpp"
             "tests/gui/test_scope_reference.cpp"
+            "tests/gui/test_named_selection.cpp"
             "tests/gui/test_viewport_selection_input.cpp"
             "tests/gui/test_viewport_selection.cpp"
             "tests/gui/test_geometry_window_selection.cpp"
@@ -99,8 +102,10 @@ jobs:
           grep -q 'class DependencyEngine;' gui/shell/Dynamics26MainWindow.h
           grep -q 'SelectionManager.cpp' gui/CMakeLists.txt
           grep -q 'ScopeReferenceBuilder.h' gui/CMakeLists.txt
+          grep -q 'NamedSelectionService.cpp' gui/CMakeLists.txt
           grep -q 'femcae_selection_manager_test' gui/CMakeLists.txt
           grep -q 'femcae_scope_reference_test' gui/CMakeLists.txt
+          grep -q 'femcae_named_selection_test' gui/CMakeLists.txt
           grep -q 'femcae_viewport_selection_test' gui/CMakeLists.txt
           grep -q 'femcae_geometry_window_selection_test' gui/CMakeLists.txt
           grep -q 'femcae_mesh_selection_test' gui/CMakeLists.txt
