@@ -23,6 +23,8 @@ on:
       - "gui/services/GeometryService.h"
       - "gui/services/MeshService.cpp"
       - "gui/services/MeshService.h"
+      - "gui/services/NamedSelectionService.cpp"
+      - "gui/services/NamedSelectionService.h"
       - "gui/shell/DetailsHost.cpp"
       - "gui/shell/GraphicsWorkspace.cpp"
       - "gui/shell/GraphicsWorkspace.h"
@@ -43,6 +45,7 @@ on:
       - "gui/viewport/ViewportWidget.h"
       - "tests/gui/test_selection_manager.cpp"
       - "tests/gui/test_scope_reference.cpp"
+      - "tests/gui/test_named_selection.cpp"
       - "tests/gui/test_viewport_selection_input.cpp"
       - "tests/gui/test_mesh_selection.cpp"
       - "tests/gui/test_mesh_viewport_selection.cpp"
@@ -78,10 +81,14 @@ jobs:
           test -f tests/gui/test_viewport_selection.cpp
           test -f tests/gui/test_mesh_selection.cpp
           test -f tests/gui/test_mesh_viewport_selection.cpp
+          test -f tests/gui/test_named_selection.cpp
+          test -f gui/services/NamedSelectionService.cpp
+          test -f gui/services/NamedSelectionService.h
           test -f gui/viewport/GeometrySelectionScene.h
           test -f gui/viewport/MeshSelectionScene.h
           test -f gui/viewport/ViewportMeshSelectionBridge.cpp
           test -f gui/support/SelectionAcceptanceTest.h
+          grep -q 'femcae_named_selection_test' gui/CMakeLists.txt
 
       - name: Install Qt VTK and OCCT dependencies
         env:
@@ -126,6 +133,7 @@ jobs:
           set -euxo pipefail
           for binary in \
             build-topology-selection/tests/ver_v120_004 \
+            build-topology-selection/gui/femcae_named_selection_test \
             build-topology-selection/gui/femcae_viewport_selection_test \
             build-topology-selection/gui/femcae_mesh_selection_test \
             build-topology-selection/gui/femcae_mesh_viewport_selection_test; do
