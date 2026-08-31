@@ -74,13 +74,18 @@ jobs:
             "gui/viewport/Dynamics26InteractorStyle.cpp"
             "gui/viewport/GeometrySelectionScene.h"
             "gui/viewport/GeometryTopologyScene.h"
+            "gui/viewport/MeshSelectionScene.h"
             "gui/viewport/ViewportSelectionController.h"
             "gui/viewport/ViewportSelectionBridge.cpp"
             "gui/viewport/ViewportSelectionBridge.h"
+            "gui/viewport/ViewportMeshSelectionBridge.cpp"
+            "gui/viewport/ViewportMeshSelectionBridge.h"
             "gui/viewport/ViewportWidget.cpp"
             "tests/gui/test_scope_reference.cpp"
             "tests/gui/test_viewport_selection_input.cpp"
             "tests/gui/test_viewport_selection.cpp"
+            "tests/gui/test_mesh_selection.cpp"
+            "tests/gui/test_mesh_viewport_selection.cpp"
           )
           for source in "${required_sources[@]}"; do
             test -f "$source"
@@ -94,13 +99,19 @@ jobs:
           grep -q 'femcae_selection_manager_test' gui/CMakeLists.txt
           grep -q 'femcae_scope_reference_test' gui/CMakeLists.txt
           grep -q 'femcae_viewport_selection_test' gui/CMakeLists.txt
+          grep -q 'femcae_mesh_selection_test' gui/CMakeLists.txt
+          grep -q 'femcae_mesh_viewport_selection_test' gui/CMakeLists.txt
           grep -q 'ViewportInputRouter.cpp' gui/CMakeLists.txt
           grep -q 'ViewportCameraController.cpp' gui/CMakeLists.txt
           grep -q 'Dynamics26InteractorStyle.cpp' gui/CMakeLists.txt
           grep -q 'GeometryTopologyScene.h' gui/CMakeLists.txt
+          grep -q 'MeshSelectionScene.h' gui/CMakeLists.txt
           grep -q 'ViewportSelectionBridge.cpp' gui/CMakeLists.txt
+          grep -q 'ViewportMeshSelectionBridge.cpp' gui/CMakeLists.txt
           grep -q 'SelectionCoordinator.cpp' gui/CMakeLists.txt
-          grep -q '1.1.0-alpha.3.3' gui/CMakeLists.txt
+          # Geçiş guard'ı: bir sonraki commit source milestone'u Alpha.3.4'e
+          # yükseltirken bu hazırlık commit'i Alpha.3.3 baseline'ında da yeşil kalır.
+          grep -Eq '1\.1\.0-alpha\.3\.(3|4)' gui/CMakeLists.txt
 
           if [[ -e gui/Dynamics26Shell.cpp || -e gui/MainWindow.cpp ]]; then
             echo "Legacy corrective GUI shell source reintroduced." >&2
