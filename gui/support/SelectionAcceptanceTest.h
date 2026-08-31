@@ -1,11 +1,10 @@
 #pragma once
 
-// Dynamics26 Alpha.3.2 — application-shell selection acceptance helper.
+// Dynamics26 Alpha.3.3 — application-shell CAD topology selection acceptance helper.
 //
-// Bu helper yeni bir ürün servisi veya test-only public API oluşturmaz. Yalnız
-// --selection-selftest geliştirici bayrağında, gerçek SelectionCoordinator
-// signal zinciri üzerinden transient geometry selection -> Navigator/Inspector
-// senkronunu doğrular. Fiziksel mouse/trackpad kabulünün yerine geçmez.
+// --selection-selftest geliştirici bayrağında gerçek SelectionCoordinator signal
+// zinciri üzerinden transient Body/Face/Edge/Vertex selection -> Navigator/
+// Inspector senkronunu doğrular. Fiziksel mouse/trackpad kabulünün yerine geçmez.
 
 #include "../core/DocumentCommandManager.h"
 #include "../core/ProjectModel.h"
@@ -49,28 +48,39 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
         return 1;
     }
 
-    // Bu project Body yalnız acceptance test boyunca yaşar. CAD kimliği bilinçli
-    // olarak Project ObjectId'den farklıdır; iki kimlik uzayını birbirine
-    // eşitleyen bir regresyonu testin kendisi de gizlememelidir.
     constexpr qint64 geometryBodyId = 910001;
     constexpr qint64 geometryFaceId = 910101;
+    constexpr qint64 geometryEdgeId = 910201;
+    constexpr qint64 geometryVertexId = 910301;
     const ObjectId restoreObject = navigator->selectedObject();
     const int undoIndexBefore = undo->index();
     const ObjectId projectBody = project->addObject(project->geometryNode(), ObjectType::Body,
-                                                    QStringLiteral("Alpha32 Sync Body"), geometryBodyId);
+                                                    QStringLiteral("Alpha33 Sync Body"), geometryBodyId);
     check(projectBody != InvalidObjectId && static_cast<qint64>(projectBody) != geometryBodyId,
           "Project Body identity stays distinct from CAD GeometryEntityId");
 
-    selection->setPolicy(SelectionPolicy::preset(SelectionPolicyPreset::NeutralGeometry));
+    const quint64 revision = services.geometry->summary().revision;
+    const auto topologyItem = [revision](const SelectionKind kind,
+                                         const qint64 geometryId,
+                                         const qint64 parentId) {
+        SelectionItem item;
+        item.domain = SelectionDomain::Geometry;
+        item.kind = kind;
+        item.geometryEntityId = static_cast<femcae::geometry::GeometryEntityId>(geometryId);
+        item.parentGeometryId = static_cast<femcae::geometry::GeometryEntityId>(parentId);
+        item.sourceRevision = revision;
+        return item;
+    };
+
     SelectionItem body;
     body.domain = SelectionDomain::Geometry;
     body.kind = SelectionKind::Body;
     body.geometryEntityId = static_cast<femcae::geometry::GeometryEntityId>(geometryBodyId);
-    body.sourceRevision = services.geometry->summary().revision;
+    body.sourceRevision = revision;
+    selection->setPolicy(SelectionPolicy::preset(SelectionPolicyPreset::NeutralGeometry));
     check(selection->apply(body, SelectionOperation::Replace),
           "viewport-originated Body selection changes transient selection state");
     app.processEvents();
-
     check(navigator->selectedObject() == projectBody,
           "Body selection synchronizes Project Navigator current object");
     check(details->currentObject() == projectBody,
@@ -78,29 +88,35 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
     check(undo->index() == undoIndexBefore,
           "transient Body selection does not create a document Undo entry");
 
-    selection->setPolicy(SelectionPolicy::preset(SelectionPolicyPreset::SurfaceScope));
-    SelectionItem face;
-    face.domain = SelectionDomain::Geometry;
-    face.kind = SelectionKind::Face;
-    face.geometryEntityId = static_cast<femcae::geometry::GeometryEntityId>(geometryFaceId);
-    face.parentGeometryId = static_cast<femcae::geometry::GeometryEntityId>(geometryBodyId);
-    face.sourceRevision = body.sourceRevision;
-    check(selection->apply(face, SelectionOperation::Replace),
-          "Face selection is accepted under a surface-scope policy");
-    app.processEvents();
+    const auto checkChildSelection = [&](const SelectionPolicyPreset preset,
+                                         const SelectionKind kind,
+                                         const qint64 geometryId,
+                                         const QString &kindText) {
+        selection->setPolicy(SelectionPolicy::preset(preset));
+        const SelectionItem item = topologyItem(kind, geometryId, geometryBodyId);
+        check(selection->apply(item, SelectionOperation::Replace),
+              QStringLiteral("%1 selection is accepted under its topology policy").arg(kindText).toStdString());
+        app.processEvents();
+        check(navigator->selectedObject() == projectBody,
+              QStringLiteral("%1 selection keeps parent Body as Navigator current object").arg(kindText).toStdString());
+        check(details->currentObject() == projectBody,
+              QStringLiteral("%1 selection keeps parent Body as Inspector project-object context").arg(kindText).toStdString());
+        if (QLabel *summary = details->findChild<QLabel *>(QStringLiteral("Dynamics26SelectionSummary"))) {
+            check(!summary->isHidden() && summary->text().contains(kindText),
+                  QStringLiteral("Inspector exposes committed %1 selection summary").arg(kindText).toStdString());
+        } else {
+            check(false, "Inspector selection-summary widget is discoverable for acceptance testing");
+        }
+        check(undo->index() == undoIndexBefore,
+              QStringLiteral("transient %1 selection does not create a document Undo entry").arg(kindText).toStdString());
+    };
 
-    check(navigator->selectedObject() == projectBody,
-          "Face selection keeps parent Body as Navigator current object");
-    check(details->currentObject() == projectBody,
-          "Face selection keeps parent Body as Inspector project-object context");
-    if (QLabel *summary = details->findChild<QLabel *>(QStringLiteral("Dynamics26SelectionSummary"))) {
-        check(!summary->isHidden() && summary->text().contains(QStringLiteral("Face")),
-              "Inspector exposes committed Face selection as a secondary selection summary");
-    } else {
-        check(false, "Inspector selection-summary widget is discoverable for acceptance testing");
-    }
-    check(undo->index() == undoIndexBefore,
-          "transient Face selection does not create a document Undo entry");
+    checkChildSelection(SelectionPolicyPreset::SurfaceScope, SelectionKind::Face,
+                        geometryFaceId, QStringLiteral("Face"));
+    checkChildSelection(SelectionPolicyPreset::EdgeScope, SelectionKind::Edge,
+                        geometryEdgeId, QStringLiteral("Edge"));
+    checkChildSelection(SelectionPolicyPreset::VertexScope, SelectionKind::Vertex,
+                        geometryVertexId, QStringLiteral("Vertex"));
 
     selection->clear();
     selection->setPolicy(SelectionPolicy::preset(SelectionPolicyPreset::NeutralGeometry));

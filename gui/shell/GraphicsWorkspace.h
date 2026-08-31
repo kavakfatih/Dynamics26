@@ -18,7 +18,7 @@ class QActionGroup;
 
 namespace d26 {
 
-enum class SelectionFilter { Body, Face };
+enum class SelectionFilter { Body, Face, Edge, Vertex };
 
 class GraphicsWorkspace final : public QFrame
 {
@@ -31,9 +31,19 @@ public:
     void setSelectionLabel(const QString &text);
     [[nodiscard]] SelectionFilter selectionFilter() const noexcept { return filter_; }
     void setSelectionFilter(SelectionFilter filter);
-    // Face seçimi FEM mesh'e değil gerçek CAD display provenance'ına bağlıdır.
-    // CAD sahnesi cell -> Face kimliği taşıyabildiğinde etkinleşir.
-    void setFaceSelectionAvailable(bool available);
+
+    // CAD topology filter availability gerçek display provenance'a bağlıdır.
+    // Capability yalnız ilgili filter action'ını etkiler; mevcut filter niyetini
+    // sessizce başka bir entity seviyesine dönüştürmez.
+    void setTopologySelectionAvailable(bool faceAvailable,
+                                       bool edgeAvailable,
+                                       bool vertexAvailable);
+
+    // Alpha.3.2'den kalan kabuk çağrısı için geçici kaynak uyumluluğu. CAD Face
+    // capability FEM mesh'ten türetilemez; bu eski setter bilinçli olarak no-op'tur.
+    // Capability'nin tek yazarı SelectionCoordinator::refreshGeometryScene()'dir.
+    void setFaceSelectionAvailable(bool legacyMeshDerivedAvailability);
+
     void refreshIcons();
 
 signals:
@@ -42,12 +52,17 @@ signals:
     void selectionFilterChanged(SelectionFilter filter);
 
 private:
+    [[nodiscard]] bool filterAvailable(SelectionFilter filter) const noexcept;
+    void syncFilterChecks();
+
     ViewportWidget *viewport_{nullptr};
     QToolBar *toolbar_{nullptr};
     QLabel *contextLabel_{nullptr};
     QLabel *selectionLabel_{nullptr};
     QAction *selectBody_{nullptr};
     QAction *selectFace_{nullptr};
+    QAction *selectEdge_{nullptr};
+    QAction *selectVertex_{nullptr};
     QAction *fit_{nullptr};
     QAction *isometric_{nullptr};
     SelectionFilter filter_{SelectionFilter::Body};

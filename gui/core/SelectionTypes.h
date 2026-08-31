@@ -1,6 +1,6 @@
 #pragma once
 
-// Dynamics26 Alpha.3.2 — transient selection ve gelecekteki scope kontratlari.
+// Dynamics26 Alpha.3.3 — transient selection ve persistent scope kontratlari.
 //
 // Project object, CAD topology ve FEM entity kimlikleri ayni uzay DEGILDIR.
 // Bu tipler kimlik alanlarini acik tutarak selection state'in ProjectModel,
@@ -58,9 +58,16 @@ struct SelectionItem {
         case SelectionDomain::ProjectObject:
             return kind == SelectionKind::Object && projectObjectId != InvalidObjectId;
         case SelectionDomain::Geometry:
-            return geometryEntityId != femcae::geometry::InvalidGeometryId
-                && (kind == SelectionKind::Body || kind == SelectionKind::Face
-                    || kind == SelectionKind::Edge || kind == SelectionKind::Vertex);
+            if (geometryEntityId == femcae::geometry::InvalidGeometryId) {
+                return false;
+            }
+            if (kind == SelectionKind::Body) {
+                return true;
+            }
+            if (kind == SelectionKind::Face || kind == SelectionKind::Edge || kind == SelectionKind::Vertex) {
+                return parentGeometryId != femcae::geometry::InvalidGeometryId;
+            }
+            return false;
         case SelectionDomain::Mesh:
             return meshEntityId != femcae::meshing::InvalidMeshId
                 && (kind == SelectionKind::Node || kind == SelectionKind::Element
@@ -97,14 +104,15 @@ struct SelectionItem {
     [[nodiscard]] bool operator!=(const SelectionItem &other) const noexcept { return !(*this == other); }
 };
 
-// Persistent engineering scope icin DATA-ONLY temel kontrat. Alpha.3.2 mevcut
-// SupportDefinition / LoadDefinition BoxFace semasini buna migrate ETMEZ.
-// persistentKey ileride sessionlar arasi topology rebind icin kullanilacaktir;
+// Persistent engineering scope icin DATA-ONLY temel kontrat. Mevcut
+// SupportDefinition / LoadDefinition BoxFace semasi bu milestone'da migrate
+// edilmez. persistentKey ileride sessionlar arasi topology rebind icin kullanilir;
 // sourceRevision tek basina kalici kimlik degildir.
 struct ScopeEntityReference {
     SelectionDomain domain{SelectionDomain::Geometry};
     SelectionKind kind{SelectionKind::Face};
     femcae::geometry::GeometryEntityId geometryEntityId{femcae::geometry::InvalidGeometryId};
+    femcae::geometry::GeometryEntityId parentGeometryId{femcae::geometry::InvalidGeometryId};
     QString persistentKey;
 };
 

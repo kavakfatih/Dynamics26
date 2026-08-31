@@ -20,6 +20,36 @@ using femcae::geometry::GeometryEntityId;
 using femcae::geometry::InvalidGeometryId;
 
 namespace d26 {
+namespace {
+
+SelectionKind selectionKindForFilter(const SelectionFilter filter) noexcept
+{
+    switch (filter) {
+    case SelectionFilter::Body: return SelectionKind::Body;
+    case SelectionFilter::Face: return SelectionKind::Face;
+    case SelectionFilter::Edge: return SelectionKind::Edge;
+    case SelectionFilter::Vertex: return SelectionKind::Vertex;
+    }
+    return SelectionKind::Body;
+}
+
+QString selectionKindText(const SelectionKind kind)
+{
+    switch (kind) {
+    case SelectionKind::Body: return QStringLiteral("Body");
+    case SelectionKind::Face: return QStringLiteral("Face");
+    case SelectionKind::Edge: return QStringLiteral("Edge");
+    case SelectionKind::Vertex: return QStringLiteral("Vertex");
+    default: return QStringLiteral("Entity");
+    }
+}
+
+GeometryEntityId parentBodyFor(const SelectionItem &item) noexcept
+{
+    return item.kind == SelectionKind::Body ? item.geometryEntityId : item.parentGeometryId;
+}
+
+} // namespace
 
 SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject *parent)
     : QObject(parent), window_(window)
@@ -89,14 +119,11 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
 
     if (services_.commands != nullptr) {
         connect(services_.commands, &DocumentCommandManager::documentMutated,
-                this, [this] {
-                    QTimer::singleShot(0, this, [this] { refreshGeometryScene(); });
-                });
+                this, [this] { QTimer::singleShot(0, this, [this] { refreshGeometryScene(); }); });
     }
 
-    connect(details_, &DetailsHost::modelEdited, this, [this] {
-        QTimer::singleShot(0, this, [this] { refreshGeometryScene(); });
-    });
+    connect(details_, &DetailsHost::modelEdited,
+            this, [this] { QTimer::singleShot(0, this, [this] { refreshGeometryScene(); }); });
     connect(details_->geometryPage(), &GeometryDetails::tessellationQualityChanged,
             this, [this](const double value) {
                 tessellationDeflection_ = value;
@@ -125,10 +152,14 @@ void SelectionCoordinator::configurePolicy(const SelectionFilter filter)
     if (selection_ == nullptr) {
         return;
     }
+    const SelectionKind kind = selectionKindForFilter(filter);
+    if (bridge_ != nullptr) {
+        // Picker actor/filter önce değiştirilir; policy değişimi eski selection'ı
+        // temizlerken kısa süreli olarak yanlış primitive actor'ı aktif kalmaz.
+        bridge_->setActiveKind(kind);
+    }
     SelectionPolicy policy = SelectionPolicy::preset(SelectionPolicyPreset::NeutralGeometry);
-    policy.allowedKinds = {filter == SelectionFilter::Face
-        ? SelectionKind::Face
-        : SelectionKind::Body};
+    policy.allowedKinds = {kind};
     policy.allowMultiple = true;
     selection_->setPolicy(policy);
 }
@@ -142,6 +173,7 @@ void SelectionCoordinator::refreshGeometryScene()
     ViewportWidget *viewport = graphics_->viewport();
     if (viewport == nullptr || viewport->context() != ViewportContext::Geometry) {
         bridge_->clearScene();
+        graphics_->setTopologySelectionAvailable(false, false, false);
         if (selection_ != nullptr) {
             selection_->clearPreselection();
             (void)selection_->clear();
@@ -153,28 +185,35 @@ void SelectionCoordinator::refreshGeometryScene()
     const GeometrySummary summary = services_.geometry->summary();
     if (!summary.hasGeometry) {
         bridge_->clearScene();
+        graphics_->setTopologySelectionAvailable(false, false, false);
+        graphics_->setSelectionFilter(SelectionFilter::Body);
         if (selection_ != nullptr) {
             selection_->clearPreselection();
             (void)selection_->clear();
         }
-        graphics_->setSelectionFilter(SelectionFilter::Body);
-        graphics_->setFaceSelectionAvailable(false);
         return;
     }
 
-    const auto bodies = services_.geometry->displayTopologyScene(tessellationDeflection_);
-    if (bodies.isEmpty() || bodies.size() != summary.bodyCount || !bridge_->setScene(bodies)) {
+    const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
+    const auto edges = services_.geometry->displayEdgeScene(tessellationDeflection_);
+    const auto vertices = services_.geometry->displayVertexScene();
+    const qsizetype expected = static_cast<qsizetype>(summary.bodyCount);
+    if (surfaces.size() != expected || edges.size() != expected || vertices.size() != expected
+        || !bridge_->setScene(surfaces, edges, vertices)) {
         bridge_->clearScene();
+        graphics_->setTopologySelectionAvailable(false, false, false);
+        graphics_->setSelectionFilter(SelectionFilter::Body);
         if (selection_ != nullptr) {
             selection_->clearPreselection();
             (void)selection_->clear();
         }
-        graphics_->setSelectionFilter(SelectionFilter::Body);
-        graphics_->setFaceSelectionAvailable(false);
         return;
     }
 
-    graphics_->setFaceSelectionAvailable(bridge_->hasFaceProvenance());
+    graphics_->setTopologySelectionAvailable(bridge_->hasFaceProvenance(),
+                                             bridge_->hasEdgeProvenance(),
+                                             bridge_->hasVertexProvenance());
+    configurePolicy(graphics_->selectionFilter());
     if (selection_ != nullptr) {
         (void)selection_->invalidateGeometryRevision(summary.revision);
         bridge_->setSelection(selection_->items());
@@ -188,8 +227,6 @@ void SelectionCoordinator::handleNavigatorSelection(const ObjectId id)
         return;
     }
 
-    // MainWindow'un objectSelected bağlantısı bu koordinatörden önce kurulduğu
-    // için burada viewport context'i zaten günceldir.
     refreshGeometryScene();
 
     const ProjectObject *object = services_.project->object(id);
@@ -198,7 +235,6 @@ void SelectionCoordinator::handleNavigatorSelection(const ObjectId id)
         return;
     }
 
-    // Navigator Body seçimi açıkça Body filter semantiğidir.
     graphics_->setSelectionFilter(SelectionFilter::Body);
 
     SelectionItem item;
@@ -209,31 +245,35 @@ void SelectionCoordinator::handleNavigatorSelection(const ObjectId id)
     (void)selection_->apply(item, SelectionOperation::Replace);
 }
 
-std::optional<SelectionItem> SelectionCoordinator::selectionItemForHit(const quint64 bodyId,
-                                                                       const quint64 faceId) const
+std::optional<SelectionItem> SelectionCoordinator::selectionItemForHit(const SelectionKind kind,
+                                                                       const quint64 bodyId,
+                                                                       const quint64 geometryId) const
 {
-    if (graphics_ == nullptr || services_.geometry == nullptr || bodyId == 0) {
+    if (graphics_ == nullptr || services_.geometry == nullptr || bodyId == 0 || geometryId == 0
+        || kind != selectionKindForFilter(graphics_->selectionFilter())) {
         return std::nullopt;
     }
 
     SelectionItem item;
     item.domain = SelectionDomain::Geometry;
+    item.kind = kind;
     item.sourceRevision = services_.geometry->summary().revision;
-
-    if (graphics_->selectionFilter() == SelectionFilter::Body) {
-        item.kind = SelectionKind::Body;
-        item.geometryEntityId = static_cast<GeometryEntityId>(bodyId);
-    } else {
-        if (faceId == 0) {
+    if (kind == SelectionKind::Body) {
+        if (geometryId != bodyId) {
             return std::nullopt;
         }
-        item.kind = SelectionKind::Face;
-        item.geometryEntityId = static_cast<GeometryEntityId>(faceId);
+        item.geometryEntityId = static_cast<GeometryEntityId>(bodyId);
+    } else {
+        item.geometryEntityId = static_cast<GeometryEntityId>(geometryId);
         item.parentGeometryId = static_cast<GeometryEntityId>(bodyId);
     }
 
+    const auto expectedKind = geometryEntityKindForSelectionKind(kind);
     const auto *entity = services_.geometry->document().find(item.geometryEntityId);
-    if (entity == nullptr) {
+    if (!expectedKind.has_value() || entity == nullptr || entity->kind != *expectedKind) {
+        return std::nullopt;
+    }
+    if (kind != SelectionKind::Body && entity->parentId != item.parentGeometryId) {
         return std::nullopt;
     }
     return item;
@@ -252,15 +292,16 @@ bool SelectionCoordinator::selectionContains(const SelectionItem &item) const no
     return false;
 }
 
-void SelectionCoordinator::handleViewportSelection(const quint64 bodyId,
-                                                    const quint64 faceId,
+void SelectionCoordinator::handleViewportSelection(const SelectionKind kind,
+                                                    const quint64 bodyId,
+                                                    const quint64 geometryId,
                                                     const SelectionOperation operation)
 {
     if (selection_ == nullptr) {
         return;
     }
     selection_->clearPreselection();
-    const auto item = selectionItemForHit(bodyId, faceId);
+    const auto item = selectionItemForHit(kind, bodyId, geometryId);
     if (!item.has_value()) {
         (void)selection_->clear();
         return;
@@ -268,47 +309,41 @@ void SelectionCoordinator::handleViewportSelection(const quint64 bodyId,
     (void)selection_->apply(*item, operation);
 }
 
-void SelectionCoordinator::handleViewportPreselection(const quint64 bodyId, const quint64 faceId)
+void SelectionCoordinator::handleViewportPreselection(const SelectionKind kind,
+                                                       const quint64 bodyId,
+                                                       const quint64 geometryId)
 {
     if (selection_ == nullptr) {
         return;
     }
-    selection_->setPreselection(selectionItemForHit(bodyId, faceId));
+    selection_->setPreselection(selectionItemForHit(kind, bodyId, geometryId));
 }
 
-void SelectionCoordinator::handleViewportContextMenu(const quint64 bodyId,
-                                                      const quint64 faceId,
+void SelectionCoordinator::handleViewportContextMenu(const SelectionKind kind,
+                                                      const quint64 bodyId,
+                                                      const quint64 geometryId,
                                                       const QPoint &globalPosition)
 {
     if (selection_ == nullptr || window_ == nullptr) {
         return;
     }
 
-    const auto item = selectionItemForHit(bodyId, faceId);
+    const auto item = selectionItemForHit(kind, bodyId, geometryId);
     if (!item.has_value()) {
-        // Empty secondary click committed selection'i korur.
         return;
     }
 
     selection_->clearPreselection();
-    const bool alreadySelected = selectionContains(*item);
-    if (!alreadySelected) {
-        // CAE masaüstü davranışı: unselected entity üzerinde secondary click o
-        // entity'yi current/primary yapar; önceki multi-selection korunmaz.
+    if (!selectionContains(*item)) {
         (void)selection_->apply(*item, SelectionOperation::Replace);
     }
 
-    const GeometryEntityId contextBodyId = item->kind == SelectionKind::Body
-        ? item->geometryEntityId
-        : item->parentGeometryId;
+    const GeometryEntityId contextBodyId = parentBodyFor(*item);
     const ObjectId contextObject = bodyObjectForGeometryId(contextBodyId);
     if (contextObject == InvalidObjectId) {
         return;
     }
 
-    // Already-selected bir entity farklı Body'de olsa dahi selection setini
-    // bozmadan yalnız Project Current Object o Body'ye alınır. Bu yol
-    // MainWindow::handleSelection() çağırmaz; kamera/CAD scene rebuild edilmez.
     (void)syncNavigatorToGeometryBody(contextBodyId);
     window_->showObjectContextMenu(contextObject, globalPosition);
 }
@@ -318,10 +353,6 @@ void SelectionCoordinator::handleSelectionChanged()
     if (selection_ == nullptr || bridge_ == nullptr) {
         return;
     }
-
-    // Viewport selection başka bir Body'ye geçtiyse Navigator parent Body'yi
-    // izler. Bu senkron kamera/sahne rebuild'i yapmadan yalnız project-object
-    // bağlamını günceller; CAD overlay state'i aynı display scene üzerinde kalır.
     (void)syncNavigatorToPrimary();
     bridge_->setSelection(selection_->items());
     updateFeedback();
@@ -345,14 +376,7 @@ bool SelectionCoordinator::syncNavigatorToPrimary()
     if (!primary.has_value() || primary->domain != SelectionDomain::Geometry) {
         return false;
     }
-
-    GeometryEntityId bodyId = InvalidGeometryId;
-    if (primary->kind == SelectionKind::Body) {
-        bodyId = primary->geometryEntityId;
-    } else if (primary->kind == SelectionKind::Face) {
-        bodyId = primary->parentGeometryId;
-    }
-    return syncNavigatorToGeometryBody(bodyId);
+    return syncNavigatorToGeometryBody(parentBodyFor(*primary));
 }
 
 bool SelectionCoordinator::syncNavigatorToGeometryBody(const GeometryEntityId bodyId)
@@ -368,13 +392,13 @@ bool SelectionCoordinator::syncNavigatorToGeometryBody(const GeometryEntityId bo
 
     syncingNavigator_ = true;
     {
-        // Viewport-originated selection/context Navigator/Details bağlamını izler
-        // fakat MainWindow::selectObject() çağrılmaz: o yol syncViewport()
-        // üzerinden CAD sahnesini yeniden kurup kamerayı isometric'e döndürebilir.
         const QSignalBlocker navigatorSignals(navigator_);
         navigator_->selectObject(objectId);
     }
 
+    // SelectionCoordinator kontrollü composition-helper'dır. Bu yol viewport
+    // scene/camera rebuild'i yapmadan yalnız current project-object bağlamını
+    // günceller; MainWindow friend sınırı dışında kullanılmaz.
     window_->selected_ = objectId;
     const ObjectId owning = window_->analysis_->owningAnalysis(objectId);
     if (owning != InvalidObjectId) {
@@ -410,25 +434,16 @@ QString SelectionCoordinator::geometryEntityName(const GeometryEntityId id) cons
         return {};
     }
     const auto *entity = services_.geometry->document().find(id);
-    if (entity == nullptr) {
+    if (entity == nullptr || entity->name.empty()) {
         return {};
     }
-    if (!entity->name.empty()) {
-        return QString::fromStdString(entity->name);
-    }
-    return {};
+    return QString::fromStdString(entity->name);
 }
 
 QString SelectionCoordinator::bodyNameFor(const SelectionItem &item) const
 {
-    const GeometryEntityId bodyId = item.kind == SelectionKind::Body
-        ? item.geometryEntityId
-        : item.parentGeometryId;
-    QString name = geometryEntityName(bodyId);
-    if (!name.isEmpty()) {
-        return name;
-    }
-    return tr("Body");
+    QString name = geometryEntityName(parentBodyFor(item));
+    return name.isEmpty() ? tr("Body") : name;
 }
 
 void SelectionCoordinator::updateFeedback()
@@ -441,42 +456,37 @@ void SelectionCoordinator::updateFeedback()
     if (!items.isEmpty()) {
         const auto primaryValue = selection_->primary();
         const SelectionItem &primary = primaryValue.has_value() ? *primaryValue : items.back();
-        const QString kind = primary.kind == SelectionKind::Face ? tr("Face") : tr("Body");
+        const QString kind = selectionKindText(primary.kind);
         graphics_->setSelectionLabel(tr("%1 %2 seçildi").arg(items.size()).arg(kind));
 
         QSet<GeometryEntityId> bodyIds;
         for (const SelectionItem &item : items) {
-            if (item.kind == SelectionKind::Body) {
-                bodyIds.insert(item.geometryEntityId);
-            } else if (item.kind == SelectionKind::Face) {
-                bodyIds.insert(item.parentGeometryId);
+            const GeometryEntityId bodyId = parentBodyFor(item);
+            if (bodyId != InvalidGeometryId) {
+                bodyIds.insert(bodyId);
             }
         }
 
         if (details_ != nullptr) {
-            if (primary.kind == SelectionKind::Face) {
-                const QString scopeText = bodyIds.size() == 1
-                    ? tr("SELECTION  ·  %1 Face  ·  %2").arg(items.size()).arg(bodyNameFor(primary))
-                    : tr("SELECTION  ·  %1 Face  ·  %2 Body").arg(items.size()).arg(bodyIds.size());
-                details_->setSelectionSummary(scopeText);
-            } else {
+            if (primary.kind == SelectionKind::Body) {
                 details_->setSelectionSummary(tr("SELECTION  ·  %1 Body").arg(items.size()));
+            } else {
+                const QString scopeText = bodyIds.size() == 1
+                    ? tr("SELECTION  ·  %1 %2  ·  %3").arg(items.size()).arg(kind).arg(bodyNameFor(primary))
+                    : tr("SELECTION  ·  %1 %2  ·  %3 Body").arg(items.size()).arg(kind).arg(bodyIds.size());
+                details_->setSelectionSummary(scopeText);
             }
         }
 
         if (status_ != nullptr) {
-            if (primary.kind == SelectionKind::Face) {
-                if (bodyIds.size() == 1) {
-                    status_->setSelection(tr("%1 Face  •  %2  •  Global Coordinate System")
-                                              .arg(items.size())
-                                              .arg(bodyNameFor(primary)));
-                } else {
-                    status_->setSelection(tr("%1 Face  •  %2 Body  •  Global Coordinate System")
-                                              .arg(items.size())
-                                              .arg(bodyIds.size()));
-                }
-            } else {
+            if (primary.kind == SelectionKind::Body) {
                 status_->setSelection(tr("%1 Body  •  Global Coordinate System").arg(items.size()));
+            } else if (bodyIds.size() == 1) {
+                status_->setSelection(tr("%1 %2  •  %3  •  Global Coordinate System")
+                                          .arg(items.size()).arg(kind).arg(bodyNameFor(primary)));
+            } else {
+                status_->setSelection(tr("%1 %2  •  %3 Body  •  Global Coordinate System")
+                                          .arg(items.size()).arg(kind).arg(bodyIds.size()));
             }
         }
         return;
@@ -490,7 +500,7 @@ void SelectionCoordinator::updateFeedback()
     if (hover.has_value() && graphics_->viewport()->context() == ViewportContext::Geometry) {
         QString label = geometryEntityName(hover->geometryEntityId);
         if (label.isEmpty()) {
-            label = hover->kind == SelectionKind::Face ? tr("Face") : tr("Body");
+            label = selectionKindText(hover->kind);
         }
         graphics_->setSelectionLabel(tr("%1  ·  ön seçim").arg(label));
     } else {

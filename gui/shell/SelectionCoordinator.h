@@ -1,10 +1,10 @@
 #pragma once
 
-// Dynamics26 Alpha.3.2 — application-level transient selection coordinator.
+// Dynamics26 Alpha.3.3 — application-level transient CAD topology selection coordinator.
 //
-// Bu sınıf görünür pencere kompozisyonunu değiştirmez. ProjectModel, CAD
-// topology kimlikleri ve Viewport transient selection state'i arasında açık
-// koordinasyon kurar. Selection document undo/redo verisi değildir.
+// ProjectModel, CAD Body/Face/Edge/Vertex kimlikleri ve viewport transient
+// selection state'i arasında açık koordinasyon kurar. Selection document
+// undo/redo verisi değildir.
 
 #include "../core/ScopeReferenceBuilder.h"
 #include "../core/SelectionManager.h"
@@ -31,25 +31,27 @@ public:
     explicit SelectionCoordinator(Dynamics26MainWindow *window, QObject *parent = nullptr);
 
     [[nodiscard]] SelectionManager *selectionManager() const noexcept { return selection_; }
-    // Committed transient CAD selection'i current GeometryDocument ile doğrular
-    // ve persistentKey taşıyan engineering scope kontratına çevirir. Existing
-    // BC/Load BoxFace şeması Alpha.3.2'de bu API'ye migrate edilmez.
     [[nodiscard]] ScopeReferenceBuildResult currentGeometryScope() const;
 
 private:
     void configurePolicy(SelectionFilter filter);
     void refreshGeometryScene();
     void handleNavigatorSelection(ObjectId id);
-    void handleViewportSelection(quint64 bodyId, quint64 faceId, SelectionOperation operation);
-    void handleViewportPreselection(quint64 bodyId, quint64 faceId);
-    void handleViewportContextMenu(quint64 bodyId, quint64 faceId, const QPoint &globalPosition);
+    void handleViewportSelection(SelectionKind kind, quint64 bodyId, quint64 geometryId,
+                                 SelectionOperation operation);
+    void handleViewportPreselection(SelectionKind kind, quint64 bodyId, quint64 geometryId);
+    void handleViewportContextMenu(SelectionKind kind, quint64 bodyId, quint64 geometryId,
+                                   const QPoint &globalPosition);
     void handleSelectionChanged();
     void handlePreselectionChanged();
     void updateFeedback();
+
     [[nodiscard]] bool syncNavigatorToPrimary();
     [[nodiscard]] bool syncNavigatorToGeometryBody(femcae::geometry::GeometryEntityId bodyId);
     [[nodiscard]] ObjectId bodyObjectForGeometryId(femcae::geometry::GeometryEntityId bodyId) const;
-    [[nodiscard]] std::optional<SelectionItem> selectionItemForHit(quint64 bodyId, quint64 faceId) const;
+    [[nodiscard]] std::optional<SelectionItem> selectionItemForHit(SelectionKind kind,
+                                                                   quint64 bodyId,
+                                                                   quint64 geometryId) const;
     [[nodiscard]] bool selectionContains(const SelectionItem &item) const noexcept;
     [[nodiscard]] QString geometryEntityName(femcae::geometry::GeometryEntityId id) const;
     [[nodiscard]] QString bodyNameFor(const SelectionItem &item) const;

@@ -42,20 +42,34 @@ bool systemPrefersDark()
         && qApp->palette().color(QPalette::Window).lightnessF() < 0.5;
 }
 
+bool isCadTopologyKind(const SelectionKind kind) noexcept
+{
+    return kind == SelectionKind::Body || kind == SelectionKind::Face
+        || kind == SelectionKind::Edge || kind == SelectionKind::Vertex;
+}
+
+femcae::geometry::GeometryEntityId bodyIdFor(const SelectionItem &item) noexcept
+{
+    return item.kind == SelectionKind::Body ? item.geometryEntityId : item.parentGeometryId;
+}
+
 } // namespace
 
 class ViewportSelectionBridge::Impl
 {
 public:
-    GeometrySelectionScene scene;
+    GeometryTopologyScene scene;
     QVector<SelectionItem> selection;
     std::optional<SelectionItem> preselection;
+    SelectionKind activeKind{SelectionKind::Body};
 
 #ifdef FEMCAE_GUI_HAS_VTK
     QVTKOpenGLNativeWidget *widget{nullptr};
     vtkWeakPointer<vtkRenderer> renderer;
     vtkWeakPointer<vtkActor> surfaceActor;
     vtkSmartPointer<vtkCellPicker> picker;
+    vtkSmartPointer<vtkActor> edgeActor;
+    vtkSmartPointer<vtkActor> vertexActor;
     vtkSmartPointer<vtkActor> selectionActor;
     vtkSmartPointer<vtkActor> preselectionActor;
 
@@ -75,11 +89,10 @@ public:
         renderer = renderers->GetFirstRenderer();
         if (picker == nullptr) {
             picker = vtkSmartPointer<vtkCellPicker>::New();
-            picker->SetTolerance(0.005);
         }
     }
 
-    void removeOverlay(vtkSmartPointer<vtkActor> &actor)
+    void removeActor(vtkSmartPointer<vtkActor> &actor)
     {
         if (actor != nullptr && renderer != nullptr) {
             renderer->RemoveActor(actor);
@@ -89,8 +102,10 @@ public:
 
     void clearVisualState()
     {
-        removeOverlay(selectionActor);
-        removeOverlay(preselectionActor);
+        removeActor(selectionActor);
+        removeActor(preselectionActor);
+        removeActor(edgeActor);
+        removeActor(vertexActor);
         surfaceActor = nullptr;
     }
 
@@ -101,6 +116,7 @@ public:
             return false;
         }
 
+        const GeometrySelectionScene &surface = scene.surface();
         vtkActorCollection *actors = renderer->GetActors();
         if (actors == nullptr) {
             return false;
@@ -118,8 +134,8 @@ public:
             if (data == nullptr) {
                 continue;
             }
-            if (data->GetNumberOfPolys() == static_cast<vtkIdType>(scene.triangles().size())
-                && data->GetNumberOfPoints() == static_cast<vtkIdType>(scene.points().size())) {
+            if (data->GetNumberOfPolys() == static_cast<vtkIdType>(surface.triangles().size())
+                && data->GetNumberOfPoints() == static_cast<vtkIdType>(surface.points().size())) {
                 surfaceActor = actor;
                 break;
             }
@@ -127,9 +143,80 @@ public:
         return surfaceActor != nullptr;
     }
 
-    void applyOverlayPalette()
+    vtkSmartPointer<vtkActor> buildCanonicalEdgeActor() const
+    {
+        if (scene.edgeLines().empty()) {
+            return nullptr;
+        }
+        vtkNew<vtkPoints> points;
+        points->SetNumberOfPoints(static_cast<vtkIdType>(scene.edgePoints().size()));
+        for (std::size_t i = 0; i < scene.edgePoints().size(); ++i) {
+            const auto &p = scene.edgePoints()[i];
+            points->SetPoint(static_cast<vtkIdType>(i), p.x, p.y, p.z);
+        }
+        vtkNew<vtkCellArray> lines;
+        for (const auto &line : scene.edgeLines()) {
+            const vtkIdType ids[2] = {static_cast<vtkIdType>(line[0]), static_cast<vtkIdType>(line[1])};
+            lines->InsertNextCell(2, ids);
+        }
+        vtkNew<vtkPolyData> data;
+        data->SetPoints(points);
+        data->SetLines(lines);
+        vtkNew<vtkPolyDataMapper> mapper;
+        mapper->SetInputData(data);
+        mapper->ScalarVisibilityOff();
+
+        vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+        actor->SetMapper(mapper);
+        actor->PickableOn();
+        actor->GetProperty()->SetLineWidth(2.4);
+        actor->GetProperty()->SetLighting(false);
+        actor->GetProperty()->SetAmbient(1.0);
+        actor->GetProperty()->SetDiffuse(0.0);
+        return actor;
+    }
+
+    vtkSmartPointer<vtkActor> buildCanonicalVertexActor() const
+    {
+        if (scene.vertexPoints().empty()) {
+            return nullptr;
+        }
+        vtkNew<vtkPoints> points;
+        vtkNew<vtkCellArray> verts;
+        points->SetNumberOfPoints(static_cast<vtkIdType>(scene.vertexPoints().size()));
+        for (std::size_t i = 0; i < scene.vertexPoints().size(); ++i) {
+            const auto &p = scene.vertexPoints()[i];
+            points->SetPoint(static_cast<vtkIdType>(i), p.x, p.y, p.z);
+            const vtkIdType id = static_cast<vtkIdType>(i);
+            verts->InsertNextCell(1, &id);
+        }
+        vtkNew<vtkPolyData> data;
+        data->SetPoints(points);
+        data->SetVerts(verts);
+        vtkNew<vtkPolyDataMapper> mapper;
+        mapper->SetInputData(data);
+        mapper->ScalarVisibilityOff();
+
+        vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+        actor->SetMapper(mapper);
+        actor->PickableOn();
+        actor->GetProperty()->SetPointSize(8.0);
+        actor->GetProperty()->SetLighting(false);
+        actor->GetProperty()->SetAmbient(1.0);
+        actor->GetProperty()->SetDiffuse(0.0);
+        return actor;
+    }
+
+    void applyPalette()
     {
         const ViewportPalette palette = ViewportPalette::forAppearance(systemPrefersDark());
+        const Rgb topology = palette.color(RenderRole::GeometryEdge);
+        if (edgeActor != nullptr) {
+            edgeActor->GetProperty()->SetColor(topology.r, topology.g, topology.b);
+        }
+        if (vertexActor != nullptr) {
+            vertexActor->GetProperty()->SetColor(topology.r, topology.g, topology.b);
+        }
         if (selectionActor != nullptr) {
             const Rgb color = palette.color(RenderRole::Selection);
             selectionActor->GetProperty()->SetColor(color.r, color.g, color.b);
@@ -142,45 +229,45 @@ public:
         }
     }
 
-    vtkSmartPointer<vtkActor> buildOverlay(const QVector<SelectionItem> &items,
-                                           const RenderRole role,
-                                           const double opacity,
-                                           const double lineWidth,
-                                           const double polygonOffset)
+    void updateBaseTopologyVisibility()
     {
-        const auto cells = scene.cellIndicesForSelection(items);
+        if (edgeActor != nullptr) {
+            edgeActor->SetVisibility(activeKind == SelectionKind::Edge ? 1 : 0);
+        }
+        if (vertexActor != nullptr) {
+            vertexActor->SetVisibility(activeKind == SelectionKind::Vertex ? 1 : 0);
+        }
+    }
+
+    vtkSmartPointer<vtkActor> buildSurfaceOverlay(const QVector<SelectionItem> &items,
+                                                  const RenderRole role,
+                                                  const double opacity,
+                                                  const double lineWidth,
+                                                  const double polygonOffset) const
+    {
+        const GeometrySelectionScene &surface = scene.surface();
+        const auto cells = surface.cellIndicesForSelection(items);
         if (cells.empty()) {
             return nullptr;
         }
 
         vtkNew<vtkPoints> points;
-        points->SetNumberOfPoints(static_cast<vtkIdType>(scene.points().size()));
-        for (std::size_t i = 0; i < scene.points().size(); ++i) {
-            const auto &p = scene.points()[i];
+        points->SetNumberOfPoints(static_cast<vtkIdType>(surface.points().size()));
+        for (std::size_t i = 0; i < surface.points().size(); ++i) {
+            const auto &p = surface.points()[i];
             points->SetPoint(static_cast<vtkIdType>(i), p.x, p.y, p.z);
         }
-
         vtkNew<vtkCellArray> polys;
         for (const std::size_t cell : cells) {
-            if (cell >= scene.triangles().size()) {
-                continue;
-            }
-            const auto &triangle = scene.triangles()[cell];
-            const vtkIdType ids[3] = {
-                static_cast<vtkIdType>(triangle[0]),
-                static_cast<vtkIdType>(triangle[1]),
-                static_cast<vtkIdType>(triangle[2])
-            };
+            const auto &triangle = surface.triangles()[cell];
+            const vtkIdType ids[3] = {static_cast<vtkIdType>(triangle[0]),
+                                      static_cast<vtkIdType>(triangle[1]),
+                                      static_cast<vtkIdType>(triangle[2])};
             polys->InsertNextCell(3, ids);
         }
-        if (polys->GetNumberOfCells() == 0) {
-            return nullptr;
-        }
-
         vtkNew<vtkPolyData> data;
         data->SetPoints(points);
         data->SetPolys(polys);
-
         vtkNew<vtkPolyDataMapper> mapper;
         mapper->SetInputData(data);
         mapper->ScalarVisibilityOff();
@@ -196,21 +283,106 @@ public:
         actor->GetProperty()->SetLighting(false);
         actor->GetProperty()->SetAmbient(1.0);
         actor->GetProperty()->SetDiffuse(0.0);
-
-        const ViewportPalette palette = ViewportPalette::forAppearance(systemPrefersDark());
-        const Rgb color = palette.color(role);
+        const Rgb color = ViewportPalette::forAppearance(systemPrefersDark()).color(role);
         actor->GetProperty()->SetColor(color.r, color.g, color.b);
         actor->GetProperty()->SetEdgeColor(color.r, color.g, color.b);
         return actor;
     }
 
+    vtkSmartPointer<vtkActor> buildEdgeOverlay(const QVector<SelectionItem> &items,
+                                               const RenderRole role,
+                                               const double lineWidth) const
+    {
+        const auto selected = scene.lineIndicesForSelection(items);
+        if (selected.empty()) {
+            return nullptr;
+        }
+        vtkNew<vtkPoints> points;
+        points->SetNumberOfPoints(static_cast<vtkIdType>(scene.edgePoints().size()));
+        for (std::size_t i = 0; i < scene.edgePoints().size(); ++i) {
+            const auto &p = scene.edgePoints()[i];
+            points->SetPoint(static_cast<vtkIdType>(i), p.x, p.y, p.z);
+        }
+        vtkNew<vtkCellArray> lines;
+        for (const std::size_t index : selected) {
+            const auto &line = scene.edgeLines()[index];
+            const vtkIdType ids[2] = {static_cast<vtkIdType>(line[0]), static_cast<vtkIdType>(line[1])};
+            lines->InsertNextCell(2, ids);
+        }
+        vtkNew<vtkPolyData> data;
+        data->SetPoints(points);
+        data->SetLines(lines);
+        vtkNew<vtkPolyDataMapper> mapper;
+        mapper->SetInputData(data);
+        mapper->ScalarVisibilityOff();
+        vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+        actor->SetMapper(mapper);
+        actor->PickableOff();
+        actor->GetProperty()->SetLineWidth(lineWidth);
+        actor->GetProperty()->SetLighting(false);
+        const Rgb color = ViewportPalette::forAppearance(systemPrefersDark()).color(role);
+        actor->GetProperty()->SetColor(color.r, color.g, color.b);
+        return actor;
+    }
+
+    vtkSmartPointer<vtkActor> buildVertexOverlay(const QVector<SelectionItem> &items,
+                                                 const RenderRole role,
+                                                 const double pointSize) const
+    {
+        const auto selected = scene.pointIndicesForSelection(items);
+        if (selected.empty()) {
+            return nullptr;
+        }
+        vtkNew<vtkPoints> points;
+        vtkNew<vtkCellArray> verts;
+        for (const std::size_t index : selected) {
+            const auto &p = scene.vertexPoints()[index];
+            const vtkIdType local = points->InsertNextPoint(p.x, p.y, p.z);
+            verts->InsertNextCell(1, &local);
+        }
+        vtkNew<vtkPolyData> data;
+        data->SetPoints(points);
+        data->SetVerts(verts);
+        vtkNew<vtkPolyDataMapper> mapper;
+        mapper->SetInputData(data);
+        mapper->ScalarVisibilityOff();
+        vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+        actor->SetMapper(mapper);
+        actor->PickableOff();
+        actor->GetProperty()->SetPointSize(pointSize);
+        actor->GetProperty()->SetLighting(false);
+        const Rgb color = ViewportPalette::forAppearance(systemPrefersDark()).color(role);
+        actor->GetProperty()->SetColor(color.r, color.g, color.b);
+        return actor;
+    }
+
+    vtkSmartPointer<vtkActor> buildOverlay(const QVector<SelectionItem> &items,
+                                           const RenderRole role,
+                                           const bool preselectionOverlay) const
+    {
+        switch (activeKind) {
+        case SelectionKind::Body:
+        case SelectionKind::Face:
+            return buildSurfaceOverlay(items, role,
+                                       preselectionOverlay ? 0.24 : 0.42,
+                                       preselectionOverlay ? 1.5 : 2.2,
+                                       preselectionOverlay ? -6.0 : -4.0);
+        case SelectionKind::Edge:
+            return buildEdgeOverlay(items, role, preselectionOverlay ? 3.2 : 4.2);
+        case SelectionKind::Vertex:
+            return buildVertexOverlay(items, role, preselectionOverlay ? 11.0 : 13.0);
+        default:
+            return nullptr;
+        }
+    }
+
     void rebuildSelectionOverlay()
     {
-        removeOverlay(selectionActor);
+        removeActor(selectionActor);
         if (renderer == nullptr || scene.empty() || selection.isEmpty()) {
             return;
         }
-        selectionActor = buildOverlay(selection, RenderRole::Selection, 0.42, 2.2, -4.0);
+        selectionActor = buildOverlay(selection, RenderRole::Selection, false);
         if (selectionActor != nullptr) {
             renderer->AddActor(selectionActor);
         }
@@ -218,12 +390,12 @@ public:
 
     void rebuildPreselectionOverlay()
     {
-        removeOverlay(preselectionActor);
+        removeActor(preselectionActor);
         if (renderer == nullptr || scene.empty() || !preselection.has_value()) {
             return;
         }
         preselectionActor = buildOverlay(QVector<SelectionItem>{*preselection},
-                                         RenderRole::Preselection, 0.24, 1.5, -6.0);
+                                         RenderRole::Preselection, true);
         if (preselectionActor != nullptr) {
             renderer->AddActor(preselectionActor);
         }
@@ -236,10 +408,32 @@ public:
         }
     }
 
-    [[nodiscard]] std::optional<GeometrySceneCellProvenance> pick(const QPointF &position)
+    [[nodiscard]] std::optional<SelectionItem> pick(const QPointF &position)
     {
-        if (widget == nullptr || renderer == nullptr || surfaceActor == nullptr
-            || picker == nullptr || widget->renderWindow() == nullptr || scene.empty()) {
+        if (widget == nullptr || renderer == nullptr || picker == nullptr
+            || widget->renderWindow() == nullptr || scene.empty()) {
+            return std::nullopt;
+        }
+
+        vtkActor *target = nullptr;
+        switch (activeKind) {
+        case SelectionKind::Body:
+        case SelectionKind::Face:
+            target = surfaceActor;
+            picker->SetTolerance(0.005);
+            break;
+        case SelectionKind::Edge:
+            target = edgeActor;
+            picker->SetTolerance(0.010);
+            break;
+        case SelectionKind::Vertex:
+            target = vertexActor;
+            picker->SetTolerance(0.014);
+            break;
+        default:
+            return std::nullopt;
+        }
+        if (target == nullptr) {
             return std::nullopt;
         }
 
@@ -257,7 +451,7 @@ public:
                                  0, renderSize[1] - 1);
 
         picker->InitializePickList();
-        picker->AddPickList(surfaceActor);
+        picker->AddPickList(target);
         picker->PickFromListOn();
         if (picker->Pick(x, y, 0.0, renderer) == 0) {
             return std::nullopt;
@@ -266,7 +460,18 @@ public:
         if (cellId < 0) {
             return std::nullopt;
         }
-        return scene.provenanceForCell(static_cast<std::size_t>(cellId));
+        const std::size_t cell = static_cast<std::size_t>(cellId);
+        switch (activeKind) {
+        case SelectionKind::Body:
+        case SelectionKind::Face:
+            return scene.selectionItemForSurfaceCell(cell, activeKind);
+        case SelectionKind::Edge:
+            return scene.selectionItemForEdgeCell(cell);
+        case SelectionKind::Vertex:
+            return scene.selectionItemForVertexCell(cell);
+        default:
+            return std::nullopt;
+        }
     }
 #endif
 };
@@ -277,9 +482,8 @@ ViewportSelectionBridge::ViewportSelectionBridge(ViewportWidget *viewport, QObje
 #ifdef FEMCAE_GUI_HAS_VTK
     impl_->bind(viewport_);
     if (impl_->widget != nullptr) {
-        // Bu filtre event'i tüketmez. Navigation event'leri mevcut
-        // ViewportInputRouter'a ulaşmaya devam eder; selection state machine
-        // Alt/Option + left, middle drag ve wheel'i selection olarak yorumlamaz.
+        // Event filtreleme gözlemci kalır; navigation event'leri mevcut
+        // ViewportInputRouter'a ulaşmaya devam eder.
         impl_->widget->installEventFilter(this);
     }
 #else
@@ -289,40 +493,57 @@ ViewportSelectionBridge::ViewportSelectionBridge(ViewportWidget *viewport, QObje
 
 ViewportSelectionBridge::~ViewportSelectionBridge() = default;
 
-bool ViewportSelectionBridge::setScene(const QVector<femcae::geometry::TopologyTessellation> &bodies)
+bool ViewportSelectionBridge::setScene(
+    const QVector<femcae::geometry::TopologyTessellation> &surfaces,
+    const QVector<femcae::geometry::EdgeDisplayTessellation> &edges,
+    const QVector<femcae::geometry::VertexDisplayPoints> &vertices)
 {
-    impl_->scene.clear();
-    for (const auto &body : bodies) {
-        if (!impl_->scene.append(body)) {
-            impl_->scene.clear();
+    if (surfaces.isEmpty() || surfaces.size() != edges.size() || surfaces.size() != vertices.size()) {
+        clearScene();
+        return false;
+    }
+
+    GeometryTopologyScene candidate;
+    for (qsizetype i = 0; i < surfaces.size(); ++i) {
+        if (!candidate.append(surfaces[i], edges[i], vertices[i])) {
             clearScene();
             return false;
         }
     }
-    if (impl_->scene.empty() || viewport_ == nullptr) {
+    if (!candidate.complete() || viewport_ == nullptr) {
         clearScene();
         return false;
     }
 
 #ifdef FEMCAE_GUI_HAS_VTK
-    // Eski transient overlay aktörleri yeni base-scene camera fit hesabına
-    // karışmadan önce renderer'dan çıkarılır.
     impl_->clearVisualState();
-
-    // Base CAD render'i yine ViewportWidget üretir. Bridge yalnız bu render'in
-    // provenance ve transient overlay katmanını bağlar.
-    viewport_->showGeometry(bodies);
+    viewport_->showGeometry(surfaces);
+    impl_->scene = std::move(candidate);
     impl_->bind(viewport_);
     if (!impl_->resolveSurfaceActor()) {
         impl_->scene.clear();
         return false;
     }
+
+    impl_->edgeActor = impl_->buildCanonicalEdgeActor();
+    impl_->vertexActor = impl_->buildCanonicalVertexActor();
+    if (impl_->edgeActor == nullptr || impl_->vertexActor == nullptr || impl_->renderer == nullptr) {
+        impl_->clearVisualState();
+        impl_->scene.clear();
+        return false;
+    }
+    impl_->renderer->AddActor(impl_->edgeActor);
+    impl_->renderer->AddActor(impl_->vertexActor);
+    impl_->applyPalette();
+    impl_->updateBaseTopologyVisibility();
     impl_->rebuildSelectionOverlay();
     impl_->rebuildPreselectionOverlay();
     impl_->render();
-    return impl_->scene.hasFaceProvenance();
+    return true;
 #else
-    Q_UNUSED(bodies)
+    Q_UNUSED(surfaces)
+    Q_UNUSED(edges)
+    Q_UNUSED(vertices)
     return false;
 #endif
 }
@@ -338,7 +559,37 @@ void ViewportSelectionBridge::clearScene()
 
 bool ViewportSelectionBridge::hasFaceProvenance() const noexcept
 {
-    return !impl_->scene.empty() && impl_->scene.hasFaceProvenance();
+    return impl_->scene.hasFaceProvenance();
+}
+
+bool ViewportSelectionBridge::hasEdgeProvenance() const noexcept
+{
+    return impl_->scene.hasEdgeProvenance();
+}
+
+bool ViewportSelectionBridge::hasVertexProvenance() const noexcept
+{
+    return impl_->scene.hasVertexProvenance();
+}
+
+void ViewportSelectionBridge::setActiveKind(const SelectionKind kind)
+{
+    const SelectionKind resolved = isCadTopologyKind(kind) ? kind : SelectionKind::Body;
+    if (impl_->activeKind == resolved) {
+        return;
+    }
+    impl_->activeKind = resolved;
+#ifdef FEMCAE_GUI_HAS_VTK
+    impl_->updateBaseTopologyVisibility();
+    impl_->rebuildSelectionOverlay();
+    impl_->rebuildPreselectionOverlay();
+    impl_->render();
+#endif
+}
+
+SelectionKind ViewportSelectionBridge::activeKind() const noexcept
+{
+    return impl_->activeKind;
 }
 
 void ViewportSelectionBridge::setSelection(const QVector<SelectionItem> &items)
@@ -398,7 +649,7 @@ bool ViewportSelectionBridge::eventFilter(QObject *watched, QEvent *event)
     }
     case QEvent::PaletteChange:
     case QEvent::ApplicationPaletteChange:
-        impl_->applyOverlayPalette();
+        impl_->applyPalette();
         impl_->render();
         break;
     default:
@@ -419,8 +670,9 @@ bool ViewportSelectionBridge::eventFilter(QObject *watched, QEvent *event)
     case SelectionInputActionType::Hover: {
         const auto hit = impl_->pick(action->position);
         if (hit.has_value()) {
-            emit preselectionRequested(static_cast<quint64>(hit->bodyId),
-                                       static_cast<quint64>(hit->faceId));
+            emit preselectionRequested(hit->kind,
+                                       static_cast<quint64>(bodyIdFor(*hit)),
+                                       static_cast<quint64>(hit->geometryEntityId));
         } else {
             emit preselectionClearRequested();
         }
@@ -429,8 +681,9 @@ bool ViewportSelectionBridge::eventFilter(QObject *watched, QEvent *event)
     case SelectionInputActionType::Commit: {
         const auto hit = impl_->pick(action->position);
         if (hit.has_value()) {
-            emit selectionRequested(static_cast<quint64>(hit->bodyId),
-                                    static_cast<quint64>(hit->faceId),
+            emit selectionRequested(hit->kind,
+                                    static_cast<quint64>(bodyIdFor(*hit)),
+                                    static_cast<quint64>(hit->geometryEntityId),
                                     action->operation);
         } else {
             emit selectionClearRequested();
@@ -438,22 +691,17 @@ bool ViewportSelectionBridge::eventFilter(QObject *watched, QEvent *event)
         break;
     }
     case SelectionInputActionType::ContextMenu: {
-        // Empty secondary click committed selection'i korur ve menu acmaz.
-        // Hit varsa provenance application coordinator'a aktarilir; preserve vs
-        // Replace karari rendering katmaninda verilmez.
         const auto hit = impl_->pick(action->position);
         if (hit.has_value()) {
-            emit contextMenuRequested(static_cast<quint64>(hit->bodyId),
-                                      static_cast<quint64>(hit->faceId),
+            emit contextMenuRequested(hit->kind,
+                                      static_cast<quint64>(bodyIdFor(*hit)),
+                                      static_cast<quint64>(hit->geometryEntityId),
                                       impl_->widget->mapToGlobal(action->position.toPoint()));
         }
         break;
     }
     }
 
-    // Selection view-state gözlemci olarak çalışır; Qt/VTK event'i tüketilmez.
-    // ViewportInputRouter plain right-click'i context-menu territory olarak
-    // bırakır; VTK interactor'un right-button camera davranışı da inerttir.
     return QObject::eventFilter(watched, event);
 #else
     Q_UNUSED(watched)

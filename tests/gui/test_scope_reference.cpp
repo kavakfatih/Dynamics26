@@ -17,44 +17,55 @@ void check(const bool condition, const std::string &message)
     failures += condition ? 0 : 1;
 }
 
-d26::SelectionItem body(const femcae::geometry::GeometryEntityId id, const quint64 revision)
+d26::SelectionItem geometryItem(const d26::SelectionKind kind,
+                                const femcae::geometry::GeometryEntityId id,
+                                const femcae::geometry::GeometryEntityId parent,
+                                const quint64 revision)
 {
     d26::SelectionItem item;
     item.domain = d26::SelectionDomain::Geometry;
-    item.kind = d26::SelectionKind::Body;
-    item.geometryEntityId = id;
-    item.sourceRevision = revision;
-    return item;
-}
-
-d26::SelectionItem face(const femcae::geometry::GeometryEntityId id,
-                        const femcae::geometry::GeometryEntityId parent,
-                        const quint64 revision)
-{
-    d26::SelectionItem item;
-    item.domain = d26::SelectionDomain::Geometry;
-    item.kind = d26::SelectionKind::Face;
+    item.kind = kind;
     item.geometryEntityId = id;
     item.parentGeometryId = parent;
     item.sourceRevision = revision;
     return item;
 }
 
+d26::SelectionItem body(const femcae::geometry::GeometryEntityId id, const quint64 revision)
+{
+    return geometryItem(d26::SelectionKind::Body, id, femcae::geometry::InvalidGeometryId, revision);
+}
+
 void scopeBuilderTests()
 {
+    using femcae::geometry::GeometryEntityKind;
+    using femcae::geometry::InvalidGeometryId;
+
     femcae::geometry::GeometryDocument document("scope-reference-test");
-    const auto bodyId = document.addEntity(femcae::geometry::GeometryEntityKind::Body,
-                                           femcae::geometry::InvalidGeometryId,
+    const auto bodyId = document.addEntity(GeometryEntityKind::Body, InvalidGeometryId,
                                            "Body 1", "step/body/1");
-    const auto faceA = document.addEntity(femcae::geometry::GeometryEntityKind::Face,
+    const auto faceA = document.addEntity(GeometryEntityKind::Face,
                                           bodyId, "Face 1", "step/body/1/face/1");
-    const auto faceB = document.addEntity(femcae::geometry::GeometryEntityKind::Face,
+    const auto faceB = document.addEntity(GeometryEntityKind::Face,
                                           bodyId, "Face 2", "step/body/1/face/2");
+    const auto edgeA = document.addEntity(GeometryEntityKind::Edge,
+                                          bodyId, "Edge 1", "step/body/1/edge/1");
+    const auto vertexA = document.addEntity(GeometryEntityKind::Vertex,
+                                            bodyId, "Vertex 1", "step/body/1/vertex/1");
     const quint64 revision = document.revision();
 
+    const auto face = [bodyId, revision](const auto id) {
+        return geometryItem(d26::SelectionKind::Face, id, bodyId, revision);
+    };
+    const auto edge = [bodyId, revision](const auto id) {
+        return geometryItem(d26::SelectionKind::Edge, id, bodyId, revision);
+    };
+    const auto vertex = [bodyId, revision](const auto id) {
+        return geometryItem(d26::SelectionKind::Vertex, id, bodyId, revision);
+    };
+
     const auto result = d26::buildGeometryScopeReference(
-        QVector<d26::SelectionItem>{face(faceA, bodyId, revision), face(faceB, bodyId, revision)},
-        document);
+        QVector<d26::SelectionItem>{face(faceA), face(faceB)}, document);
     check(result.success() && result.scope.entities.size() == 2,
           "two current CAD Faces convert to one persistent ScopeReference");
     check(result.scope.sourceRevision == revision,
@@ -62,6 +73,8 @@ void scopeBuilderTests()
     check(result.scope.entities[0].persistentKey == QStringLiteral("step/body/1/face/1")
               && result.scope.entities[1].persistentKey == QStringLiteral("step/body/1/face/2"),
           "scope preserves deterministic CAD persistentKey order");
+    check(result.scope.entities[0].parentGeometryId == bodyId,
+          "child topology scope preserves parent Body identity");
     check(d26::validateGeometryScopeReference(result.scope, document)
               == d26::ScopeReferenceValidationError::None,
           "new persistent CAD scope validates against its source revision");
@@ -71,35 +84,41 @@ void scopeBuilderTests()
     check(bodyResult.success() && bodyResult.scope.entities.front().kind == d26::SelectionKind::Body,
           "current CAD Body converts to persistent Body scope");
 
+    const auto edgeResult = d26::buildGeometryScopeReference(
+        QVector<d26::SelectionItem>{edge(edgeA)}, document);
+    check(edgeResult.success() && edgeResult.scope.entities.front().kind == d26::SelectionKind::Edge
+              && edgeResult.scope.entities.front().parentGeometryId == bodyId,
+          "current canonical CAD Edge converts to persistent Edge scope");
+
+    const auto vertexResult = d26::buildGeometryScopeReference(
+        QVector<d26::SelectionItem>{vertex(vertexA)}, document);
+    check(vertexResult.success() && vertexResult.scope.entities.front().kind == d26::SelectionKind::Vertex
+              && vertexResult.scope.entities.front().parentGeometryId == bodyId,
+          "current canonical CAD Vertex converts to persistent Vertex scope");
+
     const auto stale = d26::buildGeometryScopeReference(
-        QVector<d26::SelectionItem>{face(faceA, bodyId, revision - 1)}, document);
+        QVector<d26::SelectionItem>{geometryItem(d26::SelectionKind::Face, faceA, bodyId, revision - 1)}, document);
     check(!stale.success()
               && stale.error == d26::ScopeReferenceBuildError::StaleGeometryRevision,
           "stale geometry revision is rejected before persistent scoping");
 
     const auto wrongParent = d26::buildGeometryScopeReference(
-        QVector<d26::SelectionItem>{face(faceA, bodyId + 999, revision)}, document);
+        QVector<d26::SelectionItem>{geometryItem(d26::SelectionKind::Edge, edgeA, bodyId + 999, revision)}, document);
     check(!wrongParent.success()
               && wrongParent.error == d26::ScopeReferenceBuildError::ParentBodyMismatch,
-          "Face selection cannot be rebound to a different parent Body");
+          "Edge/Face/Vertex selection cannot be rebound to a different parent Body");
 
-    d26::SelectionItem missing = face(999999, bodyId, revision);
+    const auto kindMismatch = d26::buildGeometryScopeReference(
+        QVector<d26::SelectionItem>{geometryItem(d26::SelectionKind::Edge, faceA, bodyId, revision)}, document);
+    check(!kindMismatch.success()
+              && kindMismatch.error == d26::ScopeReferenceBuildError::GeometryKindMismatch,
+          "display or wrong-kind geometry identity cannot masquerade as a CAD Edge");
+
     const auto missingEntity = d26::buildGeometryScopeReference(
-        QVector<d26::SelectionItem>{missing}, document);
+        QVector<d26::SelectionItem>{geometryItem(d26::SelectionKind::Vertex, 999999, bodyId, revision)}, document);
     check(!missingEntity.success()
               && missingEntity.error == d26::ScopeReferenceBuildError::MissingGeometryEntity,
           "unknown geometry ID is never accepted as engineering scope");
-
-    d26::SelectionItem edge;
-    edge.domain = d26::SelectionDomain::Geometry;
-    edge.kind = d26::SelectionKind::Edge;
-    edge.geometryEntityId = faceA;
-    edge.sourceRevision = revision;
-    const auto unsupportedKind = d26::buildGeometryScopeReference(
-        QVector<d26::SelectionItem>{edge}, document);
-    check(!unsupportedKind.success()
-              && unsupportedKind.error == d26::ScopeReferenceBuildError::UnsupportedKind,
-          "Alpha.3.2 scope builder refuses Edge/Vertex until their selection phase exists");
 
     d26::SelectionItem object;
     object.domain = d26::SelectionDomain::ProjectObject;
@@ -111,12 +130,8 @@ void scopeBuilderTests()
               && wrongDomain.error == d26::ScopeReferenceBuildError::UnsupportedDomain,
           "ProjectObject identity cannot leak into CAD engineering scope");
 
-    // GeometryDocument public API boş persistentKey üretimini zaten reddeder.
-    // Builder savunmasını ayrıca doğrulamak için geçerli entity kontrollü olarak
-    // bozulur; findMutable revision'i artırdığı için selection yeni revision ile kurulur.
     femcae::geometry::GeometryDocument noKey("scope-no-key");
-    const auto noKeyBody = noKey.addEntity(femcae::geometry::GeometryEntityKind::Body,
-                                           femcae::geometry::InvalidGeometryId,
+    const auto noKeyBody = noKey.addEntity(GeometryEntityKind::Body, InvalidGeometryId,
                                            "Body", "step/body/1");
     if (auto *entity = noKey.findMutable(noKeyBody)) {
         entity->persistentKey.clear();
@@ -127,17 +142,21 @@ void scopeBuilderTests()
               && missingKey.error == d26::ScopeReferenceBuildError::MissingPersistentKey,
           "scope persistence requires a non-empty CAD persistentKey");
 
-    d26::ScopeReference tampered = result.scope;
+    d26::ScopeReference tampered = edgeResult.scope;
+    tampered.entities.front().parentGeometryId = bodyId + 77;
+    check(d26::validateGeometryScopeReference(tampered, document)
+              == d26::ScopeReferenceValidationError::ParentBodyMismatch,
+          "persistent child-topology scope detects parent Body mismatch");
+
+    tampered = result.scope;
     tampered.entities.front().persistentKey = QStringLiteral("step/body/1/face/wrong");
     check(d26::validateGeometryScopeReference(tampered, document)
               == d26::ScopeReferenceValidationError::PersistentKeyMismatch,
           "persistent scope detects a topology key mismatch in the same revision");
 
     // Persistent scope sonradan kullanılırken revision yeniden kontrol edilir.
-    // Yeni entity eklemek dahi document revision'ini değiştirir; eski scope
-    // otomatik rebind edilmez ve açıkça stale sayılır.
-    (void)document.addEntity(femcae::geometry::GeometryEntityKind::Edge,
-                             bodyId, "Edge 1", "step/body/1/edge/1");
+    (void)document.addEntity(GeometryEntityKind::Edge,
+                             bodyId, "Edge 2", "step/body/1/edge/2");
     check(d26::validateGeometryScopeReference(result.scope, document)
               == d26::ScopeReferenceValidationError::StaleGeometryRevision,
           "geometry revision change marks an existing persistent scope stale");

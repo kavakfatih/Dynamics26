@@ -1,15 +1,15 @@
 #pragma once
 
-// Dynamics26 Alpha.3.2 — topology-aware CAD selection interaction bridge.
+// Dynamics26 Alpha.3.3 — topology-aware CAD selection interaction bridge.
 //
-// ViewportWidget temel render/camera davranışının sahibidir. Bu bridge yalnız
-// transient selection input, CAD cell provenance pick'i ve selection overlay
-// aktörlerini yönetir. Doküman/solver verisi yazmaz.
+// ViewportWidget temel render/camera davranışının sahibidir. Bu bridge transient
+// selection input, CAD display provenance pick'i ve selection/preselection
+// overlay aktörlerini yönetir. Doküman/solver verisi yazmaz.
 //
-// CAD Geometry != Display Tessellation != FEM Mesh kuralı korunur.
+// CAD Geometry != Display Tessellation != FEM Mesh
 
 #include "../core/SelectionTypes.h"
-#include "GeometrySelectionScene.h"
+#include "GeometryTopologyScene.h"
 #include "ViewportSelectionController.h"
 
 #include <QObject>
@@ -32,21 +32,28 @@ public:
     explicit ViewportSelectionBridge(ViewportWidget *viewport, QObject *parent = nullptr);
     ~ViewportSelectionBridge() override;
 
-    // Viewport'ta topology-aware multi-body CAD sahnesini gösterir ve aynı
-    // display cell -> Body/Face provenance tablosunu selection için bağlar.
-    [[nodiscard]] bool setScene(const QVector<femcae::geometry::TopologyTessellation> &bodies);
+    // Face/Edge/Vertex display kaynaklari ayni Body sirasi ve CAD revision'i ile
+    // tek topology scene'e bağlanır. Kısmi scene kabul edilmez.
+    [[nodiscard]] bool setScene(const QVector<femcae::geometry::TopologyTessellation> &surfaces,
+                                const QVector<femcae::geometry::EdgeDisplayTessellation> &edges,
+                                const QVector<femcae::geometry::VertexDisplayPoints> &vertices);
     void clearScene();
-    [[nodiscard]] bool hasFaceProvenance() const noexcept;
 
+    [[nodiscard]] bool hasFaceProvenance() const noexcept;
+    [[nodiscard]] bool hasEdgeProvenance() const noexcept;
+    [[nodiscard]] bool hasVertexProvenance() const noexcept;
+
+    void setActiveKind(SelectionKind kind);
+    [[nodiscard]] SelectionKind activeKind() const noexcept;
     void setSelection(const QVector<SelectionItem> &items);
     void setPreselection(std::optional<SelectionItem> item);
 
 signals:
-    void selectionRequested(quint64 bodyId, quint64 faceId, d26::SelectionOperation operation);
-    void preselectionRequested(quint64 bodyId, quint64 faceId);
-    // Secondary click hit-test sonucu. Selection setini preserve/replace etme
-    // kararı rendering katmanında değil application coordinator'da verilir.
-    void contextMenuRequested(quint64 bodyId, quint64 faceId, const QPoint &globalPosition);
+    void selectionRequested(d26::SelectionKind kind, quint64 bodyId, quint64 geometryId,
+                            d26::SelectionOperation operation);
+    void preselectionRequested(d26::SelectionKind kind, quint64 bodyId, quint64 geometryId);
+    void contextMenuRequested(d26::SelectionKind kind, quint64 bodyId, quint64 geometryId,
+                              const QPoint &globalPosition);
     void selectionClearRequested();
     void preselectionClearRequested();
 

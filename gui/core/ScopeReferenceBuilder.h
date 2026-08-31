@@ -1,12 +1,12 @@
 #pragma once
 
-// Dynamics26 Alpha.3.2 — transient CAD selection -> persistent engineering scope.
+// Dynamics26 Alpha.3.3 — transient CAD selection -> persistent engineering scope.
 //
 // SelectionItem ekran/oturum durumudur; ScopeReference ise Material/BC/Load/
-// Contact gibi mühendislik tanimlarinin kalici kapsamini temsil edecek data-only
-// kontrattir. Bu builder display triangle veya FEM facet kimligini CAD scope gibi
-// kabul etmez. Yalniz current GeometryDocument revision'indaki gercek Body/Face
-// entity'lerini persistentKey ile scope'a cevirir.
+// Contact/Mesh gibi mühendislik tanimlarinin kalici kapsamini temsil edecek
+// data-only kontrattir. Display triangle/line/point veya FEM kimlikleri CAD
+// scope gibi kabul edilmez. Yalniz current GeometryDocument revision'indaki
+// gercek Body/Face/Edge/Vertex entity'leri persistentKey ile scope'a cevrilir.
 
 #include "SelectionTypes.h"
 
@@ -14,6 +14,8 @@
 
 #include <QString>
 #include <QVector>
+
+#include <optional>
 
 namespace d26 {
 
@@ -46,9 +48,28 @@ enum class ScopeReferenceValidationError {
     UnsupportedKind,
     MissingGeometryEntity,
     GeometryKindMismatch,
+    ParentBodyMismatch,
     MissingPersistentKey,
     PersistentKeyMismatch
 };
+
+[[nodiscard]] inline std::optional<femcae::geometry::GeometryEntityKind>
+geometryEntityKindForSelectionKind(const SelectionKind kind)
+{
+    using femcae::geometry::GeometryEntityKind;
+    switch (kind) {
+    case SelectionKind::Body: return GeometryEntityKind::Body;
+    case SelectionKind::Face: return GeometryEntityKind::Face;
+    case SelectionKind::Edge: return GeometryEntityKind::Edge;
+    case SelectionKind::Vertex: return GeometryEntityKind::Vertex;
+    default: return std::nullopt;
+    }
+}
+
+[[nodiscard]] inline bool geometrySelectionKindHasBodyParent(const SelectionKind kind) noexcept
+{
+    return kind == SelectionKind::Face || kind == SelectionKind::Edge || kind == SelectionKind::Vertex;
+}
 
 [[nodiscard]] inline ScopeReferenceBuildResult
 buildGeometryScopeReference(const QVector<SelectionItem> &items,
@@ -69,12 +90,13 @@ buildGeometryScopeReference(const QVector<SelectionItem> &items,
             result.error = ScopeReferenceBuildError::UnsupportedDomain;
             return result;
         }
-        if (item.kind != SelectionKind::Body && item.kind != SelectionKind::Face) {
+        const auto expectedKind = geometryEntityKindForSelectionKind(item.kind);
+        if (!expectedKind.has_value()) {
             result.scope.entities.clear();
             result.error = ScopeReferenceBuildError::UnsupportedKind;
             return result;
         }
-        if (item.sourceRevision != document.revision()) {
+        if (item.sourceRevision == 0 || item.sourceRevision != document.revision()) {
             result.scope.entities.clear();
             result.error = ScopeReferenceBuildError::StaleGeometryRevision;
             return result;
@@ -86,19 +108,15 @@ buildGeometryScopeReference(const QVector<SelectionItem> &items,
             result.error = ScopeReferenceBuildError::MissingGeometryEntity;
             return result;
         }
-
-        const auto expectedKind = item.kind == SelectionKind::Body
-            ? femcae::geometry::GeometryEntityKind::Body
-            : femcae::geometry::GeometryEntityKind::Face;
-        if (entity->kind != expectedKind) {
+        if (entity->kind != *expectedKind) {
             result.scope.entities.clear();
             result.error = ScopeReferenceBuildError::GeometryKindMismatch;
             return result;
         }
 
-        if (item.kind == SelectionKind::Face
-            && item.parentGeometryId != femcae::geometry::InvalidGeometryId
-            && entity->parentId != item.parentGeometryId) {
+        if (geometrySelectionKindHasBodyParent(item.kind)
+            && (item.parentGeometryId == femcae::geometry::InvalidGeometryId
+                || entity->parentId != item.parentGeometryId)) {
             result.scope.entities.clear();
             result.error = ScopeReferenceBuildError::ParentBodyMismatch;
             return result;
@@ -111,9 +129,6 @@ buildGeometryScopeReference(const QVector<SelectionItem> &items,
         }
 
         const QString persistentKey = QString::fromStdString(entity->persistentKey);
-        // SelectionManager zaten identity bazinda duplicate tutmaz; builder yine
-        // de harici/programatik caller icin persistent scope'u deterministik ve
-        // tekil tutar.
         if (persistentKeys.contains(persistentKey)) {
             continue;
         }
@@ -123,6 +138,7 @@ buildGeometryScopeReference(const QVector<SelectionItem> &items,
         reference.domain = SelectionDomain::Geometry;
         reference.kind = item.kind;
         reference.geometryEntityId = item.geometryEntityId;
+        reference.parentGeometryId = item.parentGeometryId;
         reference.persistentKey = persistentKey;
         result.scope.entities.push_back(reference);
     }
@@ -135,10 +151,10 @@ buildGeometryScopeReference(const QVector<SelectionItem> &items,
     return result;
 }
 
-// Persistent scope daha sonra kullanilacagi anda current GeometryDocument'a
-// karsi tekrar dogrulanir. Alpha.3.2 bilincli olarak otomatik topology rebind
-// yapmaz: revision degismisse scope stale'dir. persistentKey gelecekte acik bir
-// rebind/migration islemine temel olabilir, fakat stale scope sessizce kabul edilmez.
+// Persistent scope kullanilacagi anda current GeometryDocument'a karsi tekrar
+// dogrulanir. Otomatik topology rebind yapilmaz: revision degismisse scope
+// stale'dir. persistentKey gelecekte acik bir rebind/migration islemine temel
+// olabilir, fakat stale scope sessizce kabul edilmez.
 [[nodiscard]] inline ScopeReferenceValidationError
 validateGeometryScopeReference(const ScopeReference &scope,
                                const femcae::geometry::GeometryDocument &document)
@@ -154,7 +170,8 @@ validateGeometryScopeReference(const ScopeReference &scope,
         if (reference.domain != SelectionDomain::Geometry) {
             return ScopeReferenceValidationError::UnsupportedDomain;
         }
-        if (reference.kind != SelectionKind::Body && reference.kind != SelectionKind::Face) {
+        const auto expectedKind = geometryEntityKindForSelectionKind(reference.kind);
+        if (!expectedKind.has_value()) {
             return ScopeReferenceValidationError::UnsupportedKind;
         }
         if (reference.persistentKey.isEmpty()) {
@@ -165,11 +182,13 @@ validateGeometryScopeReference(const ScopeReference &scope,
         if (entity == nullptr) {
             return ScopeReferenceValidationError::MissingGeometryEntity;
         }
-        const auto expectedKind = reference.kind == SelectionKind::Body
-            ? femcae::geometry::GeometryEntityKind::Body
-            : femcae::geometry::GeometryEntityKind::Face;
-        if (entity->kind != expectedKind) {
+        if (entity->kind != *expectedKind) {
             return ScopeReferenceValidationError::GeometryKindMismatch;
+        }
+        if (geometrySelectionKindHasBodyParent(reference.kind)
+            && (reference.parentGeometryId == femcae::geometry::InvalidGeometryId
+                || entity->parentId != reference.parentGeometryId)) {
+            return ScopeReferenceValidationError::ParentBodyMismatch;
         }
         if (QString::fromStdString(entity->persistentKey) != reference.persistentKey) {
             return ScopeReferenceValidationError::PersistentKeyMismatch;

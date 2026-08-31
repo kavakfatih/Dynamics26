@@ -14,6 +14,8 @@ enum class SelectionPolicyPreset {
     NeutralGeometry,
     MaterialAssignment,
     SurfaceScope,
+    EdgeScope,
+    VertexScope,
     ContactSide,
     BodyMeshControl,
     FaceMeshControl
@@ -21,7 +23,8 @@ enum class SelectionPolicyPreset {
 
 struct SelectionPolicy {
     SelectionDomain domain{SelectionDomain::Geometry};
-    QVector<SelectionKind> allowedKinds{SelectionKind::Body, SelectionKind::Face};
+    QVector<SelectionKind> allowedKinds{SelectionKind::Body, SelectionKind::Face,
+                                        SelectionKind::Edge, SelectionKind::Vertex};
     bool allowMultiple{true};
     bool visibleOnly{true};
 
@@ -43,7 +46,8 @@ struct SelectionPolicy {
         switch (preset) {
         case SelectionPolicyPreset::NeutralGeometry:
             policy.domain = SelectionDomain::Geometry;
-            policy.allowedKinds = {SelectionKind::Body, SelectionKind::Face};
+            policy.allowedKinds = {SelectionKind::Body, SelectionKind::Face,
+                                   SelectionKind::Edge, SelectionKind::Vertex};
             policy.allowMultiple = true;
             break;
         case SelectionPolicyPreset::MaterialAssignment:
@@ -56,6 +60,16 @@ struct SelectionPolicy {
         case SelectionPolicyPreset::FaceMeshControl:
             policy.domain = SelectionDomain::Geometry;
             policy.allowedKinds = {SelectionKind::Face};
+            policy.allowMultiple = true;
+            break;
+        case SelectionPolicyPreset::EdgeScope:
+            policy.domain = SelectionDomain::Geometry;
+            policy.allowedKinds = {SelectionKind::Edge};
+            policy.allowMultiple = true;
+            break;
+        case SelectionPolicyPreset::VertexScope:
+            policy.domain = SelectionDomain::Geometry;
+            policy.allowedKinds = {SelectionKind::Vertex};
             policy.allowMultiple = true;
             break;
         case SelectionPolicyPreset::BodyMeshControl:

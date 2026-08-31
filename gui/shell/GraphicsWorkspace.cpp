@@ -32,15 +32,23 @@ GraphicsWorkspace::GraphicsWorkspace(QWidget *parent) : QFrame(parent)
 
     auto *filterGroup = new QActionGroup(this);
     filterGroup->setExclusive(true);
-    selectBody_ = toolbar_->addAction(tr("Body"));
-    selectBody_->setCheckable(true);
+    const auto addFilter = [this, filterGroup](const QString &label,
+                                               const QString &toolTip,
+                                               const SelectionFilter filter) {
+        QAction *action = toolbar_->addAction(label);
+        action->setCheckable(true);
+        action->setToolTip(toolTip);
+        filterGroup->addAction(action);
+        connect(action, &QAction::triggered, this, [this, filter] { setSelectionFilter(filter); });
+        return action;
+    };
+
+    selectBody_ = addFilter(tr("Body"), tr("CAD Body seçimi"), SelectionFilter::Body);
+    selectFace_ = addFilter(tr("Face"), tr("CAD Face seçimi"), SelectionFilter::Face);
+    selectEdge_ = addFilter(tr("Edge"), tr("CAD Edge seçimi"), SelectionFilter::Edge);
+    selectVertex_ = addFilter(tr("Vertex"), tr("CAD Vertex seçimi"), SelectionFilter::Vertex);
     selectBody_->setChecked(true);
-    selectBody_->setToolTip(tr("Gövde seçimi"));
-    filterGroup->addAction(selectBody_);
-    selectFace_ = toolbar_->addAction(tr("Face"));
-    selectFace_->setCheckable(true);
-    selectFace_->setToolTip(tr("Yüz seçimi"));
-    filterGroup->addAction(selectFace_);
+
     toolbar_->addSeparator();
     fit_ = toolbar_->addAction(tr("Fit"));
     fit_->setToolTip(tr("Görünümü sığdır"));
@@ -68,7 +76,6 @@ GraphicsWorkspace::GraphicsWorkspace(QWidget *parent) : QFrame(parent)
     toolbar_->addWidget(contextLabel_);
 
     layout->addWidget(toolbar_);
-
     layout->addWidget(new ui::Hairline(this));
 
     viewport_ = new ViewportWidget(this);
@@ -78,14 +85,8 @@ GraphicsWorkspace::GraphicsWorkspace(QWidget *parent) : QFrame(parent)
 
     connect(fit_, &QAction::triggered, this, &GraphicsWorkspace::fitViewRequested);
     connect(isometric_, &QAction::triggered, this, &GraphicsWorkspace::isometricViewRequested);
-    connect(selectBody_, &QAction::triggered, this, [this] {
-        setSelectionFilter(SelectionFilter::Body);
-    });
-    connect(selectFace_, &QAction::triggered, this, [this] {
-        setSelectionFilter(SelectionFilter::Face);
-    });
 
-    setFaceSelectionAvailable(false);
+    setTopologySelectionAvailable(false, false, false);
 }
 
 void GraphicsWorkspace::refreshIcons()
@@ -93,6 +94,8 @@ void GraphicsWorkspace::refreshIcons()
     const QColor tint = qApp->palette().color(QPalette::WindowText);
     selectBody_->setIcon(CaeIcons::forCommand(CommandGlyph::SelectBody, tint));
     selectFace_->setIcon(CaeIcons::forCommand(CommandGlyph::SelectFace, tint));
+    selectEdge_->setIcon(CaeIcons::forCommand(CommandGlyph::SelectEdge, tint));
+    selectVertex_->setIcon(CaeIcons::forCommand(CommandGlyph::SelectVertex, tint));
     fit_->setIcon(CaeIcons::forCommand(CommandGlyph::FitView, tint));
     isometric_->setIcon(CaeIcons::forCommand(CommandGlyph::Isometric, tint));
 }
@@ -107,34 +110,71 @@ void GraphicsWorkspace::setSelectionLabel(const QString &text)
     selectionLabel_->setText(text);
 }
 
+bool GraphicsWorkspace::filterAvailable(const SelectionFilter filter) const noexcept
+{
+    switch (filter) {
+    case SelectionFilter::Body: return selectBody_ != nullptr && selectBody_->isEnabled();
+    case SelectionFilter::Face: return selectFace_ != nullptr && selectFace_->isEnabled();
+    case SelectionFilter::Edge: return selectEdge_ != nullptr && selectEdge_->isEnabled();
+    case SelectionFilter::Vertex: return selectVertex_ != nullptr && selectVertex_->isEnabled();
+    }
+    return false;
+}
+
+void GraphicsWorkspace::syncFilterChecks()
+{
+    if (selectBody_ != nullptr) selectBody_->setChecked(filter_ == SelectionFilter::Body);
+    if (selectFace_ != nullptr) selectFace_->setChecked(filter_ == SelectionFilter::Face);
+    if (selectEdge_ != nullptr) selectEdge_->setChecked(filter_ == SelectionFilter::Edge);
+    if (selectVertex_ != nullptr) selectVertex_->setChecked(filter_ == SelectionFilter::Vertex);
+}
+
 void GraphicsWorkspace::setSelectionFilter(const SelectionFilter filter)
 {
-    if (filter == SelectionFilter::Face && (selectFace_ == nullptr || !selectFace_->isEnabled())) {
+    if (!filterAvailable(filter)) {
+        syncFilterChecks();
         return;
     }
     if (filter_ == filter) {
+        syncFilterChecks();
         return;
     }
 
     filter_ = filter;
-    if (selectBody_ != nullptr) {
-        selectBody_->setChecked(filter_ == SelectionFilter::Body);
-    }
-    if (selectFace_ != nullptr) {
-        selectFace_->setChecked(filter_ == SelectionFilter::Face);
-    }
+    syncFilterChecks();
     emit selectionFilterChanged(filter_);
 }
 
-void GraphicsWorkspace::setFaceSelectionAvailable(const bool available)
+void GraphicsWorkspace::setTopologySelectionAvailable(const bool faceAvailable,
+                                                       const bool edgeAvailable,
+                                                       const bool vertexAvailable)
 {
-    selectFace_->setEnabled(available);
-    selectFace_->setToolTip(available
+    selectBody_->setEnabled(true);
+    selectFace_->setEnabled(faceAvailable);
+    selectEdge_->setEnabled(edgeAvailable);
+    selectVertex_->setEnabled(vertexAvailable);
+
+    selectFace_->setToolTip(faceAvailable
                                 ? tr("CAD Face seçimi")
-                                : tr("Yüz seçimi için CAD Face provenance gerekli."));
-    // Capability değişikliği filter niyetini sessizce değiştirmez. MainWindow'un
-    // eski mesh-temelli ara sync'i Face filter'ı söndürmemeli; topology-aware
-    // coordinator gerçek CAD capability'yi aynı event turunda yeniden uygular.
+                                : tr("Face seçimi için CAD Face provenance gerekli."));
+    selectEdge_->setToolTip(edgeAvailable
+                                ? tr("CAD Edge seçimi")
+                                : tr("Edge seçimi için canonical CAD Edge provenance gerekli."));
+    selectVertex_->setToolTip(vertexAvailable
+                                  ? tr("CAD Vertex seçimi")
+                                  : tr("Vertex seçimi için canonical CAD Vertex provenance gerekli."));
+
+    // Capability değişikliği mevcut filter niyetini sessizce değiştirmez.
+    // Coordinator başarısız scene kurulumunda açıkça Body'ye döner.
+    syncFilterChecks();
+}
+
+void GraphicsWorkspace::setFaceSelectionAvailable(const bool legacyMeshDerivedAvailability)
+{
+    // Alpha.3.2 kabuğu CAD Face capability'yi yanlışlıkla FEM mesh varlığına
+    // bağlamıştı. Kaynak uyumluluğu için çağrı korunur ama karar artık yalnız
+    // SelectionCoordinator'daki gerçek CAD provenance kontrolüne aittir.
+    Q_UNUSED(legacyMeshDerivedAvailability)
 }
 
 } // namespace d26
