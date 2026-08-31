@@ -12,6 +12,21 @@
 #include <QVBoxLayout>
 
 namespace d26 {
+namespace {
+
+bool isGeometryFilter(const SelectionFilter filter) noexcept
+{
+    return filter == SelectionFilter::Body || filter == SelectionFilter::Face
+        || filter == SelectionFilter::Edge || filter == SelectionFilter::Vertex;
+}
+
+bool isMeshFilter(const SelectionFilter filter) noexcept
+{
+    return filter == SelectionFilter::Node || filter == SelectionFilter::Element
+        || filter == SelectionFilter::Facet;
+}
+
+} // namespace
 
 GraphicsWorkspace::GraphicsWorkspace(QWidget *parent) : QFrame(parent)
 {
@@ -47,6 +62,9 @@ GraphicsWorkspace::GraphicsWorkspace(QWidget *parent) : QFrame(parent)
     selectFace_ = addFilter(tr("Face"), tr("CAD Face seçimi"), SelectionFilter::Face);
     selectEdge_ = addFilter(tr("Edge"), tr("CAD Edge seçimi"), SelectionFilter::Edge);
     selectVertex_ = addFilter(tr("Vertex"), tr("CAD Vertex seçimi"), SelectionFilter::Vertex);
+    selectNode_ = addFilter(tr("Node"), tr("FEM Node seçimi"), SelectionFilter::Node);
+    selectElement_ = addFilter(tr("Element"), tr("FEM Element seçimi"), SelectionFilter::Element);
+    selectFacet_ = addFilter(tr("Facet"), tr("FEM boundary facet seçimi"), SelectionFilter::Facet);
     selectBody_->setChecked(true);
 
     toolbar_->addSeparator();
@@ -86,7 +104,9 @@ GraphicsWorkspace::GraphicsWorkspace(QWidget *parent) : QFrame(parent)
     connect(fit_, &QAction::triggered, this, &GraphicsWorkspace::fitViewRequested);
     connect(isometric_, &QAction::triggered, this, &GraphicsWorkspace::isometricViewRequested);
 
+    setSelectionFilterDomain(SelectionDomain::Geometry);
     setTopologySelectionAvailable(false, false, false);
+    setMeshSelectionAvailable(false, false, false);
 }
 
 void GraphicsWorkspace::refreshIcons()
@@ -96,6 +116,11 @@ void GraphicsWorkspace::refreshIcons()
     selectFace_->setIcon(CaeIcons::forCommand(CommandGlyph::SelectFace, tint));
     selectEdge_->setIcon(CaeIcons::forCommand(CommandGlyph::SelectEdge, tint));
     selectVertex_->setIcon(CaeIcons::forCommand(CommandGlyph::SelectVertex, tint));
+    // FEM ve CAD entity seviyeleri ayni semantik geometri glif ailesini kullanir;
+    // label/tooltip domain ayrimini acikca belirtir.
+    selectNode_->setIcon(CaeIcons::forCommand(CommandGlyph::SelectVertex, tint));
+    selectElement_->setIcon(CaeIcons::forCommand(CommandGlyph::SelectBody, tint));
+    selectFacet_->setIcon(CaeIcons::forCommand(CommandGlyph::SelectFace, tint));
     fit_->setIcon(CaeIcons::forCommand(CommandGlyph::FitView, tint));
     isometric_->setIcon(CaeIcons::forCommand(CommandGlyph::Isometric, tint));
 }
@@ -112,13 +137,17 @@ void GraphicsWorkspace::setSelectionLabel(const QString &text)
 
 bool GraphicsWorkspace::filterAvailable(const SelectionFilter filter) const noexcept
 {
+    QAction *action = nullptr;
     switch (filter) {
-    case SelectionFilter::Body: return selectBody_ != nullptr && selectBody_->isEnabled();
-    case SelectionFilter::Face: return selectFace_ != nullptr && selectFace_->isEnabled();
-    case SelectionFilter::Edge: return selectEdge_ != nullptr && selectEdge_->isEnabled();
-    case SelectionFilter::Vertex: return selectVertex_ != nullptr && selectVertex_->isEnabled();
+    case SelectionFilter::Body: action = selectBody_; break;
+    case SelectionFilter::Face: action = selectFace_; break;
+    case SelectionFilter::Edge: action = selectEdge_; break;
+    case SelectionFilter::Vertex: action = selectVertex_; break;
+    case SelectionFilter::Node: action = selectNode_; break;
+    case SelectionFilter::Element: action = selectElement_; break;
+    case SelectionFilter::Facet: action = selectFacet_; break;
     }
-    return false;
+    return action != nullptr && action->isVisible() && action->isEnabled();
 }
 
 void GraphicsWorkspace::syncFilterChecks()
@@ -127,6 +156,33 @@ void GraphicsWorkspace::syncFilterChecks()
     if (selectFace_ != nullptr) selectFace_->setChecked(filter_ == SelectionFilter::Face);
     if (selectEdge_ != nullptr) selectEdge_->setChecked(filter_ == SelectionFilter::Edge);
     if (selectVertex_ != nullptr) selectVertex_->setChecked(filter_ == SelectionFilter::Vertex);
+    if (selectNode_ != nullptr) selectNode_->setChecked(filter_ == SelectionFilter::Node);
+    if (selectElement_ != nullptr) selectElement_->setChecked(filter_ == SelectionFilter::Element);
+    if (selectFacet_ != nullptr) selectFacet_->setChecked(filter_ == SelectionFilter::Facet);
+}
+
+void GraphicsWorkspace::syncFilterVisibility()
+{
+    const bool geometry = filterDomain_.has_value() && *filterDomain_ == SelectionDomain::Geometry;
+    const bool mesh = filterDomain_.has_value() && *filterDomain_ == SelectionDomain::Mesh;
+    for (QAction *action : {selectBody_, selectFace_, selectEdge_, selectVertex_}) {
+        if (action != nullptr) action->setVisible(geometry);
+    }
+    for (QAction *action : {selectNode_, selectElement_, selectFacet_}) {
+        if (action != nullptr) action->setVisible(mesh);
+    }
+}
+
+void GraphicsWorkspace::setSelectionFilterDomain(const std::optional<SelectionDomain> domain)
+{
+    if (filterDomain_ == domain) {
+        syncFilterVisibility();
+        syncFilterChecks();
+        return;
+    }
+    filterDomain_ = domain;
+    syncFilterVisibility();
+    syncFilterChecks();
 }
 
 void GraphicsWorkspace::setSelectionFilter(const SelectionFilter filter)
@@ -163,9 +219,21 @@ void GraphicsWorkspace::setTopologySelectionAvailable(const bool faceAvailable,
     selectVertex_->setToolTip(vertexAvailable
                                   ? tr("CAD Vertex seçimi")
                                   : tr("Vertex seçimi için canonical CAD Vertex provenance gerekli."));
+    syncFilterChecks();
+}
 
-    // Capability değişikliği mevcut filter niyetini sessizce değiştirmez.
-    // Coordinator başarısız scene kurulumunda açıkça Body'ye döner.
+void GraphicsWorkspace::setMeshSelectionAvailable(const bool nodeAvailable,
+                                                   const bool elementAvailable,
+                                                   const bool facetAvailable)
+{
+    selectNode_->setEnabled(nodeAvailable);
+    selectElement_->setEnabled(elementAvailable);
+    selectFacet_->setEnabled(facetAvailable);
+    selectNode_->setToolTip(nodeAvailable ? tr("FEM Node seçimi") : tr("Önce güncel mesh üretin."));
+    selectElement_->setToolTip(elementAvailable ? tr("Görünür FEM Element seçimi")
+                                                : tr("Önce güncel mesh üretin."));
+    selectFacet_->setToolTip(facetAvailable ? tr("HEX8 boundary facet seçimi")
+                                            : tr("Önce güncel mesh üretin."));
     syncFilterChecks();
 }
 
