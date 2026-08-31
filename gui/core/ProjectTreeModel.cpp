@@ -7,6 +7,22 @@
 #include <QPalette>
 
 namespace d26 {
+namespace {
+
+QIcon iconForObjectType(const ObjectType type, const QColor &tint)
+{
+    // Alpha.3.6 Named Selection tipleri ObjectType'a eklendiğinde eski
+    // object-glyph switch'inde henüz karşılıkları yoktu; Navigator'da boş bir
+    // ikon alanı görünüyordu. Saved scope semantiği zaten komut ikon setinde
+    // tanımlı olduğundan aynı vektör glifi kullanılır. Böylece Light/Dark tint
+    // davranışı ve tek ikon kaynağı korunur, generic klasör ikonu eklenmez.
+    if (type == ObjectType::NamedSelectionsFolder || type == ObjectType::NamedSelection) {
+        return CaeIcons::forCommand(CommandGlyph::NamedSelection, tint);
+    }
+    return CaeIcons::forType(type, tint);
+}
+
+} // namespace
 
 ProjectTreeModel::ProjectTreeModel(ProjectModel *project, QObject *parent)
     : QAbstractItemModel(parent), project_(project)
@@ -71,7 +87,7 @@ QVariant ProjectTreeModel::data(const QModelIndex &index, const int role) const
     case Qt::DisplayRole:
         return object->name;
     case Qt::DecorationRole:
-        return CaeIcons::forType(object->type, qApp->palette().color(QPalette::Text));
+        return iconForObjectType(object->type, qApp->palette().color(QPalette::Text));
     case Qt::ToolTipRole: {
         QStringList lines;
         lines << object->name;
