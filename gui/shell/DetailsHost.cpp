@@ -54,6 +54,7 @@ DetailsHost::DetailsHost(const ServiceContext &services, QWidget *parent)
     // Selection özeti bu nedenle title/subtitle yerine ayrı, ikincil bir satırda
     // yaşar; hover burada gösterilmez, yalnız committed seçim görünür.
     selectionSummary_ = new ui::SecondaryLabel(QString(), 0.58, 0.78, header);
+    selectionSummary_->setObjectName(QStringLiteral("Dynamics26SelectionSummary"));
     QFont selectionFont = selectionSummary_->font();
     selectionFont.setPointSizeF(qMax(9.0, selectionFont.pointSizeF() - 1.5));
     selectionSummary_->setFont(selectionFont);

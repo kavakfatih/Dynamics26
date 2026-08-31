@@ -7,7 +7,8 @@
 //
 // Geliştirici bayrakları (normal kullanımda gerekmez):
 //   --bundle-smoke                       macOS bundle audit protokolü
-//   --selftest                           GUI öz-testi (45 mühendislik kontrolü)
+//   --selftest                           genel GUI öz-testi
+//   --selection-selftest                 Alpha.3.2 selection shell acceptance
 //   --capture <dizin>                    belgeleme ekran görüntüleri
 //   --capture-appearance light|dark      çekim için görünümü sabitler
 //   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
@@ -15,6 +16,7 @@
 #include "shell/Dynamics26MainWindow.h"
 #include "shell/SelectionCoordinator.h"
 #include "support/ScreenshotDriver.h"
+#include "support/SelectionAcceptanceTest.h"
 #include "support/SelfTest.h"
 
 #include <QApplication>
@@ -85,12 +87,25 @@ int main(int argc, char *argv[])
     d26::Dynamics26MainWindow window;
     auto *selectionCoordinator = new d26::SelectionCoordinator(&window, &window);
     Q_UNUSED(selectionCoordinator);
-    window.show();
+
+    // Hosted shell acceptance pencereyi göstermek zorunda değildir; QObject,
+    // model ve widget-state signal zinciri görünürlükten bağımsız çalışır. Bu
+    // ayrım QVTK/OpenGL'i headless CI'da gereksiz yere ekrana bağlamaz.
+    const bool selectionSelfTest = hasArgument(argc, argv, "--selection-selftest");
+    if (!selectionSelfTest) {
+        window.show();
+    }
 
     // Otomasyon kolaylığı: dosya diyaloğu olmadan STEP yükler.
     const std::string stepPath = argumentValue(argc, argv, "--import-step");
     if (!stepPath.empty()) {
         window.importGeometryFromPath(QString::fromStdString(stepPath));
+    }
+
+    if (selectionSelfTest) {
+        // Alpha.3.2: gerçek SelectionCoordinator signal zincirini çalıştırır;
+        // fiziksel pointer kabulünün yerine geçmez.
+        return d26::runSelectionAcceptanceTest(app, window);
     }
 
     if (hasArgument(argc, argv, "--selftest")) {

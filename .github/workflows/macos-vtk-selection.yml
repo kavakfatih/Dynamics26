@@ -5,10 +5,15 @@ on:
     branches: [ main ]
     paths:
       - "gui/CMakeLists.txt"
+      - "gui/main.cpp"
       - "gui/core/SelectionTypes.h"
       - "gui/core/SelectionPolicy.h"
       - "gui/core/SelectionManager.cpp"
       - "gui/core/SelectionManager.h"
+      - "gui/shell/DetailsHost.cpp"
+      - "gui/shell/SelectionCoordinator.cpp"
+      - "gui/shell/SelectionCoordinator.h"
+      - "gui/support/SelectionAcceptanceTest.h"
       - "gui/viewport/GeometrySelectionScene.h"
       - "gui/viewport/RenderRoles.cpp"
       - "gui/viewport/RenderRoles.h"
@@ -29,9 +34,9 @@ concurrency:
 
 jobs:
   vtk-selection:
-    name: VTK Body/Face picker contract arm64
+    name: VTK Body/Face picker + shell contract arm64
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -45,6 +50,7 @@ jobs:
           git diff --check
           test -f tests/gui/test_viewport_selection.cpp
           test -f gui/viewport/GeometrySelectionScene.h
+          test -f gui/support/SelectionAcceptanceTest.h
 
       - name: Install Qt and VTK dependencies
         env:
@@ -87,3 +93,24 @@ jobs:
           test -x "$binary"
           file -L "$binary" | tee /tmp/dynamics26-alpha32-vtk-selection-arch.txt
           grep -q arm64 /tmp/dynamics26-alpha32-vtk-selection-arch.txt
+
+      - name: Build application shell
+        run: cmake --build build-vtk-selection --parallel --target femcae_gui
+
+      - name: Selection Coordinator shell acceptance
+        env:
+          QT_QPA_PLATFORM: offscreen
+        shell: bash
+        run: |
+          set -euxo pipefail
+          app="build-vtk-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          test -x "$app"
+          "$app" --selection-selftest
+
+      - name: Native arm64 GUI composition gate
+        shell: bash
+        run: |
+          set -euxo pipefail
+          app="build-vtk-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          file -L "$app" | tee /tmp/dynamics26-alpha32-shell-arch.txt
+          grep -q arm64 /tmp/dynamics26-alpha32-shell-arch.txt
