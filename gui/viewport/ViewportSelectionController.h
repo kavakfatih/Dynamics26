@@ -3,8 +3,9 @@
 // Dynamics26 Alpha.3.2 — viewport selection input state machine.
 //
 // Bu katman kamera hareketi YAPMAZ ve VTK pick YAPMAZ. Qt pointer/key olayından
-// "hover / commit / clear" niyetini üretir. Navigation katmanı kamera jestlerini
-// işler; bu state machine yalnız selection'a kalan semantiği sınıflandırır.
+// "hover / commit / clear / secondary-context" niyetini üretir. Navigation
+// katmanı kamera jestlerini işler; bu state machine yalnız selection'a kalan
+// semantiği sınıflandırır.
 
 #include "../core/SelectionTypes.h"
 
@@ -34,6 +35,7 @@ struct SelectionPointerInput {
 enum class SelectionInputActionType {
     Hover,
     Commit,
+    ContextMenu,
     Clear,
     ClearPreselection
 };
@@ -53,38 +55,55 @@ public:
         case SelectionPointerEventType::Press:
             if (input.button == Qt::LeftButton && !input.modifiers.testFlag(Qt::AltModifier)) {
                 leftPressed_ = true;
-                pressPosition_ = input.position;
-                pressModifiers_ = input.modifiers;
+                leftPressPosition_ = input.position;
+                leftPressModifiers_ = input.modifiers;
+            } else if (input.button == Qt::RightButton) {
+                rightPressed_ = true;
+                rightPressPosition_ = input.position;
             }
             return std::nullopt;
 
         case SelectionPointerEventType::Move:
-            if (leftPressed_ || input.buttons != Qt::NoButton) {
+            if (leftPressed_ || rightPressed_ || input.buttons != Qt::NoButton) {
                 return std::nullopt;
             }
             return SelectionInputAction{SelectionInputActionType::Hover, input.position,
                                         SelectionOperation::Replace};
 
         case SelectionPointerEventType::Release: {
+            if (input.button == Qt::RightButton && rightPressed_) {
+                rightPressed_ = false;
+                const QPointF delta = input.position - rightPressPosition_;
+                if (std::abs(delta.x()) > clickTolerance_ || std::abs(delta.y()) > clickTolerance_) {
+                    return std::nullopt;
+                }
+                // Secondary click selection'i burada değiştirmez. Hit'in mevcut
+                // selection setinde olup olmadığına coordinator karar verir;
+                // böylece seçili entity sağ tıkta multi-selection korunabilir.
+                return SelectionInputAction{SelectionInputActionType::ContextMenu, input.position,
+                                            SelectionOperation::Replace};
+            }
+
             if (input.button != Qt::LeftButton || !leftPressed_) {
                 return std::nullopt;
             }
             leftPressed_ = false;
-            const QPointF delta = input.position - pressPosition_;
+            const QPointF delta = input.position - leftPressPosition_;
             if (std::abs(delta.x()) > clickTolerance_ || std::abs(delta.y()) > clickTolerance_) {
                 return std::nullopt;
             }
             // Press anındaki modifier niyeti kullanılır. Pointer release sırasında
             // kullanıcının modifier'ı bırakması selection semantiğini değiştirmez.
-            if (pressModifiers_.testFlag(Qt::AltModifier)) {
+            if (leftPressModifiers_.testFlag(Qt::AltModifier)) {
                 return std::nullopt;
             }
             return SelectionInputAction{SelectionInputActionType::Commit, input.position,
-                                        operationForModifiers(pressModifiers_)};
+                                        operationForModifiers(leftPressModifiers_)};
         }
 
         case SelectionPointerEventType::Leave:
             leftPressed_ = false;
+            rightPressed_ = false;
             return SelectionInputAction{SelectionInputActionType::ClearPreselection, {},
                                         SelectionOperation::Clear};
         }
@@ -96,12 +115,13 @@ public:
     {
         if (key == Qt::Key_Escape && modifiers == Qt::NoModifier) {
             leftPressed_ = false;
+            rightPressed_ = false;
             return SelectionInputAction{SelectionInputActionType::Clear, {}, SelectionOperation::Clear};
         }
         return std::nullopt;
     }
 
-    [[nodiscard]] bool clickInProgress() const noexcept { return leftPressed_; }
+    [[nodiscard]] bool clickInProgress() const noexcept { return leftPressed_ || rightPressed_; }
 
     [[nodiscard]] static SelectionOperation operationForModifiers(const Qt::KeyboardModifiers modifiers) noexcept
     {
@@ -121,8 +141,10 @@ public:
 private:
     static constexpr double clickTolerance_ = 3.0;
     bool leftPressed_{false};
-    QPointF pressPosition_;
-    Qt::KeyboardModifiers pressModifiers_{Qt::NoModifier};
+    bool rightPressed_{false};
+    QPointF leftPressPosition_;
+    QPointF rightPressPosition_;
+    Qt::KeyboardModifiers leftPressModifiers_{Qt::NoModifier};
 };
 
 } // namespace d26

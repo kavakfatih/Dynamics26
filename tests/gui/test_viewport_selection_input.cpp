@@ -70,6 +70,31 @@ int main(int argc, char **argv)
     check(!controller.routePointer(release).has_value(),
           "Option navigation release cannot leak into selection commit");
 
+    SelectionPointerInput rightPress;
+    rightPress.type = SelectionPointerEventType::Press;
+    rightPress.position = QPointF(40.0, 40.0);
+    rightPress.button = Qt::RightButton;
+    rightPress.buttons = Qt::RightButton;
+    check(!controller.routePointer(rightPress).has_value() && controller.clickInProgress(),
+          "secondary press starts a context-click candidate without mutating selection");
+
+    SelectionPointerInput rightRelease;
+    rightRelease.type = SelectionPointerEventType::Release;
+    rightRelease.position = QPointF(42.0, 41.0);
+    rightRelease.button = Qt::RightButton;
+    rightRelease.buttons = Qt::NoButton;
+    const auto contextClick = controller.routePointer(rightRelease);
+    check(contextClick.has_value()
+              && contextClick->type == SelectionInputActionType::ContextMenu
+              && contextClick->position == rightRelease.position,
+          "small secondary click emits ContextMenu intent");
+
+    rightPress.position = QPointF(50.0, 50.0);
+    (void)controller.routePointer(rightPress);
+    rightRelease.position = QPointF(58.0, 50.0);
+    check(!controller.routePointer(rightRelease).has_value() && !controller.clickInProgress(),
+          "secondary pointer travel beyond click tolerance does not open a context menu");
+
     const auto escape = controller.routeKey(Qt::Key_Escape, Qt::NoModifier);
     check(escape.has_value() && escape->type == SelectionInputActionType::Clear,
           "Escape emits clear-selection intent");

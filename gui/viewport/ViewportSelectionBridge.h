@@ -13,6 +13,7 @@
 #include "ViewportSelectionController.h"
 
 #include <QObject>
+#include <QPoint>
 #include <QVector>
 
 #include <memory>
@@ -43,6 +44,9 @@ public:
 signals:
     void selectionRequested(quint64 bodyId, quint64 faceId, d26::SelectionOperation operation);
     void preselectionRequested(quint64 bodyId, quint64 faceId);
+    // Secondary click hit-test sonucu. Selection setini preserve/replace etme
+    // kararı rendering katmanında değil application coordinator'da verilir.
+    void contextMenuRequested(quint64 bodyId, quint64 faceId, const QPoint &globalPosition);
     void selectionClearRequested();
     void preselectionClearRequested();
 

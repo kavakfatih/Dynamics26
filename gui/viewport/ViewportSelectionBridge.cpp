@@ -437,10 +437,23 @@ bool ViewportSelectionBridge::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     }
+    case SelectionInputActionType::ContextMenu: {
+        // Empty secondary click committed selection'i korur ve menu acmaz.
+        // Hit varsa provenance application coordinator'a aktarilir; preserve vs
+        // Replace karari rendering katmaninda verilmez.
+        const auto hit = impl_->pick(action->position);
+        if (hit.has_value()) {
+            emit contextMenuRequested(static_cast<quint64>(hit->bodyId),
+                                      static_cast<quint64>(hit->faceId),
+                                      impl_->widget->mapToGlobal(action->position.toPoint()));
+        }
+        break;
+    }
     }
 
     // Selection view-state gözlemci olarak çalışır; Qt/VTK event'i tüketilmez.
-    // Mevcut camera/navigation ve context-menu sözleşmesi aynen devam eder.
+    // ViewportInputRouter plain right-click'i context-menu territory olarak
+    // bırakır; VTK interactor'un right-button camera davranışı da inerttir.
     return QObject::eventFilter(watched, event);
 #else
     Q_UNUSED(watched)

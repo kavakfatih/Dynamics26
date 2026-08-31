@@ -55,6 +55,8 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
             this, &SelectionCoordinator::handleViewportSelection);
     connect(bridge_, &ViewportSelectionBridge::preselectionRequested,
             this, &SelectionCoordinator::handleViewportPreselection);
+    connect(bridge_, &ViewportSelectionBridge::contextMenuRequested,
+            this, &SelectionCoordinator::handleViewportContextMenu);
     connect(bridge_, &ViewportSelectionBridge::selectionClearRequested,
             this, [this] {
                 if (selection_ != nullptr) {
@@ -237,6 +239,19 @@ std::optional<SelectionItem> SelectionCoordinator::selectionItemForHit(const qui
     return item;
 }
 
+bool SelectionCoordinator::selectionContains(const SelectionItem &item) const noexcept
+{
+    if (selection_ == nullptr) {
+        return false;
+    }
+    for (const SelectionItem &selected : selection_->items()) {
+        if (selected.sameIdentity(item)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void SelectionCoordinator::handleViewportSelection(const quint64 bodyId,
                                                     const quint64 faceId,
                                                     const SelectionOperation operation)
@@ -259,6 +274,43 @@ void SelectionCoordinator::handleViewportPreselection(const quint64 bodyId, cons
         return;
     }
     selection_->setPreselection(selectionItemForHit(bodyId, faceId));
+}
+
+void SelectionCoordinator::handleViewportContextMenu(const quint64 bodyId,
+                                                      const quint64 faceId,
+                                                      const QPoint &globalPosition)
+{
+    if (selection_ == nullptr || window_ == nullptr) {
+        return;
+    }
+
+    const auto item = selectionItemForHit(bodyId, faceId);
+    if (!item.has_value()) {
+        // Empty secondary click committed selection'i korur.
+        return;
+    }
+
+    selection_->clearPreselection();
+    const bool alreadySelected = selectionContains(*item);
+    if (!alreadySelected) {
+        // CAE masaüstü davranışı: unselected entity üzerinde secondary click o
+        // entity'yi current/primary yapar; önceki multi-selection korunmaz.
+        (void)selection_->apply(*item, SelectionOperation::Replace);
+    }
+
+    const GeometryEntityId contextBodyId = item->kind == SelectionKind::Body
+        ? item->geometryEntityId
+        : item->parentGeometryId;
+    const ObjectId contextObject = bodyObjectForGeometryId(contextBodyId);
+    if (contextObject == InvalidObjectId) {
+        return;
+    }
+
+    // Already-selected bir entity farklı Body'de olsa dahi selection setini
+    // bozmadan yalnız Project Current Object o Body'ye alınır. Bu yol
+    // MainWindow::handleSelection() çağırmaz; kamera/CAD scene rebuild edilmez.
+    (void)syncNavigatorToGeometryBody(contextBodyId);
+    window_->showObjectContextMenu(contextObject, globalPosition);
 }
 
 void SelectionCoordinator::handleSelectionChanged()
@@ -286,7 +338,7 @@ void SelectionCoordinator::handlePreselectionChanged()
 
 bool SelectionCoordinator::syncNavigatorToPrimary()
 {
-    if (selection_ == nullptr || window_ == nullptr || navigator_ == nullptr) {
+    if (selection_ == nullptr) {
         return false;
     }
     const auto primary = selection_->primary();
@@ -300,7 +352,12 @@ bool SelectionCoordinator::syncNavigatorToPrimary()
     } else if (primary->kind == SelectionKind::Face) {
         bodyId = primary->parentGeometryId;
     }
-    if (bodyId == InvalidGeometryId) {
+    return syncNavigatorToGeometryBody(bodyId);
+}
+
+bool SelectionCoordinator::syncNavigatorToGeometryBody(const GeometryEntityId bodyId)
+{
+    if (bodyId == InvalidGeometryId || window_ == nullptr || navigator_ == nullptr) {
         return false;
     }
 
@@ -311,9 +368,9 @@ bool SelectionCoordinator::syncNavigatorToPrimary()
 
     syncingNavigator_ = true;
     {
-        // Viewport-originated selection Navigator/Details bağlamını izler fakat
-        // MainWindow::selectObject() çağrılmaz: o yol syncViewport() üzerinden
-        // CAD sahnesini yeniden kurup kamerayı isometric'e döndürebilir.
+        // Viewport-originated selection/context Navigator/Details bağlamını izler
+        // fakat MainWindow::selectObject() çağrılmaz: o yol syncViewport()
+        // üzerinden CAD sahnesini yeniden kurup kamerayı isometric'e döndürebilir.
         const QSignalBlocker navigatorSignals(navigator_);
         navigator_->selectObject(objectId);
     }

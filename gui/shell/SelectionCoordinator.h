@@ -12,6 +12,7 @@
 #include "GraphicsWorkspace.h"
 
 #include <QObject>
+#include <QPoint>
 #include <QString>
 
 #include <optional>
@@ -41,12 +42,15 @@ private:
     void handleNavigatorSelection(ObjectId id);
     void handleViewportSelection(quint64 bodyId, quint64 faceId, SelectionOperation operation);
     void handleViewportPreselection(quint64 bodyId, quint64 faceId);
+    void handleViewportContextMenu(quint64 bodyId, quint64 faceId, const QPoint &globalPosition);
     void handleSelectionChanged();
     void handlePreselectionChanged();
     void updateFeedback();
     [[nodiscard]] bool syncNavigatorToPrimary();
+    [[nodiscard]] bool syncNavigatorToGeometryBody(femcae::geometry::GeometryEntityId bodyId);
     [[nodiscard]] ObjectId bodyObjectForGeometryId(femcae::geometry::GeometryEntityId bodyId) const;
     [[nodiscard]] std::optional<SelectionItem> selectionItemForHit(quint64 bodyId, quint64 faceId) const;
+    [[nodiscard]] bool selectionContains(const SelectionItem &item) const noexcept;
     [[nodiscard]] QString geometryEntityName(femcae::geometry::GeometryEntityId id) const;
     [[nodiscard]] QString bodyNameFor(const SelectionItem &item) const;
 
