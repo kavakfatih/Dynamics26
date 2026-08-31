@@ -1,4 +1,4 @@
-name: Alpha.3.3 hosted selection contract
+name: Alpha.3.4 hosted selection contract
 
 on:
   push:
@@ -9,16 +9,23 @@ on:
       - "gui/core/SelectionManager.cpp"
       - "gui/core/SelectionManager.h"
       - "gui/core/ScopeReferenceBuilder.h"
+      - "gui/shell/GraphicsWorkspace.cpp"
+      - "gui/shell/GraphicsWorkspace.h"
       - "gui/shell/SelectionCoordinator.cpp"
       - "gui/shell/SelectionCoordinator.h"
+      - "gui/support/SelectionAcceptanceTest.h"
       - "gui/viewport/GeometrySelectionScene.h"
       - "gui/viewport/GeometryTopologyScene.h"
+      - "gui/viewport/MeshSelectionScene.h"
       - "gui/viewport/ViewportSelectionController.h"
       - "gui/viewport/ViewportSelectionBridge.cpp"
       - "gui/viewport/ViewportSelectionBridge.h"
+      - "gui/viewport/ViewportMeshSelectionBridge.cpp"
+      - "gui/viewport/ViewportMeshSelectionBridge.h"
       - "tests/gui/test_selection_manager.cpp"
       - "tests/gui/test_scope_reference.cpp"
       - "tests/gui/test_viewport_selection_input.cpp"
+      - "tests/gui/test_mesh_selection.cpp"
       - "gui/CMakeLists.txt"
       - ".github/workflows/macos-selection.yml"
   workflow_dispatch:
@@ -27,7 +34,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: dynamics26-alpha33-selection-${{ github.ref }}
+  group: dynamics26-alpha34-selection-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -49,9 +56,12 @@ jobs:
           test -f gui/core/ScopeReferenceBuilder.h
           test -f gui/shell/SelectionCoordinator.cpp
           test -f gui/viewport/GeometryTopologyScene.h
+          test -f gui/viewport/MeshSelectionScene.h
           test -f gui/viewport/ViewportSelectionController.h
+          test -f gui/viewport/ViewportMeshSelectionBridge.h
           test -f tests/gui/test_scope_reference.cpp
           test -f tests/gui/test_viewport_selection_input.cpp
+          test -f tests/gui/test_mesh_selection.cpp
 
       - name: Install minimal Qt dependency
         env:
@@ -78,9 +88,9 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          # CMake dependency graph also builds scope + viewport-input tests.
-          # Full femcae_gui is intentionally NOT built here: the production GUI
-          # requires VTK headers even when the focused selection tests do not.
+          # Dependency graph scope + viewport-input + FEM provenance/scope
+          # testlerini de build eder. Production GUI burada bilinçli olarak
+          # derlenmez; bu hosted gate VTK/OCCT gerektirmeyen state kontratıdır.
           cmake --build build-selection --parallel --target femcae_selection_manager_test
 
       - name: Selection and scope regression gate
@@ -94,6 +104,7 @@ jobs:
             "build-selection/gui/femcae_selection_manager_test"
             "build-selection/gui/femcae_scope_reference_test"
             "build-selection/gui/femcae_viewport_selection_input_test"
+            "build-selection/gui/femcae_mesh_selection_test"
           )
           for binary in "${binaries[@]}"; do
             test -x "$binary"
