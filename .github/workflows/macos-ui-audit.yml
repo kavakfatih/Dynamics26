@@ -1,0 +1,140 @@
+name: macOS UI visual audit
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "gui/**"
+      - "tests/gui/**"
+      - ".github/workflows/macos-ui-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dynamics26-ui-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui-audit:
+    name: native UI audit on trusted Mac
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Trusted Mac and source guard
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "$GITHUB_REPOSITORY" = "kavakfatih/Dynamics26"
+          test "$(uname -m)" = "arm64"
+          git diff --check
+          test -f gui/support/ScreenshotDriver.cpp
+          test -f gui/support/SelfTest.cpp
+          test -f gui/shell/Dynamics26MainWindow.cpp
+          if grep -R --line-number --fixed-strings 'setStyleSheet(' gui; then
+            echo "Global/hand-authored QSS is not allowed." >&2
+            exit 1
+          fi
+
+      - name: Reuse or install native GUI dependencies
+        shell: bash
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          set -euxo pipefail
+          if command -v brew >/dev/null 2>&1; then
+            BREW_BIN="$(command -v brew)"
+          elif [[ -x /opt/homebrew/bin/brew ]]; then
+            BREW_BIN=/opt/homebrew/bin/brew
+          else
+            echo "Homebrew is required on the trusted Mac runner." >&2
+            exit 1
+          fi
+          eval "$("$BREW_BIN" shellenv)"
+          echo "$(dirname "$BREW_BIN")" >> "$GITHUB_PATH"
+          for formula in cmake ninja gcc qtbase vtk arpack opencascade; do
+            if ! "$BREW_BIN" list --versions "$formula" >/dev/null 2>&1; then
+              "$BREW_BIN" install "$formula"
+            fi
+          done
+          FC_PATH="$(command -v gfortran || true)"
+          if [[ -z "$FC_PATH" ]]; then
+            for candidate in /opt/homebrew/bin/gfortran-* /usr/local/bin/gfortran-*; do
+              if [[ -x "$candidate" ]]; then FC_PATH="$candidate"; fi
+            done
+          fi
+          test -x "$FC_PATH"
+          echo "FC=$FC_PATH" >> "$GITHUB_ENV"
+          echo "QT_PREFIX=$("$BREW_BIN" --prefix qtbase)" >> "$GITHUB_ENV"
+          echo "VTK_PREFIX=$("$BREW_BIN" --prefix vtk)" >> "$GITHUB_ENV"
+          echo "OCCT_PREFIX=$("$BREW_BIN" --prefix opencascade)" >> "$GITHUB_ENV"
+
+      - name: Configure native UI audit build
+        shell: bash
+        run: |
+          set -euxo pipefail
+          prefix_path="$QT_PREFIX;$VTK_PREFIX;$OCCT_PREFIX"
+          cmake -S . -B build-ui-audit -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_PREFIX_PATH="$prefix_path" \
+            -DFEMCAE_BUILD_TESTING=ON \
+            -DFEMCAE_BUILD_GUI=ON \
+            -DFEMCAE_GUI_WITH_VTK=ON \
+            -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON \
+            -DFEMCAE_REQUIRE_OCCT=ON
+
+      - name: Build application and GUI tests
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build build-ui-audit --parallel --target femcae_gui
+          cmake --build build-ui-audit --parallel --target femcae_selection_manager_test
+
+      - name: Run functional GUI self-test
+        shell: bash
+        run: |
+          set -euxo pipefail
+          app="build-ui-audit/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          test -x "$app"
+          "$app" --selftest
+
+      - name: Capture real Light and Dark UI states
+        shell: bash
+        run: |
+          set -euxo pipefail
+          app="build-ui-audit/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          out="$RUNNER_TEMP/dynamics26-ui-audit"
+          rm -rf "$out"
+          mkdir -p "$out/light" "$out/dark"
+          "$app" --capture "$out/light" --capture-appearance light
+          "$app" --capture "$out/dark" --capture-appearance dark
+          echo "UI_AUDIT_DIR=$out" >> "$GITHUB_ENV"
+
+      - name: Validate screenshot artifact
+        shell: bash
+        run: |
+          set -euxo pipefail
+          light_count="$(find "$UI_AUDIT_DIR/light" -type f -name '*.png' | wc -l | tr -d ' ')"
+          dark_count="$(find "$UI_AUDIT_DIR/dark" -type f -name '*.png' | wc -l | tr -d ' ')"
+          test "$light_count" -eq 12
+          test "$dark_count" -eq 12
+          while IFS= read -r image; do
+            test -s "$image"
+            sips -g pixelWidth -g pixelHeight "$image"
+          done < <(find "$UI_AUDIT_DIR" -type f -name '*.png' | sort)
+
+      - name: Upload UI audit screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dynamics26-ui-audit-${{ github.sha }}
+          path: ${{ env.UI_AUDIT_DIR }}
+          if-no-files-found: error
+          retention-days: 7
