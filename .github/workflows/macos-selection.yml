@@ -1,4 +1,4 @@
-name: Alpha.3.4 hosted selection contract
+name: Alpha.3.5 hosted selection contract
 
 on:
   push:
@@ -16,7 +16,9 @@ on:
       - "gui/support/SelectionAcceptanceTest.h"
       - "gui/viewport/GeometrySelectionScene.h"
       - "gui/viewport/GeometryTopologyScene.h"
+      - "gui/viewport/GeometryHardwareSelector.h"
       - "gui/viewport/MeshSelectionScene.h"
+      - "gui/viewport/MeshHardwareSelector.h"
       - "gui/viewport/ViewportSelectionController.h"
       - "gui/viewport/ViewportSelectionBridge.cpp"
       - "gui/viewport/ViewportSelectionBridge.h"
@@ -26,6 +28,8 @@ on:
       - "tests/gui/test_scope_reference.cpp"
       - "tests/gui/test_viewport_selection_input.cpp"
       - "tests/gui/test_mesh_selection.cpp"
+      - "tests/gui/test_geometry_window_selection.cpp"
+      - "tests/gui/test_mesh_viewport_selection.cpp"
       - "gui/CMakeLists.txt"
       - ".github/workflows/macos-selection.yml"
   workflow_dispatch:
@@ -34,7 +38,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: dynamics26-alpha34-selection-${{ github.ref }}
+  group: dynamics26-alpha35-selection-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -56,12 +60,19 @@ jobs:
           test -f gui/core/ScopeReferenceBuilder.h
           test -f gui/shell/SelectionCoordinator.cpp
           test -f gui/viewport/GeometryTopologyScene.h
+          test -f gui/viewport/GeometryHardwareSelector.h
           test -f gui/viewport/MeshSelectionScene.h
+          test -f gui/viewport/MeshHardwareSelector.h
           test -f gui/viewport/ViewportSelectionController.h
           test -f gui/viewport/ViewportMeshSelectionBridge.h
           test -f tests/gui/test_scope_reference.cpp
           test -f tests/gui/test_viewport_selection_input.cpp
           test -f tests/gui/test_mesh_selection.cpp
+          test -f tests/gui/test_geometry_window_selection.cpp
+          test -f tests/gui/test_mesh_viewport_selection.cpp
+          grep -q 'SelectionInputActionType::WindowCommit' gui/viewport/ViewportSelectionController.h
+          grep -q 'PendingWindowSelectionBatch' gui/shell/SelectionCoordinator.cpp
+          grep -q 'manager->apply(batch.items' gui/shell/SelectionCoordinator.cpp
 
       - name: Install minimal Qt dependency
         env:
