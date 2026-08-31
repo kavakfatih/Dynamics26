@@ -13,6 +13,7 @@
 #include "EngineeringStatusBar.h"
 #include "ProjectNavigator.h"
 
+#include <QHash>
 #include <QSet>
 #include <QSignalBlocker>
 #include <QStatusBar>
@@ -25,6 +26,16 @@ using femcae::meshing::MeshEntityId;
 
 namespace d26 {
 namespace {
+
+struct PendingWindowSelectionBatch {
+    bool armed{false};
+    bool flushScheduled{false};
+    std::optional<SelectionDomain> domain;
+    std::optional<SelectionOperation> operation;
+    QVector<SelectionItem> items;
+};
+
+QHash<SelectionCoordinator *, PendingWindowSelectionBatch> pendingWindowSelectionBatches;
 
 SelectionKind selectionKindForFilter(const SelectionFilter filter) noexcept
 {
@@ -95,6 +106,102 @@ bool usesPassiveCadBackdrop(const ViewportContext context, const bool hasMesh) n
     return isMeshBackedContext(context) && !hasMesh;
 }
 
+bool compatibleWindowOperation(const SelectionOperation existing,
+                               const SelectionOperation incoming) noexcept
+{
+    // Replace window legacy bridge contract'i ilk engineering hit'te Replace,
+    // kalan hit'lerde Add uretir. Bunlar tek atomik Replace batch'inin parcalaridir.
+    return existing == incoming
+        || (existing == SelectionOperation::Replace && incoming == SelectionOperation::Add);
+}
+
+void cancelPendingWindowBatch(SelectionCoordinator *coordinator)
+{
+    pendingWindowSelectionBatches.remove(coordinator);
+}
+
+void flushPendingWindowBatch(SelectionCoordinator *coordinator)
+{
+    auto it = pendingWindowSelectionBatches.find(coordinator);
+    if (it == pendingWindowSelectionBatches.end()) {
+        return;
+    }
+
+    PendingWindowSelectionBatch batch = std::move(it.value());
+    pendingWindowSelectionBatches.erase(it);
+    SelectionManager *manager = coordinator != nullptr ? coordinator->selectionManager() : nullptr;
+    if (manager == nullptr || !batch.operation.has_value()) {
+        return;
+    }
+
+    // SelectionManager::apply(batch) engineering identity'leri de-duplicate eder,
+    // primary state'i tek transaction'da kurar ve en fazla bir selectionChanged
+    // signal'i uretir. Raw VTK/display sirasi Undo/Redo tarihcesine girmez.
+    (void)manager->apply(batch.items, *batch.operation);
+}
+
+void armPendingWindowBatch(SelectionCoordinator *coordinator)
+{
+    if (coordinator == nullptr) {
+        return;
+    }
+
+    auto existing = pendingWindowSelectionBatches.find(coordinator);
+    if (existing != pendingWindowSelectionBatches.end() && existing->operation.has_value()) {
+        // Normalde her Qt pointer event'i arasinda queued flush calisir. Yine de
+        // yeni bir preselection-clear gelmeden once onceki batch dolu kalmissa
+        // engineering state'i kaybetmek yerine once onu tamamla.
+        flushPendingWindowBatch(coordinator);
+    }
+
+    PendingWindowSelectionBatch &batch = pendingWindowSelectionBatches[coordinator];
+    batch.armed = true;
+    batch.domain.reset();
+    batch.operation.reset();
+    batch.items.clear();
+    if (batch.flushScheduled) {
+        return;
+    }
+    batch.flushScheduled = true;
+
+    QTimer::singleShot(0, coordinator, [coordinator] {
+        flushPendingWindowBatch(coordinator);
+    });
+}
+
+bool queuePendingWindowItem(SelectionCoordinator *coordinator,
+                            const SelectionDomain domain,
+                            const SelectionItem &item,
+                            const SelectionOperation operation)
+{
+    auto it = pendingWindowSelectionBatches.find(coordinator);
+    if (it == pendingWindowSelectionBatches.end() || !it->armed) {
+        return false;
+    }
+
+    PendingWindowSelectionBatch &batch = it.value();
+    if (!batch.operation.has_value()) {
+        batch.domain = domain;
+        batch.operation = operation;
+    } else if (!batch.domain.has_value() || *batch.domain != domain
+               || !compatibleWindowOperation(*batch.operation, operation)) {
+        // Farkli domain/semantik ayni batch'e sessizce karisamaz. Once bekleyen
+        // state'i tamamla; caller mevcut hit'i normal single-selection olarak
+        // isleyebilir.
+        flushPendingWindowBatch(coordinator);
+        return false;
+    }
+
+    batch.items.push_back(item);
+    return true;
+}
+
+bool hasPendingWindowBatch(SelectionCoordinator *coordinator)
+{
+    const auto it = pendingWindowSelectionBatches.constFind(coordinator);
+    return it != pendingWindowSelectionBatches.constEnd() && it->armed;
+}
+
 } // namespace
 
 SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject *parent)
@@ -143,6 +250,7 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
             this, &SelectionCoordinator::handleMeshContextMenu);
 
     const auto clearSelection = [this] {
+        cancelPendingWindowBatch(this);
         if (selection_ != nullptr) {
             selection_->clearPreselection();
             (void)selection_->clear();
@@ -152,6 +260,12 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
         if (selection_ != nullptr) {
             selection_->clearPreselection();
         }
+
+        // WindowCommit bridge contract'i area hit'lerinden hemen once bu signal'i
+        // synchronous yayar. Hover miss/Leave de ayni signal'i kullanabildigi icin
+        // batch bir sonraki event-loop turunda otomatik kapanir; hit gelmezse state
+        // degismez. Normal click selectionRequested yolu aninda calismaya devam eder.
+        armPendingWindowBatch(this);
     };
     connect(bridge_, &ViewportSelectionBridge::selectionClearRequested, this, clearSelection);
     connect(bridge_, &ViewportSelectionBridge::preselectionClearRequested, this, clearPreselection);
@@ -164,6 +278,7 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
             this, &SelectionCoordinator::handlePreselectionChanged);
 
     connect(services_.geometry, &GeometryService::changed, this, [this] {
+        cancelPendingWindowBatch(this);
         if (selection_ != nullptr) {
             selection_->clearPreselection();
             (void)selection_->clear();
@@ -175,21 +290,33 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
     });
 
     connect(services_.mesh, &MeshService::changed, this, [this] {
+        cancelPendingWindowBatch(this);
         QTimer::singleShot(0, this, [this] { refreshSelectionScene(); });
     });
 
     if (services_.commands != nullptr) {
         connect(services_.commands, &DocumentCommandManager::documentMutated,
-                this, [this] { QTimer::singleShot(0, this, [this] { refreshSelectionScene(); }); });
+                this, [this] {
+                    cancelPendingWindowBatch(this);
+                    QTimer::singleShot(0, this, [this] { refreshSelectionScene(); });
+                });
     }
 
     connect(details_, &DetailsHost::modelEdited,
-            this, [this] { QTimer::singleShot(0, this, [this] { refreshSelectionScene(); }); });
+            this, [this] {
+                cancelPendingWindowBatch(this);
+                QTimer::singleShot(0, this, [this] { refreshSelectionScene(); });
+            });
     connect(details_->geometryPage(), &GeometryDetails::tessellationQualityChanged,
             this, [this](const double value) {
+                cancelPendingWindowBatch(this);
                 tessellationDeflection_ = value;
                 QTimer::singleShot(0, this, [this] { refreshSelectionScene(); });
             });
+
+    connect(this, &QObject::destroyed, [this] {
+        cancelPendingWindowBatch(this);
+    });
 
     configurePolicy(graphics_->selectionFilter());
     QTimer::singleShot(0, this, [this] {
@@ -333,8 +460,8 @@ void SelectionCoordinator::refreshSelectionScene()
     (void)selection_->clear();
     graphics_->setSelectionLabel(QString());
 
-    // CAD backdrop kullanan non-selection bağlamlarında bütün imported Body'ler
-    // görünür kalır. Gerçek FEM mesh/results sahnesi varsa üzerine yazılmaz.
+    // CAD backdrop kullanan non-selection baglamlarinda butun imported Body'ler
+    // gorunur kalir. Gercek FEM mesh/results sahnesi varsa uzerine yazilmaz.
     const bool hasMesh = services_.mesh->hasMesh();
     if (summary.hasGeometry && usesPassiveCadBackdrop(context, hasMesh)) {
         const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
@@ -466,7 +593,13 @@ void SelectionCoordinator::handleViewportSelection(const SelectionKind kind,
     selection_->clearPreselection();
     const auto item = selectionItemForHit(kind, bodyId, geometryId);
     if (!item.has_value()) {
-        (void)selection_->clear();
+        if (!hasPendingWindowBatch(this)) {
+            (void)selection_->clear();
+        }
+        return;
+    }
+
+    if (queuePendingWindowItem(this, SelectionDomain::Geometry, *item, operation)) {
         return;
     }
     (void)selection_->apply(*item, operation);
@@ -489,6 +622,7 @@ void SelectionCoordinator::handleViewportContextMenu(const SelectionKind kind,
     if (selection_ == nullptr || window_ == nullptr) {
         return;
     }
+    flushPendingWindowBatch(this);
     const auto item = selectionItemForHit(kind, bodyId, geometryId);
     if (!item.has_value()) {
         return;
@@ -516,7 +650,13 @@ void SelectionCoordinator::handleMeshSelection(const SelectionKind kind,
     selection_->clearPreselection();
     const auto item = meshSelectionItemForHit(kind, meshEntityId);
     if (!item.has_value()) {
-        (void)selection_->clear();
+        if (!hasPendingWindowBatch(this)) {
+            (void)selection_->clear();
+        }
+        return;
+    }
+
+    if (queuePendingWindowItem(this, SelectionDomain::Mesh, *item, operation)) {
         return;
     }
     (void)selection_->apply(*item, operation);
@@ -536,6 +676,7 @@ void SelectionCoordinator::handleMeshContextMenu(const SelectionKind kind,
     if (selection_ == nullptr || window_ == nullptr || services_.project == nullptr) {
         return;
     }
+    flushPendingWindowBatch(this);
     const auto item = meshSelectionItemForHit(kind, meshEntityId);
     if (!item.has_value()) {
         return;
@@ -621,8 +762,8 @@ bool SelectionCoordinator::syncNavigatorToObject(const ObjectId objectId)
     }
 
     // Viewport-originated subentity selection current project object'i izler,
-    // fakat MainWindow::selectObject() çağrılmaz; o yol sahne/kamerayı yeniden
-    // kurabilir. Selection overlay aynı render scene üzerinde kalır.
+    // fakat MainWindow::selectObject() cagrilmaz; o yol sahne/kamerayi yeniden
+    // kurabilir. Selection overlay ayni render scene uzerinde kalir.
     window_->selected_ = objectId;
     const ObjectId owning = window_->analysis_->owningAnalysis(objectId);
     if (owning != InvalidObjectId) {
@@ -681,7 +822,7 @@ void SelectionCoordinator::updateFeedback()
         const auto primaryValue = selection_->primary();
         const SelectionItem &primary = primaryValue.has_value() ? *primaryValue : items.back();
         const QString kind = selectionKindText(primary.kind);
-        graphics_->setSelectionLabel(tr("%1 %2 seçildi").arg(items.size()).arg(kind));
+        graphics_->setSelectionLabel(tr("%1 %2 secildi").arg(items.size()).arg(kind));
 
         if (primary.domain == SelectionDomain::Mesh) {
             if (details_ != nullptr) {
@@ -739,10 +880,10 @@ void SelectionCoordinator::updateFeedback()
         if (label.isEmpty()) {
             label = selectionKindText(hover->kind);
         }
-        graphics_->setSelectionLabel(tr("%1  ·  ön seçim").arg(label));
+        graphics_->setSelectionLabel(tr("%1  ·  on secim").arg(label));
     } else if (hover.has_value() && hover->domain == SelectionDomain::Mesh
                && graphics_->viewport()->context() == ViewportContext::Mesh) {
-        graphics_->setSelectionLabel(tr("%1 %2  ·  ön seçim")
+        graphics_->setSelectionLabel(tr("%1 %2  ·  on secim")
                                          .arg(selectionKindText(hover->kind))
                                          .arg(static_cast<qint64>(hover->meshEntityId)));
     } else {
