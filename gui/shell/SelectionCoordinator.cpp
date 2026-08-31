@@ -109,8 +109,8 @@ bool usesPassiveCadBackdrop(const ViewportContext context, const bool hasMesh) n
 bool compatibleWindowOperation(const SelectionOperation existing,
                                const SelectionOperation incoming) noexcept
 {
-    // Replace window legacy bridge contract'i ilk engineering hit'te Replace,
-    // kalan hit'lerde Add uretir. Bunlar tek atomik Replace batch'inin parcalaridir.
+    // Replace window bridge contract'i ilk engineering hit'te Replace,
+    // kalan hit'lerde Add üretir. Bunlar tek atomik Replace batch'inin parçalarıdır.
     return existing == incoming
         || (existing == SelectionOperation::Replace && incoming == SelectionOperation::Add);
 }
@@ -136,7 +136,7 @@ void flushPendingWindowBatch(SelectionCoordinator *coordinator)
 
     // SelectionManager::apply(batch) engineering identity'leri de-duplicate eder,
     // primary state'i tek transaction'da kurar ve en fazla bir selectionChanged
-    // signal'i uretir. Raw VTK/display sirasi Undo/Redo tarihcesine girmez.
+    // signal'i üretir. Raw VTK/display sırası Undo/Redo tarihçesine girmez.
     (void)manager->apply(batch.items, *batch.operation);
 }
 
@@ -148,9 +148,9 @@ void armPendingWindowBatch(SelectionCoordinator *coordinator)
 
     auto existing = pendingWindowSelectionBatches.find(coordinator);
     if (existing != pendingWindowSelectionBatches.end() && existing->operation.has_value()) {
-        // Normalde her Qt pointer event'i arasinda queued flush calisir. Yine de
-        // yeni bir preselection-clear gelmeden once onceki batch dolu kalmissa
-        // engineering state'i kaybetmek yerine once onu tamamla.
+        // Normalde her Qt pointer event'i arasında queued flush çalışır. Yine de
+        // yeni bir preselection-clear gelmeden önce önceki batch dolu kalmışsa
+        // engineering state'i kaybetmek yerine önce onu tamamla.
         flushPendingWindowBatch(coordinator);
     }
 
@@ -185,9 +185,9 @@ bool queuePendingWindowItem(SelectionCoordinator *coordinator,
         batch.operation = operation;
     } else if (!batch.domain.has_value() || *batch.domain != domain
                || !compatibleWindowOperation(*batch.operation, operation)) {
-        // Farkli domain/semantik ayni batch'e sessizce karisamaz. Once bekleyen
+        // Farklı domain/semantik aynı batch'e sessizce karışamaz. Önce bekleyen
         // state'i tamamla; caller mevcut hit'i normal single-selection olarak
-        // isleyebilir.
+        // işleyebilir.
         flushPendingWindowBatch(coordinator);
         return false;
     }
@@ -261,10 +261,10 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
             selection_->clearPreselection();
         }
 
-        // WindowCommit bridge contract'i area hit'lerinden hemen once bu signal'i
-        // synchronous yayar. Hover miss/Leave de ayni signal'i kullanabildigi icin
-        // batch bir sonraki event-loop turunda otomatik kapanir; hit gelmezse state
-        // degismez. Normal click selectionRequested yolu aninda calismaya devam eder.
+        // WindowCommit bridge contract'i area hit'lerinden hemen önce bu signal'i
+        // synchronous yayar. Hover miss/Leave de aynı signal'i kullanabildiği için
+        // batch bir sonraki event-loop turunda otomatik kapanır; hit gelmezse state
+        // değişmez. Normal click selectionRequested yolu anında çalışmaya devam eder.
         armPendingWindowBatch(this);
     };
     connect(bridge_, &ViewportSelectionBridge::selectionClearRequested, this, clearSelection);
@@ -423,7 +423,7 @@ void SelectionCoordinator::refreshSelectionScene()
         return;
     }
 
-    // Geometry picker/overlay bu noktadan sonra aktif degildir.
+    // Geometry picker/overlay bu noktadan sonra aktif değildir.
     bridge_->clearScene();
     graphics_->setTopologySelectionAvailable(false, false, false);
 
@@ -460,8 +460,8 @@ void SelectionCoordinator::refreshSelectionScene()
     (void)selection_->clear();
     graphics_->setSelectionLabel(QString());
 
-    // CAD backdrop kullanan non-selection baglamlarinda butun imported Body'ler
-    // gorunur kalir. Gercek FEM mesh/results sahnesi varsa uzerine yazilmaz.
+    // CAD backdrop kullanan non-selection bağlamlarında bütün imported Body'ler
+    // görünür kalır. Gerçek FEM mesh/results sahnesi varsa üzerine yazılmaz.
     const bool hasMesh = services_.mesh->hasMesh();
     if (summary.hasGeometry && usesPassiveCadBackdrop(context, hasMesh)) {
         const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
@@ -762,8 +762,8 @@ bool SelectionCoordinator::syncNavigatorToObject(const ObjectId objectId)
     }
 
     // Viewport-originated subentity selection current project object'i izler,
-    // fakat MainWindow::selectObject() cagrilmaz; o yol sahne/kamerayi yeniden
-    // kurabilir. Selection overlay ayni render scene uzerinde kalir.
+    // fakat MainWindow::selectObject() çağrılmaz; o yol sahne/kamerayı yeniden
+    // kurabilir. Selection overlay aynı render scene üzerinde kalır.
     window_->selected_ = objectId;
     const ObjectId owning = window_->analysis_->owningAnalysis(objectId);
     if (owning != InvalidObjectId) {
@@ -822,7 +822,7 @@ void SelectionCoordinator::updateFeedback()
         const auto primaryValue = selection_->primary();
         const SelectionItem &primary = primaryValue.has_value() ? *primaryValue : items.back();
         const QString kind = selectionKindText(primary.kind);
-        graphics_->setSelectionLabel(tr("%1 %2 secildi").arg(items.size()).arg(kind));
+        graphics_->setSelectionLabel(tr("%1 %2 seçildi").arg(items.size()).arg(kind));
 
         if (primary.domain == SelectionDomain::Mesh) {
             if (details_ != nullptr) {
@@ -880,10 +880,10 @@ void SelectionCoordinator::updateFeedback()
         if (label.isEmpty()) {
             label = selectionKindText(hover->kind);
         }
-        graphics_->setSelectionLabel(tr("%1  ·  on secim").arg(label));
+        graphics_->setSelectionLabel(tr("%1  ·  ön seçim").arg(label));
     } else if (hover.has_value() && hover->domain == SelectionDomain::Mesh
                && graphics_->viewport()->context() == ViewportContext::Mesh) {
-        graphics_->setSelectionLabel(tr("%1 %2  ·  on secim")
+        graphics_->setSelectionLabel(tr("%1 %2  ·  ön seçim")
                                          .arg(selectionKindText(hover->kind))
                                          .arg(static_cast<qint64>(hover->meshEntityId)));
     } else {
