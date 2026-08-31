@@ -1,10 +1,10 @@
 #pragma once
 
-// Dynamics26 Alpha.3.3 — application-level transient CAD topology selection coordinator.
+// Dynamics26 Alpha.3.4 — application-level transient selection coordinator.
 //
-// ProjectModel, CAD Body/Face/Edge/Vertex kimlikleri ve viewport transient
-// selection state'i arasında açık koordinasyon kurar. Selection document
-// undo/redo verisi değildir.
+// ProjectModel current object, CAD topology selection ve generated FEM mesh
+// selection ayni merkezi SelectionManager etrafinda koordine edilir. Geometry ve
+// Mesh kimlik uzaylari ayridir; raw selection document undo/redo verisi değildir.
 
 #include "../core/ScopeReferenceBuilder.h"
 #include "../core/SelectionManager.h"
@@ -24,6 +24,7 @@ class Dynamics26MainWindow;
 class EngineeringStatusBar;
 class ProjectNavigator;
 class ViewportSelectionBridge;
+class ViewportMeshSelectionBridge;
 
 class SelectionCoordinator final : public QObject
 {
@@ -35,23 +36,32 @@ public:
 
 private:
     void configurePolicy(SelectionFilter filter);
-    void refreshGeometryScene();
+    void refreshSelectionScene();
     void handleNavigatorSelection(ObjectId id);
+
     void handleViewportSelection(SelectionKind kind, quint64 bodyId, quint64 geometryId,
                                  SelectionOperation operation);
     void handleViewportPreselection(SelectionKind kind, quint64 bodyId, quint64 geometryId);
     void handleViewportContextMenu(SelectionKind kind, quint64 bodyId, quint64 geometryId,
                                    const QPoint &globalPosition);
+
+    void handleMeshSelection(SelectionKind kind, qint64 meshEntityId, SelectionOperation operation);
+    void handleMeshPreselection(SelectionKind kind, qint64 meshEntityId);
+    void handleMeshContextMenu(SelectionKind kind, qint64 meshEntityId, const QPoint &globalPosition);
+
     void handleSelectionChanged();
     void handlePreselectionChanged();
     void updateFeedback();
 
     [[nodiscard]] bool syncNavigatorToPrimary();
     [[nodiscard]] bool syncNavigatorToGeometryBody(femcae::geometry::GeometryEntityId bodyId);
+    [[nodiscard]] bool syncNavigatorToObject(ObjectId objectId);
     [[nodiscard]] ObjectId bodyObjectForGeometryId(femcae::geometry::GeometryEntityId bodyId) const;
     [[nodiscard]] std::optional<SelectionItem> selectionItemForHit(SelectionKind kind,
                                                                    quint64 bodyId,
                                                                    quint64 geometryId) const;
+    [[nodiscard]] std::optional<SelectionItem> meshSelectionItemForHit(SelectionKind kind,
+                                                                       qint64 meshEntityId) const;
     [[nodiscard]] bool selectionContains(const SelectionItem &item) const noexcept;
     [[nodiscard]] QString geometryEntityName(femcae::geometry::GeometryEntityId id) const;
     [[nodiscard]] QString bodyNameFor(const SelectionItem &item) const;
@@ -64,6 +74,7 @@ private:
     EngineeringStatusBar *status_{nullptr};
     SelectionManager *selection_{nullptr};
     ViewportSelectionBridge *bridge_{nullptr};
+    ViewportMeshSelectionBridge *meshBridge_{nullptr};
 
     double tessellationDeflection_{0.15};
     bool syncingNavigator_{false};
