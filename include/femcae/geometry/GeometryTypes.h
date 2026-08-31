@@ -72,6 +72,34 @@ struct TopologyTessellation {
     }
 };
 
+// Alpha.3.3 CAD Edge display companion'i. Surface triangle kenarlari burada
+// kullanilmaz; her line segment gercek bir CAD Edge entity kimligine provenance
+// tasir. Display line index'i CAD Edge kimligi degildir.
+struct EdgeDisplayTessellation {
+    GeometryEntityId sourceGeometryId{InvalidGeometryId};
+    std::uint64_t sourceRevision{0};
+    std::vector<Vec3> points;
+    std::vector<std::array<std::uint32_t, 2>> lines;
+    std::vector<GeometryEntityId> lineEdgeIds;
+
+    [[nodiscard]] bool hasConsistentProvenance() const noexcept {
+        return lineEdgeIds.size() == lines.size();
+    }
+};
+
+// Alpha.3.3 CAD Vertex display companion'i. Her display noktasi gercek bir CAD
+// Vertex GeometryEntityId'ye baglidir; point index topology kimligi degildir.
+struct VertexDisplayPoints {
+    GeometryEntityId sourceGeometryId{InvalidGeometryId};
+    std::uint64_t sourceRevision{0};
+    std::vector<Vec3> points;
+    std::vector<GeometryEntityId> pointVertexIds;
+
+    [[nodiscard]] bool hasConsistentProvenance() const noexcept {
+        return pointVertexIds.size() == points.size();
+    }
+};
+
 struct GeometryAssociation {
     GeometryEntityId geometryId{InvalidGeometryId};
     std::vector<std::int64_t> femNodeIds;
