@@ -1,4 +1,4 @@
-name: Alpha.3.2 hosted selection contract
+name: Alpha.3.3 hosted selection contract
 
 on:
   push:
@@ -12,6 +12,7 @@ on:
       - "gui/shell/SelectionCoordinator.cpp"
       - "gui/shell/SelectionCoordinator.h"
       - "gui/viewport/GeometrySelectionScene.h"
+      - "gui/viewport/GeometryTopologyScene.h"
       - "gui/viewport/ViewportSelectionController.h"
       - "gui/viewport/ViewportSelectionBridge.cpp"
       - "gui/viewport/ViewportSelectionBridge.h"
@@ -26,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: dynamics26-alpha32-selection-${{ github.ref }}
+  group: dynamics26-alpha33-selection-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -47,6 +48,7 @@ jobs:
           git diff --check
           test -f gui/core/ScopeReferenceBuilder.h
           test -f gui/shell/SelectionCoordinator.cpp
+          test -f gui/viewport/GeometryTopologyScene.h
           test -f gui/viewport/ViewportSelectionController.h
           test -f tests/gui/test_scope_reference.cpp
           test -f tests/gui/test_viewport_selection_input.cpp
