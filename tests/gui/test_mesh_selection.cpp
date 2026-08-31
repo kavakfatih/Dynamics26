@@ -20,21 +20,29 @@ void check(const bool condition, const std::string &message)
 
 femcae::meshing::SimulationMesh makeMesh()
 {
+    femcae::meshing::AxisAlignedBox box;
+    box.min = {0.0, 0.0, 0.0};
+    box.max = {1.0, 1.0, 1.0};
+
+    femcae::meshing::BoxBoundaryGeometry geometry;
+    geometry.body = 100;
+    geometry.xMin = 101;
+    geometry.xMax = 102;
+    geometry.yMin = 103;
+    geometry.yMax = 104;
+    geometry.zMin = 105;
+    geometry.zMax = 106;
+
+    femcae::meshing::StructuredHexMesherOptions options;
+    options.nx = 2;
+    options.ny = 1;
+    options.nz = 1;
+    options.firstNodeId = 10;
+    options.firstElementId = 100;
+    options.firstFacetId = 1000;
+
     femcae::meshing::StructuredHexMesher mesher;
-    femcae::meshing::StructuredHexMesher::Request request;
-    request.box.min = {0.0, 0.0, 0.0};
-    request.box.max = {1.0, 1.0, 1.0};
-    request.nx = 2;
-    request.ny = 1;
-    request.nz = 1;
-    request.geometry.body = 100;
-    request.geometry.xMin = 101;
-    request.geometry.xMax = 102;
-    request.geometry.yMin = 103;
-    request.geometry.yMax = 104;
-    request.geometry.zMin = 105;
-    request.geometry.zMax = 106;
-    return mesher.generate(request);
+    return mesher.meshBox(box, geometry, 3, options);
 }
 
 void sceneTests()
