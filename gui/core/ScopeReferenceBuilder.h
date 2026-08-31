@@ -38,6 +38,18 @@ struct ScopeReferenceBuildResult {
     }
 };
 
+enum class ScopeReferenceValidationError {
+    None,
+    EmptyScope,
+    StaleGeometryRevision,
+    UnsupportedDomain,
+    UnsupportedKind,
+    MissingGeometryEntity,
+    GeometryKindMismatch,
+    MissingPersistentKey,
+    PersistentKeyMismatch
+};
+
 [[nodiscard]] inline ScopeReferenceBuildResult
 buildGeometryScopeReference(const QVector<SelectionItem> &items,
                             const femcae::geometry::GeometryDocument &document)
@@ -117,8 +129,53 @@ buildGeometryScopeReference(const QVector<SelectionItem> &items,
 
     if (result.scope.isEmpty()) {
         result.error = ScopeReferenceBuildError::EmptySelection;
+        return result;
     }
+    result.scope.sourceRevision = document.revision();
     return result;
+}
+
+// Persistent scope daha sonra kullanilacagi anda current GeometryDocument'a
+// karsi tekrar dogrulanir. Alpha.3.2 bilincli olarak otomatik topology rebind
+// yapmaz: revision degismisse scope stale'dir. persistentKey gelecekte acik bir
+// rebind/migration islemine temel olabilir, fakat stale scope sessizce kabul edilmez.
+[[nodiscard]] inline ScopeReferenceValidationError
+validateGeometryScopeReference(const ScopeReference &scope,
+                               const femcae::geometry::GeometryDocument &document)
+{
+    if (scope.isEmpty()) {
+        return ScopeReferenceValidationError::EmptyScope;
+    }
+    if (scope.sourceRevision == 0 || scope.sourceRevision != document.revision()) {
+        return ScopeReferenceValidationError::StaleGeometryRevision;
+    }
+
+    for (const ScopeEntityReference &reference : scope.entities) {
+        if (reference.domain != SelectionDomain::Geometry) {
+            return ScopeReferenceValidationError::UnsupportedDomain;
+        }
+        if (reference.kind != SelectionKind::Body && reference.kind != SelectionKind::Face) {
+            return ScopeReferenceValidationError::UnsupportedKind;
+        }
+        if (reference.persistentKey.isEmpty()) {
+            return ScopeReferenceValidationError::MissingPersistentKey;
+        }
+
+        const femcae::geometry::GeometryEntity *entity = document.find(reference.geometryEntityId);
+        if (entity == nullptr) {
+            return ScopeReferenceValidationError::MissingGeometryEntity;
+        }
+        const auto expectedKind = reference.kind == SelectionKind::Body
+            ? femcae::geometry::GeometryEntityKind::Body
+            : femcae::geometry::GeometryEntityKind::Face;
+        if (entity->kind != expectedKind) {
+            return ScopeReferenceValidationError::GeometryKindMismatch;
+        }
+        if (QString::fromStdString(entity->persistentKey) != reference.persistentKey) {
+            return ScopeReferenceValidationError::PersistentKeyMismatch;
+        }
+    }
+    return ScopeReferenceValidationError::None;
 }
 
 } // namespace d26

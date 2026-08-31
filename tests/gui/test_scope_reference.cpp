@@ -57,9 +57,14 @@ void scopeBuilderTests()
         document);
     check(result.success() && result.scope.entities.size() == 2,
           "two current CAD Faces convert to one persistent ScopeReference");
+    check(result.scope.sourceRevision == revision,
+          "persistent ScopeReference records the geometry revision it was created from");
     check(result.scope.entities[0].persistentKey == QStringLiteral("step/body/1/face/1")
               && result.scope.entities[1].persistentKey == QStringLiteral("step/body/1/face/2"),
           "scope preserves deterministic CAD persistentKey order");
+    check(d26::validateGeometryScopeReference(result.scope, document)
+              == d26::ScopeReferenceValidationError::None,
+          "new persistent CAD scope validates against its source revision");
 
     const auto bodyResult = d26::buildGeometryScopeReference(
         QVector<d26::SelectionItem>{body(bodyId, revision)}, document);
@@ -122,8 +127,26 @@ void scopeBuilderTests()
               && missingKey.error == d26::ScopeReferenceBuildError::MissingPersistentKey,
           "scope persistence requires a non-empty CAD persistentKey");
 
+    d26::ScopeReference tampered = result.scope;
+    tampered.entities.front().persistentKey = QStringLiteral("step/body/1/face/wrong");
+    check(d26::validateGeometryScopeReference(tampered, document)
+              == d26::ScopeReferenceValidationError::PersistentKeyMismatch,
+          "persistent scope detects a topology key mismatch in the same revision");
+
+    // Persistent scope sonradan kullanılırken revision yeniden kontrol edilir.
+    // Yeni entity eklemek dahi document revision'ini değiştirir; eski scope
+    // otomatik rebind edilmez ve açıkça stale sayılır.
+    (void)document.addEntity(femcae::geometry::GeometryEntityKind::Edge,
+                             bodyId, "Edge 1", "step/body/1/edge/1");
+    check(d26::validateGeometryScopeReference(result.scope, document)
+              == d26::ScopeReferenceValidationError::StaleGeometryRevision,
+          "geometry revision change marks an existing persistent scope stale");
+
     check(!d26::buildGeometryScopeReference({}, document).success(),
           "empty transient selection cannot create a persistent scope");
+    check(d26::validateGeometryScopeReference({}, document)
+              == d26::ScopeReferenceValidationError::EmptyScope,
+          "empty persistent scope fails validation explicitly");
 }
 
 } // namespace

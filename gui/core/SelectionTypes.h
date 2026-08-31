@@ -109,6 +109,10 @@ struct ScopeEntityReference {
 };
 
 struct ScopeReference {
+    // Scope'un olusturuldugu CAD document revision'i. Kalici kimlik olarak
+    // kullanilmaz; geometry replace/edit sonrasi scope'un sessizce gecerli
+    // kabul edilmesini engelleyen stale-detection guard'idir.
+    quint64 sourceRevision{0};
     QVector<ScopeEntityReference> entities;
     [[nodiscard]] bool isEmpty() const noexcept { return entities.isEmpty(); }
 };
