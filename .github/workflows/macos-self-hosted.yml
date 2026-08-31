@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - "gui/**"
+      - "tests/gui/**"
       - ".github/workflows/macos-self-hosted.yml"
   workflow_dispatch:
 
@@ -57,17 +58,26 @@ jobs:
             "gui/core/SelectionManager.cpp"
             "gui/core/SelectionPolicy.h"
             "gui/core/SelectionTypes.h"
+            "gui/core/ScopeReferenceBuilder.h"
             "gui/commands/DomainCommands.cpp"
             "gui/services/GeometryService.cpp"
             "gui/services/MeshService.cpp"
             "gui/services/MaterialService.cpp"
             "gui/services/AnalysisService.cpp"
             "gui/shell/CommandRegistry.cpp"
+            "gui/shell/SelectionCoordinator.cpp"
+            "gui/shell/SelectionCoordinator.h"
             "gui/shell/Dynamics26MainWindow.cpp"
             "gui/viewport/ViewportInputRouter.cpp"
             "gui/viewport/ViewportCameraController.cpp"
             "gui/viewport/Dynamics26InteractorStyle.cpp"
+            "gui/viewport/GeometrySelectionScene.h"
+            "gui/viewport/ViewportSelectionController.h"
+            "gui/viewport/ViewportSelectionBridge.cpp"
+            "gui/viewport/ViewportSelectionBridge.h"
             "gui/viewport/ViewportWidget.cpp"
+            "tests/gui/test_scope_reference.cpp"
+            "tests/gui/test_viewport_selection_input.cpp"
           )
           for source in "${required_sources[@]}"; do
             test -f "$source"
@@ -77,10 +87,14 @@ jobs:
           grep -q 'class DocumentCommandManager;' gui/shell/Dynamics26MainWindow.h
           grep -q 'class DependencyEngine;' gui/shell/Dynamics26MainWindow.h
           grep -q 'SelectionManager.cpp' gui/CMakeLists.txt
+          grep -q 'ScopeReferenceBuilder.h' gui/CMakeLists.txt
           grep -q 'femcae_selection_manager_test' gui/CMakeLists.txt
+          grep -q 'femcae_scope_reference_test' gui/CMakeLists.txt
           grep -q 'ViewportInputRouter.cpp' gui/CMakeLists.txt
           grep -q 'ViewportCameraController.cpp' gui/CMakeLists.txt
           grep -q 'Dynamics26InteractorStyle.cpp' gui/CMakeLists.txt
+          grep -q 'ViewportSelectionBridge.cpp' gui/CMakeLists.txt
+          grep -q 'SelectionCoordinator.cpp' gui/CMakeLists.txt
 
           if [[ -e gui/Dynamics26Shell.cpp || -e gui/MainWindow.cpp ]]; then
             echo "Legacy corrective GUI shell source reintroduced." >&2
