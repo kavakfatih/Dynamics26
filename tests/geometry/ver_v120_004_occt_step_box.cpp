@@ -61,6 +61,50 @@ static void requireBodyTopology(const GeometryDocument& doc,
     require(vertices==vertexCount,"Body canonical Vertex count");
 }
 
+static void requireEdgeDisplay(const GeometryDocument& doc,
+                               const GeometryEntityId bodyId,
+                               const EdgeDisplayTessellation& display,
+                               const std::size_t expectedUniqueEdges){
+    require(display.sourceGeometryId==bodyId,"Edge display Body provenance");
+    require(display.sourceRevision==doc.revision(),"Edge display CAD revision provenance");
+    require(display.hasConsistentProvenance(),"Edge line/provenance sizes match");
+    require(!display.points.empty()&&!display.lines.empty(),"Edge display non-empty");
+
+    std::unordered_set<GeometryEntityId> representedEdges;
+    for(std::size_t i=0;i<display.lines.size();++i){
+        const auto& line=display.lines[i];
+        require(line[0]<display.points.size()&&line[1]<display.points.size(),"Edge display line indices valid");
+        const GeometryEntityId edgeId=display.lineEdgeIds[i];
+        const GeometryEntity* edge=doc.find(edgeId);
+        require(edge!=nullptr,"Edge provenance ID exists");
+        require(edge->kind==GeometryEntityKind::Edge,"Edge provenance points to Edge kind");
+        require(edge->parentId==bodyId,"Edge provenance parent Body");
+        representedEdges.insert(edgeId);
+    }
+    require(representedEdges.size()==expectedUniqueEdges,"all canonical CAD Edges represented by display lines");
+}
+
+static void requireVertexDisplay(const GeometryDocument& doc,
+                                 const GeometryEntityId bodyId,
+                                 const VertexDisplayPoints& display,
+                                 const std::size_t expectedUniqueVertices){
+    require(display.sourceGeometryId==bodyId,"Vertex display Body provenance");
+    require(display.sourceRevision==doc.revision(),"Vertex display CAD revision provenance");
+    require(display.hasConsistentProvenance(),"Vertex point/provenance sizes match");
+    require(display.points.size()==expectedUniqueVertices,"Vertex display point count");
+
+    std::unordered_set<GeometryEntityId> representedVertices;
+    for(std::size_t i=0;i<display.points.size();++i){
+        const GeometryEntityId vertexId=display.pointVertexIds[i];
+        const GeometryEntity* vertex=doc.find(vertexId);
+        require(vertex!=nullptr,"Vertex provenance ID exists");
+        require(vertex->kind==GeometryEntityKind::Vertex,"Vertex provenance points to Vertex kind");
+        require(vertex->parentId==bodyId,"Vertex provenance parent Body");
+        representedVertices.insert(vertexId);
+    }
+    require(representedVertices.size()==expectedUniqueVertices,"all canonical CAD Vertices represented by display points");
+}
+
 int main(){
     GeometryDocument doc("v120-topology");
     OcctStepImporter importer;
@@ -99,6 +143,12 @@ int main(){
     }
     require(representedFaces.size()==6,"all six CAD box faces are represented by display triangles");
 
+    const auto edgeDisplay=importer.tessellateEdges(bodyId,0.5);
+    requireEdgeDisplay(doc,bodyId,edgeDisplay,12);
+
+    const auto vertexDisplay=importer.displayVertices(bodyId);
+    requireVertexDisplay(doc,bodyId,vertexDisplay,8);
+
     // Eski API geriye uyumlu kalmali: canonical topology map Alpha.3.2
     // Body/Face display contract'ini degistirmez.
     const auto legacy=importer.tessellate(bodyId,0.5);
@@ -124,6 +174,8 @@ int main(){
     const auto surfaceTopology=importer.tessellateWithTopology(surfaceBodyId,0.5);
     require(surfaceTopology.hasConsistentProvenance(),"surface fallback Face provenance consistent");
     require(!surfaceTopology.display.triangles.empty(),"surface fallback display tessellation");
+    requireEdgeDisplay(doc,surfaceBodyId,importer.tessellateEdges(surfaceBodyId,0.5),4);
+    requireVertexDisplay(doc,surfaceBodyId,importer.displayVertices(surfaceBodyId),4);
 
-    std::cout<<"PASS VER-V120-004 OCCT canonical Face/Edge/Vertex topology provenance\n";
+    std::cout<<"PASS VER-V120-004 OCCT canonical Face/Edge/Vertex topology/display provenance\n";
 }
