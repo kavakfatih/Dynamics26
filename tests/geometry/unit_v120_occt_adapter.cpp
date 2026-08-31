@@ -22,6 +22,28 @@ int main(){
             std::cerr<<"FAIL: OCCT olmayan build topology tessellation'i reddetmeli\n";
             return 1;
         }
+
+        bool edgeRejected=false;
+        try {
+            (void)importer.tessellateEdges(1,0.5);
+        } catch (const std::exception&) {
+            edgeRejected=true;
+        }
+        if(!edgeRejected){
+            std::cerr<<"FAIL: OCCT olmayan build Edge display provenance'i reddetmeli\n";
+            return 1;
+        }
+
+        bool vertexRejected=false;
+        try {
+            (void)importer.displayVertices(1);
+        } catch (const std::exception&) {
+            vertexRejected=true;
+        }
+        if(!vertexRejected){
+            std::cerr<<"FAIL: OCCT olmayan build Vertex display provenance'i reddetmeli\n";
+            return 1;
+        }
     }
-    std::cout<<"PASS V0.12 OCCT adapter availability/topology contract\n";
+    std::cout<<"PASS V0.12 OCCT adapter availability/topology display contracts\n";
 }
