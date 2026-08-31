@@ -190,8 +190,8 @@ void persistenceTests()
 
     const QJsonObject json = source.toJson();
     const QJsonArray items = json.value(QStringLiteral("items")).toArray();
-    const QJsonObject item = items.front().toObject();
-    const QJsonObject entity = item.value(QStringLiteral("entities")).toArray().front().toObject();
+    const QJsonObject item = items.at(0).toObject();
+    const QJsonObject entity = item.value(QStringLiteral("entities")).toArray().at(0).toObject();
     check(item.value(QStringLiteral("object_id")).isString()
               && item.value(QStringLiteral("object_id")).toString() == QString::number(hugeObjectId),
           "ObjectId above IEEE-754 exact integer range is serialized as decimal string");
@@ -223,7 +223,7 @@ void persistenceTests()
 
     QJsonObject malformed = json;
     QJsonArray malformedItems = malformed.value(QStringLiteral("items")).toArray();
-    QJsonObject malformedItem = malformedItems.front().toObject();
+    QJsonObject malformedItem = malformedItems.at(0).toObject();
     malformedItem[QStringLiteral("object_id")] = static_cast<double>(hugeObjectId);
     malformedItems[0] = malformedItem;
     malformed[QStringLiteral("items")] = malformedItems;
