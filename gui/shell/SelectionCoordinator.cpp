@@ -6,6 +6,7 @@
 #include "../details/GeometryDetails.h"
 #include "../services/AnalysisService.h"
 #include "../services/GeometryService.h"
+#include "../services/MeshService.h"
 #include "../viewport/ViewportSelectionBridge.h"
 #include "Dynamics26MainWindow.h"
 #include "EngineeringStatusBar.h"
@@ -47,6 +48,21 @@ QString selectionKindText(const SelectionKind kind)
 GeometryEntityId parentBodyFor(const SelectionItem &item) noexcept
 {
     return item.kind == SelectionKind::Body ? item.geometryEntityId : item.parentGeometryId;
+}
+
+bool isMeshBackedContext(const ViewportContext context) noexcept
+{
+    return context == ViewportContext::Mesh || context == ViewportContext::Loads
+        || context == ViewportContext::Analysis || context == ViewportContext::Results;
+}
+
+bool usesPassiveCadBackdrop(const ViewportContext context, const bool hasMesh) noexcept
+{
+    if (context == ViewportContext::Materials || context == ViewportContext::Connections
+        || context == ViewportContext::Modal || context == ViewportContext::Empty) {
+        return true;
+    }
+    return isMeshBackedContext(context) && !hasMesh;
 }
 
 } // namespace
@@ -171,7 +187,14 @@ void SelectionCoordinator::refreshGeometryScene()
     }
 
     ViewportWidget *viewport = graphics_->viewport();
-    if (viewport == nullptr || viewport->context() != ViewportContext::Geometry) {
+    if (viewport == nullptr) {
+        return;
+    }
+
+    const ViewportContext context = viewport->context();
+    const GeometrySummary summary = services_.geometry->summary();
+
+    if (context != ViewportContext::Geometry) {
         bridge_->clearScene();
         graphics_->setTopologySelectionAvailable(false, false, false);
         if (selection_ != nullptr) {
@@ -179,10 +202,21 @@ void SelectionCoordinator::refreshGeometryScene()
             (void)selection_->clear();
         }
         graphics_->setSelectionLabel(QString());
+
+        // MainWindow'un legacy model-backdrop yolu tek Body tessellation'i
+        // çiziyordu. SelectionCoordinator burada selection actor'ı kurmaz;
+        // yalnız CAD-backdrop kullanan bağlamlarda all-body display scene'i
+        // yeniden gösterir. Gerçek FEM mesh/results mevcutsa viewport'a dokunmaz.
+        const bool hasMesh = services_.mesh != nullptr && services_.mesh->hasMesh();
+        if (summary.hasGeometry && usesPassiveCadBackdrop(context, hasMesh)) {
+            const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
+            if (surfaces.size() == static_cast<qsizetype>(summary.bodyCount)) {
+                viewport->showGeometry(surfaces);
+            }
+        }
         return;
     }
 
-    const GeometrySummary summary = services_.geometry->summary();
     if (!summary.hasGeometry) {
         bridge_->clearScene();
         graphics_->setTopologySelectionAvailable(false, false, false);

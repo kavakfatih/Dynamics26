@@ -8,7 +8,7 @@
 // Geliştirici bayrakları (normal kullanımda gerekmez):
 //   --bundle-smoke                       macOS bundle audit protokolü
 //   --selftest                           genel GUI öz-testi
-//   --selection-selftest                 Alpha.3.2 selection shell acceptance
+//   --selection-selftest                 Alpha.3.3 CAD topology shell acceptance
 //   --capture <dizin>                    belgeleme ekran görüntüleri
 //   --capture-appearance light|dark      çekim için görünümü sabitler
 //   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
@@ -103,8 +103,8 @@ int main(int argc, char *argv[])
     }
 
     if (selectionSelfTest) {
-        // Alpha.3.2: gerçek SelectionCoordinator signal zincirini çalıştırır;
-        // fiziksel pointer kabulünün yerine geçmez.
+        // Alpha.3.3: gerçek Body/Face/Edge/Vertex SelectionCoordinator signal
+        // zincirini çalıştırır; fiziksel pointer kabulünün yerine geçmez.
         return d26::runSelectionAcceptanceTest(app, window);
     }
 

@@ -52,6 +52,7 @@ set(FEMCAE_GUI_SOURCES
     viewport/Dynamics26InteractorStyle.cpp
     viewport/Dynamics26InteractorStyle.h
     viewport/GeometrySelectionScene.h
+    viewport/GeometryTopologyScene.h
     viewport/ViewportSelectionController.h
     viewport/ViewportSelectionBridge.cpp
     viewport/ViewportSelectionBridge.h
@@ -120,7 +121,7 @@ target_include_directories(femcae_gui PRIVATE
 )
 target_compile_definitions(femcae_gui PRIVATE
     FEMCAE_APP_VERSION="${PROJECT_VERSION}"
-    DYNAMICS26_GUI_MILESTONE="1.1.0-alpha.3.2"
+    DYNAMICS26_GUI_MILESTONE="1.1.0-alpha.3.3"
     $<$<CONFIG:Debug>:DYNAMICS26_VIEWPORT_INPUT_TRACE=1>
 )
 
@@ -274,7 +275,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(femcae_selection_manager_test PRIVATE Qt6::Core)
     add_test(NAME gui.selection_manager COMMAND femcae_selection_manager_test)
-    set_tests_properties(gui.selection_manager PROPERTIES LABELS "gui;selection;alpha32")
+    set_tests_properties(gui.selection_manager PROPERTIES LABELS "gui;selection;alpha32;alpha33")
 
     add_executable(femcae_scope_reference_test
         core/SelectionTypes.h
@@ -287,7 +288,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(femcae_scope_reference_test PRIVATE Qt6::Core femcae_geometry)
     add_test(NAME gui.scope_reference COMMAND femcae_scope_reference_test)
-    set_tests_properties(gui.scope_reference PROPERTIES LABELS "gui;selection;scope;alpha32")
+    set_tests_properties(gui.scope_reference PROPERTIES LABELS "gui;selection;scope;alpha32;alpha33")
 
     qt_add_executable(femcae_viewport_selection_input_test
         viewport/ViewportSelectionController.h
@@ -299,7 +300,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(femcae_viewport_selection_input_test PRIVATE Qt6::Core)
     add_test(NAME gui.viewport_selection_input COMMAND femcae_viewport_selection_input_test)
-    set_tests_properties(gui.viewport_selection_input PROPERTIES LABELS "gui;selection;alpha32")
+    set_tests_properties(gui.viewport_selection_input PROPERTIES LABELS "gui;selection;alpha32;alpha33")
     # Trusted fast gate femcae_selection_manager_test hedefini açıkça build eder.
     # Dependency sayesinde selection contract testlerinin tamami ayni gate icinde binary olarak üretilir.
     add_dependencies(femcae_selection_manager_test
@@ -340,11 +341,12 @@ if(BUILD_TESTING)
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         )
 
-        # Alpha.3.2 gerçek render/pick zinciri: vtkCellPicker yalnız display cell
-        # döndürür; GeometrySelectionScene bu cell'i CAD Body/Face provenance'e
-        # çevirir. Bu test triangle index'inin CAD kimliği sanılmasını engeller.
+        # Alpha.3.3 gerçek render/pick zinciri: surface cell -> Body/Face,
+        # dedicated line -> Edge ve point -> Vertex provenance'i çözer. Display
+        # primitive index'leri hiçbir zaman CAD kimliği değildir.
         add_executable(femcae_viewport_selection_test
             viewport/GeometrySelectionScene.h
+            viewport/GeometryTopologyScene.h
             viewport/RenderRoles.cpp
             viewport/RenderRoles.h
             "${PROJECT_SOURCE_DIR}/tests/gui/test_viewport_selection.cpp"
@@ -361,7 +363,7 @@ if(BUILD_TESTING)
         vtk_module_autoinit(TARGETS femcae_viewport_selection_test MODULES ${VTK_LIBRARIES})
         add_test(NAME gui.viewport_selection COMMAND femcae_viewport_selection_test)
         set_tests_properties(gui.viewport_selection PROPERTIES
-            LABELS "gui;viewport;selection;alpha32"
+            LABELS "gui;viewport;selection;alpha32;alpha33"
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         )
 

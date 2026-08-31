@@ -27,15 +27,33 @@ d26::SelectionItem body(const quint64 id, const quint64 revision)
     return item;
 }
 
-d26::SelectionItem face(const quint64 id, const quint64 parent, const quint64 revision)
+d26::SelectionItem topologyChild(const d26::SelectionKind kind,
+                                 const quint64 id,
+                                 const quint64 parent,
+                                 const quint64 revision)
 {
     d26::SelectionItem item;
     item.domain = d26::SelectionDomain::Geometry;
-    item.kind = d26::SelectionKind::Face;
+    item.kind = kind;
     item.geometryEntityId = id;
     item.parentGeometryId = parent;
     item.sourceRevision = revision;
     return item;
+}
+
+d26::SelectionItem face(const quint64 id, const quint64 parent, const quint64 revision)
+{
+    return topologyChild(d26::SelectionKind::Face, id, parent, revision);
+}
+
+d26::SelectionItem edge(const quint64 id, const quint64 parent, const quint64 revision)
+{
+    return topologyChild(d26::SelectionKind::Edge, id, parent, revision);
+}
+
+d26::SelectionItem vertex(const quint64 id, const quint64 parent, const quint64 revision)
+{
+    return topologyChild(d26::SelectionKind::Vertex, id, parent, revision);
 }
 
 femcae::geometry::TopologyTessellation topologyBody(const quint64 bodyId, const quint64 revision,
@@ -69,9 +87,12 @@ void managerStateTests()
     const auto face1 = face(201, 101, 7);
     const auto face2 = face(202, 101, 7);
     const auto face3 = face(203, 101, 7);
+    const auto edge1 = edge(301, 101, 7);
+    const auto vertex1 = vertex(401, 101, 7);
 
-    check(manager.policy().accepts(body1) && manager.policy().accepts(face1),
-          "neutral geometry policy accepts Body and Face");
+    check(manager.policy().accepts(body1) && manager.policy().accepts(face1)
+              && manager.policy().accepts(edge1) && manager.policy().accepts(vertex1),
+          "neutral geometry policy accepts Body Face Edge and Vertex");
     check(manager.apply(body1, d26::SelectionOperation::Replace)
               && manager.items().size() == 1 && manager.primary() == body1,
           "Replace creates one primary selection");
@@ -129,6 +150,56 @@ void managerStateTests()
 
     check(selectionSignals > 0 && preselectionSignals > 0,
           "selection and preselection changes publish explicit signals");
+}
+
+void edgeVertexStateTests()
+{
+    d26::SelectionManager manager;
+    constexpr quint64 bodyId = 501;
+    constexpr quint64 revision = 12;
+    const auto edge1 = edge(5101, bodyId, revision);
+    const auto edge2 = edge(5102, bodyId, revision);
+    const auto edge3 = edge(5103, bodyId, revision);
+    const auto vertex1 = vertex(5201, bodyId, revision);
+    const auto vertex2 = vertex(5202, bodyId, revision);
+    const auto vertex3 = vertex(5203, bodyId, revision);
+
+    manager.setPolicy(d26::SelectionPolicy::preset(d26::SelectionPolicyPreset::EdgeScope));
+    check(manager.apply(edge1, d26::SelectionOperation::Replace)
+              && manager.apply(edge2, d26::SelectionOperation::Add)
+              && manager.items().size() == 2 && manager.primary() == edge2,
+          "multi-Edge selection supports Replace plus Add with stable primary");
+    check(manager.apply(edge3, d26::SelectionOperation::Toggle)
+              && manager.items().size() == 3 && manager.primary() == edge3,
+          "Edge Toggle adds a missing canonical Edge");
+    check(manager.apply(edge3, d26::SelectionOperation::Toggle)
+              && manager.items().size() == 2 && manager.primary() == edge2,
+          "Edge Toggle removes the current primary deterministically");
+    check(manager.setPreselection(edge3) && manager.preselection() == edge3
+              && manager.items().size() == 2,
+          "Edge hover/preselection remains separate from committed multi-selection");
+    check(!manager.apply(vertex1, d26::SelectionOperation::Add),
+          "EdgeScope rejects Vertex identity");
+
+    manager.setPolicy(d26::SelectionPolicy::preset(d26::SelectionPolicyPreset::VertexScope));
+    check(manager.items().isEmpty() && !manager.preselection().has_value(),
+          "switching EdgeScope to VertexScope removes incompatible Edge state");
+    check(manager.apply(vertex1, d26::SelectionOperation::Replace)
+              && manager.apply(vertex2, d26::SelectionOperation::Add)
+              && manager.items().size() == 2 && manager.primary() == vertex2,
+          "multi-Vertex selection supports Replace plus Add with stable primary");
+    check(manager.apply(vertex3, d26::SelectionOperation::Toggle)
+              && manager.items().size() == 3 && manager.primary() == vertex3,
+          "Vertex Toggle adds a missing canonical Vertex");
+    check(manager.apply(vertex3, d26::SelectionOperation::Toggle)
+              && manager.items().size() == 2 && manager.primary() == vertex2,
+          "Vertex Toggle removes the current primary deterministically");
+    check(manager.setPreselection(vertex3) && manager.preselection() == vertex3
+              && manager.items().size() == 2,
+          "Vertex hover/preselection remains separate from committed multi-selection");
+    check(manager.invalidateGeometryRevision(revision + 1)
+              && manager.items().isEmpty() && !manager.preselection().has_value(),
+          "geometry revision invalidates stale Edge/Vertex committed and hover state");
 }
 
 void singleSelectionAndDomainTests()
@@ -295,7 +366,7 @@ void geometrySelectionSceneTests()
               && faceSelection->parentGeometryId == 2001 && faceSelection->sourceRevision == 44,
           "Face filter resolves picked cell to CAD Face with parent Body");
     check(!scene.selectionItemForCell(2, d26::SelectionKind::Edge).has_value(),
-          "Alpha.3.2 scene refuses unsupported Edge selection kind");
+          "surface scene refuses Edge identity because CAD Edge uses a dedicated line scene");
     check(!scene.provenanceForCell(99).has_value(), "out-of-range display cell is never a valid CAD hit");
 
     const auto oldPointCount = scene.points().size();
@@ -323,6 +394,7 @@ int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
     managerStateTests();
+    edgeVertexStateTests();
     singleSelectionAndDomainTests();
     scopeContractTests();
     selectionInputContractTests();
