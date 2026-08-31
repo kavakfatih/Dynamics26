@@ -1,16 +1,18 @@
 #pragma once
 
-// Dynamics26 Alpha.3.3 — application-shell CAD topology selection acceptance helper.
+// Dynamics26 Alpha.3.4 — application-shell CAD + FEM selection acceptance helper.
 //
 // --selection-selftest geliştirici bayrağında gerçek SelectionCoordinator signal
-// zinciri üzerinden transient Body/Face/Edge/Vertex selection -> Navigator/
-// Inspector senkronunu doğrular. Fiziksel mouse/trackpad kabulünün yerine geçmez.
+// zinciri üzerinden transient Body/Face/Edge/Vertex ve Node/Element/Facet
+// selection -> Navigator/Inspector senkronunu doğrular. Fiziksel mouse/trackpad
+// kabulünün veya gerçek VTK pick testinin yerine geçmez.
 
 #include "../core/DocumentCommandManager.h"
 #include "../core/ProjectModel.h"
 #include "../core/SelectionManager.h"
 #include "../core/SelectionPolicy.h"
 #include "../services/GeometryService.h"
+#include "../services/MeshService.h"
 #include "../shell/DetailsHost.h"
 #include "../shell/Dynamics26MainWindow.h"
 #include "../shell/ProjectNavigator.h"
@@ -42,9 +44,11 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
     QUndoStack *undo = window.documentCommands()->stack();
 
     check(selection != nullptr, "SelectionManager is owned by the application composition tree");
-    check(project != nullptr && navigator != nullptr && details != nullptr && undo != nullptr,
-          "selection acceptance has Project/Navigator/Details/Undo collaborators");
-    if (selection == nullptr || project == nullptr || navigator == nullptr || details == nullptr || undo == nullptr) {
+    check(project != nullptr && navigator != nullptr && details != nullptr && undo != nullptr
+              && services.geometry != nullptr && services.mesh != nullptr,
+          "selection acceptance has Project/Navigator/Details/Undo/Geometry/Mesh collaborators");
+    if (selection == nullptr || project == nullptr || navigator == nullptr || details == nullptr
+        || undo == nullptr || services.geometry == nullptr || services.mesh == nullptr) {
         return 1;
     }
 
@@ -55,7 +59,7 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
     const ObjectId restoreObject = navigator->selectedObject();
     const int undoIndexBefore = undo->index();
     const ObjectId projectBody = project->addObject(project->geometryNode(), ObjectType::Body,
-                                                    QStringLiteral("Alpha33 Sync Body"), geometryBodyId);
+                                                    QStringLiteral("Alpha34 Sync Body"), geometryBodyId);
     check(projectBody != InvalidObjectId && static_cast<qint64>(projectBody) != geometryBodyId,
           "Project Body identity stays distinct from CAD GeometryEntityId");
 
@@ -105,7 +109,7 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
             check(!summary->isHidden() && summary->text().contains(kindText),
                   QStringLiteral("Inspector exposes committed %1 selection summary").arg(kindText).toStdString());
         } else {
-            check(false, "Inspector selection-summary widget is discoverable for acceptance testing");
+            check(false, "Inspector selection-summary widget is discoverable for CAD acceptance testing");
         }
         check(undo->index() == undoIndexBefore,
               QStringLiteral("transient %1 selection does not create a document Undo entry").arg(kindText).toStdString());
@@ -117,6 +121,74 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
                         geometryEdgeId, QStringLiteral("Edge"));
     checkChildSelection(SelectionPolicyPreset::VertexScope, SelectionKind::Vertex,
                         geometryVertexId, QStringLiteral("Vertex"));
+
+    // FEM subentity'leri ProjectModel agacina ayri node olarak eklenmez. Transient
+    // Node/Element/Facet selection current project-object baglamini Mesh dugumunde
+    // tutar ve raw selection document Undo stack'ine girmez.
+    const ObjectId meshObject = project->meshNode();
+    constexpr quint64 meshGeneration = 77;
+    const auto meshItem = [](const SelectionKind kind,
+                             const femcae::meshing::MeshEntityId id,
+                             const quint64 generation) {
+        SelectionItem item;
+        item.domain = SelectionDomain::Mesh;
+        item.kind = kind;
+        item.meshEntityId = id;
+        item.sourceRevision = generation;
+        return item;
+    };
+
+    const auto checkMeshSelection = [&](const SelectionPolicyPreset preset,
+                                        const SelectionKind kind,
+                                        const femcae::meshing::MeshEntityId id,
+                                        const QString &kindText) {
+        selection->setPolicy(SelectionPolicy::preset(preset));
+        const SelectionItem item = meshItem(kind, id, meshGeneration);
+        check(selection->apply(item, SelectionOperation::Replace),
+              QStringLiteral("%1 selection is accepted under its FEM policy").arg(kindText).toStdString());
+        app.processEvents();
+        check(navigator->selectedObject() == meshObject,
+              QStringLiteral("%1 selection keeps Mesh as Navigator current object").arg(kindText).toStdString());
+        check(details->currentObject() == meshObject,
+              QStringLiteral("%1 selection keeps Mesh as Inspector project-object context").arg(kindText).toStdString());
+        if (QLabel *summary = details->findChild<QLabel *>(QStringLiteral("Dynamics26SelectionSummary"))) {
+            check(!summary->isHidden() && summary->text().contains(kindText)
+                      && summary->text().contains(QStringLiteral("Mesh Gen")),
+                  QStringLiteral("Inspector exposes committed %1 FEM selection summary").arg(kindText).toStdString());
+        } else {
+            check(false, "Inspector selection-summary widget is discoverable for FEM acceptance testing");
+        }
+        check(undo->index() == undoIndexBefore,
+              QStringLiteral("transient %1 selection does not create a document Undo entry").arg(kindText).toStdString());
+    };
+
+    check(meshObject != InvalidObjectId,
+          "ProjectModel exposes the canonical Mesh project-object context");
+    checkMeshSelection(SelectionPolicyPreset::MeshNodeScope, SelectionKind::Node, 920001,
+                       QStringLiteral("Node"));
+
+    SelectionItem secondNode = meshItem(SelectionKind::Node, 920002, meshGeneration);
+    check(selection->apply(secondNode, SelectionOperation::Add)
+              && selection->items().size() == 2
+              && selection->primary().has_value()
+              && selection->primary()->sameIdentity(secondNode),
+          "multi-Node Add keeps the newly added Node as primary selection");
+    app.processEvents();
+    check(navigator->selectedObject() == meshObject && details->currentObject() == meshObject,
+          "multi-Node selection preserves Mesh Navigator/Inspector context");
+    check(undo->index() == undoIndexBefore,
+          "multi-Node transient selection does not create a document Undo entry");
+
+    checkMeshSelection(SelectionPolicyPreset::MeshElementScope, SelectionKind::Element, 930001,
+                       QStringLiteral("Element"));
+    checkMeshSelection(SelectionPolicyPreset::MeshFacetScope, SelectionKind::Facet, 940001,
+                       QStringLiteral("Facet"));
+
+    check(selection->invalidateMeshGeneration(meshGeneration + 1)
+              && selection->items().isEmpty(),
+          "mesh regeneration invalidates stale shell-level FEM selection state");
+    check(undo->index() == undoIndexBefore,
+          "mesh-selection invalidation remains outside document Undo history");
 
     selection->clear();
     selection->setPolicy(SelectionPolicy::preset(SelectionPolicyPreset::NeutralGeometry));
