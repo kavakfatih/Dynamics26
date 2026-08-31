@@ -18,7 +18,6 @@ struct StepImportResult {
     std::size_t vertexCount{0};
 };
 
-
 struct StepAxisAlignedBoxDescriptor {
     Vec3 min;
     Vec3 max;
@@ -51,6 +50,12 @@ public:
     [[nodiscard]] TopologyTessellation tessellateWithTopology(GeometryEntityId bodyId,
                                                                double linearDeflection,
                                                                double angularDeflectionRad = 0.5) const;
+
+    // Alpha.3.3 display provenance API'leri. Surface triangle kenarlari veya
+    // display point indeksleri CAD Edge/Vertex kimligi olarak kullanilmaz.
+    [[nodiscard]] EdgeDisplayTessellation tessellateEdges(GeometryEntityId bodyId,
+                                                          double linearDeflection) const;
+    [[nodiscard]] VertexDisplayPoints displayVertices(GeometryEntityId bodyId) const;
 
     [[nodiscard]] std::optional<StepAxisAlignedBoxDescriptor> axisAlignedBoxDescriptor(GeometryEntityId bodyId,
                                                                                        double tolerance = 1.0e-8) const;
