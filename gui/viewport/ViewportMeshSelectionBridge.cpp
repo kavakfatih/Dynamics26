@@ -8,6 +8,8 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPalette>
+#include <QRect>
+#include <QRubberBand>
 
 #include <algorithm>
 #include <array>
@@ -63,6 +65,7 @@ public:
 
 #ifdef FEMCAE_GUI_HAS_VTK
     QVTKOpenGLNativeWidget *widget{nullptr};
+    QRubberBand *windowBand{nullptr};
     vtkWeakPointer<vtkRenderer> renderer;
     vtkWeakPointer<vtkActor> surfaceActor;
     vtkSmartPointer<vtkCellPicker> picker;
@@ -78,6 +81,10 @@ public:
         if (widget == nullptr || widget->renderWindow() == nullptr) {
             return;
         }
+        if (windowBand == nullptr) {
+            windowBand = new QRubberBand(QRubberBand::Rectangle, widget);
+            windowBand->hide();
+        }
         vtkRendererCollection *renderers = widget->renderWindow()->GetRenderers();
         if (renderers == nullptr) {
             return;
@@ -85,6 +92,29 @@ public:
         renderer = renderers->GetFirstRenderer();
         if (picker == nullptr) {
             picker = vtkSmartPointer<vtkCellPicker>::New();
+        }
+    }
+
+    void showWindowPreview(const QPointF &anchor, const QPointF &position)
+    {
+        if (windowBand == nullptr || widget == nullptr) {
+            return;
+        }
+        QRect area(anchor.toPoint(), position.toPoint());
+        area = area.normalized().intersected(widget->rect());
+        if (area.width() <= 0 || area.height() <= 0) {
+            windowBand->hide();
+            return;
+        }
+        windowBand->setGeometry(area);
+        windowBand->show();
+        windowBand->raise();
+    }
+
+    void hideWindowPreview()
+    {
+        if (windowBand != nullptr) {
+            windowBand->hide();
         }
     }
 
@@ -98,6 +128,7 @@ public:
 
     void clearVisualState()
     {
+        hideWindowPreview();
         removeActor(selectionActor);
         removeActor(preselectionActor);
         removeActor(nodeActor);
@@ -466,6 +497,9 @@ void ViewportMeshSelectionBridge::setInputEnabled(const bool enabled) noexcept
     inputEnabled_ = enabled;
     if (!inputEnabled_) {
         input_.cancelPointerGesture();
+#ifdef FEMCAE_GUI_HAS_VTK
+        impl_->hideWindowPreview();
+#endif
     }
 }
 
@@ -482,6 +516,7 @@ void ViewportMeshSelectionBridge::setActiveKind(const SelectionKind kind)
     }
     impl_->activeKind = resolved;
 #ifdef FEMCAE_GUI_HAS_VTK
+    impl_->hideWindowPreview();
     impl_->updateBaseVisibility();
     impl_->rebuildSelectionOverlay();
     impl_->rebuildPreselectionOverlay();
@@ -583,9 +618,11 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
     if (action.has_value()) {
         switch (action->type) {
         case SelectionInputActionType::Clear:
+            impl_->hideWindowPreview();
             emit selectionClearRequested();
             break;
         case SelectionInputActionType::ClearPreselection:
+            impl_->hideWindowPreview();
             emit preselectionClearRequested();
             break;
         case SelectionInputActionType::Hover: {
@@ -598,6 +635,7 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
             break;
         }
         case SelectionInputActionType::Commit: {
+            impl_->hideWindowPreview();
             const auto hit = impl_->pick(action->position);
             if (hit.has_value()) {
                 emit selectionRequested(hit->kind, static_cast<qint64>(hit->meshEntityId), action->operation);
@@ -606,7 +644,11 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
             }
             break;
         }
+        case SelectionInputActionType::WindowPreview:
+            impl_->showWindowPreview(action->anchor, action->position);
+            break;
         case SelectionInputActionType::WindowCommit: {
+            impl_->hideWindowPreview();
             emit preselectionClearRequested();
             const QVector<SelectionItem> hits = impl_->pickWindow(action->anchor, action->position);
             if (hits.isEmpty()) {
