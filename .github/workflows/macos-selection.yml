@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: brew install qtbase
 
-      - name: Configure lightweight GUI selection gate
+      - name: Configure lightweight selection gate
         env:
           FC: gfortran-15
         shell: bash
@@ -72,21 +72,29 @@ jobs:
             -DFEMCAE_GUI_WITH_VTK=OFF \
             -DFEMCAE_ENABLE_OCCT_GEOMETRY=OFF
 
-      - name: Build selection contracts and GUI composition
+      - name: Build selection contract tests
         shell: bash
         run: |
           set -euxo pipefail
+          # CMake dependency graph also builds scope + viewport-input tests.
+          # Full femcae_gui is intentionally NOT built here: the production GUI
+          # requires VTK headers even when the focused selection tests do not.
           cmake --build build-selection --parallel --target femcae_selection_manager_test
-          cmake --build build-selection --parallel --target femcae_gui
 
       - name: Selection and scope regression gate
         run: ctest --test-dir build-selection -L selection --output-on-failure
 
-      - name: Native arm64 GUI composition gate
+      - name: Native arm64 selection-binary gate
         shell: bash
         run: |
           set -euxo pipefail
-          app="build-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
-          test -x "$app"
-          file -L "$app" | tee /tmp/dynamics26-alpha32-selection-arch.txt
-          grep -q arm64 /tmp/dynamics26-alpha32-selection-arch.txt
+          binaries=(
+            "build-selection/gui/femcae_selection_manager_test"
+            "build-selection/gui/femcae_scope_reference_test"
+            "build-selection/gui/femcae_viewport_selection_input_test"
+          )
+          for binary in "${binaries[@]}"; do
+            test -x "$binary"
+            file -L "$binary"
+            file -L "$binary" | grep -q arm64
+          done
