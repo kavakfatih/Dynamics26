@@ -1,16 +1,17 @@
 #pragma once
 
-// Dynamics26 Alpha.3.3 — transient CAD selection -> persistent engineering scope.
+// Dynamics26 Alpha.3.4 — transient selection -> persistent engineering scope.
 //
-// SelectionItem ekran/oturum durumudur; ScopeReference ise Material/BC/Load/
-// Contact/Mesh gibi mühendislik tanimlarinin kalici kapsamini temsil edecek
-// data-only kontrattir. Display triangle/line/point veya FEM kimlikleri CAD
-// scope gibi kabul edilmez. Yalniz current GeometryDocument revision'indaki
-// gercek Body/Face/Edge/Vertex entity'leri persistentKey ile scope'a cevrilir.
+// Geometry scope gerçek CAD topology kimliği + persistentKey ile, FEM scope ise
+// gerçek MeshEntityId + mesh generation ile saklanır. Display triangle/line/
+// point/cell indeksleri hiçbir zaman persistent engineering identity değildir.
+//
+// CAD Geometry != Display Tessellation != FEM Mesh
 
 #include "SelectionTypes.h"
 
 #include <femcae/geometry/GeometryDocument.h>
+#include <femcae/meshing/MeshTypes.h>
 
 #include <QString>
 #include <QVector>
@@ -25,7 +26,9 @@ enum class ScopeReferenceBuildError {
     UnsupportedDomain,
     UnsupportedKind,
     StaleGeometryRevision,
+    StaleMeshGeneration,
     MissingGeometryEntity,
+    MissingMeshEntity,
     GeometryKindMismatch,
     ParentBodyMismatch,
     MissingPersistentKey
@@ -44,9 +47,11 @@ enum class ScopeReferenceValidationError {
     None,
     EmptyScope,
     StaleGeometryRevision,
+    StaleMeshGeneration,
     UnsupportedDomain,
     UnsupportedKind,
     MissingGeometryEntity,
+    MissingMeshEntity,
     GeometryKindMismatch,
     ParentBodyMismatch,
     MissingPersistentKey,
@@ -69,6 +74,35 @@ geometryEntityKindForSelectionKind(const SelectionKind kind)
 [[nodiscard]] inline bool geometrySelectionKindHasBodyParent(const SelectionKind kind) noexcept
 {
     return kind == SelectionKind::Face || kind == SelectionKind::Edge || kind == SelectionKind::Vertex;
+}
+
+[[nodiscard]] inline bool isMeshSelectionKind(const SelectionKind kind) noexcept
+{
+    return kind == SelectionKind::Node || kind == SelectionKind::Element || kind == SelectionKind::Facet;
+}
+
+[[nodiscard]] inline bool meshEntityExists(const femcae::meshing::SimulationMesh &mesh,
+                                           const SelectionKind kind,
+                                           const femcae::meshing::MeshEntityId id) noexcept
+{
+    using femcae::meshing::InvalidMeshId;
+    if (id == InvalidMeshId) {
+        return false;
+    }
+    if (kind == SelectionKind::Node) {
+        return mesh.findNode(id) != nullptr;
+    }
+    if (kind == SelectionKind::Element) {
+        return mesh.findElement(id) != nullptr;
+    }
+    if (kind == SelectionKind::Facet) {
+        for (const auto &facet : mesh.boundaryFacets) {
+            if (facet.id == id) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 [[nodiscard]] inline ScopeReferenceBuildResult
@@ -151,10 +185,72 @@ buildGeometryScopeReference(const QVector<SelectionItem> &items,
     return result;
 }
 
-// Persistent scope kullanilacagi anda current GeometryDocument'a karsi tekrar
-// dogrulanir. Otomatik topology rebind yapilmaz: revision degismisse scope
-// stale'dir. persistentKey gelecekte acik bir rebind/migration islemine temel
-// olabilir, fakat stale scope sessizce kabul edilmez.
+[[nodiscard]] inline ScopeReferenceBuildResult
+buildMeshScopeReference(const QVector<SelectionItem> &items,
+                        const femcae::meshing::SimulationMesh &mesh,
+                        const quint64 generation)
+{
+    ScopeReferenceBuildResult result;
+    if (items.isEmpty()) {
+        result.error = ScopeReferenceBuildError::EmptySelection;
+        return result;
+    }
+    if (generation == 0) {
+        result.error = ScopeReferenceBuildError::StaleMeshGeneration;
+        return result;
+    }
+
+    for (const SelectionItem &item : items) {
+        if (item.domain != SelectionDomain::Mesh) {
+            result.scope.entities.clear();
+            result.error = ScopeReferenceBuildError::UnsupportedDomain;
+            return result;
+        }
+        if (!isMeshSelectionKind(item.kind)) {
+            result.scope.entities.clear();
+            result.error = ScopeReferenceBuildError::UnsupportedKind;
+            return result;
+        }
+        if (item.sourceRevision != generation) {
+            result.scope.entities.clear();
+            result.error = ScopeReferenceBuildError::StaleMeshGeneration;
+            return result;
+        }
+        if (!meshEntityExists(mesh, item.kind, item.meshEntityId)) {
+            result.scope.entities.clear();
+            result.error = ScopeReferenceBuildError::MissingMeshEntity;
+            return result;
+        }
+
+        bool duplicate = false;
+        for (const ScopeEntityReference &existing : result.scope.entities) {
+            if (existing.domain == SelectionDomain::Mesh && existing.kind == item.kind
+                && existing.meshEntityId == item.meshEntityId) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (duplicate) {
+            continue;
+        }
+
+        ScopeEntityReference reference;
+        reference.domain = SelectionDomain::Mesh;
+        reference.kind = item.kind;
+        reference.meshEntityId = item.meshEntityId;
+        result.scope.entities.push_back(reference);
+    }
+
+    if (result.scope.isEmpty()) {
+        result.error = ScopeReferenceBuildError::EmptySelection;
+        return result;
+    }
+    result.scope.sourceRevision = generation;
+    return result;
+}
+
+// Persistent CAD scope kullanilacagi anda current GeometryDocument'a karsi
+// tekrar dogrulanir. Otomatik topology rebind yapilmaz.
 [[nodiscard]] inline ScopeReferenceValidationError
 validateGeometryScopeReference(const ScopeReference &scope,
                                const femcae::geometry::GeometryDocument &document)
@@ -192,6 +288,35 @@ validateGeometryScopeReference(const ScopeReference &scope,
         }
         if (QString::fromStdString(entity->persistentKey) != reference.persistentKey) {
             return ScopeReferenceValidationError::PersistentKeyMismatch;
+        }
+    }
+    return ScopeReferenceValidationError::None;
+}
+
+// FEM scope yalnız oluşturulduğu mesh generation üzerinde geçerlidir. Mesh
+// regenerate/clear/reset sonrası ID sayıları tesadüfen aynı olsa bile eski scope
+// yeni mesh'e sessizce bağlanmaz.
+[[nodiscard]] inline ScopeReferenceValidationError
+validateMeshScopeReference(const ScopeReference &scope,
+                           const femcae::meshing::SimulationMesh &mesh,
+                           const quint64 generation)
+{
+    if (scope.isEmpty()) {
+        return ScopeReferenceValidationError::EmptyScope;
+    }
+    if (generation == 0 || scope.sourceRevision != generation) {
+        return ScopeReferenceValidationError::StaleMeshGeneration;
+    }
+
+    for (const ScopeEntityReference &reference : scope.entities) {
+        if (reference.domain != SelectionDomain::Mesh) {
+            return ScopeReferenceValidationError::UnsupportedDomain;
+        }
+        if (!isMeshSelectionKind(reference.kind)) {
+            return ScopeReferenceValidationError::UnsupportedKind;
+        }
+        if (!meshEntityExists(mesh, reference.kind, reference.meshEntityId)) {
+            return ScopeReferenceValidationError::MissingMeshEntity;
         }
     }
     return ScopeReferenceValidationError::None;
