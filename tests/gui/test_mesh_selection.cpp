@@ -1,3 +1,4 @@
+#include "core/ScopeReferenceBuilder.h"
 #include "core/SelectionManager.h"
 #include "viewport/MeshSelectionScene.h"
 
@@ -164,6 +165,66 @@ void managerGenerationTests()
           "Mesh Facet policy accepts Facet identity");
 }
 
+void persistentScopeTests()
+{
+    constexpr quint64 generation = 9;
+    const auto mesh = makeMesh();
+    d26::MeshSelectionScene scene;
+    check(scene.set(mesh, generation),
+          "FEM scope fixture builds from generated mesh provenance");
+
+    const auto node = scene.selectionItemForVisibleNode(0);
+    const auto element = scene.selectionItemForBoundaryCell(0, d26::SelectionKind::Element);
+    const auto facet = scene.selectionItemForBoundaryCell(0, d26::SelectionKind::Facet);
+    check(node.has_value() && element.has_value() && facet.has_value(),
+          "scope fixture resolves Node Element and Facet identities");
+    if (!node.has_value() || !element.has_value() || !facet.has_value()) {
+        return;
+    }
+
+    const auto nodeScope = d26::buildMeshScopeReference(QVector<d26::SelectionItem>{*node, *node},
+                                                         mesh, generation);
+    check(nodeScope.success() && nodeScope.scope.entities.size() == 1
+              && nodeScope.scope.sourceRevision == generation
+              && nodeScope.scope.entities.front().domain == d26::SelectionDomain::Mesh
+              && nodeScope.scope.entities.front().kind == d26::SelectionKind::Node
+              && nodeScope.scope.entities.front().meshEntityId == node->meshEntityId,
+          "persistent FEM scope stores deduplicated MeshEntityId and mesh generation");
+    check(nodeScope.success()
+              && d26::validateMeshScopeReference(nodeScope.scope, mesh, generation)
+                     == d26::ScopeReferenceValidationError::None,
+          "persistent FEM Node scope validates against the source mesh generation");
+    check(nodeScope.success()
+              && d26::validateMeshScopeReference(nodeScope.scope, mesh, generation + 1)
+                     == d26::ScopeReferenceValidationError::StaleMeshGeneration,
+          "mesh regeneration makes persistent FEM scope explicitly stale");
+
+    auto staleFacet = *facet;
+    staleFacet.sourceRevision = generation - 1;
+    check(d26::buildMeshScopeReference(QVector<d26::SelectionItem>{staleFacet}, mesh, generation).error
+              == d26::ScopeReferenceBuildError::StaleMeshGeneration,
+          "stale transient Facet selection cannot become persistent FEM scope");
+
+    auto missingElement = *element;
+    missingElement.meshEntityId = 999999;
+    check(d26::buildMeshScopeReference(QVector<d26::SelectionItem>{missingElement}, mesh, generation).error
+              == d26::ScopeReferenceBuildError::MissingMeshEntity,
+          "unknown Element identity cannot become persistent FEM scope");
+
+    const auto mixedScope = d26::buildMeshScopeReference(
+        QVector<d26::SelectionItem>{*element, *facet}, mesh, generation);
+    check(mixedScope.success() && mixedScope.scope.entities.size() == 2,
+          "data contract can preserve distinct Element and Facet identities without conflation");
+
+    if (nodeScope.success()) {
+        auto missingScope = nodeScope.scope;
+        missingScope.entities.front().meshEntityId = 999999;
+        check(d26::validateMeshScopeReference(missingScope, mesh, generation)
+                  == d26::ScopeReferenceValidationError::MissingMeshEntity,
+              "persistent FEM scope validation rejects missing MeshEntityId");
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -171,6 +232,7 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     sceneTests();
     managerGenerationTests();
+    persistentScopeTests();
     std::cout << (failures == 0 ? "FEM selection contract PASS\n"
                                 : "FEM selection contract FAIL\n");
     return failures == 0 ? 0 : 1;
