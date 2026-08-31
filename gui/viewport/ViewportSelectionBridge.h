@@ -1,10 +1,12 @@
 #pragma once
 
-// Dynamics26 Alpha.3.3 — topology-aware CAD selection interaction bridge.
+// Dynamics26 Alpha.3.4 — topology-aware CAD selection interaction bridge.
 //
 // ViewportWidget temel render/camera davranışının sahibidir. Bu bridge transient
 // selection input, CAD display provenance pick'i ve selection/preselection
-// overlay aktörlerini yönetir. Doküman/solver verisi yazmaz.
+// overlay aktörlerini yönetir. Doküman/solver verisi yazmaz. Alpha.3.4 ile ayni
+// viewport'ta FEM bridge de bulunabildigi icin input ownership acikca acilip
+// kapatilabilir.
 //
 // CAD Geometry != Display Tessellation != FEM Mesh
 
@@ -39,6 +41,9 @@ public:
                                 const QVector<femcae::geometry::VertexDisplayPoints> &vertices);
     void clearScene();
 
+    void setInputEnabled(bool enabled) noexcept;
+    [[nodiscard]] bool inputEnabled() const noexcept { return inputEnabled_; }
+
     [[nodiscard]] bool hasFaceProvenance() const noexcept;
     [[nodiscard]] bool hasEdgeProvenance() const noexcept;
     [[nodiscard]] bool hasVertexProvenance() const noexcept;
@@ -65,6 +70,7 @@ private:
     std::unique_ptr<Impl> impl_;
     ViewportWidget *viewport_{nullptr};
     ViewportSelectionController input_;
+    bool inputEnabled_{true};
 };
 
 } // namespace d26
