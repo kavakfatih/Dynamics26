@@ -33,12 +33,15 @@ int main(int argc, char **argv)
     check(ViewportSelectionController::operationForModifiers(Qt::ShiftModifier)
               == SelectionOperation::Add,
           "Shift click maps to Add");
-    check(ViewportSelectionController::operationForModifiers(Qt::MetaModifier)
-              == SelectionOperation::Toggle,
-          "raw macOS Command/Meta click maps to Toggle");
     check(ViewportSelectionController::operationForModifiers(Qt::ControlModifier)
               == SelectionOperation::Toggle,
-          "Control semantic click remains Toggle-compatible");
+          "macOS Command/Qt Control click maps to Toggle");
+    check(ViewportSelectionController::operationForModifiers(Qt::MetaModifier)
+              == SelectionOperation::Replace,
+          "macOS physical Control/Qt Meta click does not masquerade as Command Toggle");
+    check(ViewportSelectionController::operationForModifiers(Qt::ControlModifier | Qt::ShiftModifier)
+              == SelectionOperation::Toggle,
+          "Command Toggle has deterministic priority over Shift Add");
 
     ViewportSelectionController controller;
     SelectionPointerInput press;
@@ -46,7 +49,7 @@ int main(int argc, char **argv)
     press.position = QPointF(10.0, 10.0);
     press.button = Qt::LeftButton;
     press.buttons = Qt::LeftButton;
-    press.modifiers = Qt::MetaModifier;
+    press.modifiers = Qt::ControlModifier;
     check(!controller.routePointer(press).has_value() && controller.clickInProgress(),
           "Command-left press starts a selection click candidate");
 
@@ -61,6 +64,16 @@ int main(int argc, char **argv)
               && commandCommit->type == SelectionInputActionType::Commit
               && commandCommit->operation == SelectionOperation::Toggle,
           "Command modifier is preserved from press through release");
+
+    press.position = QPointF(15.0, 15.0);
+    press.modifiers = Qt::MetaModifier;
+    (void)controller.routePointer(press);
+    release.position = QPointF(16.0, 15.0);
+    const auto physicalControlCommit = controller.routePointer(release);
+    check(physicalControlCommit.has_value()
+              && physicalControlCommit->type == SelectionInputActionType::Commit
+              && physicalControlCommit->operation == SelectionOperation::Replace,
+          "physical Control click remains an ordinary Replace selection");
 
     press.position = QPointF(20.0, 20.0);
     press.modifiers = Qt::AltModifier;

@@ -125,11 +125,11 @@ public:
 
     [[nodiscard]] static SelectionOperation operationForModifiers(const Qt::KeyboardModifiers modifiers) noexcept
     {
-        // Qt raw pointer event'lerinde macOS fiziksel Command tuşu MetaModifier,
-        // standart shortcut gösteriminde ise Ctrl semantiğiyle sunulur. Selection
-        // mouse kontratı her iki kaynağı Toggle olarak kabul eder; platforma özgü
-        // sabit/hack yolu kullanılmaz.
-        if (modifiers.testFlag(Qt::MetaModifier) || modifiers.testFlag(Qt::ControlModifier)) {
+        // Qt'nin varsayılan Apple platform eşlemesinde fiziksel Command tuşu
+        // Qt::ControlModifier, fiziksel Control tuşu ise Qt::MetaModifier olarak
+        // raporlanır. Dynamics26 selection kontratı yalnız Command+Click'i Toggle
+        // kabul eder; fiziksel Control+Click sessizce aynı komut gibi davranmaz.
+        if (modifiers.testFlag(Qt::ControlModifier)) {
             return SelectionOperation::Toggle;
         }
         if (modifiers.testFlag(Qt::ShiftModifier)) {
