@@ -291,7 +291,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(femcae_scope_reference_test PRIVATE Qt6::Core femcae_geometry)
     add_test(NAME gui.scope_reference COMMAND femcae_scope_reference_test)
-    set_tests_properties(gui.scope_reference PROPERTIES LABELS "gui;selection;scope;alpha32;alpha33")
+    set_tests_properties(gui.scope_reference PROPERTIES LABELS "gui;selection;scope;alpha32;alpha33;alpha34")
 
     qt_add_executable(femcae_viewport_selection_input_test
         viewport/ViewportSelectionController.h
@@ -310,6 +310,7 @@ if(BUILD_TESTING)
         core/SelectionPolicy.h
         core/SelectionManager.cpp
         core/SelectionManager.h
+        core/ScopeReferenceBuilder.h
         viewport/MeshSelectionScene.h
         "${PROJECT_SOURCE_DIR}/tests/gui/test_mesh_selection.cpp"
     )
@@ -319,7 +320,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(femcae_mesh_selection_test PRIVATE Qt6::Core femcae_meshing)
     add_test(NAME gui.mesh_selection COMMAND femcae_mesh_selection_test)
-    set_tests_properties(gui.mesh_selection PROPERTIES LABELS "gui;selection;mesh;alpha34")
+    set_tests_properties(gui.mesh_selection PROPERTIES LABELS "gui;selection;mesh;scope;alpha34")
 
     # Trusted fast gate femcae_selection_manager_test hedefini açıkça build eder.
     # Dependency sayesinde selection contract testlerinin tamami ayni gate icinde binary olarak üretilir.
@@ -388,9 +389,35 @@ if(BUILD_TESTING)
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         )
 
-        # Self-hosted fast gate selection-manager hedefini build ettiğinde VTK
-        # picker contract binary'si de mutlaka üretilmiş olur. VTK-OFF hosted
-        # lightweight gate bu bağımlılığı doğal olarak görmez.
-        add_dependencies(femcae_selection_manager_test femcae_viewport_selection_test)
+        # Alpha.3.4 gerçek VTK FEM pick zinciri: visible vertex -> Node,
+        # boundary cell -> Facet veya owner Element. Display VTK cell/point
+        # indeksleri MeshEntityId olarak yorumlanmaz.
+        add_executable(femcae_mesh_viewport_selection_test
+            core/SelectionTypes.h
+            viewport/MeshSelectionScene.h
+            "${PROJECT_SOURCE_DIR}/tests/gui/test_mesh_viewport_selection.cpp"
+        )
+        target_include_directories(femcae_mesh_viewport_selection_test PRIVATE
+            "${PROJECT_SOURCE_DIR}/include"
+            "${CMAKE_CURRENT_SOURCE_DIR}"
+        )
+        target_link_libraries(femcae_mesh_viewport_selection_test PRIVATE
+            Qt6::Core
+            femcae_meshing
+            ${VTK_LIBRARIES}
+        )
+        vtk_module_autoinit(TARGETS femcae_mesh_viewport_selection_test MODULES ${VTK_LIBRARIES})
+        add_test(NAME gui.mesh_viewport_selection COMMAND femcae_mesh_viewport_selection_test)
+        set_tests_properties(gui.mesh_viewport_selection PROPERTIES
+            LABELS "gui;viewport;selection;mesh;alpha34"
+        )
+
+        # Self-hosted fast gate selection-manager hedefini build ettiğinde hem
+        # CAD hem FEM picker contract binary'leri mutlaka üretilmiş olur. VTK-OFF
+        # hosted lightweight gate bu bağımlılığı doğal olarak görmez.
+        add_dependencies(femcae_selection_manager_test
+            femcae_viewport_selection_test
+            femcae_mesh_viewport_selection_test
+        )
     endif()
 endif()
