@@ -1,4 +1,4 @@
-name: CAD topology selection verification
+name: CAD + FEM topology selection verification
 
 on:
   push:
@@ -6,7 +6,10 @@ on:
     paths:
       - "include/femcae/geometry/GeometryTypes.h"
       - "include/femcae/geometry/OcctStepImporter.h"
+      - "include/femcae/meshing/MeshTypes.h"
+      - "include/femcae/meshing/StructuredHexMesher.h"
       - "src/geometry/OcctStepImporter.cpp"
+      - "src/meshing/StructuredHexMesher.cpp"
       - "tests/geometry/unit_v120_occt_adapter.cpp"
       - "tests/geometry/ver_v120_004_occt_step_box.cpp"
       - "gui/CMakeLists.txt"
@@ -15,8 +18,11 @@ on:
       - "gui/core/SelectionPolicy.h"
       - "gui/core/SelectionManager.cpp"
       - "gui/core/SelectionManager.h"
+      - "gui/core/ScopeReferenceBuilder.h"
       - "gui/services/GeometryService.cpp"
       - "gui/services/GeometryService.h"
+      - "gui/services/MeshService.cpp"
+      - "gui/services/MeshService.h"
       - "gui/shell/DetailsHost.cpp"
       - "gui/shell/GraphicsWorkspace.cpp"
       - "gui/shell/GraphicsWorkspace.h"
@@ -25,16 +31,21 @@ on:
       - "gui/support/SelectionAcceptanceTest.h"
       - "gui/viewport/GeometrySelectionScene.h"
       - "gui/viewport/GeometryTopologyScene.h"
+      - "gui/viewport/MeshSelectionScene.h"
       - "gui/viewport/RenderRoles.cpp"
       - "gui/viewport/RenderRoles.h"
       - "gui/viewport/ViewportSelectionBridge.cpp"
       - "gui/viewport/ViewportSelectionBridge.h"
+      - "gui/viewport/ViewportMeshSelectionBridge.cpp"
+      - "gui/viewport/ViewportMeshSelectionBridge.h"
       - "gui/viewport/ViewportSelectionController.h"
       - "gui/viewport/ViewportWidget.cpp"
       - "gui/viewport/ViewportWidget.h"
       - "tests/gui/test_selection_manager.cpp"
       - "tests/gui/test_scope_reference.cpp"
       - "tests/gui/test_viewport_selection_input.cpp"
+      - "tests/gui/test_mesh_selection.cpp"
+      - "tests/gui/test_mesh_viewport_selection.cpp"
       - "tests/gui/test_viewport_selection.cpp"
       - "tests/gui/test_topology_selection.cpp"
       - ".github/workflows/macos-vtk-selection.yml"
@@ -44,7 +55,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: dynamics26-cad-topology-selection-${{ github.ref }}
+  group: dynamics26-topology-selection-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -65,7 +76,11 @@ jobs:
           git diff --check
           test -f tests/geometry/ver_v120_004_occt_step_box.cpp
           test -f tests/gui/test_viewport_selection.cpp
+          test -f tests/gui/test_mesh_selection.cpp
+          test -f tests/gui/test_mesh_viewport_selection.cpp
           test -f gui/viewport/GeometrySelectionScene.h
+          test -f gui/viewport/MeshSelectionScene.h
+          test -f gui/viewport/ViewportMeshSelectionBridge.cpp
           test -f gui/support/SelectionAcceptanceTest.h
 
       - name: Install Qt VTK and OCCT dependencies
@@ -98,7 +113,7 @@ jobs:
           cmake --build build-topology-selection --parallel --target ver_v120_004
           ctest --test-dir build-topology-selection -R '^ver_v120_004$' --output-on-failure
 
-      - name: Build selection contract matrix
+      - name: Build CAD and FEM selection contract matrix
         shell: bash
         run: |
           set -euxo pipefail
@@ -111,7 +126,9 @@ jobs:
           set -euxo pipefail
           for binary in \
             build-topology-selection/tests/ver_v120_004 \
-            build-topology-selection/gui/femcae_viewport_selection_test; do
+            build-topology-selection/gui/femcae_viewport_selection_test \
+            build-topology-selection/gui/femcae_mesh_selection_test \
+            build-topology-selection/gui/femcae_mesh_viewport_selection_test; do
             test -x "$binary"
             file -L "$binary" | grep -q arm64
           done
