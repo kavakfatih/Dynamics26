@@ -73,6 +73,69 @@ int main(int argc, char **argv)
     const auto sourceB = mesh.mesh().boundaryFacets.at(2).id;
     const auto targetB = mesh.mesh().boundaryFacets.at(3).id;
 
+    // Normal CAE authoring akışı boş ContactRegion ile başlar. Transient viewport
+    // selection Undo yığınına girmez; yalnız Apply ile üretilen persistent
+    // ScopeReference komutları burada document transaction olur.
+    QUndoStack draftStack;
+    d26::ContactDefinition draftDefinition;
+    draftDefinition.name = QStringLiteral("Draft Contact");
+    auto *createDraft = new d26::commands::CreateContactCommand(services, draftDefinition);
+    draftStack.push(createDraft);
+    const d26::ObjectId draftId = createDraft->createdId();
+    check(draftId != d26::InvalidObjectId
+              && contacts.validate(draftId).error == d26::ContactValidationError::MissingSourceScope,
+          "CreateContactCommand can create incomplete ContactRegion before Source selection");
+
+    const d26::ScopeReference draftSource = meshFacetScope(generation, sourceA);
+    const d26::ScopeReference draftTarget = meshFacetScope(generation, targetA);
+    draftStack.push(new d26::commands::ReplaceContactSourceScopeCommand(
+        services, draftId, draftSource));
+    check(contacts.validate(draftId).error == d26::ContactValidationError::MissingTargetScope,
+          "Source command advances draft Contact to explicit missing-Target state");
+    draftStack.push(new d26::commands::ReplaceContactTargetScopeCommand(
+        services, draftId, draftTarget));
+    check(contacts.validate(draftId).valid(),
+          "Target command completes draft Contact definition");
+
+    draftStack.push(new d26::commands::ReplaceContactSourceScopeCommand(
+        services, draftId, d26::ScopeReference{}));
+    check(contacts.validate(draftId).error == d26::ContactValidationError::MissingSourceScope,
+          "clearing Source is one persistent Contact authoring transaction");
+    draftStack.undo();
+    check(contacts.validate(draftId).valid()
+              && contacts.byId(draftId)->sourceScope.entities.front().meshEntityId == sourceA,
+          "Undo clear Source restores exact previous Facet scope");
+    draftStack.redo();
+    check(contacts.validate(draftId).error == d26::ContactValidationError::MissingSourceScope,
+          "Redo clear Source deterministically restores incomplete Contact state");
+    draftStack.undo();
+
+    draftStack.undo();
+    check(contacts.validate(draftId).error == d26::ContactValidationError::MissingTargetScope,
+          "Undo Target returns Contact to missing-Target authoring state");
+    draftStack.undo();
+    check(contacts.validate(draftId).error == d26::ContactValidationError::MissingSourceScope,
+          "Undo Source returns Contact to initial missing-Source state");
+    draftStack.undo();
+    check(contacts.byId(draftId) == nullptr && project.object(draftId) == nullptr,
+          "Undo draft creation removes incomplete engineering state and tree identity");
+
+    draftStack.redo();
+    check(createDraft->createdId() == draftId && contacts.byId(draftId) != nullptr
+              && contacts.validate(draftId).error == d26::ContactValidationError::MissingSourceScope,
+          "Redo draft creation restores same ObjectId and canonical empty scopes");
+    draftStack.redo();
+    check(contacts.validate(draftId).error == d26::ContactValidationError::MissingTargetScope,
+          "Redo Source restores authoring sequence deterministically");
+    draftStack.redo();
+    check(contacts.validate(draftId).valid(),
+          "Redo Target restores completed Contact engineering state");
+    draftStack.undo();
+    draftStack.undo();
+    draftStack.undo();
+    check(contacts.byId(draftId) == nullptr,
+          "draft command fixture leaves no persistent Contact state behind");
+
     d26::ContactDefinition definition;
     definition.name = QStringLiteral("Contact Region");
     definition.sourceScope = meshFacetScope(generation, sourceA);
