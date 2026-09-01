@@ -1,0 +1,115 @@
+name: One-shot Alpha36 delete undo lifecycle test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/one-shot-alpha36-delete-undo.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add referenced Named Selection delete/undo acceptance
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('gui/support/BoundaryConsumerAcceptance.h')
+          text = path.read_text()
+
+          include_old = '#include "../core/DependencyEngine.h"\n'
+          include_new = '#include "../commands/NamedSelectionCommands.h"\n#include "../core/DependencyEngine.h"\n'
+          if include_new not in text:
+              if include_old not in text:
+                  raise SystemExit('include anchor not found')
+              text = text.replace(include_old, include_new, 1)
+
+          anchor = '''                    services.analysis->updateSupport(supportId, originalSupport);
+                    services.analysis->updateLoad(loadId, originalLoad);
+                    (void)services.namedSelections->remove(supportNamed.id);
+                    (void)services.namedSelections->remove(loadNamed.id);
+'''
+          replacement = '''                    // Referenced Named Selection document yaşam döngüsü:
+                    // consumer entity ID kopyalamaz; ObjectId referansı silinince açıkça
+                    // dangling Error olur. Undo aynı ObjectId + scope'u restore eder ve
+                    // consumer hiçbir rebind/heal olmadan yeniden çözülebilir hale gelir.
+                    const NamedSelectionDefinition *supportBeforeDelete =
+                        services.namedSelections->byId(supportNamed.id);
+                    const ScopeReference supportScopeBeforeDelete = supportBeforeDelete != nullptr
+                        ? supportBeforeDelete->scope : ScopeReference{};
+                    const int deleteUndoIndex = undoStack != nullptr ? undoStack->index() : -1;
+                    check(supportBeforeDelete != nullptr && undoStack != nullptr,
+                          "referenced Named Selection delete acceptance captures persistent definition and Undo stack");
+                    if (supportBeforeDelete != nullptr && undoStack != nullptr) {
+                        window.documentCommands()->push(
+                            new commands::DeleteNamedSelectionCommand(services, supportNamed.id));
+                        flushUi();
+                        check(services.namedSelections->byId(supportNamed.id) == nullptr
+                                  && undoStack->index() == deleteUndoIndex + 1,
+                              "Delete Named Selection removes referenced object in exactly one Undo transaction");
+
+                        const BoundaryScopeResolution deletedScope =
+                            services.analysis->resolveBoundaryScope(namedSupport);
+                        check(!deletedScope.valid,
+                              "referenced consumer becomes explicitly dangling after Named Selection delete");
+                        services.dependencies->evaluate();
+                        const ProjectObject *deletedSupportObject = services.project->object(supportId);
+                        check(deletedSupportObject != nullptr
+                                  && deletedSupportObject->state == ObjectState::Error,
+                              "DependencyEngine marks consumer Error after referenced Named Selection delete");
+                        check(!services.analysis->preflight(analysisId).passed(),
+                              "preflight rejects analysis while referenced Named Selection is deleted");
+
+                        undoStack->undo();
+                        flushUi();
+                        const NamedSelectionDefinition *restoredNamed =
+                            services.namedSelections->byId(supportNamed.id);
+                        check(restoredNamed != nullptr
+                                  && restoredNamed->id == supportNamed.id
+                                  && restoredNamed->scope == supportScopeBeforeDelete
+                                  && undoStack->index() == deleteUndoIndex,
+                              "Undo restores exact Named Selection ObjectId and persistent scope");
+                        const BoundaryScopeResolution restoredScope =
+                            services.analysis->resolveBoundaryScope(namedSupport);
+                        check(restoredScope.valid && restoredScope.geometryFaceIds.size() == 1,
+                              "consumer resolves again after referenced Named Selection Undo restore");
+                        services.dependencies->evaluate();
+                        check(services.analysis->preflight(analysisId).passed(),
+                              "preflight passes again after exact Named Selection Undo restore");
+                    }
+
+                    services.analysis->updateSupport(supportId, originalSupport);
+                    services.analysis->updateLoad(loadId, originalLoad);
+                    (void)services.namedSelections->remove(supportNamed.id);
+                    (void)services.namedSelections->remove(loadNamed.id);
+'''
+          if 'referenced Named Selection delete acceptance captures persistent definition' not in text:
+              if anchor not in text:
+                  raise SystemExit('lifecycle insertion anchor not found')
+              text = text.replace(anchor, replacement, 1)
+
+          path.write_text(text)
+          PY
+          git diff --check
+
+      - name: Commit lifecycle acceptance and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm .github/workflows/one-shot-alpha36-delete-undo.yml
+          git config user.name "Dynamics26 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add gui/support/BoundaryConsumerAcceptance.h .github/workflows/one-shot-alpha36-delete-undo.yml
+          git diff --cached --check
+          git commit -m "test: cover named selection delete undo lifecycle"
+          git push origin HEAD:main
