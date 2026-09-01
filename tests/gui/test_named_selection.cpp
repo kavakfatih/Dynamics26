@@ -153,6 +153,27 @@ void serviceContractTests()
     check(service.createWithScope(emptyDefinition) == d26::InvalidObjectId,
           "Geometry and Mesh identities cannot be mixed inside one Named Selection");
 
+    d26::ScopeReference mixedKindScope = geometryDefinition.scope;
+    d26::ScopeEntityReference edgeReference = geometryDefinition.scope.entities.front();
+    edgeReference.kind = d26::SelectionKind::Edge;
+    edgeReference.geometryEntityId = 7002;
+    edgeReference.persistentKey = QStringLiteral("cad/body/1/edge/1");
+    mixedKindScope.entities.push_back(edgeReference);
+    emptyDefinition.scope = mixedKindScope;
+    check(service.createWithScope(emptyDefinition) == d26::InvalidObjectId,
+          "one Geometry Named Selection cannot mix Face and Edge engineering kinds");
+
+    d26::ScopeReference mixedMeshKindScope = meshScope(
+        mesh.generation(), d26::SelectionKind::Node, mesh.mesh().nodes.front().id);
+    d26::ScopeEntityReference elementReference;
+    elementReference.domain = d26::SelectionDomain::Mesh;
+    elementReference.kind = d26::SelectionKind::Element;
+    elementReference.meshEntityId = mesh.mesh().elements.front().id;
+    mixedMeshKindScope.entities.push_back(elementReference);
+    emptyDefinition.scope = mixedMeshKindScope;
+    check(service.createWithScope(emptyDefinition) == d26::InvalidObjectId,
+          "one Mesh Named Selection cannot mix Node and Element engineering kinds");
+
     d26::SelectionItem projectObjectItem;
     projectObjectItem.domain = d26::SelectionDomain::ProjectObject;
     projectObjectItem.kind = d26::SelectionKind::Object;
@@ -248,6 +269,27 @@ void persistenceTests()
               && restoredProject.typeOf(hugeMeshObjectId) == d26::ObjectType::NamedSelection,
           "JSON restore recreates matching ProjectObjects with requested ObjectIds");
 
+    const int countBeforeFailure = restored.count();
+
+    QJsonObject mixedKind = json;
+    QJsonArray mixedKindItems = mixedKind.value(QStringLiteral("items")).toArray();
+    QJsonObject mixedKindItem = mixedKindItems.at(0).toObject();
+    QJsonArray mixedKindEntities = mixedKindItem.value(QStringLiteral("entities")).toArray();
+    QJsonObject mixedKindEntity = mixedKindEntities.at(0).toObject();
+    mixedKindEntity[QStringLiteral("kind")] = QStringLiteral("edge");
+    mixedKindEntity[QStringLiteral("geometry_entity_id")] = QString::number(hugeGeometryId + 2);
+    mixedKindEntity[QStringLiteral("persistent_key")] = QStringLiteral("cad/huge/body/edge");
+    mixedKindEntities.push_back(mixedKindEntity);
+    mixedKindItem[QStringLiteral("entities")] = mixedKindEntities;
+    mixedKindItems[0] = mixedKindItem;
+    mixedKind[QStringLiteral("items")] = mixedKindItems;
+    error.clear();
+    check(!restored.fromJson(mixedKind, &error) && !error.isEmpty(),
+          "JSON load rejects one Named Selection that mixes Face and Edge kinds");
+    check(restored.count() == countBeforeFailure && restored.byId(hugeObjectId) != nullptr
+              && restored.byId(hugeMeshObjectId) != nullptr,
+          "mixed-kind JSON rejection is atomic and preserves existing persistent scopes");
+
     QJsonObject malformed = json;
     QJsonArray malformedItems = malformed.value(QStringLiteral("items")).toArray();
     QJsonObject malformedItem = malformedItems.at(0).toObject();
@@ -255,7 +297,6 @@ void persistenceTests()
     malformedItems[0] = malformedItem;
     malformed[QStringLiteral("items")] = malformedItems;
 
-    const int countBeforeFailure = restored.count();
     error.clear();
     check(!restored.fromJson(malformed, &error) && !error.isEmpty(),
           "numeric/precision-risk ObjectId input is rejected with an explicit diagnostic");
