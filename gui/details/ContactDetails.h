@@ -4,9 +4,10 @@
 //
 // Bu sayfa ProjectModel tree state'ini ikinci kez tutmaz. Name / Source / Target /
 // formulation verisi ContactService'ten okunur; kalıcı değişiklikler yalnız
-// ContactCommands üzerinden QUndoStack'e gider. Source/Target için selection edit
-// oturumu SelectionCoordinator'a bağlanmadan önce bile mevcut persistent scope ve
-// lifecycle açıkça görünür; solver desteği olduğundan fazla gösterilmez.
+// ContactCommands üzerinden QUndoStack'e gider. Source/Target seçim oturumu
+// transient SelectionCoordinator state'idir: pointer seçimi Undo üretmez, yalnız
+// Apply Selection persistent ScopeReference komutu oluşturur; Cancel sıfır
+// document mutation ile çıkar.
 
 #include "DetailsPage.h"
 #include "../commands/ContactCommands.h"
@@ -14,10 +15,13 @@
 #include "../core/ProjectModel.h"
 #include "../core/ServiceContext.h"
 #include "../services/ContactService.h"
+#include "../shell/SelectionCoordinator.h"
 
 #include <QLabel>
 #include <QLineEdit>
+#include <QObject>
 #include <QPushButton>
+#include <QWidget>
 
 namespace d26 {
 namespace contact_details_detail {
@@ -57,6 +61,34 @@ inline QString lifecycleName(const ScopeReference &scope)
         : QObject::tr("Mesh Generation %1").arg(scope.sourceRevision);
 }
 
+inline SelectionCoordinator *selectionCoordinator(QWidget *widget)
+{
+    if (widget == nullptr || widget->window() == nullptr) {
+        return nullptr;
+    }
+    // SelectionCoordinator doğrudan MainWindow composition child'ıdır ve Q_OBJECT
+    // gerektiren UI widget'ı değildir. Named Selection Inspector ile aynı RTTI
+    // yaklaşımı kullanılır; ikinci coordinator/picker yaratılmaz.
+    for (QObject *child : widget->window()->children()) {
+        if (auto *candidate = dynamic_cast<SelectionCoordinator *>(child)) {
+            return candidate;
+        }
+    }
+    return nullptr;
+}
+
+inline QString editInstruction(const SelectionCoordinator *coordinator)
+{
+    if (coordinator == nullptr) {
+        return {};
+    }
+    if (coordinator->editPreloadError() != ScopeReferenceValidationError::None) {
+        return QObject::tr("Kayıtlı scope current model üzerinde preload edilemedi. Eski CAD/FEM kimlikleri "
+                           "seçili gösterilmedi; yeni surface kapsamını açıkça yeniden seçin.");
+    }
+    return QObject::tr("Viewport'tan surface seçin. Yalnız Apply Selection kalıcı document değişikliği üretir.");
+}
+
 } // namespace contact_details_detail
 
 class ContactDetails final : public DetailsPage
@@ -82,6 +114,19 @@ public:
         sourceLifecycle_ = makeValueLabel();
         sourceLifecycle_->setObjectName(QStringLiteral("Dynamics26ContactSourceLifecycle"));
         source->addRow(tr("Lifecycle"), sourceLifecycle_);
+        sourceEditStatus_ = makeValueLabel();
+        sourceEditStatus_->setObjectName(QStringLiteral("Dynamics26ContactSourceEditStatus"));
+        sourceEditStatus_->setWordWrap(true);
+        source->addFullWidth(sourceEditStatus_);
+        editSource_ = makeActionButton(tr("Edit Source Selection"));
+        editSource_->setObjectName(QStringLiteral("Dynamics26ContactEditSource"));
+        source->addFullWidth(editSource_);
+        applySource_ = makeActionButton(tr("Apply Selection"));
+        applySource_->setObjectName(QStringLiteral("Dynamics26ContactApplySource"));
+        source->addFullWidth(applySource_);
+        cancelSource_ = makeActionButton(tr("Cancel"));
+        cancelSource_->setObjectName(QStringLiteral("Dynamics26ContactCancelSource"));
+        source->addFullWidth(cancelSource_);
         clearSource_ = makeActionButton(tr("Source'u Temizle"));
         clearSource_->setObjectName(QStringLiteral("Dynamics26ContactClearSource"));
         source->addFullWidth(clearSource_);
@@ -94,6 +139,19 @@ public:
         targetLifecycle_ = makeValueLabel();
         targetLifecycle_->setObjectName(QStringLiteral("Dynamics26ContactTargetLifecycle"));
         target->addRow(tr("Lifecycle"), targetLifecycle_);
+        targetEditStatus_ = makeValueLabel();
+        targetEditStatus_->setObjectName(QStringLiteral("Dynamics26ContactTargetEditStatus"));
+        targetEditStatus_->setWordWrap(true);
+        target->addFullWidth(targetEditStatus_);
+        editTarget_ = makeActionButton(tr("Edit Target Selection"));
+        editTarget_->setObjectName(QStringLiteral("Dynamics26ContactEditTarget"));
+        target->addFullWidth(editTarget_);
+        applyTarget_ = makeActionButton(tr("Apply Selection"));
+        applyTarget_->setObjectName(QStringLiteral("Dynamics26ContactApplyTarget"));
+        target->addFullWidth(applyTarget_);
+        cancelTarget_ = makeActionButton(tr("Cancel"));
+        cancelTarget_->setObjectName(QStringLiteral("Dynamics26ContactCancelTarget"));
+        target->addFullWidth(cancelTarget_);
         clearTarget_ = makeActionButton(tr("Target'ı Temizle"));
         clearTarget_->setObjectName(QStringLiteral("Dynamics26ContactClearTarget"));
         target->addFullWidth(clearTarget_);
@@ -121,6 +179,11 @@ public:
             if (refreshing_ || services_.contacts == nullptr || services_.commands == nullptr) {
                 return;
             }
+            if (SelectionCoordinator *coordinator = contact_details_detail::selectionCoordinator(this);
+                coordinator != nullptr && coordinator->contactEditActive()) {
+                refresh();
+                return;
+            }
             const ContactDefinition *definition = services_.contacts->byId(objectId_);
             const QString requested = name_->text().trimmed();
             if (definition == nullptr || requested.isEmpty() || requested == definition->name) {
@@ -131,8 +194,33 @@ public:
             emit modelEdited();
         });
 
+        connect(editSource_, &QPushButton::clicked, this, [this] {
+            SelectionCoordinator *coordinator = contact_details_detail::selectionCoordinator(this);
+            if (coordinator != nullptr && coordinator->beginContactSourceEdit(objectId_)) {
+                refresh();
+            }
+        });
+        connect(applySource_, &QPushButton::clicked, this, [this] {
+            SelectionCoordinator *coordinator = contact_details_detail::selectionCoordinator(this);
+            if (coordinator != nullptr && coordinator->editingContact() == objectId_
+                && coordinator->editingContactSource() && coordinator->applyContactEdit()) {
+                emit modelEdited();
+            } else {
+                refresh();
+            }
+        });
+        connect(cancelSource_, &QPushButton::clicked, this, [this] {
+            if (SelectionCoordinator *coordinator = contact_details_detail::selectionCoordinator(this)) {
+                coordinator->cancelContactEdit();
+            }
+        });
+
         connect(clearSource_, &QPushButton::clicked, this, [this] {
             if (services_.contacts == nullptr || services_.commands == nullptr) {
+                return;
+            }
+            if (SelectionCoordinator *coordinator = contact_details_detail::selectionCoordinator(this);
+                coordinator != nullptr && coordinator->contactEditActive()) {
                 return;
             }
             const ContactDefinition *definition = services_.contacts->byId(objectId_);
@@ -143,8 +231,34 @@ public:
                 new commands::ReplaceContactSourceScopeCommand(services_, objectId_, ScopeReference{}));
             emit modelEdited();
         });
+
+        connect(editTarget_, &QPushButton::clicked, this, [this] {
+            SelectionCoordinator *coordinator = contact_details_detail::selectionCoordinator(this);
+            if (coordinator != nullptr && coordinator->beginContactTargetEdit(objectId_)) {
+                refresh();
+            }
+        });
+        connect(applyTarget_, &QPushButton::clicked, this, [this] {
+            SelectionCoordinator *coordinator = contact_details_detail::selectionCoordinator(this);
+            if (coordinator != nullptr && coordinator->editingContact() == objectId_
+                && coordinator->editingContactTarget() && coordinator->applyContactEdit()) {
+                emit modelEdited();
+            } else {
+                refresh();
+            }
+        });
+        connect(cancelTarget_, &QPushButton::clicked, this, [this] {
+            if (SelectionCoordinator *coordinator = contact_details_detail::selectionCoordinator(this)) {
+                coordinator->cancelContactEdit();
+            }
+        });
+
         connect(clearTarget_, &QPushButton::clicked, this, [this] {
             if (services_.contacts == nullptr || services_.commands == nullptr) {
+                return;
+            }
+            if (SelectionCoordinator *coordinator = contact_details_detail::selectionCoordinator(this);
+                coordinator != nullptr && coordinator->contactEditActive()) {
                 return;
             }
             const ContactDefinition *definition = services_.contacts->byId(objectId_);
@@ -164,6 +278,38 @@ public:
             services_.contacts != nullptr ? services_.contacts->byId(objectId_) : nullptr;
         const ProjectObject *object =
             services_.project != nullptr ? services_.project->object(objectId_) : nullptr;
+        SelectionCoordinator *coordinator = contact_details_detail::selectionCoordinator(this);
+        const bool editingThis = coordinator != nullptr && coordinator->editingContact() == objectId_;
+        const bool editingSource = editingThis && coordinator->editingContactSource();
+        const bool editingTarget = editingThis && coordinator->editingContactTarget();
+
+        const auto syncEditControls = [this, coordinator, editingThis, editingSource, editingTarget] {
+            const bool coordinatorAvailable = coordinator != nullptr;
+            editSource_->setVisible(!editingThis);
+            editTarget_->setVisible(!editingThis);
+            editSource_->setEnabled(coordinatorAvailable);
+            editTarget_->setEnabled(coordinatorAvailable);
+            applySource_->setVisible(editingSource);
+            cancelSource_->setVisible(editingSource);
+            applyTarget_->setVisible(editingTarget);
+            cancelTarget_->setVisible(editingTarget);
+            sourceEditStatus_->setVisible(editingSource);
+            targetEditStatus_->setVisible(editingTarget);
+            clearSource_->setVisible(!editingThis);
+            clearTarget_->setVisible(!editingThis);
+            name_->setEnabled(!editingThis);
+
+            if (editingSource) {
+                sourceEditStatus_->setText(contact_details_detail::editInstruction(coordinator));
+                applySource_->setEnabled(coordinator->selectionManager() != nullptr
+                                         && !coordinator->selectionManager()->items().isEmpty());
+            }
+            if (editingTarget) {
+                targetEditStatus_->setText(contact_details_detail::editInstruction(coordinator));
+                applyTarget_->setEnabled(coordinator->selectionManager() != nullptr
+                                         && !coordinator->selectionManager()->items().isEmpty());
+            }
+        };
 
         if (definition == nullptr) {
             name_->setText(object != nullptr ? object->name : tr("Contact Region"));
@@ -175,7 +321,12 @@ public:
             validation_->setText(tr("Contact engineering tanımı bulunamadı"));
             clearSource_->setEnabled(false);
             clearTarget_->setEnabled(false);
+            editSource_->setEnabled(false);
+            editTarget_->setEnabled(false);
             objectIdValue_->setText(QString::number(objectId_));
+            syncEditControls();
+            editSource_->setEnabled(false);
+            editTarget_->setEnabled(false);
             refreshing_ = false;
             return;
         }
@@ -200,6 +351,7 @@ public:
         validation_->setText(object != nullptr && !object->statusText.isEmpty()
                                  ? object->statusText : tr("Contact tanımı doğrulanamadı"));
         objectIdValue_->setText(QString::number(objectId_));
+        syncEditControls();
         refreshing_ = false;
     }
 
@@ -210,9 +362,17 @@ private:
     QLabel *formulation_{nullptr};
     QLabel *sourceSummary_{nullptr};
     QLabel *sourceLifecycle_{nullptr};
+    QLabel *sourceEditStatus_{nullptr};
+    QPushButton *editSource_{nullptr};
+    QPushButton *applySource_{nullptr};
+    QPushButton *cancelSource_{nullptr};
     QPushButton *clearSource_{nullptr};
     QLabel *targetSummary_{nullptr};
     QLabel *targetLifecycle_{nullptr};
+    QLabel *targetEditStatus_{nullptr};
+    QPushButton *editTarget_{nullptr};
+    QPushButton *applyTarget_{nullptr};
+    QPushButton *cancelTarget_{nullptr};
     QPushButton *clearTarget_{nullptr};
     QLabel *validation_{nullptr};
     QLabel *solverSupport_{nullptr};
