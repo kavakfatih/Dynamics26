@@ -69,6 +69,7 @@ jobs:
           set -euxo pipefail
           test "$(uname -m)" = "arm64"
           git diff --check
+          test ! -e gui/core/NamedSelectionCompositionContract.h
           test -f gui/core/ScopeReferenceBuilder.h
           test -f gui/commands/NamedSelectionCommands.h
           test -f gui/services/NamedSelectionService.cpp
