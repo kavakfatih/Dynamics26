@@ -376,6 +376,57 @@ void SelectionCoordinator::refreshSelectionScene()
         return;
     }
 
+    // Named Selection normal görünümünde viewport domain'i ObjectType'tan değil
+    // persistent ScopeReference'tan çözülür. Overlay transient SelectionManager
+    // state'i değildir; stale scope eski engineering ID'lerini asla göstermez.
+    const NamedSelectionDefinition *persistentDefinition = nullptr;
+    ScopeSelectionItemsResult persistentScopeView;
+    std::optional<SelectionFilter> persistentFilter;
+    if (editingNamedSelection_ == InvalidObjectId && navigator_ != nullptr
+        && services_.project != nullptr && services_.namedSelections != nullptr) {
+        const ObjectId currentObject = navigator_->selectedObject();
+        if (services_.project->typeOf(currentObject) == ObjectType::NamedSelection) {
+            persistentDefinition = services_.namedSelections->byId(currentObject);
+            if (persistentDefinition != nullptr && !persistentDefinition->scope.entities.isEmpty()) {
+                const ScopeEntityReference &first = persistentDefinition->scope.entities.front();
+                persistentFilter = selectionFilterForKind(first.kind);
+                if (!persistentFilter.has_value()) {
+                    persistentDefinition = nullptr;
+                } else if (first.domain == SelectionDomain::Geometry
+                           && services_.geometry->summary().hasGeometry) {
+                    viewport->setContext(ViewportContext::Geometry);
+                    graphics_->setContextLabel(tr("Geometry — Named Selection"));
+                    persistentScopeView = selectionItemsForGeometryScope(
+                        persistentDefinition->scope, services_.geometry->document());
+                } else if (first.domain == SelectionDomain::Mesh && services_.mesh->hasMesh()) {
+                    viewport->setContext(ViewportContext::Mesh);
+                    graphics_->setContextLabel(tr("Mesh — Named Selection"));
+                    viewport->showMesh(services_.mesh->mesh(), false);
+                    persistentScopeView = selectionItemsForMeshScope(
+                        persistentDefinition->scope, services_.mesh->mesh(), services_.mesh->generation());
+                } else {
+                    selection_->clearPreselection();
+                    (void)selection_->clear();
+                    bridge_->clearScene();
+                    meshBridge_->setInputEnabled(false);
+                    meshBridge_->clearScene();
+                    graphics_->setSelectionFilterDomain(std::nullopt);
+                    graphics_->setSelectionLabel(tr("%1 · Out of Date").arg(persistentDefinition->name));
+                    if (status_ != nullptr) {
+                        status_->setSelection(tr("%1  •  Out of Date  •  Persistent Scope")
+                                                  .arg(persistentDefinition->name));
+                    }
+                    return;
+                }
+
+                selection_->clearPreselection();
+                if (!selection_->items().isEmpty()) {
+                    (void)selection_->clear();
+                }
+            }
+        }
+    }
+
     const ViewportContext context = viewport->context();
     const GeometrySummary summary = services_.geometry->summary();
 
@@ -415,13 +466,39 @@ void SelectionCoordinator::refreshSelectionScene()
         graphics_->setTopologySelectionAvailable(bridge_->hasFaceProvenance(),
                                                  bridge_->hasEdgeProvenance(),
                                                  bridge_->hasVertexProvenance());
-        if (isMeshFilter(graphics_->selectionFilter())) {
+        if (persistentDefinition != nullptr && persistentFilter.has_value()) {
+            graphics_->setSelectionFilter(*persistentFilter);
+        } else if (isMeshFilter(graphics_->selectionFilter())) {
             graphics_->setSelectionFilter(SelectionFilter::Body);
         }
         configurePolicy(graphics_->selectionFilter());
         (void)selection_->invalidateGeometryRevision(summary.revision);
-        bridge_->setSelection(selection_->items());
-        bridge_->setPreselection(selection_->preselection());
+        bridge_->setSelection(persistentDefinition != nullptr
+                                  ? (persistentScopeView.success()
+                                         ? persistentScopeView.items
+                                         : QVector<SelectionItem>{})
+                                  : selection_->items());
+        bridge_->setPreselection(persistentDefinition != nullptr
+                                     ? std::nullopt
+                                     : selection_->preselection());
+        if (persistentDefinition != nullptr) {
+            if (persistentScopeView.success()) {
+                graphics_->setSelectionLabel(
+                    tr("%1 · %2 entities · Persistent Scope")
+                        .arg(persistentDefinition->name).arg(persistentScopeView.items.size()));
+                if (status_ != nullptr) {
+                    status_->setSelection(
+                        tr("%1  •  %2 entities  •  Persistent Scope")
+                            .arg(persistentDefinition->name).arg(persistentScopeView.items.size()));
+                }
+            } else {
+                graphics_->setSelectionLabel(tr("%1 · Out of Date").arg(persistentDefinition->name));
+                if (status_ != nullptr) {
+                    status_->setSelection(
+                        tr("%1  •  Out of Date  •  Persistent Scope").arg(persistentDefinition->name));
+                }
+            }
+        }
         return;
     }
 
@@ -432,7 +509,9 @@ void SelectionCoordinator::refreshSelectionScene()
     if (context == ViewportContext::Mesh && services_.mesh->hasMesh()) {
         graphics_->setSelectionFilterDomain(SelectionDomain::Mesh);
         graphics_->setMeshSelectionAvailable(true, true, true);
-        if (!isMeshFilter(graphics_->selectionFilter())) {
+        if (persistentDefinition != nullptr && persistentFilter.has_value()) {
+            graphics_->setSelectionFilter(*persistentFilter);
+        } else if (!isMeshFilter(graphics_->selectionFilter())) {
             graphics_->setSelectionFilter(SelectionFilter::Node);
         }
         configurePolicy(graphics_->selectionFilter());
@@ -449,8 +528,32 @@ void SelectionCoordinator::refreshSelectionScene()
 
         meshBridge_->setInputEnabled(true);
         (void)selection_->invalidateMeshGeneration(services_.mesh->generation());
-        meshBridge_->setSelection(selection_->items());
-        meshBridge_->setPreselection(selection_->preselection());
+        meshBridge_->setSelection(persistentDefinition != nullptr
+                                      ? (persistentScopeView.success()
+                                             ? persistentScopeView.items
+                                             : QVector<SelectionItem>{})
+                                      : selection_->items());
+        meshBridge_->setPreselection(persistentDefinition != nullptr
+                                         ? std::nullopt
+                                         : selection_->preselection());
+        if (persistentDefinition != nullptr) {
+            if (persistentScopeView.success()) {
+                graphics_->setSelectionLabel(
+                    tr("%1 · %2 entities · Persistent Scope")
+                        .arg(persistentDefinition->name).arg(persistentScopeView.items.size()));
+                if (status_ != nullptr) {
+                    status_->setSelection(
+                        tr("%1  •  %2 entities  •  Persistent Scope")
+                            .arg(persistentDefinition->name).arg(persistentScopeView.items.size()));
+                }
+            } else {
+                graphics_->setSelectionLabel(tr("%1 · Out of Date").arg(persistentDefinition->name));
+                if (status_ != nullptr) {
+                    status_->setSelection(
+                        tr("%1  •  Out of Date  •  Persistent Scope").arg(persistentDefinition->name));
+                }
+            }
+        }
         return;
     }
 

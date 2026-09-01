@@ -240,6 +240,11 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
             flushUi();
             check(navigator->selectedObject() == named.id && details->currentObject() == named.id,
                   "Named Selection is current in Navigator and Details before edit session");
+            check(graphics->viewport()->context() == ViewportContext::Mesh
+                      && graphics->selectionFilter() == SelectionFilter::Node,
+                  "normal persistent Node Named Selection resolves Mesh/Node viewport context from stored scope");
+            check(selection->items().isEmpty(),
+                  "normal persistent Named Selection overlay does not masquerade as transient SelectionManager state");
 
             QPushButton *editButton = details->findChild<QPushButton *>(
                 QStringLiteral("Dynamics26NamedSelectionEdit"));
@@ -350,6 +355,10 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
 
             window.selectObject(named.id);
             flushUi();
+            check(graphics->viewport()->context() == ViewportContext::Mesh
+                      && graphics->selectionFilter() == SelectionFilter::Node
+                      && selection->items().isEmpty(),
+                  "stale persistent Named Selection keeps current Mesh/Node context without preloading old generation IDs");
             editButton = details->findChild<QPushButton *>(QStringLiteral("Dynamics26NamedSelectionEdit"));
             check(editButton != nullptr,
                   "stale Named Selection still offers explicit Edit Selection repair workflow");
