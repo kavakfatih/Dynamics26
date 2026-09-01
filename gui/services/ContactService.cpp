@@ -116,6 +116,20 @@ bool scopeIsSurfaceStructure(const ScopeReference &scope)
     return true;
 }
 
+bool scopeIsCanonicalUnset(const ScopeReference &scope)
+{
+    return scope.sourceRevision == 0 && scope.entities.isEmpty();
+}
+
+bool scopeIsAuthoringStructure(const ScopeReference &scope)
+{
+    // Contact authoring iki kontrollü durumu kabul eder:
+    // 1) canonical unset: revision=0 + entities=[]
+    // 2) tam surface scope: revision>0 + geçerli Face/Facet kimlikleri
+    // Bunların arasındaki yarım encoding'ler kalıcı document state değildir.
+    return scopeIsCanonicalUnset(scope) || scopeIsSurfaceStructure(scope);
+}
+
 QString identityToken(const ScopeEntityReference &reference)
 {
     if (reference.domain == SelectionDomain::Geometry) {
@@ -249,26 +263,43 @@ bool scopeFromJson(const QJsonObject &object, ScopeReference *scope, QString *er
     if (scope == nullptr) {
         return false;
     }
-    ScopeReference parsed;
+
     quint64 sourceRevision = 0;
-    if (!parseUnsigned64(object, QStringLiteral("source_revision"), &sourceRevision, errorMessage)
-        || sourceRevision == 0) {
-        if (errorMessage != nullptr && errorMessage->isEmpty()) {
-            *errorMessage = QStringLiteral("source_revision sıfır olamaz");
-        }
+    if (!parseUnsigned64(object, QStringLiteral("source_revision"), &sourceRevision, errorMessage)) {
         return false;
     }
-    parsed.sourceRevision = sourceRevision;
 
     const QJsonValue entitiesValue = object.value(QStringLiteral("entities"));
-    if (!entitiesValue.isArray() || entitiesValue.toArray().isEmpty()) {
+    if (!entitiesValue.isArray()) {
         if (errorMessage != nullptr) {
-            *errorMessage = QStringLiteral("entities boş olmayan array olmalıdır");
+            *errorMessage = QStringLiteral("entities array olmalıdır");
+        }
+        return false;
+    }
+    const QJsonArray entities = entitiesValue.toArray();
+
+    // Canonical unset authoring state yalnız revision=0 + entities=[] biçimidir.
+    // revision=0 + entity veya revision>0 + boş entity listesi yarım/malformed
+    // encoding'dir ve mevcut servis durumunu değiştirmeden reddedilir.
+    if (sourceRevision == 0) {
+        if (!entities.isEmpty()) {
+            if (errorMessage != nullptr) {
+                *errorMessage = QStringLiteral("source_revision 0 iken entities boş olmalıdır");
+            }
+            return false;
+        }
+        *scope = ScopeReference{};
+        return true;
+    }
+    if (entities.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QStringLiteral("source_revision sıfır değilse entities boş olamaz");
         }
         return false;
     }
 
-    const QJsonArray entities = entitiesValue.toArray();
+    ScopeReference parsed;
+    parsed.sourceRevision = sourceRevision;
     parsed.entities.reserve(entities.size());
     for (qsizetype index = 0; index < entities.size(); ++index) {
         if (!entities.at(index).isObject()) {
@@ -346,14 +377,15 @@ ObjectId ContactService::createContact(const ContactDefinition &definition, cons
                                        const ObjectId requestedId)
 {
     if (project_ == nullptr || project_->connectionsNode() == InvalidObjectId
-        || !scopeIsSurfaceStructure(definition.sourceScope)
-        || !scopeIsSurfaceStructure(definition.targetScope)) {
+        || !scopeIsAuthoringStructure(definition.sourceScope)
+        || !scopeIsAuthoringStructure(definition.targetScope)) {
         return InvalidObjectId;
     }
 
-    // Cross-domain veya source == target gibi engineering-invalid tanımlar proje
-    // yüklemede kaybolmamalıdır; structural surface contract geçiyorsa object
-    // oluşturulur ve refreshNode() gerçek Error/OutOfDate state'ini gösterir.
+    // Contact Region Source/Target seçilmeden önce de gerçek document state'tir.
+    // Canonical boş scope eksik authoring state olarak saklanır; cross-domain,
+    // source==target veya runtime-stale tam surface scope'lar da kaybolmadan
+    // oluşturulur ve refreshNode() gerçek Error/OutOfDate durumunu gösterir.
     ContactDefinition stored = definition;
     const QString baseName = stored.name.trimmed().isEmpty()
         ? QStringLiteral("Contact Region") : stored.name.trimmed();
@@ -409,7 +441,7 @@ void ContactService::rename(const ObjectId id, const QString &name)
 bool ContactService::replaceSourceScope(const ObjectId id, const ScopeReference &scope)
 {
     auto it = definitions_.find(id);
-    if (it == definitions_.end() || !scopeIsSurfaceStructure(scope)) {
+    if (it == definitions_.end() || !scopeIsAuthoringStructure(scope)) {
         return false;
     }
     it->sourceScope = scope;
@@ -421,7 +453,7 @@ bool ContactService::replaceSourceScope(const ObjectId id, const ScopeReference 
 bool ContactService::replaceTargetScope(const ObjectId id, const ScopeReference &scope)
 {
     auto it = definitions_.find(id);
-    if (it == definitions_.end() || !scopeIsSurfaceStructure(scope)) {
+    if (it == definitions_.end() || !scopeIsAuthoringStructure(scope)) {
         return false;
     }
     it->targetScope = scope;
@@ -601,15 +633,18 @@ bool ContactService::fromJson(const QJsonObject &object, QString *errorMessage)
         // Geometry revision runtime guard'dır. Yalnız stabil CAD identity
         // (entity id + parent + persistentKey) current document ile birebir
         // eşleşirse project-load sırasında kontrollü şekilde current revision'a
-        // taşınır. Mesh generation için otomatik rebind YOKTUR.
+        // taşınır. Mesh generation için otomatik rebind YOKTUR. Canonical boş
+        // authoring scope rebind edilmez; incomplete state aynen korunur.
         if (geometry_ != nullptr) {
-            if (record.definition.sourceScope.entities.front().domain == SelectionDomain::Geometry) {
+            if (!record.definition.sourceScope.entities.isEmpty()
+                && record.definition.sourceScope.entities.front().domain == SelectionDomain::Geometry) {
                 ScopeReference rebound = record.definition.sourceScope;
                 if (rebindLoadedGeometryScopeReference(rebound, geometry_->document())) {
                     record.definition.sourceScope = rebound;
                 }
             }
-            if (record.definition.targetScope.entities.front().domain == SelectionDomain::Geometry) {
+            if (!record.definition.targetScope.entities.isEmpty()
+                && record.definition.targetScope.entities.front().domain == SelectionDomain::Geometry) {
                 ScopeReference rebound = record.definition.targetScope;
                 if (rebindLoadedGeometryScopeReference(rebound, geometry_->document())) {
                     record.definition.targetScope = rebound;
