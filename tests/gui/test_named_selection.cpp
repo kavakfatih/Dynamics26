@@ -124,9 +124,8 @@ void serviceContractTests()
           "mesh regenerate advances lifecycle generation");
     check(service.validate(first.id) == d26::ScopeReferenceValidationError::StaleMeshGeneration,
           "old FEM scope never silently rebinds when numeric MeshEntityId is reused");
-    service.refreshValidation();
     check(project.object(first.id)->state == d26::ObjectState::OutOfDate,
-          "stale mesh generation is surfaced as OutOfDate");
+          "mesh changed signal automatically refreshes stale Named Selection state to OutOfDate");
 
     d26::NamedSelectionDefinition geometryDefinition;
     geometryDefinition.name = QStringLiteral("CAD Faces");
