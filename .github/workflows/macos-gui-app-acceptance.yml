@@ -1,0 +1,74 @@
+name: macOS GUI application acceptance
+
+"on":
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/macos-gui-app-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  application-selftest:
+    name: hosted application selftest
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+
+      - name: Verify Apple Silicon source
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "$(uname -m)" = "arm64"
+          git diff --check
+
+      - name: Install GUI dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          brew install qt vtk arpack opencascade
+
+      - name: Configure GUI application
+        shell: bash
+        env:
+          FC: gfortran-15
+        run: |
+          set -euxo pipefail
+          prefix_path="$(brew --prefix qt);$(brew --prefix vtk);$(brew --prefix opencascade)"
+          cmake -S . -B build-hosted-app-acceptance -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_PREFIX_PATH="$prefix_path" \
+            -DFEMCAE_BUILD_TESTING=ON \
+            -DFEMCAE_BUILD_GUI=ON \
+            -DFEMCAE_GUI_WITH_VTK=ON \
+            -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON \
+            -DFEMCAE_REQUIRE_OCCT=ON
+
+      - name: Build application
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build build-hosted-app-acceptance --parallel --target femcae_gui
+
+      - name: Run selection and boundary application acceptance
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set -euxo pipefail
+          app="build-hosted-app-acceptance/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          test -x "$app"
+          "$app" --selection-selftest
+
+      - name: Verify native arm64 app
+        shell: bash
+        run: |
+          set -euxo pipefail
+          app="build-hosted-app-acceptance/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          file -L "$app" | tee /tmp/dynamics26-hosted-app-arch.txt
+          grep -q arm64 /tmp/dynamics26-hosted-app-arch.txt
