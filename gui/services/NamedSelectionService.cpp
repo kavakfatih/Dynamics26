@@ -151,12 +151,17 @@ bool scopeStructureIsValid(const ScopeReference &scope)
     }
 
     const SelectionDomain domain = scope.entities.front().domain;
+    const SelectionKind kind = scope.entities.front().kind;
     if (domain != SelectionDomain::Geometry && domain != SelectionDomain::Mesh) {
         return false;
     }
 
+    // Bir Named Selection tek bir engineering entity ailesini temsil eder.
+    // Geometry/Mesh domain'leri kadar Body/Face/Edge/... kind kimliği de scope
+    // kontratının parçasıdır. Aksi halde Details ve gelecekteki consumer'lar
+    // ilk entity'ye bakıp bütün scope'u yanlış türde yorumlayabilir.
     for (const ScopeEntityReference &reference : scope.entities) {
-        if (reference.domain != domain) {
+        if (reference.domain != domain || reference.kind != kind) {
             return false;
         }
         if (domain == SelectionDomain::Geometry) {
