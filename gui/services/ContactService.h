@@ -76,10 +76,13 @@ public:
     [[nodiscard]] const ContactDefinition *byId(ObjectId id) const noexcept;
     [[nodiscard]] int rowOf(ObjectId id) const noexcept;
 
-    // Undo/persistence için explicit ObjectId + row restore yolu. Tanımın scope
-    // yapısı geçerli bir contact surface contract olmalıdır; runtime stale
-    // sourceRevision/generation ise object oluşturulabilir ve OutOfDate olarak
-    // görünür. Böylece proje yüklemede veri sessizce kaybolmaz/rebind edilmez.
+    // Undo/persistence için explicit ObjectId + row restore yolu. Source ve/veya
+    // Target canonical unset ScopeReference olabilir (revision=0 + entities=[]):
+    // bu, normal Contact authoring sırasında kaydedilebilir EKSİK document
+    // state'idir. Tam scope ise CAD Face veya FEM Facet surface contract'ına
+    // uymalıdır. revision/entity bakımından yarım veya malformed scope reddedilir.
+    // Runtime stale revision/generation ise object korunur ve OutOfDate görünür;
+    // proje yüklemede veri sessizce kaybolmaz veya yeni topology'ye rebind edilmez.
     ObjectId createContact(const ContactDefinition &definition, int row = -1,
                            ObjectId requestedId = InvalidObjectId);
     bool remove(ObjectId id);
