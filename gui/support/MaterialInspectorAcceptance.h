@@ -31,8 +31,10 @@
 #include <QDoubleSpinBox>
 #include <QEvent>
 #include <QEventLoop>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMetaObject>
+#include <QPushButton>
 #include <QTimer>
 #include <QUndoStack>
 
@@ -116,9 +118,14 @@ inline int runMaterialInspectorAcceptanceTest(QApplication &app, Dynamics26MainW
     auto *nameField = detailsHost->findChild<QLineEdit *>(QStringLiteral("materialInspector.name"));
     auto *youngField = detailsHost->findChild<QDoubleSpinBox *>(QStringLiteral("materialInspector.youngGPa"));
     auto *modelField = detailsHost->findChild<QComboBox *>(QStringLiteral("materialInspector.model"));
-    check(nameField != nullptr && youngField != nullptr && modelField != nullptr,
-          "Material Inspector exposes stable Name / Young's Modulus / Model bindings");
-    if (nameField == nullptr || youngField == nullptr || modelField == nullptr) {
+    auto *assignmentLabel = detailsHost->findChild<QLabel *>(QStringLiteral("materialInspector.assignment"));
+    auto *assignButton = detailsHost->findChild<QPushButton *>(QStringLiteral("materialInspector.assignToBody"));
+    auto *supportStatus = detailsHost->findChild<QLabel *>(QStringLiteral("materialInspector.staticStructuralStatus"));
+    check(nameField != nullptr && youngField != nullptr && modelField != nullptr
+              && assignmentLabel != nullptr && assignButton != nullptr && supportStatus != nullptr,
+          "Material Inspector exposes stable property, assignment and solver-support bindings");
+    if (nameField == nullptr || youngField == nullptr || modelField == nullptr
+        || assignmentLabel == nullptr || assignButton == nullptr || supportStatus == nullptr) {
         return 1;
     }
 
@@ -127,6 +134,10 @@ inline int runMaterialInspectorAcceptanceTest(QApplication &app, Dynamics26MainW
               && nearlyEqual(youngField->value(), original.youngGPa)
               && modelField->currentIndex() == static_cast<int>(original.model),
           "Inspector reads exact authoritative MaterialService state without mutation");
+    check(assignmentLabel->text() == QStringLiteral("Body 1") && !assignButton->isEnabled(),
+          "assigned Material shows its body context and disables redundant assignment action");
+    check(supportStatus->text() == QObject::tr("Destekleniyor"),
+          "linear assigned Material reports current Static Structural support state");
 
     // ------------------------------------------------------------------
     // Name mutation contract: canonical RenameObjectCommand, no solver invalidation.
@@ -210,12 +221,15 @@ inline int runMaterialInspectorAcceptanceTest(QApplication &app, Dynamics26MainW
               "Material Model widget updates authoritative MaterialService through one transaction");
         check(!services.analysis->preflight(analysisId).passed(),
               "unsupported Static Structural material model is rejected by authoritative Preflight");
+        check(supportStatus->text() == QObject::tr("Bu malzeme modeliyle etkin değil"),
+              "Inspector presents unsupported solver state from the current Material model");
         undoStack->undo();
         flushUi();
         check(services.materials->byId(materialId)->model == original.model
                   && modelField->currentIndex() == originalModelIndex
-                  && services.analysis->preflight(analysisId).passed(),
-              "Undo restores model, Inspector binding and Ready-to-Solve Preflight state");
+                  && services.analysis->preflight(analysisId).passed()
+                  && supportStatus->text() == QObject::tr("Destekleniyor"),
+              "Undo restores model, Inspector support state and Ready-to-Solve Preflight state");
     }
 
     // Acceptance, sonraki application tests'e başlangıç Material state'ini bırakır.
