@@ -32,6 +32,7 @@ set(FEMCAE_GUI_SOURCES
 
     commands/DomainCommands.cpp
     commands/DomainCommands.h
+    commands/ContactCommands.h
 
     services/GeometryService.cpp
     services/GeometryService.h
@@ -358,6 +359,38 @@ if(BUILD_TESTING)
         LABELS "gui;selection;connections;contact;scope;beta1;b12"
     )
 
+    qt_add_executable(femcae_contact_commands_test
+        core/ProjectTypes.cpp
+        core/ProjectTypes.h
+        core/ProjectModel.cpp
+        core/ProjectModel.h
+        core/SelectionTypes.h
+        core/ScopeReferenceBuilder.h
+        commands/DomainCommands.h
+        commands/ContactCommands.h
+        services/GeometryService.cpp
+        services/GeometryService.h
+        services/MeshService.cpp
+        services/MeshService.h
+        services/ContactService.cpp
+        services/ContactService.h
+        "${PROJECT_SOURCE_DIR}/tests/gui/test_contact_commands.cpp"
+    )
+    target_include_directories(femcae_contact_commands_test PRIVATE
+        "${PROJECT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(femcae_contact_commands_test PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        femcae_geometry
+        femcae_meshing
+    )
+    add_test(NAME gui.contact_commands COMMAND femcae_contact_commands_test)
+    set_tests_properties(gui.contact_commands PROPERTIES
+        LABELS "gui;selection;connections;contact;scope;undo;beta1;b12"
+    )
+
     qt_add_executable(femcae_viewport_selection_input_test
         viewport/ViewportSelectionController.h
         "${PROJECT_SOURCE_DIR}/tests/gui/test_viewport_selection_input.cpp"
@@ -393,6 +426,7 @@ if(BUILD_TESTING)
         femcae_scope_reference_test
         femcae_named_selection_test
         femcae_contact_service_test
+        femcae_contact_commands_test
         femcae_viewport_selection_input_test
         femcae_mesh_selection_test
     )
