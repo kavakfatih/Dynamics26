@@ -1,14 +1,17 @@
 #pragma once
 
-// Dynamics26 Alpha.3.4 — application-level transient selection coordinator.
+// Dynamics26 Alpha.3.6 — application-level transient selection coordinator.
 //
 // ProjectModel current object, CAD topology selection ve generated FEM mesh
 // selection ayni merkezi SelectionManager etrafinda koordine edilir. Geometry ve
 // Mesh kimlik uzaylari ayridir; raw selection document undo/redo verisi değildir.
+// Persistent Named Selection üretimi de raw picker ID'lerinden değil, burada
+// doğrulanan ScopeReference / SelectionItem akışından geçer.
 
 #include "../core/ScopeReferenceBuilder.h"
 #include "../core/SelectionManager.h"
 #include "../core/ServiceContext.h"
+#include "../services/NamedSelectionService.h"
 #include "GraphicsWorkspace.h"
 
 #include <QObject>
@@ -33,6 +36,53 @@ public:
 
     [[nodiscard]] SelectionManager *selectionManager() const noexcept { return selection_; }
     [[nodiscard]] ScopeReferenceBuildResult currentGeometryScope() const;
+
+    // UI persistent engineering scope istediğinde SelectionManager/VTK internals
+    // görmez. Aynı tek converter zinciri Geometry için CAD revision+persistentKey,
+    // Mesh için generation+MeshEntityId doğrulamasını uygular.
+    [[nodiscard]] ScopeReferenceBuildResult currentPersistentScope() const
+    {
+        ScopeReferenceBuildResult result;
+        if (selection_ == nullptr || selection_->items().isEmpty()) {
+            result.error = ScopeReferenceBuildError::EmptySelection;
+            return result;
+        }
+
+        const QVector<SelectionItem> &items = selection_->items();
+        switch (items.front().domain) {
+        case SelectionDomain::Geometry:
+            if (services_.geometry == nullptr) {
+                result.error = ScopeReferenceBuildError::UnsupportedDomain;
+                return result;
+            }
+            return buildGeometryScopeReference(items, services_.geometry->document());
+        case SelectionDomain::Mesh:
+            if (services_.mesh == nullptr) {
+                result.error = ScopeReferenceBuildError::UnsupportedDomain;
+                return result;
+            }
+            return buildMeshScopeReference(items, services_.mesh->mesh(), services_.mesh->generation());
+        case SelectionDomain::ProjectObject:
+            result.error = ScopeReferenceBuildError::UnsupportedDomain;
+            return result;
+        }
+        result.error = ScopeReferenceBuildError::UnsupportedDomain;
+        return result;
+    }
+
+    // Persistent object oluşturma için tek application bridge. Transient seçim
+    // document Undo state'i değildir; yalnız başarılı conversion sonrasında
+    // NamedSelectionService kalıcı nesne üretir.
+    [[nodiscard]] NamedSelectionCreateResult createNamedSelectionFromCurrentSelection(
+        const QString &requestedName = QStringLiteral("Named Selection"))
+    {
+        NamedSelectionCreateResult result;
+        if (selection_ == nullptr || services_.namedSelections == nullptr) {
+            result.buildError = ScopeReferenceBuildError::UnsupportedDomain;
+            return result;
+        }
+        return services_.namedSelections->createFromSelection(selection_->items(), requestedName);
+    }
 
 private:
     void configurePolicy(SelectionFilter filter);
