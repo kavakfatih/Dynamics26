@@ -211,6 +211,14 @@ void strokeFolderBracket(QPainter &p, const QRectF &r)
     p.drawLine(QPointF(r.right(), r.bottom()), QPointF(r.right() - inset, r.bottom()));
 }
 
+void strokeNamedSelection(QPainter &p, const QRectF &r)
+{
+    // Kalıcı scope: CAD gövdesi + sağda kompakt seçim listesi işareti.
+    strokeCube(p, r.adjusted(1.0, 2.0, -4.0, -2.0), true);
+    p.drawLine(QPointF(r.right() - 3.0, r.top() + 4.0), QPointF(r.right() - 0.8, r.top() + 4.0));
+    p.drawLine(QPointF(r.right() - 3.0, r.top() + 7.0), QPointF(r.right() - 0.8, r.top() + 7.0));
+}
+
 void paintObjectGlyph(QPainter &p, const ObjectType type, const QRectF &r)
 {
     switch (type) {
@@ -224,6 +232,8 @@ void paintObjectGlyph(QPainter &p, const ObjectType type, const QRectF &r)
     case ObjectType::Section:           strokeIBeamSection(p, r.adjusted(1.5, 1.0, -1.5, -1.0)); break;
     case ObjectType::ConnectionsFolder: strokeFolderBracket(p, r.adjusted(0.5, 1.5, -0.5, -1.5)); break;
     case ObjectType::ContactRegion:     strokeContact(p, r.adjusted(0.5, 0.5, -0.5, -0.5)); break;
+    case ObjectType::NamedSelectionsFolder:
+    case ObjectType::NamedSelection:    strokeNamedSelection(p, r); break;
     case ObjectType::Mesh:              strokeMeshGrid(p, r.adjusted(1.0, 1.0, -1.0, -1.0), 3); break;
     case ObjectType::Analysis:
         strokeCube(p, r.adjusted(0.0, 1.5, -4.0, -1.5), false);
@@ -373,9 +383,7 @@ void paintCommandGlyph(QPainter &p, const CommandGlyph glyph, const QRectF &r)
         p.drawLine(QPointF(r.right() - 3.5, r.top() + 5.0), QPointF(r.right() - 1.5, r.top() + 1.0));
         break;
     case CommandGlyph::NamedSelection:
-        strokeCube(p, r.adjusted(1.0, 2.0, -4.0, -2.0), true);
-        p.drawLine(QPointF(r.right() - 3.0, r.top() + 4.0), QPointF(r.right() - 0.8, r.top() + 4.0));
-        p.drawLine(QPointF(r.right() - 3.0, r.top() + 7.0), QPointF(r.right() - 0.8, r.top() + 7.0));
+        strokeNamedSelection(p, r);
         break;
     case CommandGlyph::Evaluate:
         strokeContourBands(p, r.adjusted(1.0, 1.0, -1.0, -1.0));
