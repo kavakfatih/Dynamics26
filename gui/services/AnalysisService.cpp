@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonValue>
 
 #include <algorithm>
 #include <cmath>
@@ -28,6 +29,52 @@ BoxFace faceFromInt(const int value)
     return static_cast<BoxFace>(std::clamp(value, 0, 5));
 }
 
+BoundaryScopingMethod scopingMethodFromInt(const int value)
+{
+    return value == static_cast<int>(BoundaryScopingMethod::NamedSelection)
+        ? BoundaryScopingMethod::NamedSelection
+        : BoundaryScopingMethod::GeometrySelection;
+}
+
+bool parseExactObjectId(const QJsonValue &value, ObjectId *result)
+{
+    if (result == nullptr) {
+        return false;
+    }
+    if (value.isString()) {
+        bool ok = false;
+        const qulonglong parsed = value.toString().toULongLong(&ok, 10);
+        if (!ok) {
+            return false;
+        }
+        *result = static_cast<ObjectId>(parsed);
+        return true;
+    }
+
+    // Legacy analysis JSON ObjectId'leri number olarak yazabiliyordu. Double
+    // temsilde güvenli integer aralığının dışına çıkmış değerleri sessizce
+    // yuvarlamak yerine reddederiz. Yeni Named Selection referansları her zaman
+    // decimal string olarak yazılır.
+    if (value.isDouble()) {
+        constexpr double kMaximumExactJsonInteger = 9007199254740991.0; // 2^53 - 1
+        const double numeric = value.toDouble(-1.0);
+        if (!std::isfinite(numeric) || numeric < 0.0 || numeric > kMaximumExactJsonInteger
+            || std::floor(numeric) != numeric) {
+            return false;
+        }
+        *result = static_cast<ObjectId>(static_cast<qulonglong>(numeric));
+        return true;
+    }
+    return false;
+}
+
+ObjectId exactObjectIdOrInvalid(const QJsonValue &value)
+{
+    ObjectId result = InvalidObjectId;
+    (void)parseExactObjectId(value, &result);
+    return result;
+}
+
 } // namespace
 
 // --- serileştirme ------------------------------------------------------------
@@ -36,7 +83,12 @@ QJsonObject SupportDefinition::toJson() const
 {
     QJsonObject object;
     object[QStringLiteral("name")] = name;
+    object[QStringLiteral("scoping_method")] = static_cast<int>(scopingMethod);
     object[QStringLiteral("scope")] = faceToInt(scope);
+    // Persistent engineering ObjectId JSON number değildir. >2^53 kimliklerde
+    // IEEE-754 yuvarlama riski olmaması için decimal string saklanır.
+    object[QStringLiteral("named_selection_id")] =
+        QString::number(static_cast<qulonglong>(namedSelectionId));
     object[QStringLiteral("fix_x")] = fixX;
     object[QStringLiteral("fix_y")] = fixY;
     object[QStringLiteral("fix_z")] = fixZ;
@@ -47,7 +99,9 @@ SupportDefinition SupportDefinition::fromJson(const QJsonObject &object)
 {
     SupportDefinition definition;
     definition.name = object.value(QStringLiteral("name")).toString(QStringLiteral("Fixed Support"));
+    definition.scopingMethod = scopingMethodFromInt(object.value(QStringLiteral("scoping_method")).toInt(0));
     definition.scope = faceFromInt(object.value(QStringLiteral("scope")).toInt(0));
+    definition.namedSelectionId = exactObjectIdOrInvalid(object.value(QStringLiteral("named_selection_id")));
     definition.fixX = object.value(QStringLiteral("fix_x")).toBool(true);
     definition.fixY = object.value(QStringLiteral("fix_y")).toBool(true);
     definition.fixZ = object.value(QStringLiteral("fix_z")).toBool(true);
@@ -63,7 +117,10 @@ QJsonObject LoadDefinition::toJson() const
 {
     QJsonObject object;
     object[QStringLiteral("name")] = name;
+    object[QStringLiteral("scoping_method")] = static_cast<int>(scopingMethod);
     object[QStringLiteral("scope")] = faceToInt(scope);
+    object[QStringLiteral("named_selection_id")] =
+        QString::number(static_cast<qulonglong>(namedSelectionId));
     object[QStringLiteral("fx_n")] = fxN;
     object[QStringLiteral("fy_n")] = fyN;
     object[QStringLiteral("fz_n")] = fzN;
@@ -74,7 +131,9 @@ LoadDefinition LoadDefinition::fromJson(const QJsonObject &object)
 {
     LoadDefinition definition;
     definition.name = object.value(QStringLiteral("name")).toString(QStringLiteral("Force"));
+    definition.scopingMethod = scopingMethodFromInt(object.value(QStringLiteral("scoping_method")).toInt(0));
     definition.scope = faceFromInt(object.value(QStringLiteral("scope")).toInt(1));
+    definition.namedSelectionId = exactObjectIdOrInvalid(object.value(QStringLiteral("named_selection_id")));
     definition.fxN = object.value(QStringLiteral("fx_n")).toDouble(0.0);
     definition.fyN = object.value(QStringLiteral("fy_n")).toDouble(0.0);
     definition.fzN = object.value(QStringLiteral("fz_n")).toDouble(0.0);
@@ -151,8 +210,10 @@ QByteArray AnalysisService::solverInputSignature(const ObjectId analysisId) cons
     }
     QJsonObject signature;
 
-    // 1) Mesh: hangi üretim ve hangi ölçü/bölme tanımı
-    signature[QStringLiteral("mesh_generation")] = static_cast<qint64>(mesh_->generation());
+    // 1) Mesh: hangi üretim ve hangi ölçü/bölme tanımı. Generation de 64-bit
+    // engineering identity'dir; JSON number precision riski alınmaz.
+    signature[QStringLiteral("mesh_generation")] =
+        QString::number(static_cast<qulonglong>(mesh_->generation()));
     signature[QStringLiteral("mesh_up_to_date")] = mesh_->isUpToDate();
     const MeshService::Definition &meshDefinition = mesh_->definition();
     signature[QStringLiteral("mesh")] = QJsonObject{
@@ -169,7 +230,10 @@ QByteArray AnalysisService::solverInputSignature(const ObjectId analysisId) cons
             {QStringLiteral("nu"), material->poisson}};
     }
 
-    // 3) Aktif sınır şartları ve yükler (bastırılmış olanlar imzada YOK)
+    // 3) Aktif sınır şartları ve yükler (bastırılmış olanlar imzada YOK).
+    // Named Selection consumer entity ID kopyalamaz; imza referenced persistent
+    // scope'un current engineering identity'sini içerir. Scope değişirse çözüm
+    // otomatik olarak OutOfDate olur; sadece ad değişirse olmaz.
     QJsonArray boundary;
     for (const ObjectId id : project_->childrenOf(analysisId)) {
         if (project_->isEffectivelySuppressed(id)) {
@@ -177,13 +241,19 @@ QByteArray AnalysisService::solverInputSignature(const ObjectId analysisId) cons
         }
         if (const SupportDefinition *support = this->support(id)) {
             boundary.append(QJsonObject{{QStringLiteral("k"), 0},
-                                        {QStringLiteral("s"), static_cast<int>(support->scope)},
+                                        {QStringLiteral("scope"),
+                                         boundaryScopeSignature(support->scopingMethod,
+                                                                support->scope,
+                                                                support->namedSelectionId)},
                                         {QStringLiteral("x"), support->fixX},
                                         {QStringLiteral("y"), support->fixY},
                                         {QStringLiteral("z"), support->fixZ}});
         } else if (const LoadDefinition *load = this->load(id)) {
             boundary.append(QJsonObject{{QStringLiteral("k"), 1},
-                                        {QStringLiteral("s"), static_cast<int>(load->scope)},
+                                        {QStringLiteral("scope"),
+                                         boundaryScopeSignature(load->scopingMethod,
+                                                                load->scope,
+                                                                load->namedSelectionId)},
                                         {QStringLiteral("fx"), load->fxN},
                                         {QStringLiteral("fy"), load->fyN},
                                         {QStringLiteral("fz"), load->fzN}});
@@ -614,13 +684,43 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
         }
     }
 
-    // 5) Aktif (bastırılmamış) sınır şartı ve yük
+    // 5) Aktif (bastırılmamış) sınır şartı ve yük. Consumer kapsamı da bu
+    // aşamada doğrulanır: dangling/stale/wrong-domain Named Selection Solve'a
+    // ulaşamaz. Mesh güncelse current CAD Face scope'un gerçek node union'ı da
+    // boş olamaz.
+    const bool meshReadyForScope = mesh_->hasMesh() && !mesh_->isOutOfDate();
     int activeSupports = 0;
     for (const ObjectId id : record->supports) {
-        if (isActive(id)) {
-            ++activeSupports;
+        if (!isActive(id)) {
+            continue;
+        }
+        ++activeSupports;
+        const SupportDefinition *definition = support(id);
+        if (definition == nullptr) {
+            add(PreflightCheck::Status::Failed, tr("Sınır Şartı Kapsamı"),
+                tr("Sınır şartı tanımı bulunamadı."), id);
+            continue;
+        }
+        if (definition->scopingMethod == BoundaryScopingMethod::NamedSelection || meshReadyForScope) {
+            const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
+            if (!scope.valid) {
+                add(PreflightCheck::Status::Failed, tr("Sınır Şartı Kapsamı"),
+                    tr("%1 — %2").arg(definition->name, scope.error), id);
+            } else if (meshReadyForScope && resolvedBoundaryNodeIds(scope).empty()) {
+                add(PreflightCheck::Status::Failed, tr("Sınır Şartı Kapsamı"),
+                    tr("%1 — scope current FEM Mesh üzerinde node üretmiyor.").arg(definition->name), id);
+            } else {
+                const int nodeCount = meshReadyForScope
+                    ? static_cast<int>(resolvedBoundaryNodeIds(scope).size()) : 0;
+                add(PreflightCheck::Status::Passed, tr("Sınır Şartı Kapsamı"),
+                    meshReadyForScope
+                        ? tr("%1 → %2 • %3 node").arg(definition->name, scope.label).arg(nodeCount)
+                        : tr("%1 → %2").arg(definition->name, scope.label),
+                    id);
+            }
         }
     }
+
     int activeLoads = 0;
     double totalLoad = 0.0;
     for (const ObjectId id : record->loads) {
@@ -628,8 +728,29 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
             continue;
         }
         ++activeLoads;
-        if (const LoadDefinition *definition = load(id)) {
-            totalLoad += definition->magnitudeN();
+        const LoadDefinition *definition = load(id);
+        if (definition == nullptr) {
+            add(PreflightCheck::Status::Failed, tr("Yük Kapsamı"), tr("Yük tanımı bulunamadı."), id);
+            continue;
+        }
+        totalLoad += definition->magnitudeN();
+        if (definition->scopingMethod == BoundaryScopingMethod::NamedSelection || meshReadyForScope) {
+            const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
+            if (!scope.valid) {
+                add(PreflightCheck::Status::Failed, tr("Yük Kapsamı"),
+                    tr("%1 — %2").arg(definition->name, scope.error), id);
+            } else if (meshReadyForScope && resolvedBoundaryNodeIds(scope).empty()) {
+                add(PreflightCheck::Status::Failed, tr("Yük Kapsamı"),
+                    tr("%1 — scope current FEM Mesh üzerinde node üretmiyor.").arg(definition->name), id);
+            } else {
+                const int nodeCount = meshReadyForScope
+                    ? static_cast<int>(resolvedBoundaryNodeIds(scope).size()) : 0;
+                add(PreflightCheck::Status::Passed, tr("Yük Kapsamı"),
+                    meshReadyForScope
+                        ? tr("%1 → %2 • %3 node").arg(definition->name, scope.label).arg(nodeCount)
+                        : tr("%1 → %2").arg(definition->name, scope.label),
+                    id);
+            }
         }
     }
     if (activeSupports == 0) {
@@ -831,69 +952,6 @@ bool AnalysisService::solve(const ObjectId analysisId)
     emit solverOutput(tr("  Formülasyon   : %1").arg(resolvedElementTechnology(analysisId)));
     emit solverOutput(tr("  Lineer çözücü : %1").arg(resolvedLinearSolver()));
 
-    // Sınır şartları ve yükler geometri provenance'ı üzerinden mesh düğümlerine
-    // çözülür. Görüntüleme üçgenleri bu zincirin hiçbir adımında yer almaz.
-    // BASTIRILMIŞ nesneler bu adımda tamamen dışarıda bırakılır.
-    AssignmentStore store;
-    {
-        GeometryAssignment materialAssignment;
-        materialAssignment.kind = AssignmentKind::Material;
-        materialAssignment.targetGeometryId = mesh_->boundaryGeometry().body;
-        materialAssignment.referencedEntityId = 1;
-        materialAssignment.name = material->name.toStdString();
-        store.add(materialAssignment);
-    }
-
-    for (const ObjectId supportId : record.supports) {
-        if (!isActive(supportId)) {
-            emit solverOutput(tr("  Sınır şartı   : %1 — BASTIRILDI, atlandı")
-                                  .arg(support(supportId) != nullptr ? support(supportId)->name : QString()));
-            continue;
-        }
-        const SupportDefinition *definition = support(supportId);
-        if (definition == nullptr) {
-            continue;
-        }
-        const GeometryEntityId geometryId = mesh_->geometryIdFor(definition->scope);
-        if (geometryId == InvalidGeometryId) {
-            continue;
-        }
-        GeometryAssignment assignment;
-        assignment.kind = AssignmentKind::Constraint;
-        assignment.targetGeometryId = geometryId;
-        assignment.constrained = {definition->fixX, definition->fixY, definition->fixZ};
-        assignment.name = definition->name.toStdString();
-        store.add(assignment);
-        emit solverOutput(tr("  Sınır şartı   : %1 → %2").arg(definition->name, displayName(definition->scope)));
-    }
-
-    for (const ObjectId loadId : record.loads) {
-        if (!isActive(loadId)) {
-            emit solverOutput(tr("  Yük           : %1 — BASTIRILDI, atlandı")
-                                  .arg(load(loadId) != nullptr ? load(loadId)->name : QString()));
-            continue;
-        }
-        const LoadDefinition *definition = load(loadId);
-        if (definition == nullptr) {
-            continue;
-        }
-        const GeometryEntityId geometryId = mesh_->geometryIdFor(definition->scope);
-        if (geometryId == InvalidGeometryId) {
-            continue;
-        }
-        GeometryAssignment assignment;
-        assignment.kind = AssignmentKind::Load;
-        assignment.targetGeometryId = geometryId;
-        assignment.vectorValue = {definition->fxN, definition->fyN, definition->fzN};
-        assignment.name = definition->name.toStdString();
-        store.add(assignment);
-        emit solverOutput(tr("  Yük           : %1 → %2, |F| = %3 N")
-                              .arg(definition->name, displayName(definition->scope))
-                              .arg(definition->magnitudeN(), 0, 'g', 6));
-    }
-
-    const auto resolved = resolveAssignments(mesh, store);
-
     std::vector<long long> nodeIds;
     std::vector<double> coordinates;
     nodeIds.reserve(mesh.nodes.size());
@@ -922,38 +980,6 @@ bool AnalysisService::solve(const ObjectId analysisId)
     std::vector<int> loadComponents;
     std::vector<double> loadValues;
 
-    for (const auto &assignment : resolved) {
-        if (assignment.source.kind == AssignmentKind::Constraint) {
-            for (const auto nodeId : assignment.nodeIds) {
-                for (int component = 0; component < 3; ++component) {
-                    if (!assignment.source.constrained[static_cast<std::size_t>(component)]) {
-                        continue;
-                    }
-                    constraintNodes.push_back(nodeId);
-                    constraintComponents.push_back(component + 1);
-                    constraintValues.push_back(0.0);
-                }
-            }
-        } else if (assignment.source.kind == AssignmentKind::Load) {
-            if (assignment.nodeIds.empty()) {
-                continue;
-            }
-            // Toplam kuvvet, kapsanan yüzün düğümlerine eşit dağıtılır.
-            const double share = 1.0 / static_cast<double>(assignment.nodeIds.size());
-            for (const auto nodeId : assignment.nodeIds) {
-                for (int component = 0; component < 3; ++component) {
-                    const double value = assignment.source.vectorValue[static_cast<std::size_t>(component)] * share;
-                    if (std::abs(value) < 1.0e-30) {
-                        continue;
-                    }
-                    loadNodes.push_back(nodeId);
-                    loadComponents.push_back(component + 1);
-                    loadValues.push_back(value);
-                }
-            }
-        }
-    }
-
     const auto fail = [&](const QString &text) {
         emit solverOutput(QStringLiteral("  ") + text);
         emit message(text, Severity::Error);
@@ -961,6 +987,82 @@ bool AnalysisService::solve(const ObjectId analysisId)
         emit solveStateChanged(analysisId, SolveState::Failed);
         emit changed();
     };
+
+    // Sınır şartları persistent engineering scope resolver üzerinden current
+    // FEM node union'ına çözülür. Display tessellation ID'leri bu zincire girmez.
+    for (const ObjectId supportId : record.supports) {
+        if (!isActive(supportId)) {
+            emit solverOutput(tr("  Sınır şartı   : %1 — BASTIRILDI, atlandı")
+                                  .arg(support(supportId) != nullptr ? support(supportId)->name : QString()));
+            continue;
+        }
+        const SupportDefinition *definition = support(supportId);
+        if (definition == nullptr) {
+            continue;
+        }
+        const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
+        const auto nodes = resolvedBoundaryNodeIds(scope);
+        if (!scope.valid || nodes.empty()) {
+            fail(tr("Sınır şartı kapsamı solver node'larına çözülemedi: %1")
+                     .arg(scope.error.isEmpty() ? definition->name : scope.error));
+            return false;
+        }
+        for (const auto nodeId : nodes) {
+            for (int component = 0; component < 3; ++component) {
+                const bool constrained = component == 0 ? definition->fixX
+                    : (component == 1 ? definition->fixY : definition->fixZ);
+                if (!constrained) {
+                    continue;
+                }
+                constraintNodes.push_back(static_cast<long long>(nodeId));
+                constraintComponents.push_back(component + 1);
+                constraintValues.push_back(0.0);
+            }
+        }
+        emit solverOutput(tr("  Sınır şartı   : %1 → %2 • %3 node")
+                              .arg(definition->name, scope.label)
+                              .arg(nodes.size()));
+    }
+
+    // Her Force nesnesinin vectorValue değeri TOPLAM kuvvettir. Named Selection
+    // birden çok Face içerirse node'lar önce tek union'a indirgenir; total force
+    // yüz başına tekrarlanmaz, union node sayısına yalnız BİR KEZ bölünür.
+    for (const ObjectId loadId : record.loads) {
+        if (!isActive(loadId)) {
+            emit solverOutput(tr("  Yük           : %1 — BASTIRILDI, atlandı")
+                                  .arg(load(loadId) != nullptr ? load(loadId)->name : QString()));
+            continue;
+        }
+        const LoadDefinition *definition = load(loadId);
+        if (definition == nullptr) {
+            continue;
+        }
+        const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
+        const auto nodes = resolvedBoundaryNodeIds(scope);
+        if (!scope.valid || nodes.empty()) {
+            fail(tr("Yük kapsamı solver node'larına çözülemedi: %1")
+                     .arg(scope.error.isEmpty() ? definition->name : scope.error));
+            return false;
+        }
+        const double share = 1.0 / static_cast<double>(nodes.size());
+        for (const auto nodeId : nodes) {
+            for (int component = 0; component < 3; ++component) {
+                const double totalComponent = component == 0 ? definition->fxN
+                    : (component == 1 ? definition->fyN : definition->fzN);
+                const double value = totalComponent * share;
+                if (std::abs(value) < 1.0e-30) {
+                    continue;
+                }
+                loadNodes.push_back(static_cast<long long>(nodeId));
+                loadComponents.push_back(component + 1);
+                loadValues.push_back(value);
+            }
+        }
+        emit solverOutput(tr("  Yük           : %1 → %2 • %3 node, |F| = %4 N")
+                              .arg(definition->name, scope.label)
+                              .arg(nodes.size())
+                              .arg(definition->magnitudeN(), 0, 'g', 6));
+    }
 
     if (constraintNodes.empty()) {
         fail(tr("Sınır şartı mesh düğümlerine çözülemedi; model serbest cisim durumunda."));
