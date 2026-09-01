@@ -13,7 +13,9 @@
 //   --capture-appearance light|dark      çekim için görünümü sabitler
 //   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
 
+#include "core/ProjectModel.h"
 #include "services/AnalysisService.h"
+#include "shell/CommandRegistry.h"
 #include "shell/Dynamics26MainWindow.h"
 #include "shell/SelectionCoordinator.h"
 #include "support/BoundaryConsumerAcceptance.h"
@@ -106,6 +108,52 @@ int main(int argc, char *argv[])
 
     auto *selectionCoordinator = new d26::SelectionCoordinator(&window, &window);
     Q_UNUSED(selectionCoordinator);
+
+    // Alpha.4 structured Utility Preflight presentation. MainWindow kendi
+    // command handler'ını constructor sırasında önce bağlamıştır; bu observer
+    // command tamamlandıktan sonra AYNI AnalysisService::preflight() raporunu
+    // tablo satırlarına dönüştürür. İkinci bir validator veya model state yoktur.
+    QObject::connect(window.commandRegistry(), &d26::CommandRegistry::commandTriggered, &window,
+                     [&window](const QString &commandId) {
+        if (commandId != QStringLiteral("analysis.preflight")) {
+            return;
+        }
+        const d26::ObjectId analysisId = window.currentAnalysis();
+        if (analysisId == d26::InvalidObjectId) {
+            return;
+        }
+        const d26::PreflightReport report = window.services().analysis->preflight(analysisId);
+        QVector<d26::PreflightUtilityRow> rows;
+        rows.reserve(report.checks.size());
+        for (const auto &check : report.checks) {
+            d26::PreflightUtilityRow row;
+            row.status = check.status == d26::PreflightCheck::Status::Passed
+                ? QStringLiteral("✓")
+                : (check.status == d26::PreflightCheck::Status::Warning
+                       ? QStringLiteral("!") : QStringLiteral("✕"));
+            row.label = check.label;
+            row.detail = check.detail;
+            row.subject = check.subject;
+            if (row.subject != d26::InvalidObjectId && window.services().project != nullptr) {
+                if (const d26::ProjectObject *object = window.services().project->object(row.subject)) {
+                    row.subjectLabel = object->name;
+                } else {
+                    row.subject = d26::InvalidObjectId;
+                }
+            }
+            rows.push_back(row);
+        }
+        window.utility()->setPreflightRows(rows);
+        window.utility()->showTab(d26::UtilityWorkspace::Tab::Preflight);
+    });
+    QObject::connect(window.utility(), &d26::UtilityWorkspace::preflightSubjectActivated, &window,
+                     [&window](const d26::ObjectId subject) {
+        if (subject == d26::InvalidObjectId || window.services().project == nullptr
+            || window.services().project->object(subject) == nullptr) {
+            return;
+        }
+        window.selectObject(subject);
+    });
 
     // Hosted shell acceptance pencereyi göstermek zorunda değildir; QObject,
     // model ve widget-state signal zinciri görünürlükten bağımsız çalışır. Bu
