@@ -5,8 +5,10 @@
 #include "../viewport/ViewportWidget.h"
 #include "../core/ProjectModel.h"
 #include "../core/DocumentCommandManager.h"
+#include "../core/SelectionTypes.h"
 #include "../services/AnalysisService.h"
 #include "../services/MeshService.h"
+#include "../services/NamedSelectionService.h"
 #include "../shell/ProjectNavigator.h"
 #include "../commands/DomainCommands.h"
 
@@ -18,6 +20,7 @@
 #include <QPalette>
 #include <QMenu>
 #include <QPixmap>
+#include <QPushButton>
 #include <QUndoStack>
 #include <QStyleHints>
 #include <QtGlobal>
@@ -240,6 +243,93 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
             settle(240);
         }
         shot(QStringLiteral("12-out-of-date-state"));
+    }
+
+    // 13–16) Alpha.3.6 Named Selection native UI kanıtı.
+    // Bu fixture yalnız screenshot/audit sürecinde oluşturulur. Persistent scope
+    // gerçek MeshEntityId + generation taşır; normal görünümde transient
+    // SelectionManager state'i yaratılmaz. Stale çekiminde mesh generation bilerek
+    // ilerletilir ve eski numeric ID'lerin seçili gösterilmediği UI gözlenir.
+    {
+        NamedSelectionService *namedSelections = window.services().namedSelections;
+        MeshService *meshService = window.services().mesh;
+        if (namedSelections == nullptr || meshService == nullptr || !meshService->generate()) {
+            std::cerr << "FAILED   Alpha.3.6 screenshot fixture could not generate mesh\n";
+            ++failures;
+        } else {
+            settle(300);
+            const auto &mesh = meshService->mesh();
+            if (mesh.nodes.empty()) {
+                std::cerr << "FAILED   Alpha.3.6 screenshot fixture has no FEM nodes\n";
+                ++failures;
+            } else {
+                SelectionItem node;
+                node.domain = SelectionDomain::Mesh;
+                node.kind = SelectionKind::Node;
+                node.meshEntityId = mesh.nodes.front().id;
+                node.sourceRevision = meshService->generation();
+
+                const NamedSelectionCreateResult created = namedSelections->createFromSelection(
+                    QVector<SelectionItem>{node}, QStringLiteral("Audit Node Scope"));
+                if (!created.success()) {
+                    std::cerr << "FAILED   Alpha.3.6 screenshot fixture could not create Named Selection\n";
+                    ++failures;
+                } else {
+                    window.selectObject(created.id);
+                    settle(360);
+                    shot(QStringLiteral("13-named-selection"));
+
+                    auto *edit = window.findChild<QPushButton *>(QStringLiteral("Dynamics26NamedSelectionEdit"));
+                    if (edit == nullptr) {
+                        std::cerr << "FAILED   Named Selection Edit control missing in screenshot fixture\n";
+                        ++failures;
+                    } else {
+                        edit->click();
+                        settle(360);
+                    }
+                    shot(QStringLiteral("14-named-selection-edit"));
+
+                    if (auto *cancel = window.findChild<QPushButton *>(
+                            QStringLiteral("Dynamics26NamedSelectionCancel"))) {
+                        cancel->click();
+                        settle(260);
+                    } else {
+                        std::cerr << "FAILED   Named Selection Cancel control missing in screenshot fixture\n";
+                        ++failures;
+                    }
+
+                    if (!meshService->generate()) {
+                        std::cerr << "FAILED   Alpha.3.6 screenshot fixture could not advance mesh generation\n";
+                        ++failures;
+                    }
+                    settle(340);
+                    // Farklı current object üzerinden geri dönmek gerçek Navigator
+                    // kullanıcı akışını taklit eder ve stale persistent context'i
+                    // normal view olarak yeniden çözdürür.
+                    window.selectObject(window.services().project->meshNode());
+                    settle(180);
+                    window.selectObject(created.id);
+                    settle(360);
+                    shot(QStringLiteral("15-named-selection-stale"));
+
+                    edit = window.findChild<QPushButton *>(QStringLiteral("Dynamics26NamedSelectionEdit"));
+                    if (edit == nullptr) {
+                        std::cerr << "FAILED   stale Named Selection Edit control missing in screenshot fixture\n";
+                        ++failures;
+                    } else {
+                        edit->click();
+                        settle(360);
+                    }
+                    shot(QStringLiteral("16-named-selection-stale-edit"));
+
+                    if (auto *cancel = window.findChild<QPushButton *>(
+                            QStringLiteral("Dynamics26NamedSelectionCancel"))) {
+                        cancel->click();
+                        settle(180);
+                    }
+                }
+            }
+        }
     }
 
     return failures == 0 ? 0 : 1;
