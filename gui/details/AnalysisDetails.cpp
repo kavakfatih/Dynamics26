@@ -1,6 +1,7 @@
 #include "AnalysisDetails.h"
 
 #include "../services/AnalysisService.h"
+#include "../services/MaterialService.h"
 #include "../services/MeshService.h"
 #include "../commands/DomainCommands.h"
 #include "../core/DocumentCommandManager.h"
@@ -115,16 +116,26 @@ void AnalysisDetails::refresh()
     // Yeni bir validation state'i veya paralel kural seti oluşturulmaz. İlk
     // actionable konu önce Failed, sonra Warning sırasıyla seçilir; navigation
     // document mutation değildir ve canonical MainWindow::selectObject yoluna gider.
+    const bool materialMissing = services_.materials == nullptr || services_.materials->assigned() == nullptr;
     int blockingCount = 0;
     int warningCount = 0;
     ObjectId firstBlockingSubject = InvalidObjectId;
     ObjectId firstWarningSubject = InvalidObjectId;
+    bool firstFailureEncountered = false;
     for (const auto &check : report.checks) {
         if (check.status == PreflightCheck::Status::Failed) {
             ++blockingCount;
-            if (firstBlockingSubject == InvalidObjectId && check.subject != InvalidObjectId
-                && services_.project != nullptr && services_.project->object(check.subject) != nullptr) {
-                firstBlockingSubject = check.subject;
+            if (!firstFailureEncountered) {
+                firstFailureEncountered = true;
+                if (check.subject != InvalidObjectId && services_.project != nullptr
+                    && services_.project->object(check.subject) != nullptr) {
+                    firstBlockingSubject = check.subject;
+                } else if (materialMissing && services_.project != nullptr) {
+                    // Güncel Preflight kontratında subject taşımayan ilk model
+                    // blocker malzeme atamasıdır. Otomatik kart/assignment kararı
+                    // vermek yerine kullanıcı Materials authoring bağlamına gider.
+                    firstBlockingSubject = services_.project->materialsNode();
+                }
             }
         } else if (check.status == PreflightCheck::Status::Warning) {
             ++warningCount;
@@ -254,10 +265,11 @@ void AnalysisDetails::refresh()
         }
     }
 
-    // Analizde aktif mesnet veya yük yoksa Preflight zaten Failed üretir. Burada
-    // aynı kuralı label metninden çıkarmak yerine model graph'tan doğrudan okuruz
-    // ve yalnız eksik authoring nesnesi için canonical undoable Insert komutunu
-    // sunarız. Böylece hızlı düzeltme ikinci bir validation motoruna dönüşmez.
+    // Eksik malzeme ataması bir otomatik-create/assign kararı değildir. Solver
+    // modeline hangi malzemenin atanacağı kullanıcı mühendislik kararıdır; bu
+    // nedenle Alpha.4 yalnız Materials authoring bağlamına güvenli navigasyon sunar.
+    // Mesnet/yük eksikleri ise yeni nesne authoring'i olduğu için mevcut undoable
+    // Insert komutlarıyla düzeltilebilir.
     bool hasActiveSupport = false;
     for (const ObjectId id : record->supports) {
         if (services_.project != nullptr && services_.project->object(id) != nullptr
@@ -274,12 +286,29 @@ void AnalysisDetails::refresh()
             break;
         }
     }
-    if (!hasActiveSupport || !hasActiveLoad) {
+    if (materialMissing || !hasActiveSupport || !hasActiveLoad) {
         auto *quickFixRow = new QWidget(validationBody_);
         auto *quickFixLayout = new QHBoxLayout(quickFixRow);
         quickFixLayout->setContentsMargins(0, 3, 0, 0);
         quickFixLayout->setSpacing(6);
         quickFixLayout->addStretch(1);
+        if (materialMissing && services_.project != nullptr) {
+            auto *goMaterials = new QToolButton(quickFixRow);
+            goMaterials->setText(tr("Malzemelere Git"));
+            goMaterials->setAutoRaise(true);
+            goMaterials->setToolButtonStyle(Qt::ToolButtonTextOnly);
+            goMaterials->setToolTip(tr("Malzeme oluşturmak veya modele atamak için Materials bölümünü aç"));
+            goMaterials->setObjectName(QStringLiteral("Dynamics26PreflightGoMaterials"));
+            quickFixLayout->addWidget(goMaterials);
+            connect(goMaterials, &QToolButton::clicked, this, [this] {
+                if (services_.project == nullptr) {
+                    return;
+                }
+                if (auto *mainWindow = qobject_cast<Dynamics26MainWindow *>(window())) {
+                    mainWindow->selectObject(services_.project->materialsNode());
+                }
+            });
+        }
         if (!hasActiveSupport) {
             auto *insertSupport = new QToolButton(quickFixRow);
             insertSupport->setText(tr("Mesnet Ekle"));
