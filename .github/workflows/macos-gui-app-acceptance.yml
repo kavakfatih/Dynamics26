@@ -3,8 +3,27 @@ name: macOS GUI application acceptance
 "on":
   push:
     branches: [main]
+    # Alpha.3.6 application-level acceptance yalnız ilgili persistent-selection
+    # composition/dependency yüzeyi değiştiğinde çalışır. Böylece trusted Mac
+    # fast gate ana günlük yol olarak kalırken hosted Apple Silicon runner,
+    # Named Selection -> consumer zincirinde sessiz regresyon oluşmasını engeller.
     paths:
       - ".github/workflows/macos-gui-app-acceptance.yml"
+      - "gui/main.cpp"
+      - "gui/shell/Dynamics26MainWindow.*"
+      - "gui/shell/SelectionCoordinator.*"
+      - "gui/support/SelectionAcceptanceTest.h"
+      - "gui/support/BoundaryConsumerAcceptance.h"
+      - "gui/core/ScopeSelectionBridge.h"
+      - "gui/core/ScopeReferenceBuilder.h"
+      - "gui/core/SelectionManager.*"
+      - "gui/services/NamedSelectionService.*"
+      - "gui/services/AnalysisBoundaryScope.cpp"
+      - "gui/services/AnalysisService.*"
+      - "gui/details/ObjectDetails.*"
+      - "gui/details/BoundaryConditionDetails.*"
+      - "gui/commands/NamedSelectionCommands.h"
+      - "tests/gui/test_named_selection.cpp"
   workflow_dispatch:
 
 permissions:
