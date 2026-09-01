@@ -215,6 +215,7 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
     //   1) "Göster" engineering state'i değiştirmeden Mesh object'ine gider.
     //   2) Mesh subject'e ait "Mesh Üret" quick-fix'i canonical mesh.generate
     //      komutunu kullanır ve modeli yeniden Ready to Solve durumuna getirir.
+    //   3) Eksik aktif mesnet/yük quick-fix'leri undoable Insert komutlarıdır.
     {
         window.runCommand(QStringLiteral("mesh.clearGenerated"));
         settle(240);
@@ -275,6 +276,93 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
                 ++failures;
             }
         }
+
+        // Aktif mesnet yok: quick-fix yeni Fixed Support oluşturmalı ve işlem
+        // document Undo history'sinde tek engineering transaction olmalıdır.
+        const ObjectId originalSupport = window.firstObjectOfType(ObjectType::FixedSupport);
+        if (originalSupport == InvalidObjectId || analysis == InvalidObjectId) {
+            std::cerr << "FAILED   Preflight support quick-fix fixture missing support/analysis\n";
+            ++failures;
+        } else {
+            window.setObjectSuppressed(originalSupport, true);
+            settle(220);
+            window.selectObject(analysis);
+            settle(220);
+            const int supportCountBefore = window.objectsOfType(ObjectType::FixedSupport).size();
+            const int undoBeforeSupportFix = window.documentCommands()->stack()->index();
+            auto *fixSupport = window.findChild<QToolButton *>(QStringLiteral("Dynamics26PreflightFixSupport"));
+            if (fixSupport == nullptr) {
+                std::cerr << "FAILED   Preflight Fixed Support quick-fix control missing\n";
+                ++failures;
+            } else {
+                fixSupport->click();
+                settle(280);
+                if (window.objectsOfType(ObjectType::FixedSupport).size() != supportCountBefore + 1) {
+                    std::cerr << "FAILED   Preflight Fixed Support quick-fix did not insert support\n";
+                    ++failures;
+                }
+                if (window.documentCommands()->stack()->index() != undoBeforeSupportFix + 1) {
+                    std::cerr << "FAILED   Preflight Fixed Support quick-fix is not one Undo transaction\n";
+                    ++failures;
+                }
+                if (!window.services().analysis->preflight(analysis).passed()) {
+                    std::cerr << "FAILED   Preflight Fixed Support quick-fix did not restore readiness\n";
+                    ++failures;
+                }
+                window.documentCommands()->stack()->undo();
+                settle(180);
+            }
+            window.documentCommands()->stack()->undo();
+            settle(220);
+            if (!window.services().analysis->preflight(analysis).passed()) {
+                std::cerr << "FAILED   Undo after support quick-fix did not restore original valid model\n";
+                ++failures;
+            }
+        }
+
+        // Aktif yük yok: quick-fix yeni Force oluşturmalı; Undo ile insertion ve
+        // suppress işlemleri geri alındığında başlangıçtaki valid model korunmalı.
+        const ObjectId originalForce = window.firstObjectOfType(ObjectType::Force);
+        if (originalForce == InvalidObjectId || analysis == InvalidObjectId) {
+            std::cerr << "FAILED   Preflight force quick-fix fixture missing force/analysis\n";
+            ++failures;
+        } else {
+            window.setObjectSuppressed(originalForce, true);
+            settle(220);
+            window.selectObject(analysis);
+            settle(220);
+            const int forceCountBefore = window.objectsOfType(ObjectType::Force).size();
+            const int undoBeforeForceFix = window.documentCommands()->stack()->index();
+            auto *fixForce = window.findChild<QToolButton *>(QStringLiteral("Dynamics26PreflightFixForce"));
+            if (fixForce == nullptr) {
+                std::cerr << "FAILED   Preflight Force quick-fix control missing\n";
+                ++failures;
+            } else {
+                fixForce->click();
+                settle(280);
+                if (window.objectsOfType(ObjectType::Force).size() != forceCountBefore + 1) {
+                    std::cerr << "FAILED   Preflight Force quick-fix did not insert load\n";
+                    ++failures;
+                }
+                if (window.documentCommands()->stack()->index() != undoBeforeForceFix + 1) {
+                    std::cerr << "FAILED   Preflight Force quick-fix is not one Undo transaction\n";
+                    ++failures;
+                }
+                if (!window.services().analysis->preflight(analysis).passed()) {
+                    std::cerr << "FAILED   Preflight Force quick-fix did not restore readiness\n";
+                    ++failures;
+                }
+                window.documentCommands()->stack()->undo();
+                settle(180);
+            }
+            window.documentCommands()->stack()->undo();
+            settle(220);
+            if (!window.services().analysis->preflight(analysis).passed()) {
+                std::cerr << "FAILED   Undo after force quick-fix did not restore original valid model\n";
+                ++failures;
+            }
+        }
+
         window.runCommand(QStringLiteral("panel.diagnostics"));
         settle(160);
     }
