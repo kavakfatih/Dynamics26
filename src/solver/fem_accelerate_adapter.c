@@ -4,6 +4,8 @@
 
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
+#include <stdio.h>
+#include <sys/sysctl.h>
 
 /*
  * Accelerate Sparse'in varsayilan error handler'i bazi factor/solve hatalarinda
@@ -17,21 +19,33 @@ static void fem_accelerate_report_error(const char *message) {
     (void)message;
     fem_accelerate_error_seen = 1;
 }
+
+/*
+ * SparseFactorizationLU macOS 15.5 ile kullanilabilir. Final FEMCAE dylib'i
+ * gfortran ile link edildigi icin __builtin_available kullanmak AppleClang'in
+ * ___isPlatformVersionAtLeast runtime sembolunu ekler ve link'i bozar. Bu
+ * nedenle product version compiler-runtime bagimliligi olmadan sysctl ile
+ * okunur. Parse edilemeyen sistem guvenli tarafta kalir ve backend'i kapatir.
+ */
+static int fem_accelerate_sparse_lu_runtime_available(void) {
+    char version[64] = {0};
+    size_t size = sizeof(version);
+    int major = 0;
+    int minor = 0;
+
+    if (sysctlbyname("kern.osproductversion", version, &size, NULL, 0) != 0) {
+        return 0;
+    }
+    if (sscanf(version, "%d.%d", &major, &minor) < 2) {
+        return 0;
+    }
+    return major > 15 || (major == 15 && minor >= 5);
+}
 #endif
 
 int fem_accelerate_sparse_available(void) {
 #ifdef __APPLE__
-    /*
-     * SparseFactorizationLU macOS 15.5 ile geldi. Uygulamanin deployment
-     * target'i 15.0 oldugu icin backend'i yalniz gercek runtime bu API'yi
-     * sagliyorsa kullanilabilir ilan ederiz. Boylece 15.0-15.4 sistemlerinde
-     * eksik sembole/API'ye girilmez ve Fortran katmani diger backend'e duzgun
-     * sekilde geri donebilir.
-     */
-    if (__builtin_available(macOS 15.5, *)) {
-        return 1;
-    }
-    return 0;
+    return fem_accelerate_sparse_lu_runtime_available();
 #else
     return 0;
 #endif
@@ -63,7 +77,7 @@ int fem_accelerate_sparse_solve(int32_t n,
     if (n <= 0 || nnz <= 0 || !row_ptr || !col_ind || !values || !rhs || !solution) {
         return -1;
     }
-    if (!fem_accelerate_sparse_available()) {
+    if (!fem_accelerate_sparse_lu_runtime_available()) {
         return -101;
     }
     rows = (int *)malloc((size_t)nnz * sizeof(int));
@@ -103,7 +117,7 @@ int fem_accelerate_sparse_solve(int32_t n,
 
     /*
      * reportError, Apple dokumantasyonunun onerdiği sekilde ilk symbolic
-     * factorization cagrısında verilir. Sonraki numeric factor ve solve ayni
+     * factorization cagrisinda verilir. Sonraki numeric factor ve solve ayni
      * symbolic nesnenin error policy'sini kullanir.
      */
     fem_accelerate_error_seen = 0;
@@ -116,16 +130,15 @@ int fem_accelerate_sparse_solve(int32_t n,
     sfoptions.reportError = fem_accelerate_report_error;
 
     /*
-     * Availability kontrolu ayni lexical scope'ta tutulur. AppleClang ancak bu
-     * sekilde API availability analizi yapip 15.0 deployment target'inda
-     * unguarded-availability uyarisi vermeden SparseFactorizationLU'yu kabul eder.
+     * Apple SDK'da SparseFactorizationLU'nun raw degeri 80'dir. Sabitin kendisi
+     * macOS 15.5 availability annotation'i tasidigi icin 15.0 deployment
+     * target'inda dogrudan referans vermek compiler warning'i uretir. Deger
+     * yalniz yukaridaki runtime 15.5+ gate'inden sonra SparseFactorization_t'ye
+     * cevrilir; 15.0-15.4 sistemlerinde bu kod yoluna girilmez.
      */
-    if (__builtin_available(macOS 15.5, *)) {
-        symbolic = SparseFactor(SparseFactorizationLU, matrix.structure, sfoptions);
-    } else {
-        SparseCleanup(matrix);
-        free(rows); free(cols);
-        return -101;
+    {
+        const SparseFactorization_t lu_factorization = (SparseFactorization_t)80;
+        symbolic = SparseFactor(lu_factorization, matrix.structure, sfoptions);
     }
     if (symbolic.status < 0 || fem_accelerate_error_seen) {
         SparseCleanup(symbolic);
