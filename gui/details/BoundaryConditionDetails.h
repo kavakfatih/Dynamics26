@@ -14,10 +14,12 @@ namespace d26 {
 
 // Fixed Support / Force Details.
 //
-// Kapsam (scope) gerçek bir geometri seçimidir: içe aktarılan CAD gövdesi
-// eksen hizalı bir kutuysa gerçek STEP yüz kimlikleri, aksi halde parametrik
-// kutunun provenance yüzleri kullanılır. Çözücüye giden düğüm listesi bu
-// kapsamdan AssignmentResolver ile üretilir.
+// Consumer iki scoping method taşır:
+//   Geometry Selection -> legacy/current tek BoxFace kapsamı
+//   Named Selection     -> persistent NamedSelection ObjectId referansı
+//
+// Named Selection consumer scope entity'lerini kopyalamaz. Solver/preflight
+// current persistent scope'u AnalysisService resolver üzerinden okur.
 class BoundaryConditionDetails final : public DetailsPage
 {
     Q_OBJECT
@@ -26,19 +28,26 @@ public:
     void refresh() override;
 
 signals:
-    // Kapsanan yüzün viewport'ta vurgulanması için.
+    // Mevcut viewport highlight API tek GeometryEntityId kabul eder. Çoklu Face
+    // Named Selection için yanıltıcı tek-yüz highlight üretmek yerine 0 ile
+    // temizlenir; gerçek multi-face overlay ayrı viewport capability'sidir.
     void scopeHighlightRequested(quint64 geometryId);
 
 private:
     void push();
+    void populateNamedSelections(ObjectId currentId);
+    [[nodiscard]] ObjectId selectedNamedSelectionId() const;
 
     ServiceContext services_;
     bool updating_{false};
     bool isLoad_{false};
 
     QLineEdit *name_{nullptr};
-    QLabel *scopingMethod_{nullptr};
+    QComboBox *scopingMethod_{nullptr};
     QComboBox *scope_{nullptr};
+    QComboBox *namedSelection_{nullptr};
+    DetailsRow *geometryScopeRow_{nullptr};
+    DetailsRow *namedSelectionRow_{nullptr};
     QLabel *scopeStatistics_{nullptr};
 
     DetailsSection *supportSection_{nullptr};
