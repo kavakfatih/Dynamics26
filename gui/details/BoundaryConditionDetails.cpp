@@ -55,16 +55,20 @@ BoundaryConditionDetails::BoundaryConditionDetails(const ServiceContext &service
     scopeSection->addRow(tr("Name"), name_);
 
     scopingMethod_ = makeCombo({tr("Geometry Selection"), tr("Named Selection")});
+    scopingMethod_->setObjectName(QStringLiteral("Dynamics26BoundaryScopingMethod"));
     scopingMethod_->setItemData(0, static_cast<int>(BoundaryScopingMethod::GeometrySelection));
     scopingMethod_->setItemData(1, static_cast<int>(BoundaryScopingMethod::NamedSelection));
     scopeSection->addRow(tr("Scoping Method"), scopingMethod_);
 
     scope_ = makeCombo(faceNames());
+    scope_->setObjectName(QStringLiteral("Dynamics26BoundaryGeometryScope"));
     geometryScopeRow_ = scopeSection->addRow(tr("Geometry"), scope_);
 
     namedSelection_ = makeCombo({});
+    namedSelection_->setObjectName(QStringLiteral("Dynamics26BoundaryNamedSelection"));
     namedSelectionRow_ = scopeSection->addRow(tr("Named Selection"), namedSelection_);
     scopeStatistics_ = scopeSection->addValueRow(tr("Resolved"));
+    scopeStatistics_->setObjectName(QStringLiteral("Dynamics26BoundaryScopeResolved"));
 
     supportSection_ = addSection(tr("Definition"));
     behavior_ = supportSection_->addValueRow(tr("Behavior"));
@@ -160,8 +164,9 @@ void BoundaryConditionDetails::populateNamedSelections(const ObjectId currentId)
     // Dosyada artık bulunmayan bir persistent ObjectId sessizce placeholder'a
     // dönüştürülmez. Kullanıcı dangling referansı Details'ta açıkça görür.
     if (!currentFound && currentId != InvalidObjectId) {
-        namedSelection_->addItem(tr("Eksik Named Selection — ID %1").arg(currentId),
-                                 QString::number(static_cast<qulonglong>(currentId)));
+        namedSelection_->addItem(
+            tr("Eksik Named Selection — ID %1").arg(static_cast<qulonglong>(currentId)),
+            QString::number(static_cast<qulonglong>(currentId)));
         namedSelection_->setCurrentIndex(namedSelection_->count() - 1);
     }
 }
@@ -174,8 +179,10 @@ void BoundaryConditionDetails::push()
 
     const int index = qBound(0, scope_->currentIndex(), 5);
     const BoxFace face = kFaces[static_cast<std::size_t>(index)];
-    const auto method = static_cast<BoundaryScopingMethod>(
-        scopingMethod_->currentData().toInt(static_cast<int>(BoundaryScopingMethod::GeometrySelection)));
+    const QVariant methodData = scopingMethod_->currentData();
+    const auto method = methodData.isValid()
+        ? static_cast<BoundaryScopingMethod>(methodData.toInt())
+        : BoundaryScopingMethod::GeometrySelection;
     const ObjectId namedSelectionId = method == BoundaryScopingMethod::NamedSelection
         ? selectedNamedSelectionId() : InvalidObjectId;
 
@@ -270,11 +277,11 @@ void BoundaryConditionDetails::refresh()
             ? services_.analysis->resolvedBoundaryNodeCount(*load)
             : services_.analysis->resolvedBoundaryNodeCount(*support);
         scopeStatistics_->setText(tr("%1 face · %2 node")
-                                      .arg(resolved.geometryFaceIds.size())
+                                      .arg(static_cast<qlonglong>(resolved.geometryFaceIds.size()))
                                       .arg(nodeCount));
     } else {
         scopeStatistics_->setText(tr("%1 face · Mesh üretilmedi/güncel değil")
-                                      .arg(resolved.geometryFaceIds.size()));
+                                      .arg(static_cast<qlonglong>(resolved.geometryFaceIds.size())));
     }
 
     if (isLoad_) {
