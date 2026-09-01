@@ -8,6 +8,8 @@
 // Persistent Named Selection üretimi de raw picker ID'lerinden değil, burada
 // doğrulanan ScopeReference / SelectionItem akışından geçer.
 
+#include "../commands/NamedSelectionCommands.h"
+#include "../core/DocumentCommandManager.h"
 #include "../core/ScopeReferenceBuilder.h"
 #include "../core/SelectionManager.h"
 #include "../core/ServiceContext.h"
@@ -71,17 +73,34 @@ public:
     }
 
     // Persistent object oluşturma için tek application bridge. Transient seçim
-    // document Undo state'i değildir; yalnız başarılı conversion sonrasında
-    // NamedSelectionService kalıcı nesne üretir.
+    // document Undo state'i değildir. Scope doğrulandıktan sonra oluşturma
+    // QUndoStack'e tek bir mühendislik komutu olarak girer.
     [[nodiscard]] NamedSelectionCreateResult createNamedSelectionFromCurrentSelection(
         const QString &requestedName = QStringLiteral("Named Selection"))
     {
         NamedSelectionCreateResult result;
-        if (selection_ == nullptr || services_.namedSelections == nullptr) {
+        if (selection_ == nullptr || services_.namedSelections == nullptr
+            || services_.commands == nullptr) {
             result.buildError = ScopeReferenceBuildError::UnsupportedDomain;
             return result;
         }
-        return services_.namedSelections->createFromSelection(selection_->items(), requestedName);
+
+        const ScopeReferenceBuildResult build = currentPersistentScope();
+        result.buildError = build.error;
+        if (!build.success()) {
+            return result;
+        }
+
+        NamedSelectionDefinition definition;
+        definition.name = requestedName;
+        definition.scope = build.scope;
+        auto *command = new commands::CreateNamedSelectionCommand(services_, definition);
+        services_.commands->push(command);
+        result.id = command->createdId();
+        if (result.id == InvalidObjectId) {
+            result.buildError = ScopeReferenceBuildError::UnsupportedDomain;
+        }
+        return result;
     }
 
 private:
