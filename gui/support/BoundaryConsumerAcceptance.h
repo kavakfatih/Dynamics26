@@ -2,23 +2,29 @@
 
 // Dynamics26 Alpha.3.6 — Fixed Support / Force persistent scope consumer
 // acceptance. Bu test fiziksel pointer UX testi değildir; gerçek application
-// servisleri üzerinde persistence, preflight, dependency state ve solver
-// regresyonunu çalıştırır. OCCT topology gate gerçek STEP import ettiğinde aynı
-// test valid CAD Face Named Selection -> FEM Mesh -> solver zincirini de yürütür.
+// servisleri üzerinde persistence, Details -> DomainCommand -> Undo/Redo,
+// preflight, dependency state ve solver regresyonunu çalıştırır. OCCT topology
+// gate gerçek STEP import ettiğinde aynı test valid CAD Face Named Selection ->
+// FEM Mesh -> solver zincirini de yürütür.
 
 #include "../core/DependencyEngine.h"
 #include "../core/ProjectModel.h"
 #include "../core/ScopeReferenceBuilder.h"
 #include "../core/SelectionTypes.h"
+#include "../details/BoundaryConditionDetails.h"
 #include "../services/AnalysisService.h"
 #include "../services/GeometryService.h"
 #include "../services/MeshService.h"
 #include "../services/NamedSelectionService.h"
+#include "../shell/DetailsHost.h"
 #include "../shell/Dynamics26MainWindow.h"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QEvent>
+#include <QLabel>
+#include <QUndoStack>
 
 #include <cmath>
 #include <iostream>
@@ -91,7 +97,7 @@ inline int runBoundaryConsumerAcceptanceTest(QApplication &app, Dynamics26MainWi
           "legacy boundary JSON without scoping method remains Geometry Selection");
 
     // ------------------------------------------------------------------
-    // Real mesh + invalid consumer behavior
+    // Real mesh + application consumer fixtures
     // ------------------------------------------------------------------
     services.mesh->setDivisions(2, 1, 1);
     check(services.mesh->generate(),
@@ -115,6 +121,111 @@ inline int runBoundaryConsumerAcceptanceTest(QApplication &app, Dynamics26MainWi
     const SupportDefinition originalSupport = *services.analysis->support(supportId);
     const LoadDefinition originalLoad = *services.analysis->load(loadId);
 
+    // ------------------------------------------------------------------
+    // Boundary Details -> DomainCommand -> Undo/Redo acceptance
+    // ------------------------------------------------------------------
+    // Programatik setCurrentIndex burada fiziksel pointer UX yerine Qt widget
+    // sinyal yolunu çalıştırır. Amaç Details'ın servisi doğrudan mutate etmediğini,
+    // her kullanıcı-semantik değişiminin tam bir Undo transaction ürettiğini
+    // kanıtlamaktır.
+    QUndoStack *undoStack = window.documentCommands() != nullptr
+        ? window.documentCommands()->stack() : nullptr;
+    DetailsHost *detailsHost = window.detailsHost();
+    BoundaryConditionDetails *boundaryPage = detailsHost != nullptr
+        ? detailsHost->boundaryConditionPage() : nullptr;
+    check(undoStack != nullptr && boundaryPage != nullptr,
+          "boundary Details acceptance exposes real Details page and document Undo stack");
+
+    const auto exerciseScopingMethodUndoRedo = [&](const ObjectId objectId, const bool expectLoad,
+                                                    const std::string &subject) {
+        if (undoStack == nullptr || boundaryPage == nullptr) {
+            check(false, subject + " Details interaction prerequisites are available");
+            return;
+        }
+
+        window.selectObject(objectId);
+        flushUi();
+        auto *methodCombo = boundaryPage->findChild<QComboBox *>(
+            QStringLiteral("Dynamics26BoundaryScopingMethod"));
+        auto *resolvedLabel = boundaryPage->findChild<QLabel *>(
+            QStringLiteral("Dynamics26BoundaryScopeResolved"));
+        check(methodCombo != nullptr && resolvedLabel != nullptr,
+              subject + " Details exposes scoping method and resolved-scope widgets");
+        if (methodCombo == nullptr || resolvedLabel == nullptr) {
+            return;
+        }
+
+        const int geometryIndex = methodCombo->findData(
+            static_cast<int>(BoundaryScopingMethod::GeometrySelection));
+        const int namedIndex = methodCombo->findData(
+            static_cast<int>(BoundaryScopingMethod::NamedSelection));
+        check(geometryIndex >= 0 && namedIndex >= 0
+                  && methodCombo->currentIndex() == geometryIndex,
+              subject + " starts from persisted Geometry Selection state");
+        if (geometryIndex < 0 || namedIndex < 0) {
+            return;
+        }
+
+        const int beforeIndex = undoStack->index();
+        methodCombo->setCurrentIndex(namedIndex);
+        flushUi();
+
+        const bool changedToNamed = expectLoad
+            ? (services.analysis->load(objectId) != nullptr
+               && services.analysis->load(objectId)->scopingMethod == BoundaryScopingMethod::NamedSelection
+               && services.analysis->load(objectId)->namedSelectionId == InvalidObjectId)
+            : (services.analysis->support(objectId) != nullptr
+               && services.analysis->support(objectId)->scopingMethod == BoundaryScopingMethod::NamedSelection
+               && services.analysis->support(objectId)->namedSelectionId == InvalidObjectId);
+        check(changedToNamed && undoStack->index() == beforeIndex + 1,
+              subject + " scoping-method widget creates exactly one undoable DomainCommand");
+        check(resolvedLabel->text().contains(QStringLiteral("Named Selection seçilmedi")),
+              subject + " unresolved Named Selection is surfaced instead of legacy face fallback");
+
+        undoStack->undo();
+        flushUi();
+        const bool undoRestored = expectLoad
+            ? (services.analysis->load(objectId) != nullptr
+               && services.analysis->load(objectId)->scopingMethod == BoundaryScopingMethod::GeometrySelection)
+            : (services.analysis->support(objectId) != nullptr
+               && services.analysis->support(objectId)->scopingMethod == BoundaryScopingMethod::GeometrySelection);
+        check(undoRestored && undoStack->index() == beforeIndex
+                  && methodCombo->currentIndex() == geometryIndex,
+              subject + " Undo restores model and Details widget state atomically");
+
+        undoStack->redo();
+        flushUi();
+        const bool redoRestored = expectLoad
+            ? (services.analysis->load(objectId) != nullptr
+               && services.analysis->load(objectId)->scopingMethod == BoundaryScopingMethod::NamedSelection)
+            : (services.analysis->support(objectId) != nullptr
+               && services.analysis->support(objectId)->scopingMethod == BoundaryScopingMethod::NamedSelection);
+        check(redoRestored && undoStack->index() == beforeIndex + 1
+                  && methodCombo->currentIndex() == namedIndex,
+              subject + " Redo reapplies persistent consumer state and Details state");
+
+        // Acceptance sonraki resolver/solver testlerine original model ile girer.
+        undoStack->undo();
+        flushUi();
+        const bool finalRestored = expectLoad
+            ? (services.analysis->load(objectId) != nullptr
+               && services.analysis->load(objectId)->scopingMethod == originalLoad.scopingMethod
+               && services.analysis->load(objectId)->scope == originalLoad.scope
+               && services.analysis->load(objectId)->namedSelectionId == originalLoad.namedSelectionId)
+            : (services.analysis->support(objectId) != nullptr
+               && services.analysis->support(objectId)->scopingMethod == originalSupport.scopingMethod
+               && services.analysis->support(objectId)->scope == originalSupport.scope
+               && services.analysis->support(objectId)->namedSelectionId == originalSupport.namedSelectionId);
+        check(finalRestored,
+              subject + " acceptance leaves persistent consumer definition unchanged");
+    };
+
+    exerciseScopingMethodUndoRedo(supportId, false, "Fixed Support");
+    exerciseScopingMethodUndoRedo(loadId, true, "Force");
+
+    // ------------------------------------------------------------------
+    // Invalid consumer behavior
+    // ------------------------------------------------------------------
     const auto &mesh = services.mesh->mesh();
     check(!mesh.nodes.empty(), "boundary consumer fixture contains real FEM Node identity");
     if (mesh.nodes.empty()) {
