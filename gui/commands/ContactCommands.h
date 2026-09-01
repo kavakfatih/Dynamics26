@@ -3,9 +3,9 @@
 // Dynamics26 V1.1.0-beta.1 / B1.2 — ContactRegion document commands.
 //
 // Contact source/target surface scope kalıcı engineering state'tir ve bu nedenle
-// create/delete/rename/scope replacement işlemleri QUndoStack üzerinden geçer.
-// Transient viewport selection bu komutlara girmez; yalnız doğrulanmış
-// ScopeReference document state'e dönüştüğünde undoable olur.
+// create/delete/rename/scope replacement/suppression işlemleri QUndoStack
+// üzerinden geçer. Transient viewport selection bu komutlara girmez; yalnız
+// doğrulanmış ScopeReference document state'e dönüştüğünde undoable olur.
 //
 // ObjectId ve ProjectModel tree row undo/redo boyunca birebir korunur. Contact
 // engineering verisinin sahibi ContactService'tir; ProjectModel yalnız tree
@@ -218,6 +218,41 @@ private:
     ObjectId object_{InvalidObjectId};
     ScopeReference before_;
     ScopeReference after_;
+};
+
+class SetContactSuppressedCommand final : public DomainCommand
+{
+public:
+    SetContactSuppressedCommand(const ServiceContext &services, const ObjectId id,
+                                const bool suppressed)
+        : DomainCommand(services,
+                        suppressed ? QObject::tr("Suppress Contact Region")
+                                   : QObject::tr("Unsuppress Contact Region")),
+          object_(id), after_(suppressed)
+    {
+        if (services.project != nullptr) {
+            before_ = services.project->isSuppressed(id);
+        }
+    }
+
+    void redo() override
+    {
+        if (services_.contacts != nullptr) {
+            services_.contacts->setSuppressed(object_, after_);
+        }
+    }
+
+    void undo() override
+    {
+        if (services_.contacts != nullptr) {
+            services_.contacts->setSuppressed(object_, before_);
+        }
+    }
+
+private:
+    ObjectId object_{InvalidObjectId};
+    bool after_{false};
+    bool before_{false};
 };
 
 } // namespace d26::commands
