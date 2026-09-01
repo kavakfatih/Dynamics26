@@ -23,6 +23,7 @@ MaterialDetails::MaterialDetails(const ServiceContext &services, QWidget *parent
     name_->setMinimumHeight(22);
     general->addRow(tr("Name"), name_);
     type_ = general->addValueRow(tr("Type"));
+    type_->setObjectName(QStringLiteral("materialInspector.type"));
     density_ = makeDoubleField(0.001, 1.0e6, 1, tr(" kg/m³"));
     density_->setObjectName(QStringLiteral("materialInspector.density"));
     general->addRow(tr("Density"), density_);
@@ -77,11 +78,14 @@ MaterialDetails::MaterialDetails(const ServiceContext &services, QWidget *parent
 
     auto *assignmentSection = addSection(tr("Assignment"));
     assignment_ = assignmentSection->addValueRow(tr("Assigned To"));
+    assignment_->setObjectName(QStringLiteral("materialInspector.assignment"));
     assignButton_ = makeActionButton(tr("Assign to Body"));
+    assignButton_->setObjectName(QStringLiteral("materialInspector.assignToBody"));
     assignmentSection->addFullWidth(assignButton_);
 
     auto *advanced = addSection(tr("Advanced"), true, true);
     solveNote_ = advanced->addValueRow(tr("Static Structural"));
+    solveNote_->setObjectName(QStringLiteral("materialInspector.staticStructuralStatus"));
     advanced->addNote(tr("Static Structural çözüm yolu HEX8 lineer izotropik elastisite kullanır. "
                          "Hyperelastic modeller bu sürümde parametre doğrulama ve eğri önizlemesi "
                          "seviyesinde bağlıdır."));
