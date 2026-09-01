@@ -13,6 +13,7 @@
 //   --capture-appearance light|dark      çekim için görünümü sabitler
 //   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
 
+#include "services/AnalysisService.h"
 #include "shell/Dynamics26MainWindow.h"
 #include "shell/SelectionCoordinator.h"
 #include "support/ScreenshotDriver.h"
@@ -90,10 +91,16 @@ int main(int argc, char *argv[])
     // DetailsHost gibi ServiceContext kopyalayan consumer'lardan ÖNCE kurulur.
     // Entry point ikinci bir servis üretmez; tek document-lifetime örneğini
     // yalnızca composition sanity check ile doğrular.
-    if (window.services().namedSelections == nullptr) {
-        std::cerr << "FEMCAE composition FAIL: NamedSelectionService unavailable\n";
+    if (window.services().namedSelections == nullptr || window.services().analysis == nullptr) {
+        std::cerr << "FEMCAE composition FAIL: persistent scope consumer services unavailable\n";
         return 2;
     }
+
+    // AnalysisService boundary-condition consumer'ları entity listesi kopyalamaz;
+    // aynı document-lifetime NamedSelectionService örneğine ObjectId ile referans
+    // verir. Bu wiring ikinci bir servis yaratmaz ve persistent scope değiştiğinde
+    // resolver'ın güncel engineering identity'yi görmesini sağlar.
+    window.services().analysis->setNamedSelectionService(window.services().namedSelections);
 
     auto *selectionCoordinator = new d26::SelectionCoordinator(&window, &window);
     Q_UNUSED(selectionCoordinator);
