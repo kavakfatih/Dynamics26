@@ -1,0 +1,87 @@
+name: macOS GUI acceptance fallback
+
+"on":
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/macos-gui-acceptance-fallback.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dynamics26-hosted-gui-acceptance
+  cancel-in-progress: true
+
+jobs:
+  selection-acceptance:
+    name: hosted native GUI acceptance
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+
+      - name: Verify Apple Silicon runner
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "$(uname -m)" = "arm64"
+          git diff --check
+
+      - name: Install GUI dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          brew install qt vtk arpack opencascade
+
+      - name: Configure native GUI acceptance build
+        shell: bash
+        env:
+          FC: gfortran-15
+        run: |
+          set -euxo pipefail
+          prefix_path="$(brew --prefix qt);$(brew --prefix vtk);$(brew --prefix opencascade)"
+          cmake -S . -B build-hosted-gui-acceptance -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_PREFIX_PATH="$prefix_path" \
+            -DFEMCAE_BUILD_TESTING=ON \
+            -DFEMCAE_BUILD_GUI=ON \
+            -DFEMCAE_GUI_WITH_VTK=ON \
+            -DFEMCAE_ENABLE_OCCT_GEOMETRY=ON \
+            -DFEMCAE_REQUIRE_OCCT=ON
+
+      - name: Build application and GUI tests
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build build-hosted-gui-acceptance --parallel --target femcae_gui
+          cmake --build build-hosted-gui-acceptance --parallel --target femcae_named_selection_test
+          cmake --build build-hosted-gui-acceptance --parallel --target femcae_selection_manager_test
+
+      - name: Run persistent scope unit gates
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ctest --test-dir build-hosted-gui-acceptance -L named-selection --output-on-failure
+          ctest --test-dir build-hosted-gui-acceptance -L selection --output-on-failure
+
+      - name: Run application selection and boundary acceptance
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set -euxo pipefail
+          app="build-hosted-gui-acceptance/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          test -x "$app"
+          "$app" --selection-selftest
+
+      - name: Native arm64 application gate
+        shell: bash
+        run: |
+          set -euxo pipefail
+          app="build-hosted-gui-acceptance/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          file -L "$app" | tee /tmp/dynamics26-hosted-gui-arch.txt
+          grep -q arm64 /tmp/dynamics26-hosted-gui-arch.txt
