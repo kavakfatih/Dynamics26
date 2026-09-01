@@ -16,6 +16,8 @@ on:
       - "gui/commands/NamedSelectionCommands.h"
       - "gui/services/NamedSelectionService.cpp"
       - "gui/services/NamedSelectionService.h"
+      - "gui/details/ObjectDetails.cpp"
+      - "gui/details/ObjectDetails.h"
       - "gui/shell/Dynamics26MainWindow.cpp"
       - "gui/shell/Dynamics26MainWindow.h"
       - "gui/shell/GraphicsWorkspace.cpp"
@@ -74,6 +76,7 @@ jobs:
           test -f gui/commands/NamedSelectionCommands.h
           test -f gui/services/NamedSelectionService.cpp
           test -f gui/services/NamedSelectionService.h
+          test -f gui/details/ObjectDetails.cpp
           test -f gui/shell/Dynamics26MainWindow.cpp
           test -f gui/shell/SelectionCoordinator.cpp
           test -f gui/viewport/GeometryTopologyScene.h
@@ -96,6 +99,8 @@ jobs:
           ! grep -q 'createNamedSelectionComposition' gui/main.cpp
           grep -q 'CreateNamedSelectionCommand' gui/commands/NamedSelectionCommands.h
           grep -q 'services.namedSelections != nullptr' gui/support/SelectionAcceptanceTest.h
+          grep -q 'case ObjectType::NamedSelection:' gui/details/ObjectDetails.cpp
+          grep -q 'services_.namedSelections->byId' gui/details/ObjectDetails.cpp
           grep -q 'SelectionInputActionType::WindowCommit' gui/viewport/ViewportSelectionController.h
           grep -q 'PendingWindowSelectionBatch' gui/shell/SelectionCoordinator.cpp
           grep -q 'manager->apply(batch.items' gui/shell/SelectionCoordinator.cpp
@@ -133,9 +138,9 @@ jobs:
         run: |
           set -euxo pipefail
           # Named Selection service wiring, MainWindow persistence/CRUD,
-          # context-menu creation and SelectionCoordinator bridge are compiled
-          # in the real application target. OCCT is intentionally unnecessary
-          # for this selection/persistent-scope gate.
+          # context-menu creation, Details routing and SelectionCoordinator
+          # bridge are compiled in the real application target. OCCT is
+          # intentionally unnecessary for this selection/persistent-scope gate.
           cmake --build build-selection --parallel --target femcae_gui
 
       - name: Selection and scope regression gate
