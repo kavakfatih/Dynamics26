@@ -1,0 +1,67 @@
+name: One-shot selection dispatch fix
+
+"on":
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-selection-dispatch-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-selection-dispatch:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Apply exact selectObject dispatch patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('gui/shell/Dynamics26MainWindow.cpp')
+          text = path.read_text(encoding='utf-8')
+          old = '''void Dynamics26MainWindow::selectObject(const ObjectId id)
+          {
+              navigator_->selectObject(id);
+              handleSelection(id);
+          }
+          '''
+          new = '''void Dynamics26MainWindow::selectObject(const ObjectId id)
+          {
+              // QTreeView currentChanged -> ProjectNavigator::objectSelected zaten
+              // MainWindow::handleSelection ve daha sonra bağlanan SelectionCoordinator
+              // akışını senkron olarak çalıştırır. Yeni bir nesneye geçerken burada
+              // handleSelection'ı ikinci kez çağırmak coordinator'ın dinamik viewport
+              // durumunu (özellikle persistent Named Selection context'ini) ezmemelidir.
+              // Aynı nesne yeniden seçildiğinde currentChanged çıkmayacağı için yalnız
+              // bu durumda explicit refresh gerekir.
+              if (navigator_->selectedObject() == id) {
+                  handleSelection(id);
+                  return;
+              }
+              navigator_->selectObject(id);
+          }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f'selectObject block match count={text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          git diff --check
+          grep -q "currentChanged -> ProjectNavigator::objectSelected" gui/shell/Dynamics26MainWindow.cpp
+
+      - name: Commit patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/one-shot-selection-dispatch-fix.yml
+          git config user.name "Dynamics26 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add gui/shell/Dynamics26MainWindow.cpp .github/workflows/one-shot-selection-dispatch-fix.yml
+          git diff --cached --check
+          git commit -m "fix: avoid duplicate navigator selection dispatch"
+          git push origin HEAD:main
