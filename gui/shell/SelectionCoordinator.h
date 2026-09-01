@@ -103,6 +103,32 @@ public:
         return result;
     }
 
+    // Edit Scope Apply aşamasının tek transaction bridge'i. UI hiçbir zaman
+    // NamedSelectionService::replaceScope() çağırmaz; önce transient CAD/FEM
+    // selection aynı canonical builder zincirinden doğrulanır, ardından değişim
+    // document Undo stack'ine tek ReplaceNamedSelectionScopeCommand olarak girer.
+    // Böylece pointer hareketleri Undo geçmişine karışmaz; yalnız Apply kalıcıdır.
+    [[nodiscard]] ScopeReferenceBuildResult replaceNamedSelectionScopeFromCurrentSelection(
+        const ObjectId target)
+    {
+        ScopeReferenceBuildResult result;
+        if (selection_ == nullptr || services_.namedSelections == nullptr
+            || services_.commands == nullptr || target == InvalidObjectId
+            || services_.namedSelections->byId(target) == nullptr) {
+            result.error = ScopeReferenceBuildError::UnsupportedDomain;
+            return result;
+        }
+
+        result = currentPersistentScope();
+        if (!result.success()) {
+            return result;
+        }
+
+        services_.commands->push(
+            new commands::ReplaceNamedSelectionScopeCommand(services_, target, result.scope));
+        return result;
+    }
+
 private:
     void configurePolicy(SelectionFilter filter);
     void refreshSelectionScene();
