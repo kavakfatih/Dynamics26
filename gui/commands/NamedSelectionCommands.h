@@ -8,6 +8,7 @@
 // geçer. ObjectId ve tree row undo/redo boyunca birebir korunur.
 
 #include "DomainCommands.h"
+#include "../core/ProjectModel.h"
 #include "../services/NamedSelectionService.h"
 
 #include <QObject>
