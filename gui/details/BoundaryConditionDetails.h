@@ -10,6 +10,7 @@ class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
 class QLineEdit;
+class QToolButton;
 
 namespace d26 {
 
@@ -47,6 +48,7 @@ private:
     QComboBox *scopingMethod_{nullptr};
     QComboBox *scope_{nullptr};
     QComboBox *namedSelection_{nullptr};
+    QToolButton *showNamedSelection_{nullptr};
     DetailsRow *geometryScopeRow_{nullptr};
     DetailsRow *namedSelectionRow_{nullptr};
     QLabel *scopeStatistics_{nullptr};
