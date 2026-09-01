@@ -21,6 +21,7 @@
 #include "support/BoundaryConsumerAcceptance.h"
 #include "support/ContactPersistenceAcceptance.h"
 #include "support/ContactPreflightAcceptance.h"
+#include "support/ContactShellAcceptance.h"
 #include "support/IntegratedWorkflowAcceptance.h"
 #include "support/MaterialInspectorAcceptance.h"
 #include "support/PreflightAcceptance.h"
@@ -183,7 +184,8 @@ int main(int argc, char *argv[])
         //   4) Alpha.4 Preflight interaction/structured diagnostics,
         //   5) tam Geometry->...->Solve->Results->Out-of-Date->Undo recovery,
         //   6) Beta.1 Contact Preflight safety gate,
-        //   7) Beta.1 Contact project persistence + stale-scope load safety
+        //   7) Beta.1 Contact project persistence + stale-scope load safety,
+        //   8) Beta.1 Contact shell Rename/Delete/Suppress domain routing
         // zinciri yürütülür. Fiziksel pointer/mouse/trackpad kabulünün yerine
         // geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
@@ -210,7 +212,11 @@ int main(int argc, char *argv[])
         if (contactPreflightStatus != 0) {
             return contactPreflightStatus;
         }
-        return d26::runContactPersistenceAcceptanceTest(app, window);
+        const int contactPersistenceStatus = d26::runContactPersistenceAcceptanceTest(app, window);
+        if (contactPersistenceStatus != 0) {
+            return contactPersistenceStatus;
+        }
+        return d26::runContactShellAcceptanceTest(app, window);
     }
 
     if (hasArgument(argc, argv, "--selftest")) {
