@@ -1,19 +1,21 @@
 #pragma once
 
-// Dynamics26 Alpha.3.6 — application-level transient selection coordinator.
+// Dynamics26 Alpha.3.6+ / Beta.1 — application-level transient selection coordinator.
 //
 // ProjectModel current object, CAD topology selection ve generated FEM mesh
 // selection ayni merkezi SelectionManager etrafinda koordine edilir. Geometry ve
 // Mesh kimlik uzaylari ayridir; raw selection document undo/redo verisi değildir.
-// Persistent Named Selection üretimi de raw picker ID'lerinden değil, burada
-// doğrulanan ScopeReference / SelectionItem akışından geçer.
+// Persistent Named Selection ve Contact Source/Target üretimi raw picker
+// ID'lerinden değil, burada doğrulanan ScopeReference / SelectionItem akışından geçer.
 
+#include "../commands/ContactCommands.h"
 #include "../commands/NamedSelectionCommands.h"
 #include "../core/DocumentCommandManager.h"
 #include "../core/ScopeReferenceBuilder.h"
 #include "../core/ScopeSelectionBridge.h"
 #include "../core/SelectionManager.h"
 #include "../core/ServiceContext.h"
+#include "../services/ContactService.h"
 #include "../services/NamedSelectionService.h"
 #include "../viewport/ViewportMeshSelectionBridge.h"
 #include "../viewport/ViewportSelectionBridge.h"
@@ -139,6 +141,9 @@ public:
     {
         if (editingNamedSelection_ != InvalidObjectId) {
             return editingNamedSelection_ == target;
+        }
+        if (editingContact_ != InvalidObjectId) {
+            return false;
         }
         if (target == InvalidObjectId || selection_ == nullptr || graphics_ == nullptr
             || details_ == nullptr || navigator_ == nullptr || services_.namedSelections == nullptr) {
@@ -266,6 +271,81 @@ public:
     }
 
     [[nodiscard]] ObjectId editingNamedSelection() const noexcept { return editingNamedSelection_; }
+
+    // Contact Source/Target edit oturumları Named Selection ile aynı transient
+    // selection altyapısını kullanır; ikinci bir picker veya ID uzayı oluşturmaz.
+    // Her Contact side yalnız surface scope kabul eder: Geometry/Face veya
+    // Mesh/Facet. Bir taraf tanımlıysa diğer taraf aynı domain'de düzenlenir.
+    [[nodiscard]] bool beginContactSourceEdit(const ObjectId target)
+    {
+        return beginContactEdit(target, true);
+    }
+
+    [[nodiscard]] bool beginContactTargetEdit(const ObjectId target)
+    {
+        return beginContactEdit(target, false);
+    }
+
+    [[nodiscard]] bool applyContactEdit()
+    {
+        if (editingContact_ == InvalidObjectId || services_.contacts == nullptr
+            || services_.commands == nullptr) {
+            return false;
+        }
+
+        ScopeReferenceBuildResult result = currentPersistentScope();
+        if (!result.success() || result.scope.entities.isEmpty()) {
+            return false;
+        }
+        const ScopeEntityReference &first = result.scope.entities.front();
+        if (first.domain != editDomain_ || first.kind != editKind_
+            || !((first.domain == SelectionDomain::Geometry && first.kind == SelectionKind::Face)
+                 || (first.domain == SelectionDomain::Mesh && first.kind == SelectionKind::Facet))) {
+            return false;
+        }
+
+        const ContactDefinition *definition = services_.contacts->byId(editingContact_);
+        if (definition == nullptr) {
+            return false;
+        }
+        const ScopeReference &other = editingContactSource_
+            ? definition->targetScope : definition->sourceScope;
+        if (!other.entities.isEmpty() && other.entities.front().domain != first.domain) {
+            return false;
+        }
+
+        if (editingContactSource_) {
+            services_.commands->push(new commands::ReplaceContactSourceScopeCommand(
+                services_, editingContact_, result.scope));
+        } else {
+            services_.commands->push(new commands::ReplaceContactTargetScopeCommand(
+                services_, editingContact_, result.scope));
+        }
+        finishContactEdit();
+        return true;
+    }
+
+    void cancelContactEdit()
+    {
+        if (editingContact_ != InvalidObjectId) {
+            finishContactEdit();
+        }
+    }
+
+    [[nodiscard]] bool contactEditActive() const noexcept
+    {
+        return editingContact_ != InvalidObjectId;
+    }
+    [[nodiscard]] ObjectId editingContact() const noexcept { return editingContact_; }
+    [[nodiscard]] bool editingContactSource() const noexcept
+    {
+        return editingContact_ != InvalidObjectId && editingContactSource_;
+    }
+    [[nodiscard]] bool editingContactTarget() const noexcept
+    {
+        return editingContact_ != InvalidObjectId && !editingContactSource_;
+    }
+
     [[nodiscard]] ScopeReferenceValidationError editPreloadError() const noexcept { return editPreloadError_; }
 
 private:
@@ -311,7 +391,6 @@ private:
 
     void finishNamedSelectionEdit()
     {
-        const ObjectId finishedTarget = editingNamedSelection_;
         editingNamedSelection_ = InvalidObjectId;
         editDomain_ = SelectionDomain::ProjectObject;
         editKind_ = SelectionKind::Object;
@@ -344,6 +423,199 @@ private:
         if (graphics_ != nullptr) {
             graphics_->setSelectionFilter(previousFilter_);
         }
+        restoreProjectObjectViewportAfterEdit();
+    }
+
+    [[nodiscard]] bool beginContactEdit(const ObjectId target, const bool sourceSide)
+    {
+        if (editingNamedSelection_ != InvalidObjectId) {
+            return false;
+        }
+        if (editingContact_ != InvalidObjectId) {
+            return editingContact_ == target && editingContactSource_ == sourceSide;
+        }
+        if (target == InvalidObjectId || selection_ == nullptr || graphics_ == nullptr
+            || details_ == nullptr || navigator_ == nullptr || services_.contacts == nullptr
+            || services_.commands == nullptr) {
+            return false;
+        }
+
+        const ContactDefinition *definition = services_.contacts->byId(target);
+        if (definition == nullptr) {
+            return false;
+        }
+        const ScopeReference &selected = sourceSide ? definition->sourceScope : definition->targetScope;
+        const ScopeReference &other = sourceSide ? definition->targetScope : definition->sourceScope;
+
+        SelectionDomain domain = SelectionDomain::ProjectObject;
+        SelectionKind kind = SelectionKind::Object;
+        if (!selected.entities.isEmpty()) {
+            domain = selected.entities.front().domain;
+            kind = selected.entities.front().kind;
+        } else if (!other.entities.isEmpty()) {
+            domain = other.entities.front().domain;
+            kind = other.entities.front().kind;
+        } else if (services_.geometry != nullptr && services_.geometry->summary().hasGeometry) {
+            domain = SelectionDomain::Geometry;
+            kind = SelectionKind::Face;
+        } else if (services_.mesh != nullptr && services_.mesh->hasMesh()) {
+            domain = SelectionDomain::Mesh;
+            kind = SelectionKind::Facet;
+        } else {
+            return false;
+        }
+
+        if (!((domain == SelectionDomain::Geometry && kind == SelectionKind::Face)
+              || (domain == SelectionDomain::Mesh && kind == SelectionKind::Facet))) {
+            return false;
+        }
+        if (domain == SelectionDomain::Geometry
+            && (services_.geometry == nullptr || !services_.geometry->summary().hasGeometry)) {
+            return false;
+        }
+        if (domain == SelectionDomain::Mesh
+            && (services_.mesh == nullptr || !services_.mesh->hasMesh())) {
+            return false;
+        }
+
+        const auto filter = selectionFilterForKind(kind);
+        if (!filter.has_value()) {
+            return false;
+        }
+
+        editingContact_ = target;
+        editingContactSource_ = sourceSide;
+        editDomain_ = domain;
+        editKind_ = kind;
+        previousFilter_ = graphics_->selectionFilter();
+        editPreloadError_ = ScopeReferenceValidationError::None;
+
+        disconnect(selection_, &SelectionManager::selectionChanged,
+                   this, &SelectionCoordinator::handleSelectionChanged);
+        editSelectionConnection_ = connect(selection_, &SelectionManager::selectionChanged,
+                                           this, [this] {
+            if (bridge_ != nullptr) {
+                bridge_->setSelection(selection_->items());
+            }
+            if (meshBridge_ != nullptr) {
+                meshBridge_->setSelection(selection_->items());
+            }
+            updateFeedback();
+            if (details_ != nullptr) {
+                details_->refresh();
+            }
+        });
+
+        disconnect(navigator_, &ProjectNavigator::objectSelected,
+                   this, &SelectionCoordinator::handleNavigatorSelection);
+        editNavigatorConnection_ = connect(navigator_, &ProjectNavigator::objectSelected,
+                                           this, [this](const ObjectId id) {
+            if (editingContact_ != InvalidObjectId && id != editingContact_) {
+                cancelContactEdit();
+            }
+        });
+
+        if (bridge_ != nullptr) {
+            disconnect(bridge_, &ViewportSelectionBridge::contextMenuRequested,
+                       this, &SelectionCoordinator::handleViewportContextMenu);
+        }
+        if (meshBridge_ != nullptr) {
+            disconnect(meshBridge_, &ViewportMeshSelectionBridge::contextMenuRequested,
+                       this, &SelectionCoordinator::handleMeshContextMenu);
+        }
+
+        graphics_->setSelectionFilter(*filter);
+        activateContactEditViewport();
+        selection_->clearPreselection();
+        (void)selection_->clear();
+
+        if (selected.entities.isEmpty()) {
+            updateFeedback();
+            details_->refresh();
+            return true;
+        }
+
+        ScopeSelectionItemsResult preload;
+        if (domain == SelectionDomain::Geometry) {
+            preload = selectionItemsForGeometryScope(selected, services_.geometry->document());
+        } else {
+            preload = selectionItemsForMeshScope(selected, services_.mesh->mesh(), services_.mesh->generation());
+        }
+        editPreloadError_ = preload.error;
+        if (preload.success()) {
+            (void)selection_->apply(preload.items, SelectionOperation::Replace);
+        } else {
+            updateFeedback();
+            details_->refresh();
+        }
+        return true;
+    }
+
+    void activateContactEditViewport()
+    {
+        if (graphics_ == nullptr || selection_ == nullptr) {
+            return;
+        }
+        ViewportWidget *viewport = graphics_->viewport();
+        if (viewport == nullptr) {
+            return;
+        }
+        const QString side = editingContactSource_ ? tr("Source") : tr("Target");
+        if (editDomain_ == SelectionDomain::Geometry && services_.geometry != nullptr) {
+            viewport->setContext(ViewportContext::Geometry);
+            graphics_->setContextLabel(tr("Geometry — Edit Contact %1").arg(side));
+            const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
+            if (!surfaces.isEmpty()) {
+                viewport->showGeometry(surfaces);
+            }
+        } else if (editDomain_ == SelectionDomain::Mesh && services_.mesh != nullptr
+                   && services_.mesh->hasMesh()) {
+            viewport->setContext(ViewportContext::Mesh);
+            graphics_->setContextLabel(tr("Mesh — Edit Contact %1").arg(side));
+            viewport->showMesh(services_.mesh->mesh(), false);
+        }
+        refreshSelectionScene();
+    }
+
+    void finishContactEdit()
+    {
+        editingContact_ = InvalidObjectId;
+        editingContactSource_ = false;
+        editDomain_ = SelectionDomain::ProjectObject;
+        editKind_ = SelectionKind::Object;
+        editPreloadError_ = ScopeReferenceValidationError::None;
+
+        QObject::disconnect(editSelectionConnection_);
+        QObject::disconnect(editNavigatorConnection_);
+        editSelectionConnection_ = {};
+        editNavigatorConnection_ = {};
+
+        if (selection_ != nullptr) {
+            connect(selection_, &SelectionManager::selectionChanged,
+                    this, &SelectionCoordinator::handleSelectionChanged);
+            selection_->clearPreselection();
+            (void)selection_->clear();
+        }
+        if (navigator_ != nullptr) {
+            connect(navigator_, &ProjectNavigator::objectSelected,
+                    this, &SelectionCoordinator::handleNavigatorSelection);
+        }
+        if (bridge_ != nullptr) {
+            connect(bridge_, &ViewportSelectionBridge::contextMenuRequested,
+                    this, &SelectionCoordinator::handleViewportContextMenu);
+        }
+        if (meshBridge_ != nullptr) {
+            connect(meshBridge_, &ViewportMeshSelectionBridge::contextMenuRequested,
+                    this, &SelectionCoordinator::handleMeshContextMenu);
+        }
+        if (graphics_ != nullptr) {
+            graphics_->setSelectionFilter(previousFilter_);
+        }
+        restoreProjectObjectViewportAfterEdit();
+    }
+
+    void restoreProjectObjectViewportAfterEdit()
+    {
         if (window_ != nullptr) {
             // Edit state temizlendikten sonra normal project-object viewport
             // bağlamı tek canonical MainWindow yolundan yeniden kurulur.
@@ -357,7 +629,6 @@ private:
         if (details_ != nullptr) {
             details_->refresh();
         }
-        Q_UNUSED(finishedTarget);
     }
 
     void configurePolicy(SelectionFilter filter);
@@ -403,6 +674,8 @@ private:
     ViewportMeshSelectionBridge *meshBridge_{nullptr};
 
     ObjectId editingNamedSelection_{InvalidObjectId};
+    ObjectId editingContact_{InvalidObjectId};
+    bool editingContactSource_{false};
     SelectionDomain editDomain_{SelectionDomain::ProjectObject};
     SelectionKind editKind_{SelectionKind::Object};
     SelectionFilter previousFilter_{SelectionFilter::Body};
