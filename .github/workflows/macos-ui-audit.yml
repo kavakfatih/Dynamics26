@@ -124,8 +124,14 @@ jobs:
           set -euxo pipefail
           light_count="$(find "$UI_AUDIT_DIR/light" -type f -name '*.png' | wc -l | tr -d ' ')"
           dark_count="$(find "$UI_AUDIT_DIR/dark" -type f -name '*.png' | wc -l | tr -d ' ')"
-          test "$light_count" -eq 12
-          test "$dark_count" -eq 12
+          test "$light_count" -eq 16
+          test "$dark_count" -eq 16
+          for appearance in light dark; do
+            test -s "$UI_AUDIT_DIR/$appearance/13-named-selection-$appearance.png"
+            test -s "$UI_AUDIT_DIR/$appearance/14-named-selection-edit-$appearance.png"
+            test -s "$UI_AUDIT_DIR/$appearance/15-named-selection-stale-$appearance.png"
+            test -s "$UI_AUDIT_DIR/$appearance/16-named-selection-stale-edit-$appearance.png"
+          done
           while IFS= read -r image; do
             test -s "$image"
             sips -g pixelWidth -g pixelHeight "$image"
