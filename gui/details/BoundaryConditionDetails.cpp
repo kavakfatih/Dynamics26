@@ -44,6 +44,18 @@ bool isGeometryFaceScope(const NamedSelectionDefinition &definition)
                        });
 }
 
+quint64 singleResolvedGeometryId(const BoundaryScopeResolution &resolution)
+{
+    // Mevcut viewport highlight API tek CAD Face kimliği kabul eder. Persistent
+    // consumer scope current model üzerinde tam olarak bir Face'e çözülüyorsa
+    // gerçek kimlik highlight edilir. Multi-face/stale/dangling kapsamda ilk ID
+    // seçilmiş gibi gösterilmez; highlight güvenli biçimde temizlenir.
+    if (!resolution.valid || resolution.geometryFaceIds.size() != 1) {
+        return 0;
+    }
+    return static_cast<quint64>(resolution.geometryFaceIds.front());
+}
+
 } // namespace
 
 BoundaryConditionDetails::BoundaryConditionDetails(const ServiceContext &services, QWidget *parent)
@@ -233,11 +245,12 @@ void BoundaryConditionDetails::push()
         services_.commands->push(new commands::SetSupportCommand(services_, objectId_, *existing, definition));
     }
 
-    // Tek yüz Geometry Selection mevcut tek-ID highlight yolunu kullanabilir.
-    // Named Selection birden fazla Face içerebileceği için şimdilik highlight
-    // temizlenir; ilk yüzü seçilmiş gibi göstermek mühendislik açısından yanlış.
-    emit scopeHighlightRequested(method == BoundaryScopingMethod::GeometrySelection
-                                     ? services_.mesh->geometryIdFor(face) : 0);
+    const SupportDefinition *support = services_.analysis->support(objectId_);
+    const LoadDefinition *load = services_.analysis->load(objectId_);
+    const BoundaryScopeResolution resolved = load != nullptr
+        ? services_.analysis->resolveBoundaryScope(*load)
+        : (support != nullptr ? services_.analysis->resolveBoundaryScope(*support) : BoundaryScopeResolution{});
+    emit scopeHighlightRequested(singleResolvedGeometryId(resolved));
     emit modelEdited();
 }
 
@@ -298,8 +311,7 @@ void BoundaryConditionDetails::refresh()
     }
     updating_ = false;
 
-    emit scopeHighlightRequested(method == BoundaryScopingMethod::GeometrySelection
-                                     ? services_.mesh->geometryIdFor(face) : 0);
+    emit scopeHighlightRequested(singleResolvedGeometryId(resolved));
 }
 
 } // namespace d26
