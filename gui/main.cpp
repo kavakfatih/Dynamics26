@@ -8,7 +8,7 @@
 // Geliştirici bayrakları (normal kullanımda gerekmez):
 //   --bundle-smoke                       macOS bundle audit protokolü
 //   --selftest                           genel GUI öz-testi
-//   --selection-selftest                 Alpha.3.6 selection + consumer + Alpha.4 integrated acceptance
+//   --selection-selftest                 Selection + scope consumers + integrated application acceptance
 //   --capture <dizin>                    belgeleme ekran görüntüleri
 //   --capture-appearance light|dark      çekim için görünümü sabitler
 //   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
@@ -20,6 +20,7 @@
 #include "shell/SelectionCoordinator.h"
 #include "support/BoundaryConsumerAcceptance.h"
 #include "support/IntegratedWorkflowAcceptance.h"
+#include "support/MaterialInspectorAcceptance.h"
 #include "support/PreflightAcceptance.h"
 #include "support/ScreenshotDriver.h"
 #include "support/SelectionAcceptanceTest.h"
@@ -173,14 +174,19 @@ int main(int argc, char *argv[])
     if (selectionSelfTest) {
         // Aynı gerçek application composition üzerinde sırasıyla:
         //   1) transient/persistent selection authoring,
-        //   2) Fixed Support / Force persistent scope consumer,
-        //   3) Alpha.4 Preflight interaction/structured diagnostics,
-        //   4) tam Geometry->...->Solve->Results->Out-of-Date->Undo recovery
+        //   2) Beta.1 Material Inspector binding + Undo/dependency contract,
+        //   3) Fixed Support / Force persistent scope consumer,
+        //   4) Alpha.4 Preflight interaction/structured diagnostics,
+        //   5) tam Geometry->...->Solve->Results->Out-of-Date->Undo recovery
         // zinciri yürütülür. Fiziksel pointer/mouse/trackpad kabulünün yerine
         // geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
             return selectionStatus;
+        }
+        const int materialInspectorStatus = d26::runMaterialInspectorAcceptanceTest(app, window);
+        if (materialInspectorStatus != 0) {
+            return materialInspectorStatus;
         }
         const int boundaryStatus = d26::runBoundaryConsumerAcceptanceTest(app, window);
         if (boundaryStatus != 0) {
