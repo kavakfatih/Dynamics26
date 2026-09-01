@@ -249,17 +249,16 @@ buildMeshScopeReference(const QVector<SelectionItem> &items,
     return result;
 }
 
-// Persistent CAD scope kullanilacagi anda current GeometryDocument'a karsi
-// tekrar dogrulanir. Otomatik topology rebind yapilmaz.
+// CAD scope'un oturumlar arasi kalici kimligi raw revision sayaci DEGILDIR.
+// Bu helper yalnız stabil topology kimliğini doğrular: GeometryEntityId,
+// entity kind, parent Body ve persistentKey. Project-load rebind bu kontrolü
+// geçmeden sourceRevision'i current document revision'ina taşıyamaz.
 [[nodiscard]] inline ScopeReferenceValidationError
-validateGeometryScopeReference(const ScopeReference &scope,
-                               const femcae::geometry::GeometryDocument &document)
+validateGeometryScopeIdentity(const ScopeReference &scope,
+                              const femcae::geometry::GeometryDocument &document)
 {
     if (scope.isEmpty()) {
         return ScopeReferenceValidationError::EmptyScope;
-    }
-    if (scope.sourceRevision == 0 || scope.sourceRevision != document.revision()) {
-        return ScopeReferenceValidationError::StaleGeometryRevision;
     }
 
     for (const ScopeEntityReference &reference : scope.entities) {
@@ -291,6 +290,37 @@ validateGeometryScopeReference(const ScopeReference &scope,
         }
     }
     return ScopeReferenceValidationError::None;
+}
+
+// Yalnız kontrollü proje yükleme aşamasında kullanılır. Scope'un stabil CAD
+// kimliği current document ile birebir uyuşuyorsa runtime revision guard yeniden
+// bağlanır. Runtime GeometryService::changed akışında bu helper çağrılmaz; böylece
+// topology değişiminde sessiz rebind yapılmaz.
+[[nodiscard]] inline bool
+rebindLoadedGeometryScopeReference(ScopeReference &scope,
+                                   const femcae::geometry::GeometryDocument &document)
+{
+    if (document.revision() == 0
+        || validateGeometryScopeIdentity(scope, document) != ScopeReferenceValidationError::None) {
+        return false;
+    }
+    scope.sourceRevision = document.revision();
+    return true;
+}
+
+// Persistent CAD scope kullanilacagi anda current GeometryDocument'a karsi
+// tekrar dogrulanir. Otomatik topology rebind yapilmaz.
+[[nodiscard]] inline ScopeReferenceValidationError
+validateGeometryScopeReference(const ScopeReference &scope,
+                               const femcae::geometry::GeometryDocument &document)
+{
+    if (scope.isEmpty()) {
+        return ScopeReferenceValidationError::EmptyScope;
+    }
+    if (scope.sourceRevision == 0 || scope.sourceRevision != document.revision()) {
+        return ScopeReferenceValidationError::StaleGeometryRevision;
+    }
+    return validateGeometryScopeIdentity(scope, document);
 }
 
 // FEM scope yalnız oluşturulduğu mesh generation üzerinde geçerlidir. Mesh
