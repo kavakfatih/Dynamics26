@@ -18,12 +18,16 @@
 #include "../services/MaterialService.h"
 #include "../shell/Dynamics26MainWindow.h"
 #include "../shell/ProjectNavigator.h"
+#include "../shell/UtilityWorkspace.h"
 
 #include <QApplication>
 #include <QCoreApplication>
 #include <QEvent>
 #include <QJsonObject>
 #include <QLabel>
+#include <QMetaObject>
+#include <QTableWidget>
+#include <QTabWidget>
 #include <QToolButton>
 #include <QUndoStack>
 
@@ -144,6 +148,57 @@ inline int runPreflightAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
               "Materials guidance navigation does not mutate document Undo history");
     } else {
         check(false, "Missing-material guidance control remains available after Details refresh");
+    }
+
+    // ------------------------------------------------------------------
+    // Run Preflight -> structured Utility table -> subject navigation
+    // ------------------------------------------------------------------
+    // MainWindow command akışı önce canonical runPreflight()'ı çalıştırır; main
+    // composition observer'ı aynı AnalysisService::preflight() raporunu tabloya
+    // yazar. Satır sayısı ve engineering ObjectId bağı doğrudan doğrulanır.
+    window.selectObject(analysisId);
+    flushUi();
+    check(window.runCommand(QStringLiteral("analysis.preflight")),
+          "Run Preflight command executes through canonical shell command registry");
+    flushUi();
+
+    auto *utilityTabs = window.findChild<QTabWidget *>(QStringLiteral("Dynamics26UtilityTabs"));
+    auto *preflightTable = window.findChild<QTableWidget *>(QStringLiteral("Dynamics26UtilityPreflight"));
+    check(utilityTabs != nullptr && preflightTable != nullptr,
+          "Utility workspace exposes structured Preflight tab and table");
+    if (utilityTabs != nullptr && preflightTable != nullptr) {
+        check(utilityTabs->currentIndex() == static_cast<int>(UtilityWorkspace::Tab::Preflight),
+              "Run Preflight opens the structured Preflight tab as primary diagnostics surface");
+        check(preflightTable->rowCount() == report.checks.size(),
+              "structured Preflight table row count matches authoritative report exactly");
+
+        const ObjectId meshNode = services.project->meshNode();
+        int meshRow = -1;
+        for (int row = 0; row < preflightTable->rowCount(); ++row) {
+            const QTableWidgetItem *subjectItem = preflightTable->item(row, 3);
+            if (subjectItem == nullptr) {
+                continue;
+            }
+            bool ok = false;
+            const qulonglong subject = subjectItem->data(Qt::UserRole).toString().toULongLong(&ok, 10);
+            if (ok && static_cast<ObjectId>(subject) == meshNode) {
+                meshRow = row;
+                break;
+            }
+        }
+        check(meshRow >= 0,
+              "structured Preflight preserves Mesh subject ObjectId in the navigation column");
+        if (meshRow >= 0) {
+            const int undoBeforeUtilityNavigation = undoStack->index();
+            const bool invoked = QMetaObject::invokeMethod(
+                preflightTable, "cellClicked", Qt::DirectConnection,
+                Q_ARG(int, meshRow), Q_ARG(int, 3));
+            flushUi();
+            check(invoked && window.navigator()->selectedObject() == meshNode,
+                  "structured Preflight subject activation focuses the exact Mesh project object");
+            check(undoStack->index() == undoBeforeUtilityNavigation,
+                  "structured Preflight subject navigation does not mutate document Undo history");
+        }
     }
 
     // Fixture'i exact persistent state'e geri getir. MaterialService::fromJson
