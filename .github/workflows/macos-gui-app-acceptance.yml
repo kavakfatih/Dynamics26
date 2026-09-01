@@ -3,26 +3,32 @@ name: macOS GUI application acceptance
 "on":
   push:
     branches: [main]
-    # Alpha.3.6 application-level acceptance yalnız ilgili persistent-selection
-    # composition/dependency yüzeyi değiştiğinde çalışır. Böylece trusted Mac
-    # fast gate ana günlük yol olarak kalırken hosted Apple Silicon runner,
-    # Named Selection -> consumer zincirinde sessiz regresyon oluşmasını engeller.
+    # Application-level acceptance yalnız integrated selection / Preflight /
+    # analysis workflow yüzeyi değiştiğinde çalışır. Trusted Mac fast gate ana
+    # günlük yol olarak kalırken hosted Apple Silicon runner Debug + Release
+    # davranış farklarının sessiz regresyon üretmesini engeller.
     paths:
       - ".github/workflows/macos-gui-app-acceptance.yml"
       - "gui/main.cpp"
       - "gui/shell/Dynamics26MainWindow.*"
       - "gui/shell/SelectionCoordinator.*"
+      - "gui/shell/UtilityWorkspace.*"
       - "gui/support/SelectionAcceptanceTest.h"
       - "gui/support/BoundaryConsumerAcceptance.h"
+      - "gui/support/PreflightAcceptance.h"
+      - "gui/support/IntegratedWorkflowAcceptance.h"
       - "gui/core/ScopeSelectionBridge.h"
       - "gui/core/ScopeReferenceBuilder.h"
       - "gui/core/SelectionManager.*"
       - "gui/services/NamedSelectionService.*"
       - "gui/services/AnalysisBoundaryScope.cpp"
       - "gui/services/AnalysisService.*"
+      - "gui/services/MaterialService.*"
       - "gui/details/ObjectDetails.*"
+      - "gui/details/AnalysisDetails.*"
       - "gui/details/BoundaryConditionDetails.*"
       - "gui/commands/NamedSelectionCommands.h"
+      - "gui/commands/DomainCommands.*"
       - "tests/gui/test_named_selection.cpp"
   workflow_dispatch:
 
@@ -31,9 +37,17 @@ permissions:
 
 jobs:
   application-selftest:
-    name: hosted application selftest
+    name: hosted application selftest (${{ matrix.build_type }})
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+    env:
+      BUILD_TYPE: ${{ matrix.build_type }}
+      BUILD_DIR: build-hosted-app-${{ matrix.build_type }}
+
     steps:
       - name: Checkout current main
         uses: actions/checkout@v4
@@ -58,8 +72,8 @@ jobs:
         run: |
           set -euxo pipefail
           prefix_path="$(brew --prefix qt);$(brew --prefix vtk);$(brew --prefix opencascade)"
-          cmake -S . -B build-hosted-app-acceptance -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
+          cmake -S . -B "$BUILD_DIR" -G Ninja \
+            -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_PREFIX_PATH="$prefix_path" \
             -DFEMCAE_BUILD_TESTING=ON \
@@ -72,15 +86,15 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          cmake --build build-hosted-app-acceptance --parallel --target femcae_gui
+          cmake --build "$BUILD_DIR" --parallel --target femcae_gui
 
-      - name: Run selection and boundary application acceptance
+      - name: Run integrated application acceptance
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
           set -uo pipefail
-          app="build-hosted-app-acceptance/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          app="$BUILD_DIR/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
           test -x "$app"
           set +e
           output="$($app --selection-selftest 2>&1)"
@@ -90,11 +104,13 @@ jobs:
           test "$status" -eq 0
           grep -q "selection shell acceptance PASS" <<< "$output"
           grep -q "Boundary consumer acceptance PASS" <<< "$output"
+          grep -q "Alpha.4 Preflight acceptance PASS" <<< "$output"
+          grep -q "Alpha.4 Integrated workflow acceptance PASS" <<< "$output"
 
       - name: Verify native arm64 app
         shell: bash
         run: |
           set -euxo pipefail
-          app="build-hosted-app-acceptance/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
-          file -L "$app" | tee /tmp/dynamics26-hosted-app-arch.txt
-          grep -q arm64 /tmp/dynamics26-hosted-app-arch.txt
+          app="$BUILD_DIR/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          file -L "$app" | tee "/tmp/dynamics26-hosted-app-${BUILD_TYPE}-arch.txt"
+          grep -q arm64 "/tmp/dynamics26-hosted-app-${BUILD_TYPE}-arch.txt"
