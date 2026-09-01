@@ -45,10 +45,12 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
 
     check(selection != nullptr, "SelectionManager is owned by the application composition tree");
     check(project != nullptr && navigator != nullptr && details != nullptr && undo != nullptr
-              && services.geometry != nullptr && services.mesh != nullptr,
-          "selection acceptance has Project/Navigator/Details/Undo/Geometry/Mesh collaborators");
+              && services.geometry != nullptr && services.mesh != nullptr
+              && services.namedSelections != nullptr,
+          "selection acceptance has Project/Navigator/Details/Undo/Geometry/Mesh/NamedSelection collaborators");
     if (selection == nullptr || project == nullptr || navigator == nullptr || details == nullptr
-        || undo == nullptr || services.geometry == nullptr || services.mesh == nullptr) {
+        || undo == nullptr || services.geometry == nullptr || services.mesh == nullptr
+        || services.namedSelections == nullptr) {
         return 1;
     }
 
