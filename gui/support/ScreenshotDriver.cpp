@@ -211,9 +211,10 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
     }
 
     // 11) Preflight — kasıtlı olarak eksik model üzerinde doğrulama raporu.
-    // Alpha.4 foundation acceptance: Failed Mesh kontrolündeki "Göster" aksiyonu
-    // engineering state'i mutate etmeden canonical Navigator/Details context'ini
-    // gerçek Mesh project object'ine taşımalıdır.
+    // Alpha.4 foundation acceptance:
+    //   1) "Göster" engineering state'i değiştirmeden Mesh object'ine gider.
+    //   2) Mesh subject'e ait "Mesh Üret" quick-fix'i canonical mesh.generate
+    //      komutunu kullanır ve modeli yeniden Ready to Solve durumuna getirir.
     {
         window.runCommand(QStringLiteral("mesh.clearGenerated"));
         settle(240);
@@ -249,11 +250,33 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
             }
         }
 
+        // Quick-fix görseli hata durumunda yakalanır; ardından aynı native control
+        // gerçekten çalıştırılır. Derived mesh generation document Undo işlemi
+        // değildir, dolayısıyla Undo index'i sabit kalmalıdır.
         shot(QStringLiteral("11-preflight"));
+        const int undoBeforeFix = window.documentCommands()->stack()->index();
+        auto *fixMesh = window.findChild<QToolButton *>(QStringLiteral("Dynamics26PreflightFixMesh"));
+        if (fixMesh == nullptr) {
+            std::cerr << "FAILED   Preflight Mesh quick-fix control missing\n";
+            ++failures;
+        } else {
+            fixMesh->click();
+            settle(420);
+            if (!window.services().mesh->hasMesh() || window.services().mesh->isOutOfDate()) {
+                std::cerr << "FAILED   Preflight Mesh quick-fix did not generate a current FEM mesh\n";
+                ++failures;
+            }
+            if (analysis != InvalidObjectId && !window.services().analysis->preflight(analysis).passed()) {
+                std::cerr << "FAILED   Preflight Mesh quick-fix did not restore Ready to Solve\n";
+                ++failures;
+            }
+            if (window.documentCommands()->stack()->index() != undoBeforeFix) {
+                std::cerr << "FAILED   Preflight Mesh quick-fix mutated document Undo history\n";
+                ++failures;
+            }
+        }
         window.runCommand(QStringLiteral("panel.diagnostics"));
         settle(160);
-        window.runCommand(QStringLiteral("mesh.generate"));
-        settle(300);
     }
 
     // 12) Out-of-date bağımlılık durumu: çözümden sonra mesh bölmesi değişir.
