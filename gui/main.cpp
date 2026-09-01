@@ -8,7 +8,7 @@
 // Geliştirici bayrakları (normal kullanımda gerekmez):
 //   --bundle-smoke                       macOS bundle audit protokolü
 //   --selftest                           genel GUI öz-testi
-//   --selection-selftest                 Alpha.3.6 selection + persistent consumer + Alpha.4 preflight acceptance
+//   --selection-selftest                 Alpha.3.6 selection + consumer + Alpha.4 integrated acceptance
 //   --capture <dizin>                    belgeleme ekran görüntüleri
 //   --capture-appearance light|dark      çekim için görünümü sabitler
 //   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
@@ -19,6 +19,7 @@
 #include "shell/Dynamics26MainWindow.h"
 #include "shell/SelectionCoordinator.h"
 #include "support/BoundaryConsumerAcceptance.h"
+#include "support/IntegratedWorkflowAcceptance.h"
 #include "support/PreflightAcceptance.h"
 #include "support/ScreenshotDriver.h"
 #include "support/SelectionAcceptanceTest.h"
@@ -170,11 +171,12 @@ int main(int argc, char *argv[])
     }
 
     if (selectionSelfTest) {
-        // Selection acceptance transient/persistent authoring zincirini;
-        // boundary consumer acceptance Fixed Support / Force persistent scope
-        // kontratını; Alpha.4 Preflight acceptance ise integrated diagnostic
-        // navigation davranışını aynı gerçek application composition üzerinde
-        // sırasıyla çalıştırır. Fiziksel pointer/mouse/trackpad kabulünün yerine
+        // Aynı gerçek application composition üzerinde sırasıyla:
+        //   1) transient/persistent selection authoring,
+        //   2) Fixed Support / Force persistent scope consumer,
+        //   3) Alpha.4 Preflight interaction/structured diagnostics,
+        //   4) tam Geometry->...->Solve->Results->Out-of-Date->Undo recovery
+        // zinciri yürütülür. Fiziksel pointer/mouse/trackpad kabulünün yerine
         // geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
@@ -184,7 +186,11 @@ int main(int argc, char *argv[])
         if (boundaryStatus != 0) {
             return boundaryStatus;
         }
-        return d26::runPreflightAcceptanceTest(app, window);
+        const int preflightStatus = d26::runPreflightAcceptanceTest(app, window);
+        if (preflightStatus != 0) {
+            return preflightStatus;
+        }
+        return d26::runIntegratedWorkflowAcceptanceTest(app, window);
     }
 
     if (hasArgument(argc, argv, "--selftest")) {
