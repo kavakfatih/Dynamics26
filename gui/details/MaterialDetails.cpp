@@ -19,21 +19,26 @@ MaterialDetails::MaterialDetails(const ServiceContext &services, QWidget *parent
 {
     auto *general = addSection(tr("General"));
     name_ = new QLineEdit;
+    name_->setObjectName(QStringLiteral("materialInspector.name"));
     name_->setMinimumHeight(22);
     general->addRow(tr("Name"), name_);
     type_ = general->addValueRow(tr("Type"));
     density_ = makeDoubleField(0.001, 1.0e6, 1, tr(" kg/m³"));
+    density_->setObjectName(QStringLiteral("materialInspector.density"));
     general->addRow(tr("Density"), density_);
 
     auto *modelSection = addSection(tr("Model"));
     model_ = makeCombo({displayName(MaterialModel::LinearElastic), displayName(MaterialModel::NeoHookean),
                         displayName(MaterialModel::MooneyRivlin), displayName(MaterialModel::Yeoh),
                         displayName(MaterialModel::Ogden)});
+    model_->setObjectName(QStringLiteral("materialInspector.model"));
     modelSection->addRow(tr("Model"), model_);
 
     elasticSection_ = addSection(tr("Elastic Parameters"));
     young_ = makeDoubleField(0.001, 10000.0, 2, tr(" GPa"));
+    young_->setObjectName(QStringLiteral("materialInspector.youngGPa"));
     poisson_ = makeDoubleField(-0.99, 0.4999, 4, QString());
+    poisson_->setObjectName(QStringLiteral("materialInspector.poisson"));
     youngRow_ = elasticSection_->addRow(tr("Young's Modulus"), young_);
     poissonRow_ = elasticSection_->addRow(tr("Poisson's Ratio"), poisson_);
 
@@ -91,8 +96,32 @@ MaterialDetails::MaterialDetails(const ServiceContext &services, QWidget *parent
         services_.commands->push(new commands::AssignMaterialCommand(services_, objectId_));
         emit modelEdited();
     });
+    connect(name_, &QLineEdit::editingFinished, this, [this] {
+        if (updating_) {
+            return;
+        }
+        const MaterialDefinition *existing = services_.materials->byId(objectId_);
+        if (existing == nullptr) {
+            return;
+        }
+        const QString requestedName = name_->text().trimmed();
+        if (requestedName.isEmpty()) {
+            // Boş görünen bir edit persistent engineering state'e yazılmaz.
+            // Inspector authoritative service değerine geri döner.
+            updating_ = true;
+            name_->setText(existing->name);
+            updating_ = false;
+            return;
+        }
+        if (requestedName == existing->name) {
+            return;
+        }
+        // Ad değişikliği solver girdisi değildir. Canonical RenameObjectCommand
+        // yolu, ProjectModel ve MaterialService kimlik/senkron kontratını korur.
+        services_.commands->push(new commands::RenameObjectCommand(services_, objectId_, requestedName));
+        emit modelEdited();
+    });
     const auto push = [this] { pushDefinition(); };
-    connect(name_, &QLineEdit::editingFinished, this, push);
     connect(density_, &QDoubleSpinBox::valueChanged, this, push);
     connect(young_, &QDoubleSpinBox::valueChanged, this, push);
     connect(poisson_, &QDoubleSpinBox::valueChanged, this, push);
@@ -124,7 +153,9 @@ void MaterialDetails::pushDefinition()
         return;
     }
     MaterialDefinition definition = *existing;
-    definition.name = name_->text().trimmed().isEmpty() ? tr("Material 1") : name_->text().trimmed();
+    // Name ayrı bir engineering mutation'dır ve RenameObjectCommand üzerinden
+    // uygulanır. Property edit'i material identity/display name'i değiştirmez.
+    definition.name = existing->name;
     definition.model = static_cast<MaterialModel>(model_->currentIndex());
     definition.densityKgM3 = density_->value();
     definition.youngGPa = young_->value();
@@ -138,6 +169,11 @@ void MaterialDetails::pushDefinition()
     for (int i = 0; i < 3; ++i) {
         definition.ogdenMuMPa[static_cast<std::size_t>(i)] = ogdenMu_[static_cast<std::size_t>(i)]->value();
         definition.ogdenAlpha[static_cast<std::size_t>(i)] = ogdenAlpha_[static_cast<std::size_t>(i)]->value();
+    }
+    // Focus/refresh gibi gerçek veri değişikliği üretmeyen UI olayları boş
+    // document transaction ve gereksiz dependency revision oluşturmamalıdır.
+    if (definition.toJson() == existing->toJson()) {
+        return;
     }
     services_.commands->push(new commands::SetMaterialPropertiesCommand(services_, objectId_, *existing, definition));
     emit modelEdited();
