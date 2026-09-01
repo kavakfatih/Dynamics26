@@ -94,20 +94,22 @@ int main(int argc, char *argv[])
     // uygulama çapında QSS ayarlanmaz; Light/Dark tek kaynaktan gelir.
     d26::Dynamics26MainWindow window;
 
-    // Alpha.3.6 persistent scope servisi MainWindow::buildServices() içinde,
+    // Persistent engineering servisleri MainWindow::buildServices() içinde,
     // DetailsHost gibi ServiceContext kopyalayan consumer'lardan ÖNCE kurulur.
-    // Entry point ikinci bir servis üretmez; tek document-lifetime örneğini
+    // Entry point ikinci bir servis üretmez; tek document-lifetime örneklerini
     // yalnızca composition sanity check ile doğrular.
-    if (window.services().namedSelections == nullptr || window.services().analysis == nullptr) {
-        std::cerr << "FEMCAE composition FAIL: persistent scope consumer services unavailable\n";
+    if (window.services().namedSelections == nullptr || window.services().contacts == nullptr
+        || window.services().analysis == nullptr) {
+        std::cerr << "FEMCAE composition FAIL: persistent engineering consumer services unavailable\n";
         return 2;
     }
 
-    // AnalysisService boundary-condition consumer'ları entity listesi kopyalamaz;
-    // aynı document-lifetime NamedSelectionService örneğine ObjectId ile referans
-    // verir. Bu wiring ikinci bir servis yaratmaz ve persistent scope değiştiğinde
-    // resolver'ın güncel engineering identity'yi görmesini sağlar.
+    // AnalysisService boundary-condition ve Contact preflight consumer'ları
+    // entity listesi kopyalamaz. Aynı document-lifetime persistent servisleri
+    // yalnız pointer dependency olarak bağlanır; ownership MainWindow composition
+    // ağacında kalır.
     window.services().analysis->setNamedSelectionService(window.services().namedSelections);
+    window.services().analysis->setContactService(window.services().contacts);
 
     auto *selectionCoordinator = new d26::SelectionCoordinator(&window, &window);
     Q_UNUSED(selectionCoordinator);
