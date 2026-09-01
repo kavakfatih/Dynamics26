@@ -1,11 +1,12 @@
 #pragma once
 
-// Dynamics26 Alpha.3.4 — application-shell CAD + FEM selection acceptance helper.
+// Dynamics26 Alpha.3.6 — application-shell CAD + FEM selection acceptance helper.
 //
 // --selection-selftest geliştirici bayrağında gerçek SelectionCoordinator signal
 // zinciri üzerinden transient Body/Face/Edge/Vertex ve Node/Element/Facet
-// selection -> Navigator/Inspector senkronunu doğrular. Fiziksel mouse/trackpad
-// kabulünün veya gerçek VTK pick testinin yerine geçmez.
+// selection -> Navigator/Inspector senkronunu ve Alpha.3.6 Named Selection
+// Edit/Apply/Cancel transaction akışını doğrular. Fiziksel mouse/trackpad kabulünün
+// veya gerçek VTK pick testinin yerine geçmez.
 
 #include "../core/DocumentCommandManager.h"
 #include "../core/ProjectModel.h"
@@ -13,12 +14,17 @@
 #include "../core/SelectionPolicy.h"
 #include "../services/GeometryService.h"
 #include "../services/MeshService.h"
+#include "../services/NamedSelectionService.h"
 #include "../shell/DetailsHost.h"
 #include "../shell/Dynamics26MainWindow.h"
 #include "../shell/ProjectNavigator.h"
+#include "../shell/SelectionCoordinator.h"
 
 #include <QApplication>
+#include <QCoreApplication>
+#include <QEvent>
 #include <QLabel>
+#include <QPushButton>
 #include <QUndoStack>
 
 #include <iostream>
@@ -35,22 +41,37 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
         std::cout << (condition ? "PASS  " : "FAIL  ") << message << '\n';
         failures += condition ? 0 : 1;
     };
+    const auto flushUi = [&app] {
+        app.processEvents();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        app.processEvents();
+    };
 
     SelectionManager *selection = window.findChild<SelectionManager *>();
+    SelectionCoordinator *coordinator = nullptr;
+    for (QObject *child : window.children()) {
+        if (auto *candidate = dynamic_cast<SelectionCoordinator *>(child)) {
+            coordinator = candidate;
+            break;
+        }
+    }
     const ServiceContext services = window.services();
     ProjectModel *project = services.project;
     ProjectNavigator *navigator = window.navigator();
     DetailsHost *details = window.detailsHost();
+    GraphicsWorkspace *graphics = window.graphics();
     QUndoStack *undo = window.documentCommands()->stack();
 
     check(selection != nullptr, "SelectionManager is owned by the application composition tree");
-    check(project != nullptr && navigator != nullptr && details != nullptr && undo != nullptr
-              && services.geometry != nullptr && services.mesh != nullptr
+    check(coordinator != nullptr,
+          "SelectionCoordinator is owned directly by the application composition tree");
+    check(project != nullptr && navigator != nullptr && details != nullptr && graphics != nullptr
+              && undo != nullptr && services.geometry != nullptr && services.mesh != nullptr
               && services.namedSelections != nullptr,
-          "selection acceptance has Project/Navigator/Details/Undo/Geometry/Mesh/NamedSelection collaborators");
-    if (selection == nullptr || project == nullptr || navigator == nullptr || details == nullptr
-        || undo == nullptr || services.geometry == nullptr || services.mesh == nullptr
-        || services.namedSelections == nullptr) {
+          "selection acceptance has Project/Navigator/Details/Graphics/Undo/Geometry/Mesh/NamedSelection collaborators");
+    if (selection == nullptr || coordinator == nullptr || project == nullptr || navigator == nullptr
+        || details == nullptr || graphics == nullptr || undo == nullptr || services.geometry == nullptr
+        || services.mesh == nullptr || services.namedSelections == nullptr) {
         return 1;
     }
 
@@ -192,6 +213,161 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
     check(undo->index() == undoIndexBefore,
           "mesh-selection invalidation remains outside document Undo history");
 
+    // ---------------------------------------------------------------------
+    // Alpha.3.6 Named Selection Edit Selection acceptance
+    // ---------------------------------------------------------------------
+    services.mesh->setDivisions(2, 1, 1);
+    check(services.mesh->generate(),
+          "Named Selection edit acceptance generates a real FEM mesh fixture");
+    flushUi();
+
+    const auto &editMesh = services.mesh->mesh();
+    check(editMesh.nodes.size() >= 2,
+          "edit acceptance fixture exposes at least two real FEM Node identities");
+    if (editMesh.nodes.size() >= 2) {
+        const quint64 editGeneration = services.mesh->generation();
+        const SelectionItem firstRealNode = meshItem(SelectionKind::Node,
+                                                     editMesh.nodes[0].id, editGeneration);
+        const SelectionItem secondRealNode = meshItem(SelectionKind::Node,
+                                                      editMesh.nodes[1].id, editGeneration);
+        const NamedSelectionCreateResult named = services.namedSelections->createFromSelection(
+            QVector<SelectionItem>{firstRealNode}, QStringLiteral("Edit Scope Acceptance"));
+        check(named.success(),
+              "real FEM Node scope creates Named Selection edit fixture");
+
+        if (named.success()) {
+            window.selectObject(named.id);
+            flushUi();
+            check(navigator->selectedObject() == named.id && details->currentObject() == named.id,
+                  "Named Selection is current in Navigator and Details before edit session");
+
+            QPushButton *editButton = details->findChild<QPushButton *>(
+                QStringLiteral("Dynamics26NamedSelectionEdit"));
+            check(editButton != nullptr,
+                  "Named Selection Details exposes Edit Selection control");
+            if (editButton != nullptr) {
+                editButton->click();
+                flushUi();
+            }
+
+            check(coordinator->namedSelectionEditActive()
+                      && coordinator->editingNamedSelection() == named.id,
+                  "Edit Selection control opens transient Named Selection edit session");
+            check(graphics->viewport()->context() == ViewportContext::Mesh
+                      && graphics->selectionFilter() == SelectionFilter::Node,
+                  "Node Named Selection edit switches viewport to Mesh/Node selection context");
+            check(selection->items().size() == 1
+                      && selection->items().front().sameIdentity(firstRealNode)
+                      && selection->items().front().sourceRevision == editGeneration,
+                  "valid stored FEM scope safely preloads exact current Node identity");
+            check(navigator->selectedObject() == named.id && details->currentObject() == named.id,
+                  "preloaded edit selection does not replace Named Selection project-object context");
+
+            const int undoBeforeApply = undo->index();
+            check(selection->apply(secondRealNode, SelectionOperation::Replace),
+                  "edit session accepts a different current FEM Node selection");
+            flushUi();
+            check(navigator->selectedObject() == named.id && details->currentObject() == named.id,
+                  "transient edit selection keeps Navigator and Details on Named Selection");
+            check(undo->index() == undoBeforeApply,
+                  "transient edit selection itself creates no document Undo entry");
+
+            QPushButton *applyButton = details->findChild<QPushButton *>(
+                QStringLiteral("Dynamics26NamedSelectionApply"));
+            QPushButton *cancelButtonWhileEditing = details->findChild<QPushButton *>(
+                QStringLiteral("Dynamics26NamedSelectionCancel"));
+            check(applyButton != nullptr && cancelButtonWhileEditing != nullptr,
+                  "active edit session exposes Apply Selection and Cancel controls");
+            if (applyButton != nullptr) {
+                applyButton->click();
+                flushUi();
+            }
+
+            check(!coordinator->namedSelectionEditActive()
+                      && undo->index() == undoBeforeApply + 1,
+                  "Apply Selection closes edit session and creates exactly one Undo transaction");
+            const NamedSelectionDefinition *afterApply = services.namedSelections->byId(named.id);
+            check(afterApply != nullptr && afterApply->scope.entities.size() == 1
+                      && afterApply->scope.entities.front().kind == SelectionKind::Node
+                      && afterApply->scope.entities.front().meshEntityId == secondRealNode.meshEntityId
+                      && afterApply->scope.sourceRevision == editGeneration,
+                  "Apply Selection persists only the newly selected real FEM Node scope");
+
+            undo->undo();
+            flushUi();
+            const NamedSelectionDefinition *afterUndo = services.namedSelections->byId(named.id);
+            check(afterUndo != nullptr
+                      && afterUndo->scope.entities.front().meshEntityId == firstRealNode.meshEntityId,
+                  "Undo restores previous Named Selection scope identity");
+            undo->redo();
+            flushUi();
+            const NamedSelectionDefinition *afterRedo = services.namedSelections->byId(named.id);
+            check(afterRedo != nullptr
+                      && afterRedo->scope.entities.front().meshEntityId == secondRealNode.meshEntityId,
+                  "Redo reapplies edited Named Selection scope identity");
+
+            window.selectObject(named.id);
+            flushUi();
+            editButton = details->findChild<QPushButton *>(QStringLiteral("Dynamics26NamedSelectionEdit"));
+            check(editButton != nullptr,
+                  "Named Selection Details returns to Edit Selection control after Apply");
+            if (editButton != nullptr) {
+                editButton->click();
+                flushUi();
+            }
+            check(coordinator->namedSelectionEditActive()
+                      && selection->items().size() == 1
+                      && selection->items().front().sameIdentity(secondRealNode),
+                  "second edit session preloads the currently persisted scope");
+
+            const int undoBeforeCancel = undo->index();
+            check(selection->apply(firstRealNode, SelectionOperation::Replace),
+                  "Cancel acceptance changes only transient selection before cancellation");
+            flushUi();
+            QPushButton *cancelButton = details->findChild<QPushButton *>(
+                QStringLiteral("Dynamics26NamedSelectionCancel"));
+            check(cancelButton != nullptr,
+                  "active edit session keeps Cancel control discoverable after selection changes");
+            if (cancelButton != nullptr) {
+                cancelButton->click();
+                flushUi();
+            }
+            const NamedSelectionDefinition *afterCancel = services.namedSelections->byId(named.id);
+            check(!coordinator->namedSelectionEditActive()
+                      && undo->index() == undoBeforeCancel
+                      && afterCancel != nullptr
+                      && afterCancel->scope.entities.front().meshEntityId == secondRealNode.meshEntityId,
+                  "Cancel closes edit session without document mutation or Undo entry");
+
+            const quint64 generationBeforeStale = services.mesh->generation();
+            check(services.mesh->generate()
+                      && services.mesh->generation() != generationBeforeStale,
+                  "mesh regenerate advances generation before stale edit acceptance");
+            flushUi();
+            check(project->object(named.id) != nullptr
+                      && project->object(named.id)->state == ObjectState::OutOfDate,
+                  "mesh regeneration automatically marks stored Named Selection OutOfDate");
+
+            window.selectObject(named.id);
+            flushUi();
+            editButton = details->findChild<QPushButton *>(QStringLiteral("Dynamics26NamedSelectionEdit"));
+            check(editButton != nullptr,
+                  "stale Named Selection still offers explicit Edit Selection repair workflow");
+            if (editButton != nullptr) {
+                editButton->click();
+                flushUi();
+            }
+            check(coordinator->namedSelectionEditActive()
+                      && coordinator->editPreloadError() == ScopeReferenceValidationError::StaleMeshGeneration
+                      && selection->items().isEmpty(),
+                  "stale mesh scope opens edit session with zero old-ID preload and explicit stale diagnostic");
+            check(navigator->selectedObject() == named.id && details->currentObject() == named.id,
+                  "stale repair session still preserves Named Selection project-object context");
+            coordinator->cancelNamedSelectionEdit();
+            flushUi();
+        }
+    }
+
     selection->clear();
     selection->setPolicy(SelectionPolicy::preset(SelectionPolicyPreset::NeutralGeometry));
     project->removeObject(projectBody);
@@ -200,7 +376,7 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
     } else {
         window.selectObject(project->geometryNode());
     }
-    app.processEvents();
+    flushUi();
 
     std::cout << (failures == 0 ? "selection shell acceptance PASS\n"
                                 : "selection shell acceptance FAIL\n");
