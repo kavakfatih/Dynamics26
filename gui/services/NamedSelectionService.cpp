@@ -388,6 +388,9 @@ QJsonObject NamedSelectionService::toJson() const
         QJsonObject item;
         item[QStringLiteral("object_id")] = QString::number(id);
         item[QStringLiteral("name")] = definition->name;
+        // source_revision runtime stale guard'dır. Diagnostic olarak yazılır;
+        // project-load sırasında CAD stabil identity doğrulanırsa current
+        // GeometryDocument revision'ına kontrollü olarak yeniden bağlanır.
         item[QStringLiteral("source_revision")] = QString::number(definition->scope.sourceRevision);
 
         QJsonArray entities;
@@ -543,6 +546,19 @@ bool NamedSelectionService::fromJson(const QJsonObject &object, QString *errorMe
 
         if (!scopeStructureIsValid(scope)) {
             return fail(QStringLiteral("item[%1]: scope yapısal olarak geçersiz").arg(itemIndex));
+        }
+
+        // sourceRevision oturum-içi stale guard'dır; permanent CAD identity
+        // değildir. Project load sırasında yalnız GeometryEntityId + kind +
+        // parent Body + persistentKey current document ile birebir uyuşuyorsa
+        // revision guard current oturuma taşınır. Stable identity doğrulanamazsa
+        // saved revision korunur ve normal validation stale/error durumunu gösterir.
+        // Mesh scope için böyle bir rebind YOKTUR: generation persistent değildir.
+        if (scope.entities.front().domain == SelectionDomain::Geometry && geometry_ != nullptr) {
+            ScopeReference rebound = scope;
+            if (rebindLoadedGeometryScopeReference(rebound, geometry_->document())) {
+                scope = rebound;
+            }
         }
 
         PendingRecord record;
