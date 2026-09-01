@@ -1,18 +1,15 @@
 #include "AnalysisService.h"
 
+#include "../core/BoundaryScopeResolver.h"
 #include "NamedSelectionService.h"
-
-#include <femcae/meshing/AssignmentResolver.h>
 
 #include <QJsonArray>
 
-#include <algorithm>
 #include <set>
 
 using femcae::geometry::GeometryEntityId;
 using femcae::geometry::InvalidGeometryId;
 using femcae::meshing::MeshEntityId;
-using femcae::meshing::boundaryNodeIdsForGeometry;
 
 namespace d26 {
 namespace {
@@ -125,16 +122,10 @@ AnalysisService::resolvedBoundaryNodeIds(const BoundaryScopeResolution &scope) c
         return {};
     }
 
-    // Bir Named Selection birden fazla Face içerdiğinde her Face için ayrı Load
-    // assignment üretmek toplam kuvveti N kez uygulardı. Burada bütün yüzlerin
-    // node'ları önce TEK birleşik kümeye alınır. Constraint ve toplam kuvvet
-    // yalnız bu birleşik scope üzerinde bir kez uygulanır.
-    std::set<MeshEntityId> uniqueNodes;
-    for (const GeometryEntityId geometryId : scope.geometryFaceIds) {
-        const auto ids = boundaryNodeIdsForGeometry(mesh_->mesh(), geometryId);
-        uniqueNodes.insert(ids.begin(), ids.end());
-    }
-    return {uniqueNodes.begin(), uniqueNodes.end()};
+    // Bir Named Selection birden fazla Face içerdiğinde bütün yüzler TEK node
+    // kümesine indirgenir. Force tüketicisi toplam kuvveti bu küme üzerinde bir
+    // kez dağıtmalıdır; yüz başına ayrı total-force assignment üretilmez.
+    return boundaryNodeUnionForGeometryFaces(mesh_->mesh(), scope.geometryFaceIds);
 }
 
 int AnalysisService::resolvedBoundaryNodeCount(const SupportDefinition &definition) const
