@@ -1,5 +1,6 @@
 #include "Dynamics26MainWindow.h"
 
+#include "../commands/ContactCommands.h"
 #include "../commands/DomainCommands.h"
 #include "../commands/NamedSelectionCommands.h"
 #include "../core/CaeIcons.h"
@@ -1949,6 +1950,8 @@ void Dynamics26MainWindow::renameObject(const ObjectId id, const QString &newNam
     }
     if (object->type == ObjectType::NamedSelection) {
         documentCommands_->push(new commands::RenameNamedSelectionCommand(services_, id, newName));
+    } else if (object->type == ObjectType::ContactRegion && services_.contacts != nullptr) {
+        documentCommands_->push(new commands::RenameContactCommand(services_, id, newName));
     } else {
         documentCommands_->push(new commands::RenameObjectCommand(services_, id, newName));
     }
@@ -2032,6 +2035,8 @@ void Dynamics26MainWindow::deleteObject(const ObjectId id)
     } else if (type == ObjectType::Analysis) {
         documentCommands_->push(new commands::DeleteAnalysisCommand(services_, id));
         activeAnalysis_ = InvalidObjectId;
+    } else if (type == ObjectType::ContactRegion && services_.contacts != nullptr) {
+        documentCommands_->push(new commands::DeleteContactCommand(services_, id));
     } else if (type == ObjectType::FixedSupport || type == ObjectType::Force) {
         documentCommands_->push(new commands::DeleteBoundaryConditionCommand(services_, id));
     } else if (isResultDefinition(type)) {
@@ -2046,10 +2051,15 @@ void Dynamics26MainWindow::deleteObject(const ObjectId id)
 
 void Dynamics26MainWindow::setObjectSuppressed(const ObjectId id, const bool suppressed)
 {
-    if (!supportsSuppression(project_->typeOf(id)) || project_->isSuppressed(id) == suppressed) {
+    const ObjectType type = project_->typeOf(id);
+    if (!supportsSuppression(type) || project_->isSuppressed(id) == suppressed) {
         return;
     }
-    documentCommands_->push(new commands::SuppressObjectCommand(services_, id, suppressed));
+    if (type == ObjectType::ContactRegion && services_.contacts != nullptr) {
+        documentCommands_->push(new commands::SetContactSuppressedCommand(services_, id, suppressed));
+    } else {
+        documentCommands_->push(new commands::SuppressObjectCommand(services_, id, suppressed));
+    }
     syncAll();
 }
 
@@ -2214,6 +2224,13 @@ QMenu *Dynamics26MainWindow::buildContextMenu(const ObjectId id, QWidget *parent
         add("edit.rename");
         menu.addSeparator();
         add(project_->isSuppressed(id) ? "edit.unsuppress" : "edit.suppress");
+        break;
+    case ObjectType::ContactRegion:
+        add("edit.rename");
+        menu.addSeparator();
+        add(project_->isSuppressed(id) ? "edit.unsuppress" : "edit.suppress");
+        menu.addSeparator();
+        add("edit.delete");
         break;
     case ObjectType::NamedSelection:
         add("edit.rename");
