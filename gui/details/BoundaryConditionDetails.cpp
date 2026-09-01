@@ -5,6 +5,7 @@
 #include "../services/AnalysisService.h"
 #include "../services/MeshService.h"
 #include "../services/NamedSelectionService.h"
+#include "../shell/Dynamics26MainWindow.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -12,6 +13,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QToolButton>
 
 #include <algorithm>
 #include <array>
@@ -76,9 +78,21 @@ BoundaryConditionDetails::BoundaryConditionDetails(const ServiceContext &service
     scope_->setObjectName(QStringLiteral("Dynamics26BoundaryGeometryScope"));
     geometryScopeRow_ = scopeSection->addRow(tr("Geometry"), scope_);
 
+    auto *namedSelectionWidget = new QWidget(this);
+    auto *namedSelectionLayout = new QHBoxLayout(namedSelectionWidget);
+    namedSelectionLayout->setContentsMargins(0, 0, 0, 0);
+    namedSelectionLayout->setSpacing(5);
     namedSelection_ = makeCombo({});
     namedSelection_->setObjectName(QStringLiteral("Dynamics26BoundaryNamedSelection"));
-    namedSelectionRow_ = scopeSection->addRow(tr("Named Selection"), namedSelection_);
+    namedSelectionLayout->addWidget(namedSelection_, 1);
+    showNamedSelection_ = new QToolButton(namedSelectionWidget);
+    showNamedSelection_->setText(tr("Göster"));
+    showNamedSelection_->setAutoRaise(true);
+    showNamedSelection_->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    showNamedSelection_->setObjectName(QStringLiteral("Dynamics26BoundaryShowNamedSelection"));
+    showNamedSelection_->setToolTip(tr("Referans verilen Named Selection nesnesini model ağacında göster"));
+    namedSelectionLayout->addWidget(showNamedSelection_);
+    namedSelectionRow_ = scopeSection->addRow(tr("Named Selection"), namedSelectionWidget);
     scopeStatistics_ = scopeSection->addValueRow(tr("Resolved"));
     scopeStatistics_->setObjectName(QStringLiteral("Dynamics26BoundaryScopeResolved"));
 
@@ -130,6 +144,19 @@ BoundaryConditionDetails::BoundaryConditionDetails(const ServiceContext &service
     connect(fx_, &QDoubleSpinBox::valueChanged, this, pushEdit);
     connect(fy_, &QDoubleSpinBox::valueChanged, this, pushEdit);
     connect(fz_, &QDoubleSpinBox::valueChanged, this, pushEdit);
+    connect(showNamedSelection_, &QToolButton::clicked, this, [this] {
+        const ObjectId id = selectedNamedSelectionId();
+        if (id == InvalidObjectId || services_.namedSelections == nullptr
+            || services_.namedSelections->byId(id) == nullptr) {
+            return;
+        }
+        // Persistent reference navigation document mutation değildir. Aynı
+        // canonical MainWindow::selectObject yolu Navigator, Details ve
+        // Named Selection persistent overlay context'ini birlikte çözer.
+        if (auto *mainWindow = qobject_cast<Dynamics26MainWindow *>(window())) {
+            mainWindow->selectObject(id);
+        }
+    });
 }
 
 ObjectId BoundaryConditionDetails::selectedNamedSelectionId() const
@@ -278,6 +305,14 @@ void BoundaryConditionDetails::refresh()
     populateNamedSelections(namedSelectionId);
     geometryScopeRow_->setVisible(method == BoundaryScopingMethod::GeometrySelection);
     namedSelectionRow_->setVisible(method == BoundaryScopingMethod::NamedSelection);
+    const bool namedSelectionExists = method == BoundaryScopingMethod::NamedSelection
+        && namedSelectionId != InvalidObjectId
+        && services_.namedSelections != nullptr
+        && services_.namedSelections->byId(namedSelectionId) != nullptr;
+    showNamedSelection_->setEnabled(namedSelectionExists);
+    showNamedSelection_->setToolTip(namedSelectionExists
+        ? tr("Referans verilen Named Selection nesnesini model ağacında göster")
+        : tr("Referans verilen Named Selection bulunamadı"));
     name_->setText(isLoad_ ? load->name : support->name);
 
     const BoundaryScopeResolution resolved = isLoad_
