@@ -188,6 +188,59 @@ void AnalysisDetails::refresh()
         }
     }
 
+    // Analizde aktif mesnet veya yük yoksa Preflight zaten Failed üretir. Burada
+    // aynı kuralı label metninden çıkarmak yerine model graph'tan doğrudan okuruz
+    // ve yalnız eksik authoring nesnesi için canonical undoable Insert komutunu
+    // sunarız. Böylece hızlı düzeltme ikinci bir validation motoruna dönüşmez.
+    bool hasActiveSupport = false;
+    for (const ObjectId id : record->supports) {
+        if (services_.project != nullptr && services_.project->object(id) != nullptr
+            && !services_.project->isSuppressed(id)) {
+            hasActiveSupport = true;
+            break;
+        }
+    }
+    bool hasActiveLoad = false;
+    for (const ObjectId id : record->loads) {
+        if (services_.project != nullptr && services_.project->object(id) != nullptr
+            && !services_.project->isSuppressed(id)) {
+            hasActiveLoad = true;
+            break;
+        }
+    }
+    if (!hasActiveSupport || !hasActiveLoad) {
+        auto *quickFixRow = new QWidget(validationBody_);
+        auto *quickFixLayout = new QHBoxLayout(quickFixRow);
+        quickFixLayout->setContentsMargins(0, 3, 0, 0);
+        quickFixLayout->setSpacing(6);
+        quickFixLayout->addStretch(1);
+        if (!hasActiveSupport) {
+            auto *insertSupport = new QToolButton(quickFixRow);
+            insertSupport->setText(tr("Mesnet Ekle"));
+            insertSupport->setAutoRaise(true);
+            insertSupport->setToolButtonStyle(Qt::ToolButtonTextOnly);
+            insertSupport->setToolTip(tr("Static Structural analizine Fixed Support ekle"));
+            insertSupport->setObjectName(QStringLiteral("Dynamics26PreflightFixSupport"));
+            quickFixLayout->addWidget(insertSupport);
+            connect(insertSupport, &QToolButton::clicked, this, [this] {
+                emit requestCommand(QStringLiteral("analysis.insertSupport"));
+            });
+        }
+        if (!hasActiveLoad) {
+            auto *insertForce = new QToolButton(quickFixRow);
+            insertForce->setText(tr("Yük Ekle"));
+            insertForce->setAutoRaise(true);
+            insertForce->setToolButtonStyle(Qt::ToolButtonTextOnly);
+            insertForce->setToolTip(tr("Static Structural analizine Force ekle"));
+            insertForce->setObjectName(QStringLiteral("Dynamics26PreflightFixForce"));
+            quickFixLayout->addWidget(insertForce);
+            connect(insertForce, &QToolButton::clicked, this, [this] {
+                emit requestCommand(QStringLiteral("analysis.insertForce"));
+            });
+        }
+        validationLayout_->addWidget(quickFixRow);
+    }
+
     const bool canSolve = report.passed();
     if (record->solved && services_.analysis->solutionIsOutOfDate(analysisId)) {
         status_->setText(tr("Solved — Out of Date"));
