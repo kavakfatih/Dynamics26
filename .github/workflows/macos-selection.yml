@@ -13,7 +13,6 @@ on:
       - "gui/core/SelectionManager.h"
       - "gui/core/ScopeReferenceBuilder.h"
       - "gui/core/ServiceContext.h"
-      - "gui/core/NamedSelectionCompositionContract.h"
       - "gui/commands/NamedSelectionCommands.h"
       - "gui/services/NamedSelectionService.cpp"
       - "gui/services/NamedSelectionService.h"
@@ -71,7 +70,6 @@ jobs:
           test "$(uname -m)" = "arm64"
           git diff --check
           test -f gui/core/ScopeReferenceBuilder.h
-          test -f gui/core/NamedSelectionCompositionContract.h
           test -f gui/commands/NamedSelectionCommands.h
           test -f gui/services/NamedSelectionService.cpp
           test -f gui/services/NamedSelectionService.h
@@ -91,7 +89,12 @@ jobs:
           test -f tests/gui/test_mesh_viewport_selection.cpp
           grep -q 'femcae_named_selection_test' gui/CMakeLists.txt
           grep -q 'NamedSelectionService \*namedSelections' gui/core/ServiceContext.h
+          grep -q 'new NamedSelectionService(project_, geometry_, mesh_, this)' gui/shell/Dynamics26MainWindow.cpp
+          grep -q 'services_.namedSelections = namedSelections' gui/shell/Dynamics26MainWindow.cpp
+          ! grep -q 'installNamedSelectionService' gui/main.cpp gui/shell/Dynamics26MainWindow.h
+          ! grep -q 'createNamedSelectionComposition' gui/main.cpp
           grep -q 'CreateNamedSelectionCommand' gui/commands/NamedSelectionCommands.h
+          grep -q 'services.namedSelections != nullptr' gui/support/SelectionAcceptanceTest.h
           grep -q 'SelectionInputActionType::WindowCommit' gui/viewport/ViewportSelectionController.h
           grep -q 'PendingWindowSelectionBatch' gui/shell/SelectionCoordinator.cpp
           grep -q 'manager->apply(batch.items' gui/shell/SelectionCoordinator.cpp
