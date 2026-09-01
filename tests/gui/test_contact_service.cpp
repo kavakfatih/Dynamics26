@@ -68,6 +68,38 @@ void serviceContractTests()
     const auto sourceFacet = mesh.mesh().boundaryFacets.at(0).id;
     const auto targetFacet = mesh.mesh().boundaryFacets.at(1).id;
 
+    // Profesyonel CAE authoring akışı ContactRegion nesnesini Source/Target
+    // seçilmeden önce oluşturabilmelidir. Canonical boş ScopeReference eksik
+    // document state'tir; malformed partial scope değildir.
+    d26::ContactDefinition draftDefinition;
+    draftDefinition.name = QStringLiteral("Draft Contact");
+    const d26::ObjectId draftId = contacts.createContact(draftDefinition);
+    check(draftId != d26::InvalidObjectId
+              && contacts.validate(draftId).error == d26::ContactValidationError::MissingSourceScope,
+          "ContactRegion can exist as incomplete document state before Source selection");
+    check(project.object(draftId) != nullptr
+              && project.object(draftId)->state == d26::ObjectState::Error
+              && project.object(draftId)->statusText.contains(QStringLiteral("Source")),
+          "incomplete ContactRegion exposes missing Source through canonical ProjectModel state");
+
+    const d26::ScopeReference draftSource = meshFacetScope(generation, sourceFacet);
+    const d26::ScopeReference draftTarget = meshFacetScope(generation, targetFacet);
+    check(contacts.replaceSourceScope(draftId, draftSource)
+              && contacts.validate(draftId).error == d26::ContactValidationError::MissingTargetScope
+              && project.object(draftId)->statusText.contains(QStringLiteral("Target")),
+          "setting Source advances incomplete Contact to explicit missing-Target state");
+    check(contacts.replaceTargetScope(draftId, draftTarget)
+              && contacts.validate(draftId).valid()
+              && project.object(draftId)->state == d26::ObjectState::Ready,
+          "setting Target completes Contact engineering definition");
+    check(contacts.replaceSourceScope(draftId, {})
+              && contacts.validate(draftId).error == d26::ContactValidationError::MissingSourceScope,
+          "clearing Source returns Contact to persistent incomplete authoring state");
+    check(contacts.replaceSourceScope(draftId, draftSource) && contacts.validate(draftId).valid(),
+          "reselecting Source restores valid Contact definition");
+    check(contacts.remove(draftId),
+          "draft authoring fixture can be removed without leaving tree identity");
+
     d26::ContactDefinition firstDefinition;
     firstDefinition.name = QStringLiteral("Contact Region");
     firstDefinition.sourceScope = meshFacetScope(generation, sourceFacet);
@@ -99,9 +131,12 @@ void serviceContractTests()
           "rename keeps ContactService definition and ProjectModel name synchronized");
 
     const d26::ScopeReference originalTarget = contacts.byId(secondId)->targetScope;
-    check(!contacts.replaceTargetScope(secondId, {})
-              && contacts.byId(secondId)->targetScope.sourceRevision == originalTarget.sourceRevision,
-          "structurally empty replacement surface is rejected without state mutation");
+    check(contacts.replaceTargetScope(secondId, {})
+              && contacts.validate(secondId).error == d26::ContactValidationError::MissingTargetScope
+              && project.object(secondId)->state == d26::ObjectState::Error,
+          "clearing Target is retained as explicit incomplete Contact state");
+    check(contacts.replaceTargetScope(secondId, originalTarget) && contacts.validate(secondId).valid(),
+          "replacing cleared Target restores previous valid engineering scope");
 
     d26::ContactDefinition identicalDefinition = firstDefinition;
     identicalDefinition.name = QStringLiteral("Invalid Same Surface");
@@ -218,6 +253,80 @@ void exactPersistenceTests()
           "uint64 overflow is rejected before existing ContactService state is mutated");
 }
 
+void incompletePersistenceTests()
+{
+    d26::ProjectModel project;
+    d26::GeometryService geometry;
+    d26::MeshService mesh(&geometry);
+    d26::ContactService contacts(&project, &geometry, &mesh);
+
+    constexpr d26::ObjectId draftId = 9007199254744999ULL; // > 2^53
+    d26::ContactDefinition draft;
+    draft.name = QStringLiteral("Incomplete Contact");
+    check(contacts.createContact(draft, -1, draftId) == draftId,
+          "incomplete Contact with canonical empty scopes is persistent document state");
+
+    const QJsonObject saved = contacts.toJson();
+    const QJsonArray items = saved.value(QStringLiteral("items")).toArray();
+    const QJsonObject item = items.isEmpty() ? QJsonObject{} : items.at(0).toObject();
+    const QJsonObject source = item.value(QStringLiteral("source_scope")).toObject();
+    const QJsonObject target = item.value(QStringLiteral("target_scope")).toObject();
+    check(items.size() == 1
+              && source.value(QStringLiteral("source_revision")).toString() == QStringLiteral("0")
+              && target.value(QStringLiteral("source_revision")).toString() == QStringLiteral("0")
+              && source.value(QStringLiteral("entities")).toArray().isEmpty()
+              && target.value(QStringLiteral("entities")).toArray().isEmpty(),
+          "canonical unset Contact scopes serialize explicitly as revision 0 plus empty entity array");
+
+    d26::ProjectModel restoredProject;
+    d26::GeometryService restoredGeometry;
+    d26::MeshService restoredMesh(&restoredGeometry);
+    d26::ContactService restored(&restoredProject, &restoredGeometry, &restoredMesh);
+    QString error;
+    check(restored.fromJson(saved, &error),
+          "Contact JSON loader accepts canonical incomplete authoring state");
+    check(restored.byId(draftId) != nullptr
+              && restored.validate(draftId).error == d26::ContactValidationError::MissingSourceScope
+              && restoredProject.object(draftId)->state == d26::ObjectState::Error,
+          "incomplete Contact round-trip preserves exact ObjectId and missing-Source diagnostic");
+
+    // revision=0 + entity var: canonical unset değildir, partial/malformed'dır.
+    QJsonObject zeroRevisionWithEntity = saved;
+    QJsonArray malformedItems = zeroRevisionWithEntity.value(QStringLiteral("items")).toArray();
+    QJsonObject malformedItem = malformedItems.at(0).toObject();
+    QJsonObject malformedSource = malformedItem.value(QStringLiteral("source_scope")).toObject();
+    QJsonObject fakeEntity;
+    fakeEntity[QStringLiteral("domain")] = QStringLiteral("mesh");
+    fakeEntity[QStringLiteral("kind")] = QStringLiteral("facet");
+    fakeEntity[QStringLiteral("mesh_entity_id")] = QStringLiteral("920001");
+    malformedSource[QStringLiteral("entities")] = QJsonArray{fakeEntity};
+    malformedItem[QStringLiteral("source_scope")] = malformedSource;
+    malformedItems[0] = malformedItem;
+    zeroRevisionWithEntity[QStringLiteral("items")] = malformedItems;
+
+    const int countBeforeMalformed = restored.count();
+    error.clear();
+    check(!restored.fromJson(zeroRevisionWithEntity, &error) && !error.isEmpty()
+              && restored.count() == countBeforeMalformed && restored.byId(draftId) != nullptr,
+          "revision 0 with nonempty entities is rejected before existing Contact state mutation");
+
+    // revision>0 + entity yok: ikinci yarım encoding de açıkça reddedilir.
+    QJsonObject revisionWithoutEntity = saved;
+    malformedItems = revisionWithoutEntity.value(QStringLiteral("items")).toArray();
+    malformedItem = malformedItems.at(0).toObject();
+    malformedSource = malformedItem.value(QStringLiteral("source_scope")).toObject();
+    malformedSource[QStringLiteral("source_revision")] = QStringLiteral("77");
+    malformedSource[QStringLiteral("entities")] = QJsonArray{};
+    malformedItem[QStringLiteral("source_scope")] = malformedSource;
+    malformedItems[0] = malformedItem;
+    revisionWithoutEntity[QStringLiteral("items")] = malformedItems;
+
+    error.clear();
+    check(!restored.fromJson(revisionWithoutEntity, &error) && !error.isEmpty()
+              && restored.count() == countBeforeMalformed && restored.byId(draftId) != nullptr,
+          "nonzero revision with empty entities is rejected as malformed partial scope");
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -227,6 +336,7 @@ int main(int argc, char **argv)
 
     serviceContractTests();
     exactPersistenceTests();
+    incompletePersistenceTests();
 
     std::cout << "Contact service contract: " << (failures == 0 ? "PASS" : "FAIL") << '\n';
     return failures == 0 ? 0 : 1;
