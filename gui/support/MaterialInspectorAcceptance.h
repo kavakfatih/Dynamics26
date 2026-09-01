@@ -36,6 +36,7 @@
 #include <QTimer>
 #include <QUndoStack>
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <string>
