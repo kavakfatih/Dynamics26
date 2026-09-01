@@ -154,12 +154,31 @@ void scopeBuilderTests()
               == d26::ScopeReferenceValidationError::PersistentKeyMismatch,
           "persistent scope detects a topology key mismatch in the same revision");
 
-    // Persistent scope sonradan kullanılırken revision yeniden kontrol edilir.
+    // Runtime değişiklik revision guard'ını stale yapar; bu yol ASLA otomatik
+    // rebind etmez. Project-load ise stabil topology identity aynıysa revision'ı
+    // kontrollü biçimde current oturuma taşıyabilir.
     (void)document.addEntity(GeometryEntityKind::Edge,
                              bodyId, "Edge 2", "step/body/1/edge/2");
     check(d26::validateGeometryScopeReference(result.scope, document)
               == d26::ScopeReferenceValidationError::StaleGeometryRevision,
           "geometry revision change marks an existing persistent scope stale");
+    check(d26::validateGeometryScopeIdentity(result.scope, document)
+              == d26::ScopeReferenceValidationError::None,
+          "stable CAD identity remains valid independently of runtime revision counter");
+
+    d26::ScopeReference loadedScope = result.scope;
+    check(d26::rebindLoadedGeometryScopeReference(loadedScope, document)
+              && loadedScope.sourceRevision == document.revision()
+              && d26::validateGeometryScopeReference(loadedScope, document)
+                     == d26::ScopeReferenceValidationError::None,
+          "project-load rebind refreshes revision only after stable CAD identity validation");
+
+    d26::ScopeReference changedTopology = result.scope;
+    changedTopology.entities.front().persistentKey = QStringLiteral("step/body/1/face/replaced");
+    const quint64 savedRevision = changedTopology.sourceRevision;
+    check(!d26::rebindLoadedGeometryScopeReference(changedTopology, document)
+              && changedTopology.sourceRevision == savedRevision,
+          "project-load rebind refuses changed topology and preserves saved diagnostic revision");
 
     check(!d26::buildGeometryScopeReference({}, document).success(),
           "empty transient selection cannot create a persistent scope");
