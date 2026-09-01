@@ -58,6 +58,17 @@ ObjectId subjectFromItem(const QTableWidgetItem *item)
     return ok ? static_cast<ObjectId>(value) : InvalidObjectId;
 }
 
+bool isLegacyPreflightCheckEcho(const QString &text)
+{
+    // MainWindow::runPreflight() her ayrıntı satırını bu üç engineering status
+    // marker'ından biriyle üretir. Structured Preflight tablo ayrıntının tek
+    // sunum yüzeyi olduğundan yalnız bu marker'lı satırlar bastırılır; başka
+    // Warning/Error mesajları asla genel bir prefix filtresine takılmaz.
+    return text.startsWith(QStringLiteral("✓ "))
+        || text.startsWith(QStringLiteral("! "))
+        || text.startsWith(QStringLiteral("✕ "));
+}
+
 } // namespace
 
 UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
@@ -72,6 +83,7 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
     tabs_->setObjectName(QStringLiteral("Dynamics26UtilityTabs"));
 
     messages_ = makeConsole(tabs_);
+    messages_->setObjectName(QStringLiteral("Dynamics26UtilityMessages"));
     preflight_ = makeTable({tr("Durum"), tr("Kontrol"), tr("Açıklama"), tr("Nesne / Göster")}, tabs_);
     preflight_->setObjectName(QStringLiteral("Dynamics26UtilityPreflight"));
     preflight_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
@@ -111,6 +123,20 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
 
 void UtilityWorkspace::appendMessage(const QString &text, const Severity severity)
 {
+    // Legacy Preflight marker ayrıntı echo'sunun başlangıcıdır. Marker ve devam
+    // eden check satırları Messages'a yazılmaz; ilk marker'sız mesaj canonical
+    // runPreflight() final Ready/Failed özetidir ve normal tarihçeye alınır.
+    if (text == QStringLiteral("── PRE-FLIGHT ──")) {
+        suppressingPreflightEcho_ = true;
+        return;
+    }
+    if (suppressingPreflightEcho_) {
+        if (isLegacyPreflightCheckEcho(text)) {
+            return;
+        }
+        suppressingPreflightEcho_ = false;
+    }
+
     messages_->appendPlainText(QStringLiteral("%1 %2%3")
                                    .arg(QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss")),
                                         severityTag(severity), text));
@@ -182,6 +208,7 @@ void UtilityWorkspace::appendTiming(const QString &operation, const double secon
 
 void UtilityWorkspace::clearAll()
 {
+    suppressingPreflightEcho_ = false;
     messages_->clear();
     preflight_->setRowCount(0);
     solverOutput_->clear();
