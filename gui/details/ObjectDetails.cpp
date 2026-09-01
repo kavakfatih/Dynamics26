@@ -256,7 +256,7 @@ void ObjectDetails::buildSolution()
     auto *summary = addSection(tr("Summary"));
     summary->addValueRow(tr("Nodes"), QString::number(results.nodeCount));
     summary->addValueRow(tr("Elements"), QString::number(results.elementCount));
-    summary->addValueRow(tr("Degrees of Freedom"), QString::number(results.dofCount()));
+    summary->addValueRow(tr("Degrees of Freedom"), QString::number(results.dofCount));
     summary->addValueRow(tr("Max Total Deformation"), QStringLiteral("%1 mm").arg(results.maxDisplacementMm, 0, 'g', 6));
     summary->addValueRow(tr("Max Equivalent Stress"), QStringLiteral("%1 MPa").arg(results.maxVonMisesMPa, 0, 'g', 6));
 }
