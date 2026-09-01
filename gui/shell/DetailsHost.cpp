@@ -62,7 +62,7 @@ DetailsHost::DetailsHost(const ServiceContext &services, QWidget *parent)
     selectionSummary_->setFont(selectionFont);
     selectionSummary_->setWordWrap(true);
     selectionSummary_->setVisible(false);
-    headerLayout_->addWidget(selectionSummary_);
+    headerLayout->addWidget(selectionSummary_);
 
     layout->addWidget(header);
 
