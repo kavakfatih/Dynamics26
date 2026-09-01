@@ -221,7 +221,16 @@ void ObjectDetails::buildNamedSelection()
     auto *selection = addSection(tr("Selection"));
     SelectionCoordinator *coordinator = nullptr;
     if (QWidget *topLevel = window()) {
-        coordinator = topLevel->findChild<SelectionCoordinator *>();
+        // SelectionCoordinator Q_OBJECT gerektiren bir UI widget değildir; MainWindow
+        // composition tree'sinde doğrudan QObject child olarak yaşar. Qt 6 findChild
+        // typed lookup Q_OBJECT zorladığı için burada standart RTTI ile yalnız bu
+        // doğrudan composition child'ı aranır.
+        for (QObject *child : topLevel->children()) {
+            if (auto *candidate = dynamic_cast<SelectionCoordinator *>(child)) {
+                coordinator = candidate;
+                break;
+            }
+        }
     }
     if (coordinator == nullptr) {
         selection->addNote(tr("Selection coordinator kullanılamıyor."));
