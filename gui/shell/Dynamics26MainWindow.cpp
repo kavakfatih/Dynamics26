@@ -11,6 +11,7 @@
 #include "../details/GeometryDetails.h"
 #include "../details/ResultDetails.h"
 #include "../services/AnalysisService.h"
+#include "../services/ContactService.h"
 #include "../services/GeometryService.h"
 #include "../services/MaterialService.h"
 #include "../services/MeshService.h"
@@ -289,6 +290,7 @@ void Dynamics26MainWindow::buildServices()
     project_ = new ProjectModel(this);
     geometry_ = new GeometryService(this);
     mesh_ = new MeshService(geometry_, this);
+    contacts_ = new ContactService(project_, geometry_, mesh_, this);
     materials_ = new MaterialService(project_, this);
     analysis_ = new AnalysisService(project_, mesh_, materials_, this);
     auto *namedSelections = new NamedSelectionService(project_, geometry_, mesh_, this);
@@ -297,13 +299,14 @@ void Dynamics26MainWindow::buildServices()
     services_.geometry = geometry_;
     services_.mesh = mesh_;
     services_.namedSelections = namedSelections;
+    services_.contacts = contacts_;
     services_.materials = materials_;
     services_.analysis = analysis_;
 
     // Doküman komut sistemi ve bağımlılık motoru servislerin ÜSTÜNDE durur:
     // servisler bunları tanımaz, kabuk ve komutlar kullanır. Persistent scope
-    // servisi bu noktada hazırdır; DetailsHost ve alt Details sayfaları dahil
-    // ServiceContext kopyası alan tüm consumer'lar aynı örneği görür.
+    // servisleri bu noktada hazırdır; DetailsHost ve alt Details sayfaları dahil
+    // ServiceContext kopyası alan tüm consumer'lar aynı örnekleri görür.
     documentCommands_ = new DocumentCommandManager(this);
     dependencies_ = new DependencyEngine(services_, this);
     services_.commands = documentCommands_;
@@ -1261,11 +1264,14 @@ void Dynamics26MainWindow::rebuildGeometryNodes()
 void Dynamics26MainWindow::newProjectWithoutPrompt()
 {
     suppressSync_ = true;
-    // Persistent scope servisi ProjectModel kimliklerini kullanır; model reset'ten
-    // ÖNCE temizlenmelidir. Aksi halde servis definitions_ içinde artık ağaçta
-    // bulunmayan ObjectId'ler kalır ve sonraki projede ad/kimlik çakışması doğar.
+    // Persistent engineering scope servisleri ProjectModel kimliklerini kullanır;
+    // model reset'ten ÖNCE temizlenmelidir. Aksi halde service storage içinde
+    // artık ağaçta bulunmayan ObjectId'ler kalır ve sonraki projede çakışır.
     if (services_.namedSelections != nullptr) {
         services_.namedSelections->clear();
+    }
+    if (services_.contacts != nullptr) {
+        services_.contacts->clear();
     }
     analysis_->clearAll();
     materials_->clear();
@@ -1407,6 +1413,24 @@ bool Dynamics26MainWindow::openProjectFromPath(const QString &path)
                 return false;
             }
         }
+
+        const QJsonObject contactsObject = documentObject.value(QStringLiteral("contacts")).toObject();
+        if (!contactsObject.isEmpty()) {
+            if (services_.contacts == nullptr) {
+                suppressSync_ = false;
+                newProjectWithoutPrompt();
+                reportMessage(tr("Proje Contact Region içeriyor ancak ContactService hazır değil."),
+                              Severity::Error);
+                return false;
+            }
+            QString contactError;
+            if (!services_.contacts->fromJson(contactsObject, &contactError)) {
+                suppressSync_ = false;
+                newProjectWithoutPrompt();
+                reportMessage(tr("Contact verisi yüklenemedi: %1").arg(contactError), Severity::Error);
+                return false;
+            }
+        }
     } else {
         materials_->fromLegacyJson(root.value(QStringLiteral("material")).toObject());
         analysis_->applyLegacyLoadJson(root.value(QStringLiteral("load")).toObject());
@@ -1483,6 +1507,9 @@ bool Dynamics26MainWindow::saveProjectToPath(const QString &path)
     documentObject[QStringLiteral("next_object_id")] = QString::number(project_->peekNextId());
     if (services_.namedSelections != nullptr) {
         documentObject[QStringLiteral("named_selections")] = services_.namedSelections->toJson();
+    }
+    if (services_.contacts != nullptr) {
+        documentObject[QStringLiteral("contacts")] = services_.contacts->toJson();
     }
     documentObject[QStringLiteral("gui_milestone")] = QStringLiteral(DYNAMICS26_GUI_MILESTONE);
     root[QStringLiteral("dynamics26_document")] = documentObject;
