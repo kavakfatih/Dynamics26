@@ -40,7 +40,6 @@ class GeometryService;
 class GraphicsWorkspace;
 class MaterialService;
 class MeshService;
-class NamedSelectionService;
 class ProjectModel;
 class ProjectNavigator;
 class SelectionCoordinator;
@@ -53,13 +52,6 @@ public:
 
     // Otomatik ekran görüntüsü sürücüsünün kullandığı erişimciler.
     [[nodiscard]] ServiceContext services() const noexcept { return services_; }
-    // Application composition root, pencere kurulduktan hemen sonra persistent
-    // scope servisini install eder. QObject ownership servis üzerinde ayrıca
-    // MainWindow'a verilir; bu method ownership transferi yapmaz.
-    void installNamedSelectionService(NamedSelectionService *service) noexcept
-    {
-        services_.namedSelections = service;
-    }
     [[nodiscard]] ProjectNavigator *navigator() const noexcept { return navigator_; }
     [[nodiscard]] GraphicsWorkspace *graphics() const noexcept { return graphics_; }
     [[nodiscard]] DetailsHost *detailsHost() const noexcept { return details_; }
