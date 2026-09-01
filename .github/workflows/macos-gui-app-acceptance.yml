@@ -60,10 +60,17 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          set -euxo pipefail
+          set -uo pipefail
           app="build-hosted-app-acceptance/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
           test -x "$app"
-          "$app" --selection-selftest
+          set +e
+          output="$($app --selection-selftest 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          test "$status" -eq 0
+          grep -q "selection shell acceptance PASS" <<< "$output"
+          grep -q "Boundary consumer acceptance PASS" <<< "$output"
 
       - name: Verify native arm64 app
         shell: bash
