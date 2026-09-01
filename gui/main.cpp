@@ -19,6 +19,7 @@
 #include "shell/Dynamics26MainWindow.h"
 #include "shell/SelectionCoordinator.h"
 #include "support/BoundaryConsumerAcceptance.h"
+#include "support/ContactInspectorAcceptance.h"
 #include "support/ContactPersistenceAcceptance.h"
 #include "support/ContactPreflightAcceptance.h"
 #include "support/ContactShellAcceptance.h"
@@ -185,7 +186,8 @@ int main(int argc, char *argv[])
         //   5) tam Geometry->...->Solve->Results->Out-of-Date->Undo recovery,
         //   6) Beta.1 Contact Preflight safety gate,
         //   7) Beta.1 Contact project persistence + stale-scope load safety,
-        //   8) Beta.1 Contact shell Rename/Delete/Suppress domain routing
+        //   8) Beta.1 Contact shell Rename/Delete/Suppress domain routing,
+        //   9) Beta.1 Connections authoring + Contact Inspector binding
         // zinciri yürütülür. Fiziksel pointer/mouse/trackpad kabulünün yerine
         // geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
@@ -216,7 +218,11 @@ int main(int argc, char *argv[])
         if (contactPersistenceStatus != 0) {
             return contactPersistenceStatus;
         }
-        return d26::runContactShellAcceptanceTest(app, window);
+        const int contactShellStatus = d26::runContactShellAcceptanceTest(app, window);
+        if (contactShellStatus != 0) {
+            return contactShellStatus;
+        }
+        return d26::runContactInspectorAcceptanceTest(app, window);
     }
 
     if (hasArgument(argc, argv, "--selftest")) {
