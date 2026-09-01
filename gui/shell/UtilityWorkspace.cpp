@@ -7,6 +7,7 @@
 #include <QPlainTextEdit>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QTableWidgetItem>
 #include <QVBoxLayout>
 
 namespace d26 {
@@ -47,6 +48,16 @@ QString severityTag(const Severity severity)
     return {};
 }
 
+ObjectId subjectFromItem(const QTableWidgetItem *item)
+{
+    if (item == nullptr) {
+        return InvalidObjectId;
+    }
+    bool ok = false;
+    const qulonglong value = item->data(Qt::UserRole).toString().toULongLong(&ok, 10);
+    return ok ? static_cast<ObjectId>(value) : InvalidObjectId;
+}
+
 } // namespace
 
 UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
@@ -61,6 +72,12 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
     tabs_->setObjectName(QStringLiteral("Dynamics26UtilityTabs"));
 
     messages_ = makeConsole(tabs_);
+    preflight_ = makeTable({tr("Durum"), tr("Kontrol"), tr("Açıklama"), tr("Nesne / Göster")}, tabs_);
+    preflight_->setObjectName(QStringLiteral("Dynamics26UtilityPreflight"));
+    preflight_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    preflight_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    preflight_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    preflight_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
     solverOutput_ = makeConsole(tabs_);
     convergence_ = makeTable({tr("Attempt"), tr("Iter"), tr("Load Factor"), tr("Rel. |R|"), tr("Rel. Δu"),
                               QStringLiteral("α"), tr("Durum")},
@@ -69,11 +86,27 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
     timings_ = makeTable({tr("İşlem"), tr("Süre")}, tabs_);
 
     tabs_->addTab(messages_, tr("Messages"));
+    tabs_->addTab(preflight_, tr("Preflight"));
     tabs_->addTab(convergence_, tr("Convergence"));
     tabs_->addTab(solverOutput_, tr("Solver Output"));
     tabs_->addTab(results_, tr("Results Table"));
     tabs_->addTab(timings_, tr("Timings"));
     layout->addWidget(tabs_);
+
+    const auto activateSubject = [this](const int row, const int column) {
+        if (column != 3 || row < 0 || row >= preflight_->rowCount()) {
+            return;
+        }
+        const ObjectId subject = subjectFromItem(preflight_->item(row, 3));
+        if (subject != InvalidObjectId) {
+            emit preflightSubjectActivated(subject);
+        }
+    };
+    // Subject sütununda tek tık hızlı navigation'dır; klavye/double-click ile
+    // oluşan cellActivated da aynı yolu kullanır. Aynı ObjectId'ye iki kez gitmek
+    // MainWindow::selectObject no-op davranışı sayesinde document state üretmez.
+    connect(preflight_, &QTableWidget::cellClicked, this, activateSubject);
+    connect(preflight_, &QTableWidget::cellActivated, this, activateSubject);
 }
 
 void UtilityWorkspace::appendMessage(const QString &text, const Severity severity)
@@ -81,6 +114,30 @@ void UtilityWorkspace::appendMessage(const QString &text, const Severity severit
     messages_->appendPlainText(QStringLiteral("%1 %2%3")
                                    .arg(QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss")),
                                         severityTag(severity), text));
+}
+
+void UtilityWorkspace::setPreflightRows(const QVector<PreflightUtilityRow> &rows)
+{
+    preflight_->setRowCount(static_cast<int>(rows.size()));
+    for (int row = 0; row < rows.size(); ++row) {
+        const PreflightUtilityRow &value = rows.at(row);
+        preflight_->setItem(row, 0, new QTableWidgetItem(value.status));
+        preflight_->setItem(row, 1, new QTableWidgetItem(value.label));
+        preflight_->setItem(row, 2, new QTableWidgetItem(value.detail));
+
+        auto *subject = new QTableWidgetItem;
+        if (value.subject != InvalidObjectId) {
+            subject->setText(value.subjectLabel.isEmpty()
+                                 ? tr("İlgili nesneyi göster ↗")
+                                 : tr("%1 ↗").arg(value.subjectLabel));
+            subject->setData(Qt::UserRole, QString::number(static_cast<qulonglong>(value.subject)));
+            subject->setToolTip(tr("Model ağacında ilgili nesneyi göster"));
+        } else {
+            subject->setText(QStringLiteral("—"));
+        }
+        preflight_->setItem(row, 3, subject);
+    }
+    preflight_->resizeRowsToContents();
 }
 
 void UtilityWorkspace::appendSolverOutput(const QString &text)
@@ -126,6 +183,7 @@ void UtilityWorkspace::appendTiming(const QString &operation, const double secon
 void UtilityWorkspace::clearAll()
 {
     messages_->clear();
+    preflight_->setRowCount(0);
     solverOutput_->clear();
     convergence_->setRowCount(0);
     results_->setRowCount(0);
