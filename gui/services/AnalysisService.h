@@ -17,6 +17,7 @@
 
 #include "../core/ProjectModel.h"
 #include "../core/ProjectTypes.h"
+#include "../core/ScopeReferenceBuilder.h"
 #include "MaterialService.h"
 #include "MeshService.h"
 
@@ -29,11 +30,27 @@
 #include <femcae/meshing/Assignments.h>
 #include <femcae/meshing/ResultDatabase.h>
 
+#include <vector>
+
 namespace d26 {
+
+class NamedSelectionService;
+
+// Boundary-condition consumer scope tipi. Geometry Selection legacy/current
+// doğrudan yüz kapsamını korur. Named Selection seçildiğinde consumer entity
+// kimliklerini KOPYALAMAZ; yalnız persistent Named Selection ObjectId'sini tutar.
+// Böylece scope değişikliği tek kaynakta yaşar ve bağımlılık motoru tarafından
+// tüketicilere yayılır.
+enum class BoundaryScopingMethod {
+    GeometrySelection = 0,
+    NamedSelection = 1
+};
 
 struct SupportDefinition {
     QString name;
+    BoundaryScopingMethod scopingMethod{BoundaryScopingMethod::GeometrySelection};
     BoxFace scope{BoxFace::XMin};
+    ObjectId namedSelectionId{InvalidObjectId};
     bool fixX{true};
     bool fixY{true};
     bool fixZ{true};
@@ -43,13 +60,29 @@ struct SupportDefinition {
 
 struct LoadDefinition {
     QString name;
+    BoundaryScopingMethod scopingMethod{BoundaryScopingMethod::GeometrySelection};
     BoxFace scope{BoxFace::XMax};
+    ObjectId namedSelectionId{InvalidObjectId};
     double fxN{1000.0};
     double fyN{0.0};
     double fzN{0.0};
     [[nodiscard]] double magnitudeN() const;
     [[nodiscard]] QJsonObject toJson() const;
     static LoadDefinition fromJson(const QJsonObject &object);
+};
+
+// Consumer-resolution sonucu. Solver/UI raw Named Selection scope verisini
+// yorumlamaz; tek resolver NamedSelection ObjectId -> current CAD Face kimlikleri
+// zincirini doğrular. Alpha.3.6 BC consumer yalnız Geometry/Face Named Selection
+// kabul eder. Stale/dangling/yanlış-domain kapsamlar açıkça invalid döner.
+struct BoundaryScopeResolution {
+    bool valid{false};
+    BoundaryScopingMethod method{BoundaryScopingMethod::GeometrySelection};
+    ObjectId namedSelectionId{InvalidObjectId};
+    QVector<femcae::geometry::GeometryEntityId> geometryFaceIds;
+    QString label;
+    QString error;
+    ScopeReferenceValidationError validationError{ScopeReferenceValidationError::None};
 };
 
 struct ResultDefinition {
@@ -78,7 +111,7 @@ struct SolveResults {
 // Preflight tek bir kontrol satırı.
 struct PreflightCheck {
     enum class Status { Passed, Failed, Warning };
-    Status status{Status::Passed};
+    Status status{PreflightCheck::Status::Passed};
     QString label;
     QString detail;
     // Hatanın hangi nesneden kaynaklandığı (tree'de gösterilebilir).
@@ -125,6 +158,11 @@ public:
     AnalysisService(ProjectModel *project, MeshService *mesh, MaterialService *materials,
                     QObject *parent = nullptr);
 
+    // Named Selection servisi AnalysisService'ten bağımsız kurulur ve composition
+    // root tarafından bir kez bağlanır. Setter yalnız pointer wiring yapar; servis
+    // sahipliği QObject parent tree'sinde kalır.
+    void setNamedSelectionService(NamedSelectionService *service) noexcept { namedSelections_ = service; }
+
     // --- analiz nesneleri ---
     ObjectId createAnalysis(AnalysisType type, int row = -1, ObjectId requestedId = InvalidObjectId,
                             const QString &name = QString(), bool withDefaults = true,
@@ -142,6 +180,14 @@ public:
     void setIncompressibility(ObjectId analysisId, IncompressibilityIntent intent);
     void setLargeDeflection(ObjectId analysisId, bool enabled);
     void renameObject(ObjectId id, const QString &name);
+
+    // Boundary consumer resolver. Geometry Selection veya persistent Named
+    // Selection referansı current model/mesh provenance'ına karşı burada
+    // doğrulanır; UI, DependencyEngine ve solver aynı sonucu tüketir.
+    [[nodiscard]] BoundaryScopeResolution resolveBoundaryScope(const SupportDefinition &definition) const;
+    [[nodiscard]] BoundaryScopeResolution resolveBoundaryScope(const LoadDefinition &definition) const;
+    [[nodiscard]] int resolvedBoundaryNodeCount(const SupportDefinition &definition) const;
+    [[nodiscard]] int resolvedBoundaryNodeCount(const LoadDefinition &definition) const;
 
     // --- sınır şartları / yükler / sonuç tanımları ---
     ObjectId insertFixedSupport(ObjectId analysisId, const SupportDefinition &definition = {}, int row = -1,
@@ -201,6 +247,14 @@ private:
     // değerleri, çözülen formülasyon. Ad değişikliği gibi solver'ı etkilemeyen
     // düzenlemeler imzayı değiştirmez, dolayısıyla sonuçları bayatlatmaz.
     [[nodiscard]] QByteArray solverInputSignature(ObjectId analysisId) const;
+    [[nodiscard]] BoundaryScopeResolution resolveBoundaryScope(BoundaryScopingMethod method,
+                                                                BoxFace geometryScope,
+                                                                ObjectId namedSelectionId) const;
+    [[nodiscard]] std::vector<femcae::meshing::MeshEntityId>
+    resolvedBoundaryNodeIds(const BoundaryScopeResolution &scope) const;
+    [[nodiscard]] QJsonObject boundaryScopeSignature(BoundaryScopingMethod method,
+                                                     BoxFace geometryScope,
+                                                     ObjectId namedSelectionId) const;
     void touchDefinition(ObjectId analysisId);
     void refreshBoundaryNode(ObjectId id);
     // supports/loads/results vektörlerini ağaç sırasından yeniden kurar.
@@ -214,6 +268,7 @@ private:
     ProjectModel *project_;
     MeshService *mesh_;
     MaterialService *materials_;
+    NamedSelectionService *namedSelections_{nullptr};
     QHash<ObjectId, AnalysisRecord> analyses_;
     QHash<ObjectId, SupportDefinition> supports_;
     QHash<ObjectId, LoadDefinition> loads_;
