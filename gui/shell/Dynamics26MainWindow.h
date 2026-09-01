@@ -32,6 +32,7 @@ namespace d26 {
 
 class AnalysisService;
 class CommandRegistry;
+class ContactService;
 class DependencyEngine;
 class DetailsHost;
 class DocumentCommandManager;
@@ -146,6 +147,7 @@ private:
     ProjectModel *project_{nullptr};
     GeometryService *geometry_{nullptr};
     MeshService *mesh_{nullptr};
+    ContactService *contacts_{nullptr};
     MaterialService *materials_{nullptr};
     AnalysisService *analysis_{nullptr};
 
