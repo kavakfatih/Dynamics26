@@ -216,6 +216,7 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
     //   2) Mesh subject'e ait "Mesh Üret" quick-fix'i canonical mesh.generate
     //      komutunu kullanır ve modeli yeniden Ready to Solve durumuna getirir.
     //   3) Eksik aktif mesnet/yük quick-fix'leri undoable Insert komutlarıdır.
+    //   4) BC Named Selection referansı tek adımda persistent scope nesnesine gider.
     {
         window.runCommand(QStringLiteral("mesh.clearGenerated"));
         settle(240);
@@ -360,6 +361,74 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
             if (!window.services().analysis->preflight(analysis).passed()) {
                 std::cerr << "FAILED   Undo after force quick-fix did not restore original valid model\n";
                 ++failures;
+            }
+        }
+
+        // BC/Force persistent reference navigation. Fixture deliberately uses a
+        // Mesh Node Named Selection; consumer için wrong-domain olsa da referans
+        // nesnesi gerçektir ve Details "Göster" ile tam ObjectId'ye gitmelidir.
+        // Navigation document state değildir; dangling referans ise tıklanamaz.
+        if (originalSupport != InvalidObjectId && window.services().mesh->hasMesh()) {
+            const auto &mesh = window.services().mesh->mesh();
+            if (mesh.nodes.empty()) {
+                std::cerr << "FAILED   boundary Named Selection navigation fixture has no FEM node\n";
+                ++failures;
+            } else {
+                SelectionItem node;
+                node.domain = SelectionDomain::Mesh;
+                node.kind = SelectionKind::Node;
+                node.meshEntityId = mesh.nodes.front().id;
+                node.sourceRevision = window.services().mesh->generation();
+                const NamedSelectionCreateResult referenced = window.services().namedSelections->createFromSelection(
+                    QVector<SelectionItem>{node}, QStringLiteral("BC Navigation Fixture"));
+                if (!referenced.success()) {
+                    std::cerr << "FAILED   boundary Named Selection navigation fixture could not create scope\n";
+                    ++failures;
+                } else {
+                    const SupportDefinition originalDefinition = *window.services().analysis->support(originalSupport);
+                    SupportDefinition referencedDefinition = originalDefinition;
+                    referencedDefinition.scopingMethod = BoundaryScopingMethod::NamedSelection;
+                    referencedDefinition.namedSelectionId = referenced.id;
+                    window.services().analysis->updateSupport(originalSupport, referencedDefinition);
+                    window.selectObject(originalSupport);
+                    settle(260);
+
+                    auto *showReferenced = window.findChild<QToolButton *>(
+                        QStringLiteral("Dynamics26BoundaryShowNamedSelection"));
+                    const int undoBeforeReferenceNavigation = window.documentCommands()->stack()->index();
+                    if (showReferenced == nullptr || !showReferenced->isEnabled()) {
+                        std::cerr << "FAILED   boundary Named Selection navigation control unavailable\n";
+                        ++failures;
+                    } else {
+                        showReferenced->click();
+                        settle(220);
+                        if (window.navigator()->selectedObject() != referenced.id) {
+                            std::cerr << "FAILED   boundary Named Selection navigation did not focus referenced scope\n";
+                            ++failures;
+                        }
+                        if (window.documentCommands()->stack()->index() != undoBeforeReferenceNavigation) {
+                            std::cerr << "FAILED   boundary Named Selection navigation mutated Undo history\n";
+                            ++failures;
+                        }
+                    }
+
+                    SupportDefinition danglingDefinition = originalDefinition;
+                    danglingDefinition.scopingMethod = BoundaryScopingMethod::NamedSelection;
+                    danglingDefinition.namedSelectionId = static_cast<ObjectId>((quint64{1} << 53) + 991ULL);
+                    window.services().analysis->updateSupport(originalSupport, danglingDefinition);
+                    window.selectObject(originalSupport);
+                    settle(220);
+                    auto *showDangling = window.findChild<QToolButton *>(
+                        QStringLiteral("Dynamics26BoundaryShowNamedSelection"));
+                    if (showDangling == nullptr || showDangling->isEnabled()) {
+                        std::cerr << "FAILED   dangling boundary Named Selection navigation must be disabled\n";
+                        ++failures;
+                    }
+
+                    window.services().analysis->updateSupport(originalSupport, originalDefinition);
+                    (void)window.services().namedSelections->remove(referenced.id);
+                    settle(180);
+                }
             }
         }
 
