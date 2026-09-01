@@ -807,8 +807,8 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
 
         const ContactValidationResult validation = contacts_->validate(contactId);
         if (!validation.valid()) {
-            const QString diagnostic = contactNode != nullptr && !contactNode->detail.isEmpty()
-                ? contactNode->detail : tr("Contact source/target kapsamı geçersiz.");
+            const QString diagnostic = contactNode != nullptr && !contactNode->statusText.isEmpty()
+                ? contactNode->statusText : tr("Contact source/target kapsamı geçersiz.");
             add(PreflightCheck::Status::Failed, tr("Contact Kapsamı"),
                 tr("%1 — %2").arg(definition->name, diagnostic), contactId);
             continue;
