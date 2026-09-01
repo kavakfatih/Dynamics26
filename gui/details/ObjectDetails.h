@@ -6,9 +6,10 @@
 
 namespace d26 {
 
-// Project / Model / Body / Sections / Connections / Solution gibi salt-okunur
-// nesnelerin Details sayfası. İçerik nesne türüne göre her tazelemede yeniden
-// kurulur; düzenlenebilir alan içermediği için odak kaybı sorunu yoktur.
+// Project / Model / Body / Sections / Connections / Named Selection / Solution
+// gibi salt-okunur nesnelerin Details sayfası. İçerik nesne türüne göre her
+// tazelemede yeniden kurulur; düzenlenebilir alan içermediği için odak kaybı
+// sorunu yoktur.
 class ObjectDetails final : public DetailsPage
 {
     Q_OBJECT
@@ -23,6 +24,8 @@ private:
     void buildMaterialsFolder();
     void buildSections();
     void buildConnections();
+    void buildNamedSelectionsFolder();
+    void buildNamedSelection();
     void buildSolution();
 
     ServiceContext services_;
