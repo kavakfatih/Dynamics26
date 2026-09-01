@@ -11,11 +11,18 @@
 #include "../commands/NamedSelectionCommands.h"
 #include "../core/DocumentCommandManager.h"
 #include "../core/ScopeReferenceBuilder.h"
+#include "../core/ScopeSelectionBridge.h"
 #include "../core/SelectionManager.h"
 #include "../core/ServiceContext.h"
 #include "../services/NamedSelectionService.h"
+#include "../viewport/ViewportMeshSelectionBridge.h"
+#include "../viewport/ViewportSelectionBridge.h"
+#include "DetailsHost.h"
+#include "Dynamics26MainWindow.h"
 #include "GraphicsWorkspace.h"
+#include "ProjectNavigator.h"
 
+#include <QMetaObject>
 #include <QObject>
 #include <QPoint>
 #include <QString>
@@ -24,12 +31,7 @@
 
 namespace d26 {
 
-class DetailsHost;
-class Dynamics26MainWindow;
 class EngineeringStatusBar;
-class ProjectNavigator;
-class ViewportSelectionBridge;
-class ViewportMeshSelectionBridge;
 
 class SelectionCoordinator final : public QObject
 {
@@ -129,7 +131,235 @@ public:
         return result;
     }
 
+    // Named Selection kapsam düzenleme oturumu document state DEĞİLDİR.
+    // Navigator/Details Named Selection üzerinde kalırken yalnız viewport geçici
+    // Geometry veya Mesh seçim bağlamına girer. Geçerli scope güvenli biçimde
+    // preload edilir; stale scope eski ID'leri asla transient selection'a taşımaz.
+    [[nodiscard]] bool beginNamedSelectionEdit(const ObjectId target)
+    {
+        if (editingNamedSelection_ != InvalidObjectId) {
+            return editingNamedSelection_ == target;
+        }
+        if (target == InvalidObjectId || selection_ == nullptr || graphics_ == nullptr
+            || details_ == nullptr || navigator_ == nullptr || services_.namedSelections == nullptr) {
+            return false;
+        }
+
+        const NamedSelectionDefinition *definition = services_.namedSelections->byId(target);
+        if (definition == nullptr || definition->scope.entities.isEmpty()) {
+            return false;
+        }
+        const ScopeEntityReference &first = definition->scope.entities.front();
+        const auto filter = selectionFilterForKind(first.kind);
+        if (!filter.has_value()) {
+            return false;
+        }
+        if (first.domain == SelectionDomain::Geometry) {
+            if (services_.geometry == nullptr || !services_.geometry->summary().hasGeometry) {
+                return false;
+            }
+        } else if (first.domain == SelectionDomain::Mesh) {
+            if (services_.mesh == nullptr || !services_.mesh->hasMesh()) {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        editingNamedSelection_ = target;
+        editDomain_ = first.domain;
+        editKind_ = first.kind;
+        previousFilter_ = graphics_->selectionFilter();
+
+        // Normal transient selection -> Project Navigator current-object senkronu
+        // edit sırasında kapatılır. Selection overlay ve Inspector özeti yaşamaya
+        // devam eder; böylece kullanıcı Face/Node seçerken Named Selection current
+        // project object olarak kalır.
+        disconnect(selection_, &SelectionManager::selectionChanged,
+                   this, &SelectionCoordinator::handleSelectionChanged);
+        editSelectionConnection_ = connect(selection_, &SelectionManager::selectionChanged,
+                                           this, [this] {
+            if (bridge_ != nullptr) {
+                bridge_->setSelection(selection_->items());
+            }
+            if (meshBridge_ != nullptr) {
+                meshBridge_->setSelection(selection_->items());
+            }
+            updateFeedback();
+            if (details_ != nullptr) {
+                details_->refresh();
+            }
+        });
+
+        // Navigator'da başka bir project object seçmek explicit Cancel anlamına
+        // gelir. Yalnız coordinator slot'u değiştirilir; MainWindow'ın kendi
+        // object-selection sinyali engellenmez.
+        disconnect(navigator_, &ProjectNavigator::objectSelected,
+                   this, &SelectionCoordinator::handleNavigatorSelection);
+        editNavigatorConnection_ = connect(navigator_, &ProjectNavigator::objectSelected,
+                                           this, [this](const ObjectId id) {
+            if (editingNamedSelection_ != InvalidObjectId && id != editingNamedSelection_) {
+                cancelNamedSelectionEdit();
+            }
+        });
+
+        // Edit sırasında sağ tık generic object context menu açıp Navigator'ı
+        // Body/Mesh'e taşımamalıdır. Pointer selection soldaki standart akıştan
+        // devam eder; context menu finish sonrasında geri bağlanır.
+        if (bridge_ != nullptr) {
+            disconnect(bridge_, &ViewportSelectionBridge::contextMenuRequested,
+                       this, &SelectionCoordinator::handleViewportContextMenu);
+        }
+        if (meshBridge_ != nullptr) {
+            disconnect(meshBridge_, &ViewportMeshSelectionBridge::contextMenuRequested,
+                       this, &SelectionCoordinator::handleMeshContextMenu);
+        }
+
+        graphics_->setSelectionFilter(*filter);
+        activateNamedSelectionEditViewport();
+
+        selection_->clearPreselection();
+        (void)selection_->clear();
+
+        ScopeSelectionItemsResult preload;
+        if (editDomain_ == SelectionDomain::Geometry) {
+            preload = selectionItemsForGeometryScope(definition->scope, services_.geometry->document());
+        } else {
+            preload = selectionItemsForMeshScope(definition->scope,
+                                                 services_.mesh->mesh(), services_.mesh->generation());
+        }
+        editPreloadError_ = preload.error;
+        if (preload.success()) {
+            (void)selection_->apply(preload.items, SelectionOperation::Replace);
+        } else {
+            updateFeedback();
+            details_->refresh();
+        }
+        return true;
+    }
+
+    [[nodiscard]] bool applyNamedSelectionEdit()
+    {
+        if (editingNamedSelection_ == InvalidObjectId) {
+            return false;
+        }
+        const ObjectId target = editingNamedSelection_;
+        const ScopeReferenceBuildResult result = replaceNamedSelectionScopeFromCurrentSelection(target);
+        if (!result.success()) {
+            return false;
+        }
+        finishNamedSelectionEdit();
+        return true;
+    }
+
+    void cancelNamedSelectionEdit()
+    {
+        if (editingNamedSelection_ == InvalidObjectId) {
+            return;
+        }
+        finishNamedSelectionEdit();
+    }
+
+    [[nodiscard]] bool namedSelectionEditActive() const noexcept
+    {
+        return editingNamedSelection_ != InvalidObjectId;
+    }
+
+    [[nodiscard]] ObjectId editingNamedSelection() const noexcept { return editingNamedSelection_; }
+    [[nodiscard]] ScopeReferenceValidationError editPreloadError() const noexcept { return editPreloadError_; }
+
 private:
+    [[nodiscard]] static std::optional<SelectionFilter> selectionFilterForKind(const SelectionKind kind)
+    {
+        switch (kind) {
+        case SelectionKind::Body: return SelectionFilter::Body;
+        case SelectionKind::Face: return SelectionFilter::Face;
+        case SelectionKind::Edge: return SelectionFilter::Edge;
+        case SelectionKind::Vertex: return SelectionFilter::Vertex;
+        case SelectionKind::Node: return SelectionFilter::Node;
+        case SelectionKind::Element: return SelectionFilter::Element;
+        case SelectionKind::Facet: return SelectionFilter::Facet;
+        default: return std::nullopt;
+        }
+    }
+
+    void activateNamedSelectionEditViewport()
+    {
+        if (graphics_ == nullptr || selection_ == nullptr) {
+            return;
+        }
+        ViewportWidget *viewport = graphics_->viewport();
+        if (viewport == nullptr) {
+            return;
+        }
+
+        if (editDomain_ == SelectionDomain::Geometry && services_.geometry != nullptr) {
+            viewport->setContext(ViewportContext::Geometry);
+            graphics_->setContextLabel(tr("Geometry — Edit Named Selection"));
+            const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
+            if (!surfaces.isEmpty()) {
+                viewport->showGeometry(surfaces);
+            }
+        } else if (editDomain_ == SelectionDomain::Mesh && services_.mesh != nullptr
+                   && services_.mesh->hasMesh()) {
+            viewport->setContext(ViewportContext::Mesh);
+            graphics_->setContextLabel(tr("Mesh — Edit Named Selection"));
+            viewport->showMesh(services_.mesh->mesh(), false);
+        }
+        refreshSelectionScene();
+    }
+
+    void finishNamedSelectionEdit()
+    {
+        const ObjectId finishedTarget = editingNamedSelection_;
+        editingNamedSelection_ = InvalidObjectId;
+        editDomain_ = SelectionDomain::ProjectObject;
+        editKind_ = SelectionKind::Object;
+        editPreloadError_ = ScopeReferenceValidationError::None;
+
+        QObject::disconnect(editSelectionConnection_);
+        QObject::disconnect(editNavigatorConnection_);
+        editSelectionConnection_ = {};
+        editNavigatorConnection_ = {};
+
+        if (selection_ != nullptr) {
+            connect(selection_, &SelectionManager::selectionChanged,
+                    this, &SelectionCoordinator::handleSelectionChanged);
+            selection_->clearPreselection();
+            (void)selection_->clear();
+        }
+        if (navigator_ != nullptr) {
+            connect(navigator_, &ProjectNavigator::objectSelected,
+                    this, &SelectionCoordinator::handleNavigatorSelection);
+        }
+        if (bridge_ != nullptr) {
+            connect(bridge_, &ViewportSelectionBridge::contextMenuRequested,
+                    this, &SelectionCoordinator::handleViewportContextMenu);
+        }
+        if (meshBridge_ != nullptr) {
+            connect(meshBridge_, &ViewportMeshSelectionBridge::contextMenuRequested,
+                    this, &SelectionCoordinator::handleMeshContextMenu);
+        }
+
+        if (graphics_ != nullptr) {
+            graphics_->setSelectionFilter(previousFilter_);
+        }
+        if (window_ != nullptr) {
+            // Edit state temizlendikten sonra normal project-object viewport
+            // bağlamı tek canonical MainWindow yolundan yeniden kurulur.
+            window_->syncViewport();
+            window_->syncCommandStates();
+            window_->syncContextualSurface();
+            window_->syncStatusBar();
+        }
+        refreshSelectionScene();
+        updateFeedback();
+        if (details_ != nullptr) {
+            details_->refresh();
+        }
+        Q_UNUSED(finishedTarget);
+    }
+
     void configurePolicy(SelectionFilter filter);
     void refreshSelectionScene();
     void handleNavigatorSelection(ObjectId id);
@@ -171,6 +401,14 @@ private:
     SelectionManager *selection_{nullptr};
     ViewportSelectionBridge *bridge_{nullptr};
     ViewportMeshSelectionBridge *meshBridge_{nullptr};
+
+    ObjectId editingNamedSelection_{InvalidObjectId};
+    SelectionDomain editDomain_{SelectionDomain::ProjectObject};
+    SelectionKind editKind_{SelectionKind::Object};
+    SelectionFilter previousFilter_{SelectionFilter::Body};
+    ScopeReferenceValidationError editPreloadError_{ScopeReferenceValidationError::None};
+    QMetaObject::Connection editSelectionConnection_{};
+    QMetaObject::Connection editNavigatorConnection_{};
 
     double tessellationDeflection_{0.15};
     bool syncingNavigator_{false};
