@@ -19,6 +19,7 @@
 #include "shell/Dynamics26MainWindow.h"
 #include "shell/SelectionCoordinator.h"
 #include "support/BoundaryConsumerAcceptance.h"
+#include "support/ContactPersistenceAcceptance.h"
 #include "support/IntegratedWorkflowAcceptance.h"
 #include "support/MaterialInspectorAcceptance.h"
 #include "support/PreflightAcceptance.h"
@@ -177,7 +178,8 @@ int main(int argc, char *argv[])
         //   2) Beta.1 Material Inspector binding + Undo/dependency contract,
         //   3) Fixed Support / Force persistent scope consumer,
         //   4) Alpha.4 Preflight interaction/structured diagnostics,
-        //   5) tam Geometry->...->Solve->Results->Out-of-Date->Undo recovery
+        //   5) tam Geometry->...->Solve->Results->Out-of-Date->Undo recovery,
+        //   6) Beta.1 Contact project persistence + stale-scope load safety
         // zinciri yürütülür. Fiziksel pointer/mouse/trackpad kabulünün yerine
         // geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
@@ -196,7 +198,11 @@ int main(int argc, char *argv[])
         if (preflightStatus != 0) {
             return preflightStatus;
         }
-        return d26::runIntegratedWorkflowAcceptanceTest(app, window);
+        const int integratedStatus = d26::runIntegratedWorkflowAcceptanceTest(app, window);
+        if (integratedStatus != 0) {
+            return integratedStatus;
+        }
+        return d26::runContactPersistenceAcceptanceTest(app, window);
     }
 
     if (hasArgument(argc, argv, "--selftest")) {
