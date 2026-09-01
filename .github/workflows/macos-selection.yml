@@ -58,7 +58,7 @@ jobs:
   selection-contract:
     name: selection-scope-contract arm64
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -96,25 +96,26 @@ jobs:
           grep -q 'PendingWindowSelectionBatch' gui/shell/SelectionCoordinator.cpp
           grep -q 'manager->apply(batch.items' gui/shell/SelectionCoordinator.cpp
 
-      - name: Install minimal Qt dependency
+      - name: Install Qt and VTK dependencies
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
         shell: bash
-        run: brew install qtbase
+        run: brew install qt vtk
 
-      - name: Configure lightweight selection gate
+      - name: Configure hosted selection and application gate
         env:
           FC: gfortran-15
         shell: bash
         run: |
           set -euxo pipefail
+          prefix_path="$(brew --prefix qt);$(brew --prefix vtk)"
           cmake -S . -B build-selection -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)" \
+            -DCMAKE_PREFIX_PATH="$prefix_path" \
             -DFEMCAE_BUILD_TESTING=ON \
             -DFEMCAE_BUILD_GUI=ON \
-            -DFEMCAE_GUI_WITH_VTK=OFF \
+            -DFEMCAE_GUI_WITH_VTK=ON \
             -DFEMCAE_ENABLE_OCCT_GEOMETRY=OFF
 
       - name: Build selection and persistent scope contract tests
@@ -123,13 +124,14 @@ jobs:
           set -euxo pipefail
           cmake --build build-selection --parallel --target femcae_selection_manager_test
 
-      - name: Build application composition without VTK or OCCT
+      - name: Build application composition with VTK
         shell: bash
         run: |
           set -euxo pipefail
-          # Named Selection service wiring, MainWindow persistence/CRUD ve
-          # SelectionCoordinator application bridge'i production GUI target'ında
-          # derlenir. Ağır VTK/OCCT bağımlılıkları bu hızlı hosted gate'te kapalıdır.
+          # Named Selection service wiring, MainWindow persistence/CRUD,
+          # context-menu creation and SelectionCoordinator bridge are compiled
+          # in the real application target. OCCT is intentionally unnecessary
+          # for this selection/persistent-scope gate.
           cmake --build build-selection --parallel --target femcae_gui
 
       - name: Selection and scope regression gate
