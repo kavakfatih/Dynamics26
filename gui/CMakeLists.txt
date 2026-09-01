@@ -355,7 +355,7 @@ if(BUILD_TESTING)
     )
     add_test(NAME gui.contact_service COMMAND femcae_contact_service_test)
     set_tests_properties(gui.contact_service PROPERTIES
-        LABELS "gui;connections;contact;scope;beta1;b12"
+        LABELS "gui;selection;connections;contact;scope;beta1;b12"
     )
 
     qt_add_executable(femcae_viewport_selection_input_test
