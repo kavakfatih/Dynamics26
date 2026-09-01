@@ -8,7 +8,7 @@
 // Geliştirici bayrakları (normal kullanımda gerekmez):
 //   --bundle-smoke                       macOS bundle audit protokolü
 //   --selftest                           genel GUI öz-testi
-//   --selection-selftest                 Alpha.3.3 CAD topology shell acceptance
+//   --selection-selftest                 Alpha.3.6 selection + persistent consumer acceptance
 //   --capture <dizin>                    belgeleme ekran görüntüleri
 //   --capture-appearance light|dark      çekim için görünümü sabitler
 //   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
@@ -16,6 +16,7 @@
 #include "services/AnalysisService.h"
 #include "shell/Dynamics26MainWindow.h"
 #include "shell/SelectionCoordinator.h"
+#include "support/BoundaryConsumerAcceptance.h"
 #include "support/ScreenshotDriver.h"
 #include "support/SelectionAcceptanceTest.h"
 #include "support/SelfTest.h"
@@ -120,9 +121,15 @@ int main(int argc, char *argv[])
     }
 
     if (selectionSelfTest) {
-        // Alpha.3.3+: gerçek Body/Face/Edge/Vertex ve FEM selection coordinator
-        // zincirini çalıştırır; fiziksel pointer kabulünün yerine geçmez.
-        return d26::runSelectionAcceptanceTest(app, window);
+        // Alpha.3.6 selection acceptance önce transient/persistent authoring
+        // zincirini, sonra Fixed Support / Force persistent scope consumer
+        // kontratını aynı gerçek application composition üzerinde çalıştırır.
+        // Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
+        const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
+        if (selectionStatus != 0) {
+            return selectionStatus;
+        }
+        return d26::runBoundaryConsumerAcceptanceTest(app, window);
     }
 
     if (hasArgument(argc, argv, "--selftest")) {
