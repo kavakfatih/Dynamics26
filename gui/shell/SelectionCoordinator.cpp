@@ -13,7 +13,9 @@
 #include "EngineeringStatusBar.h"
 #include "ProjectNavigator.h"
 
+#include <QAction>
 #include <QHash>
+#include <QMenu>
 #include <QSet>
 #include <QSignalBlocker>
 #include <QStatusBar>
@@ -582,6 +584,45 @@ bool SelectionCoordinator::selectionContains(const SelectionItem &item) const no
     return false;
 }
 
+void SelectionCoordinator::showSelectionContextMenu(const ObjectId objectId,
+                                                     const QPoint &globalPosition)
+{
+    if (window_ == nullptr || objectId == InvalidObjectId) {
+        return;
+    }
+
+    QMenu *menu = window_->buildContextMenu(objectId, window_);
+    if (menu == nullptr) {
+        return;
+    }
+
+    const ScopeReferenceBuildResult scope = currentPersistentScope();
+    if (scope.success() && services_.namedSelections != nullptr && services_.commands != nullptr) {
+        auto *createAction = new QAction(tr("Create Named Selection"), menu);
+        createAction->setToolTip(tr("Geçerli CAD/FEM seçimini kalıcı engineering scope olarak kaydet"));
+        connect(createAction, &QAction::triggered, this, [this] {
+            const NamedSelectionCreateResult created = createNamedSelectionFromCurrentSelection();
+            if (!created.success() || window_ == nullptr) {
+                return;
+            }
+            // Persistence tamamlandıktan sonra transient seçim document state'i
+            // değildir; yeni Named Selection current project object yapılır.
+            window_->selectObject(created.id);
+        });
+
+        if (menu->actions().isEmpty()) {
+            menu->addAction(createAction);
+        } else {
+            QAction *before = menu->actions().constFirst();
+            menu->insertAction(before, createAction);
+            menu->insertSeparator(before);
+        }
+    }
+
+    menu->exec(globalPosition);
+    menu->deleteLater();
+}
+
 void SelectionCoordinator::handleViewportSelection(const SelectionKind kind,
                                                     const quint64 bodyId,
                                                     const quint64 geometryId,
@@ -637,7 +678,7 @@ void SelectionCoordinator::handleViewportContextMenu(const SelectionKind kind,
         return;
     }
     (void)syncNavigatorToGeometryBody(body);
-    window_->showObjectContextMenu(object, globalPosition);
+    showSelectionContextMenu(object, globalPosition);
 }
 
 void SelectionCoordinator::handleMeshSelection(const SelectionKind kind,
@@ -690,7 +731,7 @@ void SelectionCoordinator::handleMeshContextMenu(const SelectionKind kind,
         return;
     }
     (void)syncNavigatorToObject(meshObject);
-    window_->showObjectContextMenu(meshObject, globalPosition);
+    showSelectionContextMenu(meshObject, globalPosition);
 }
 
 void SelectionCoordinator::handleSelectionChanged()
