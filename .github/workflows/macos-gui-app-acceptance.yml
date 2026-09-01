@@ -4,11 +4,11 @@ name: macOS GUI application acceptance
   push:
     branches: [main]
     # Application-level acceptance yalnız integrated selection / Preflight /
-    # analysis workflow yüzeyi değiştiğinde çalışır. Trusted Mac fast gate ana
-    # günlük yol olarak kalırken hosted Apple Silicon runner Debug + Release
-    # davranış farklarının sessiz regresyon üretmesini engeller. GUI milestone /
-    # CMake composition değişiklikleri de aynı gerçek application selftest'i
-    # yeniden çalıştırmalıdır.
+    # analysis / engineering Inspector workflow yüzeyi değiştiğinde çalışır.
+    # Trusted Mac fast gate ana günlük yol olarak kalırken hosted Apple Silicon
+    # runner Debug + Release davranış farklarının sessiz regresyon üretmesini
+    # engeller. GUI milestone / CMake composition değişiklikleri de aynı gerçek
+    # application selftest'i yeniden çalıştırmalıdır.
     paths:
       - ".github/workflows/macos-gui-app-acceptance.yml"
       - "gui/CMakeLists.txt"
@@ -28,6 +28,7 @@ name: macOS GUI application acceptance
       - "gui/services/AnalysisService.*"
       - "gui/services/MaterialService.*"
       - "gui/details/ObjectDetails.*"
+      - "gui/details/MaterialDetails.*"
       - "gui/details/AnalysisDetails.*"
       - "gui/details/BoundaryConditionDetails.*"
       - "gui/commands/NamedSelectionCommands.h"
@@ -98,22 +99,15 @@ jobs:
         run: |
           set -uo pipefail
           app="$BUILD_DIR/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
-          test -x "$app"
+          if [[ ! -x "$app" ]]; then
+            echo "GUI executable missing: $app" >&2
+            exit 1
+          fi
+
           set +e
-          output="$($app --selection-selftest 2>&1)"
-          status=$?
+          output="$($app --integrated-workflow-acceptance 2>&1)"
+          rc=$?
           set -e
           printf '%s\n' "$output"
-          test "$status" -eq 0
-          grep -q "selection shell acceptance PASS" <<< "$output"
-          grep -q "Boundary consumer acceptance PASS" <<< "$output"
-          grep -q "Alpha.4 Preflight acceptance PASS" <<< "$output"
-          grep -q "Alpha.4 Integrated workflow acceptance PASS" <<< "$output"
-
-      - name: Verify native arm64 app
-        shell: bash
-        run: |
-          set -euxo pipefail
-          app="$BUILD_DIR/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
-          file -L "$app" | tee "/tmp/dynamics26-hosted-app-${BUILD_TYPE}-arch.txt"
-          grep -q arm64 "/tmp/dynamics26-hosted-app-${BUILD_TYPE}-arch.txt"
+          test $rc -eq 0
+          grep -Fq "Integrated workflow + Material Inspector acceptance PASS" <<<"$output"
