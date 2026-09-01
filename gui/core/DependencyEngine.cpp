@@ -7,6 +7,15 @@
 #include "ProjectModel.h"
 
 namespace d26 {
+namespace {
+
+bool isStaleScopeError(const ScopeReferenceValidationError error)
+{
+    return error == ScopeReferenceValidationError::StaleGeometryRevision
+        || error == ScopeReferenceValidationError::StaleMeshGeneration;
+}
+
+} // namespace
 
 DependencyEngine::DependencyEngine(const ServiceContext &services, QObject *parent)
     : QObject(parent), services_(services)
@@ -107,6 +116,9 @@ void DependencyEngine::evaluateAnalysis(const ObjectId analysisId)
     }
 
     // --- sınır şartları ve yükler ---
+    // Consumer state legacy BoxFace alanından değil, aynı solver/preflight
+    // resolver'ından türetilir. Named Selection değiştiğinde kopyalanmış entity
+    // ID olmadığı için BC current persistent scope'u anında görür.
     for (const ObjectId id : record->supports) {
         const SupportDefinition *definition = analysisService->support(id);
         if (definition == nullptr) {
@@ -114,8 +126,15 @@ void DependencyEngine::evaluateAnalysis(const ObjectId analysisId)
         }
         if (project->isSuppressed(id)) {
             project->setState(id, ObjectState::Suppressed, QObject::tr("Bastırıldı — çözüme katılmıyor"));
+            continue;
+        }
+        const BoundaryScopeResolution scope = analysisService->resolveBoundaryScope(*definition);
+        if (!scope.valid) {
+            project->setState(id,
+                              isStaleScopeError(scope.validationError) ? ObjectState::OutOfDate : ObjectState::Error,
+                              scope.error);
         } else {
-            project->setState(id, ObjectState::Ready, QObject::tr("Kapsam: %1").arg(displayName(definition->scope)));
+            project->setState(id, ObjectState::Ready, QObject::tr("Kapsam: %1").arg(scope.label));
         }
     }
     for (const ObjectId id : record->loads) {
@@ -125,10 +144,17 @@ void DependencyEngine::evaluateAnalysis(const ObjectId analysisId)
         }
         if (project->isSuppressed(id)) {
             project->setState(id, ObjectState::Suppressed, QObject::tr("Bastırıldı — çözüme katılmıyor"));
+            continue;
+        }
+        const BoundaryScopeResolution scope = analysisService->resolveBoundaryScope(*definition);
+        if (!scope.valid) {
+            project->setState(id,
+                              isStaleScopeError(scope.validationError) ? ObjectState::OutOfDate : ObjectState::Error,
+                              scope.error);
         } else {
             project->setState(id, ObjectState::Ready,
                               QObject::tr("Kapsam: %1  •  |F| = %2 N")
-                                  .arg(displayName(definition->scope))
+                                  .arg(scope.label)
                                   .arg(definition->magnitudeN(), 0, 'g', 6));
         }
     }
