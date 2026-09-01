@@ -13,6 +13,7 @@
 //   --capture-appearance light|dark      çekim için görünümü sabitler
 //   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
 
+#include "core/NamedSelectionCompositionContract.h"
 #include "shell/Dynamics26MainWindow.h"
 #include "shell/SelectionCoordinator.h"
 #include "support/ScreenshotDriver.h"
@@ -85,6 +86,17 @@ int main(int argc, char *argv[])
     // Uygulama macOS System Appearance'ı kullanır. Global QPalette veya
     // uygulama çapında QSS ayarlanmaz; Light/Dark tek kaynaktan gelir.
     d26::Dynamics26MainWindow window;
+
+    // Alpha.3.6 persistent scope servisi document lifetime boyunca tek örnektir.
+    // Transient SelectionManager/SelectionCoordinator'dan önce kurulur; böylece
+    // application-level consumer'lar ServiceContext üzerinden aynı servise bakar.
+    auto *namedSelections = d26::createNamedSelectionComposition(window.services(), &window);
+    window.installNamedSelectionService(namedSelections);
+    if (window.services().namedSelections == nullptr) {
+        std::cerr << "FEMCAE composition FAIL: NamedSelectionService unavailable\n";
+        return 2;
+    }
+
     auto *selectionCoordinator = new d26::SelectionCoordinator(&window, &window);
     Q_UNUSED(selectionCoordinator);
 
@@ -103,7 +115,7 @@ int main(int argc, char *argv[])
     }
 
     if (selectionSelfTest) {
-        // Alpha.3.3: gerçek Body/Face/Edge/Vertex SelectionCoordinator signal
+        // Alpha.3.3+: gerçek Body/Face/Edge/Vertex ve FEM selection coordinator
         // zincirini çalıştırır; fiziksel pointer kabulünün yerine geçmez.
         return d26::runSelectionAcceptanceTest(app, window);
     }
