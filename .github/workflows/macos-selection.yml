@@ -107,7 +107,7 @@ jobs:
           grep -q 'PendingWindowSelectionBatch' gui/shell/SelectionCoordinator.cpp
           grep -q 'manager->apply(batch.items' gui/shell/SelectionCoordinator.cpp
           grep -q 'kern.osproductversion' src/solver/fem_accelerate_adapter.c
-          ! grep -q '__builtin_available' src/solver/fem_accelerate_adapter.c
+          ! grep -Fq '__builtin_available(' src/solver/fem_accelerate_adapter.c
 
       - name: Install Qt and VTK dependencies
         env:
