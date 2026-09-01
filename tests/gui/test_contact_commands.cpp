@@ -199,7 +199,19 @@ int main(int argc, char **argv)
     check(contacts.byId(contactId)->targetScope.entities.front().meshEntityId == targetB,
           "Redo target scope restores replacement identity");
 
-    contacts.setSuppressed(contactId, true);
+    stack.push(new d26::commands::SetContactSuppressedCommand(services, contactId, true));
+    check(project.isSuppressed(contactId)
+              && project.object(contactId)->state == d26::ObjectState::Suppressed,
+          "contact suppression command uses ContactService and exposes canonical Suppressed state");
+    stack.undo();
+    check(!project.isSuppressed(contactId) && contacts.validate(contactId).valid()
+              && project.object(contactId)->state == d26::ObjectState::Ready,
+          "Undo contact suppression restores engineering validation state");
+    stack.redo();
+    check(project.isSuppressed(contactId)
+              && project.object(contactId)->state == d26::ObjectState::Suppressed,
+          "Redo contact suppression deterministically restores Suppressed state");
+
     const d26::ContactDefinition beforeDelete = *contacts.byId(contactId);
     const int rowBeforeDelete = contacts.rowOf(contactId);
     stack.push(new d26::commands::DeleteContactCommand(services, contactId));
