@@ -9,6 +9,8 @@
 
 #include "../core/ProjectTypes.h"
 
+#include <QString>
+#include <QVector>
 #include <QWidget>
 
 class QPlainTextEdit;
@@ -17,15 +19,28 @@ class QTableWidget;
 
 namespace d26 {
 
+// UtilityWorkspace Preflight görünümü validation sahibi değildir. Bu satırlar
+// yalnız AnalysisService::preflight() çıktısının presentation DTO'sudur.
+// subject ObjectId decimal-string/Qt integer olarak exact tutulur; görünen ad
+// engineering identity'nin yerine geçmez.
+struct PreflightUtilityRow {
+    QString status;
+    QString label;
+    QString detail;
+    QString subjectLabel;
+    ObjectId subject{InvalidObjectId};
+};
+
 class UtilityWorkspace final : public QWidget
 {
     Q_OBJECT
 public:
-    enum class Tab { Messages = 0, Convergence, SolverOutput, ResultsTable, Timings };
+    enum class Tab { Messages = 0, Preflight, Convergence, SolverOutput, ResultsTable, Timings };
 
     explicit UtilityWorkspace(QWidget *parent = nullptr);
 
     void appendMessage(const QString &text, Severity severity);
+    void setPreflightRows(const QVector<PreflightUtilityRow> &rows);
     void appendSolverOutput(const QString &text);
     void clearSolverOutput();
     void setResultRows(const QVector<QPair<QString, QString>> &rows);
@@ -40,10 +55,15 @@ public:
 
 signals:
     void openRequested(Tab tab);
+    // Structured Preflight tablosu yalnız navigation isteği üretir. Document
+    // state/Undo burada değiştirilmez; MainWindow canonical selectObject yolunu
+    // uygular.
+    void preflightSubjectActivated(ObjectId subject);
 
 private:
     QTabWidget *tabs_{nullptr};
     QPlainTextEdit *messages_{nullptr};
+    QTableWidget *preflight_{nullptr};
     QPlainTextEdit *solverOutput_{nullptr};
     QTableWidget *convergence_{nullptr};
     QTableWidget *results_{nullptr};
