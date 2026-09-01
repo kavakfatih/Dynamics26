@@ -20,6 +20,7 @@
 #include "shell/SelectionCoordinator.h"
 #include "support/BoundaryConsumerAcceptance.h"
 #include "support/ContactPersistenceAcceptance.h"
+#include "support/ContactPreflightAcceptance.h"
 #include "support/IntegratedWorkflowAcceptance.h"
 #include "support/MaterialInspectorAcceptance.h"
 #include "support/PreflightAcceptance.h"
@@ -181,7 +182,8 @@ int main(int argc, char *argv[])
         //   3) Fixed Support / Force persistent scope consumer,
         //   4) Alpha.4 Preflight interaction/structured diagnostics,
         //   5) tam Geometry->...->Solve->Results->Out-of-Date->Undo recovery,
-        //   6) Beta.1 Contact project persistence + stale-scope load safety
+        //   6) Beta.1 Contact Preflight safety gate,
+        //   7) Beta.1 Contact project persistence + stale-scope load safety
         // zinciri yürütülür. Fiziksel pointer/mouse/trackpad kabulünün yerine
         // geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
@@ -203,6 +205,10 @@ int main(int argc, char *argv[])
         const int integratedStatus = d26::runIntegratedWorkflowAcceptanceTest(app, window);
         if (integratedStatus != 0) {
             return integratedStatus;
+        }
+        const int contactPreflightStatus = d26::runContactPreflightAcceptanceTest(app, window);
+        if (contactPreflightStatus != 0) {
+            return contactPreflightStatus;
         }
         return d26::runContactPersistenceAcceptanceTest(app, window);
     }
