@@ -822,17 +822,11 @@ void Dynamics26MainWindow::handleGeometryPick(const quint64 geometryId)
 
 void Dynamics26MainWindow::selectObject(const ObjectId id)
 {
-    // QTreeView currentChanged -> ProjectNavigator::objectSelected zaten
-    // MainWindow::handleSelection ve daha sonra bağlanan SelectionCoordinator
-    // akışını senkron olarak çalıştırır. Yeni bir nesneye geçerken burada
-    // handleSelection'ı ikinci kez çağırmak coordinator'ın dinamik viewport
-    // durumunu (özellikle persistent Named Selection context'ini) ezmemelidir.
-    // Aynı nesne yeniden seçildiğinde currentChanged çıkmayacağı için yalnız
-    // bu durumda explicit refresh gerekir.
-    if (navigator_->selectedObject() == id) {
-        handleSelection(id);
-        return;
-    }
+    // Selection state'in tek UI kaynağı ProjectNavigator current index'idir.
+    // Index gerçekten değişirse objectSelected; MainWindow ardından daha sonra
+    // bağlanan SelectionCoordinator'ı senkron olarak çalıştırır. Aynı index için
+    // no-op olmak özellikle persistent Named Selection overlay'inin statik
+    // ObjectType viewport sync'i tarafından yeniden ezilmesini önler.
     navigator_->selectObject(id);
 }
 
