@@ -19,12 +19,15 @@ using namespace femcae::geometry;
 
 static void require(bool c,const char*m){if(!c){std::cerr<<"FAIL: "<<m<<'\n';std::exit(1);}}
 
-static std::filesystem::path writeStep(const std::string& name,const TopoDS_Shape& shape){
-    const auto path=std::filesystem::temp_directory_path()/name;
+static std::filesystem::path writeStep(const std::filesystem::path& path,const TopoDS_Shape& shape){
     STEPControl_Writer writer;
     require(writer.Transfer(shape,STEPControl_AsIs)==IFSelect_RetDone,"STEP writer transfer");
     require(writer.Write(path.string().c_str())==IFSelect_RetDone,"STEP writer file");
     return path;
+}
+
+static std::filesystem::path tempStep(const std::string& name,const TopoDS_Shape& shape){
+    return writeStep(std::filesystem::temp_directory_path()/name,shape);
 }
 
 static GeometryEntityId requireSingleBody(const GeometryDocument& doc){
@@ -112,9 +115,18 @@ int main(){
     // Canonical solid baseline: bir dikdortgen prizma tam olarak 6 Face,
     // 12 unique Edge ve 8 unique Vertex tasir. TopExp traversal tekrarlarinin
     // document entity sayisini sisirmesine izin verilmez.
-    const auto boxPath=writeStep("femcae_v120_box.step",BRepPrimAPI_MakeBox(10.0,20.0,30.0).Shape());
+    //
+    // Topology workflow isterse aynı gerçek STEP fixture'ını production GUI
+    // acceptance'a aktarabilir. Bu sadece test artifact paylaşımıdır; CAD
+    // identity yine GUI'nin kendi GeometryService import zincirinde yeniden
+    // üretilir.
+    const char* requestedFixture=std::getenv("DYNAMICS26_STEP_FIXTURE_OUTPUT");
+    const bool preserveBoxFixture=requestedFixture!=nullptr&&requestedFixture[0]!='\0';
+    const auto boxPath=preserveBoxFixture
+        ? writeStep(std::filesystem::path(requestedFixture),BRepPrimAPI_MakeBox(100.0,20.0,20.0).Shape())
+        : tempStep("femcae_v120_box.step",BRepPrimAPI_MakeBox(10.0,20.0,30.0).Shape());
     const auto boxResult=importer.importFile(boxPath.string(),doc);
-    std::filesystem::remove(boxPath);
+    if(!preserveBoxFixture) std::filesystem::remove(boxPath);
     require(boxResult.success,boxResult.message.c_str());
     require(boxResult.bodyCount==1,"box body count");
     require(boxResult.faceCount==6,"box canonical face count");
@@ -160,7 +172,7 @@ int main(){
     // kullanmali. Tek dikdortgen Face: 1 Face / 4 unique Edge / 4 Vertex.
     const gp_Pln plane(gp_Pnt(0.0,0.0,0.0),gp_Dir(0.0,0.0,1.0));
     const auto planarFace=BRepBuilderAPI_MakeFace(plane,0.0,10.0,0.0,5.0).Shape();
-    const auto facePath=writeStep("femcae_v120_face.step",planarFace);
+    const auto facePath=tempStep("femcae_v120_face.step",planarFace);
     const auto faceResult=importer.importFile(facePath.string(),doc);
     std::filesystem::remove(facePath);
     require(faceResult.success,faceResult.message.c_str());
