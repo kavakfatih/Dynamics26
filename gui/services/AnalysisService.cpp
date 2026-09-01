@@ -1,4 +1,5 @@
 #include "AnalysisService.h"
+#include "ContactService.h"
 
 #include <femcae/femcae.h>
 #include <femcae/meshing/AssignmentResolver.h>
@@ -771,7 +772,58 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
             tr("%1 aktif • Σ|F| = %2 N").arg(activeLoads).arg(totalLoad, 0, 'g', 6), analysisId);
     }
 
-    // 6) Çözülen formülasyon destekleniyor mu
+    // 6) Project-level Connections altındaki aktif ContactRegion nesneleri bu
+    // Beta.1 aşamasında tüm model analizleri için engineering connection state'i
+    // kabul edilir. Contact scope doğrulaması tek sahibi ContactService üzerinden
+    // yapılır; AnalysisService entity ID kopyalamaz veya tree display metninden
+    // scope türetmez.
+    //
+    // Kritik güvenlik kuralı: geçerli bir Contact tanımı bile model-tabanlı
+    // Static Structural solver Contact consumer'a henüz bağlı değilse Solve'a
+    // sessizce giremez. Aksi halde kullanıcı Contact tanımladığını düşünürken
+    // solver teması tamamen yok sayarak fiziksel olarak yanlış sonuç üretebilir.
+    for (const ObjectId contactId : project_->childrenOf(project_->connectionsNode())) {
+        if (project_->typeOf(contactId) != ObjectType::ContactRegion || !isActive(contactId)) {
+            continue;
+        }
+        const ProjectObject *contactNode = project_->object(contactId);
+        const QString contactName = contactNode != nullptr && !contactNode->name.isEmpty()
+            ? contactNode->name : tr("Contact Region");
+
+        if (contacts_ == nullptr) {
+            add(PreflightCheck::Status::Failed, tr("Contact Kapsamı"),
+                tr("%1 — Contact engineering servisi AnalysisService'e bağlı değil.").arg(contactName),
+                contactId);
+            continue;
+        }
+
+        const ContactDefinition *definition = contacts_->byId(contactId);
+        if (definition == nullptr) {
+            add(PreflightCheck::Status::Failed, tr("Contact Kapsamı"),
+                tr("%1 — Project tree kimliği var ancak Contact engineering tanımı bulunamadı.").arg(contactName),
+                contactId);
+            continue;
+        }
+
+        const ContactValidationResult validation = contacts_->validate(contactId);
+        if (!validation.valid()) {
+            const QString diagnostic = contactNode != nullptr && !contactNode->detail.isEmpty()
+                ? contactNode->detail : tr("Contact source/target kapsamı geçersiz.");
+            add(PreflightCheck::Status::Failed, tr("Contact Kapsamı"),
+                tr("%1 — %2").arg(definition->name, diagnostic), contactId);
+            continue;
+        }
+
+        add(PreflightCheck::Status::Passed, tr("Contact Kapsamı"),
+            tr("%1 — Source/Target surface kapsamı geçerli.").arg(definition->name), contactId);
+        add(PreflightCheck::Status::Failed, tr("Contact Çözücü Desteği"),
+            tr("%1 — Bonded Contact tanımı geçerli; model-tabanlı Static Structural solver Contact consumer "
+               "henüz etkin değil.")
+                .arg(definition->name),
+            contactId);
+    }
+
+    // 7) Çözülen formülasyon destekleniyor mu
     if (resolvedFormulation(analysisId) == ResolvedFormulation::MixedUP) {
         add(PreflightCheck::Status::Failed, tr("Formülasyon"),
             tr("Seçilen sıkışmazlık davranışı mixed u-p'ye çözülüyor; bu formülasyon keyfi mesh için "
@@ -785,7 +837,7 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
             tr("Geometrik nonlineer çözüm akışı GUI'de henüz etkin değil."), record->settingsNode);
     }
 
-    // 7) Çözücü kapasitesi
+    // 8) Çözücü kapasitesi
     if (mesh_->hasMesh()) {
         const int dof = mesh_->dofCount();
         if (dof > maximumDofThreshold()) {
@@ -802,7 +854,7 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
         }
     }
 
-    // 8) Sonuç tanımı
+    // 9) Sonuç tanımı
     int activeResults = 0;
     for (const ObjectId id : record->results) {
         if (isActive(id)) {
