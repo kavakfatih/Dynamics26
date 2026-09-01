@@ -14,22 +14,30 @@ on:
       - "tests/geometry/ver_v120_004_occt_step_box.cpp"
       - "gui/CMakeLists.txt"
       - "gui/main.cpp"
+      - "gui/core/DependencyEngine.cpp"
+      - "gui/core/DependencyEngine.h"
       - "gui/core/SelectionTypes.h"
       - "gui/core/SelectionPolicy.h"
       - "gui/core/SelectionManager.cpp"
       - "gui/core/SelectionManager.h"
       - "gui/core/ScopeReferenceBuilder.h"
+      - "gui/services/AnalysisService.cpp"
+      - "gui/services/AnalysisService.h"
+      - "gui/services/AnalysisBoundaryScope.cpp"
       - "gui/services/GeometryService.cpp"
       - "gui/services/GeometryService.h"
       - "gui/services/MeshService.cpp"
       - "gui/services/MeshService.h"
       - "gui/services/NamedSelectionService.cpp"
       - "gui/services/NamedSelectionService.h"
+      - "gui/details/BoundaryConditionDetails.cpp"
+      - "gui/details/BoundaryConditionDetails.h"
       - "gui/shell/DetailsHost.cpp"
       - "gui/shell/GraphicsWorkspace.cpp"
       - "gui/shell/GraphicsWorkspace.h"
       - "gui/shell/SelectionCoordinator.cpp"
       - "gui/shell/SelectionCoordinator.h"
+      - "gui/support/BoundaryConsumerAcceptance.h"
       - "gui/support/SelectionAcceptanceTest.h"
       - "gui/viewport/GeometrySelectionScene.h"
       - "gui/viewport/GeometryTopologyScene.h"
@@ -82,13 +90,17 @@ jobs:
           test -f tests/gui/test_mesh_selection.cpp
           test -f tests/gui/test_mesh_viewport_selection.cpp
           test -f tests/gui/test_named_selection.cpp
+          test -f gui/services/AnalysisBoundaryScope.cpp
           test -f gui/services/NamedSelectionService.cpp
           test -f gui/services/NamedSelectionService.h
+          test -f gui/support/BoundaryConsumerAcceptance.h
           test -f gui/viewport/GeometrySelectionScene.h
           test -f gui/viewport/MeshSelectionScene.h
           test -f gui/viewport/ViewportMeshSelectionBridge.cpp
           test -f gui/support/SelectionAcceptanceTest.h
           grep -q 'femcae_named_selection_test' gui/CMakeLists.txt
+          grep -q 'boundaryScopeSignature' gui/services/AnalysisService.cpp
+          grep -q 'resolvedBoundaryNodeIds' gui/services/AnalysisService.cpp
 
       - name: Install Qt VTK and OCCT dependencies
         env:
@@ -118,7 +130,11 @@ jobs:
         run: |
           set -euxo pipefail
           cmake --build build-topology-selection --parallel --target ver_v120_004
-          ctest --test-dir build-topology-selection -R '^ver_v120_004$' --output-on-failure
+          fixture="$RUNNER_TEMP/dynamics26-named-boundary-box.step"
+          DYNAMICS26_STEP_FIXTURE_OUTPUT="$fixture" \
+            ctest --test-dir build-topology-selection -R '^ver_v120_004$' --output-on-failure
+          test -s "$fixture"
+          echo "DYNAMICS26_STEP_FIXTURE=$fixture" >> "$GITHUB_ENV"
 
       - name: Build CAD and FEM selection contract matrix
         shell: bash
@@ -144,7 +160,7 @@ jobs:
       - name: Build application shell
         run: cmake --build build-topology-selection --parallel --target femcae_gui
 
-      - name: Selection Coordinator shell acceptance
+      - name: Selection and named boundary consumer shell acceptance
         env:
           QT_QPA_PLATFORM: offscreen
         shell: bash
@@ -152,7 +168,8 @@ jobs:
           set -euxo pipefail
           app="build-topology-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
           test -x "$app"
-          "$app" --selection-selftest
+          test -s "$DYNAMICS26_STEP_FIXTURE"
+          "$app" --import-step "$DYNAMICS26_STEP_FIXTURE" --selection-selftest
 
       - name: Native arm64 GUI composition gate
         shell: bash
