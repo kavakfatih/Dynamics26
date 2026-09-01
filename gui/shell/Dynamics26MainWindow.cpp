@@ -616,10 +616,19 @@ void Dynamics26MainWindow::wireSignals()
     connect(analysis_, &AnalysisService::message, this, &Dynamics26MainWindow::reportMessage);
     connect(analysis_, &AnalysisService::solverOutput, this,
             [this](const QString &text) { utility_->appendSolverOutput(text); });
-    connect(analysis_, &AnalysisService::solveStateChanged, this, [this](const bool solving) {
-        solving_ = solving;
-        engineeringStatus_->setSolverState(solving ? SolverState::Solving : SolverState::Idle);
-    });
+    connect(analysis_, &AnalysisService::solveStateChanged, this,
+            [this](const ObjectId analysisId, const SolveState state) {
+                // AnalysisService signal i (ObjectId, SolveState) tasir. ObjectId yi
+                // bool gibi yorumlamak gecerli her analiz kimliginde UI yi sonsuza
+                // kadar solving durumunda birakir ve Solve komutunu kilitlerdi.
+                // Yalniz aktif analizin lifecycle state i global shell durumunu etkiler.
+                if (analysisId != activeAnalysis()) {
+                    return;
+                }
+                solving_ = state == SolveState::Preflight || state == SolveState::Solving;
+                syncCommandStates();
+                syncStatusBar();
+            });
 
     connect(engineeringStatus_, &EngineeringStatusBar::diagnosticsToggled, this, [this](const bool visible) {
         if (!visible) {
