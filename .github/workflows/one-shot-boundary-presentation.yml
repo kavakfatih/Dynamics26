@@ -1,0 +1,370 @@
+name: One-shot boundary presentation patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-boundary-presentation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-mainwindow:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Apply exact persistent-scope presentation patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('gui/shell/Dynamics26MainWindow.cpp')
+          text = path.read_text(encoding='utf-8')
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, got {count}')
+              text = text.replace(old, new, 1)
+
+          helper_anchor = '''}
+
+QString contextTitleFor(const ViewportContext context)
+'''
+          helper_block = '''}
+
+// Gerçek FEM boundary facet provenance'ından yüzün MODEL İÇİNE bakan birim
+// normalini çıkarır. Named Selection CAD Face kimliği BoxFace olmak zorunda
+// değildir; persistent consumer görselleştirmesi legacy eksen enum'una dönmez.
+bool inwardBoundaryNormal(const femcae::meshing::SimulationMesh &mesh,
+                          const femcae::geometry::GeometryEntityId geometryId,
+                          double &x, double &y, double &z)
+{
+    x = y = z = 0.0;
+    for (const auto &facet : mesh.boundaryFacets) {
+        if (facet.sourceGeometryId != geometryId) {
+            continue;
+        }
+        const auto *n0 = mesh.findNode(facet.nodeIds[0]);
+        const auto *n1 = mesh.findNode(facet.nodeIds[1]);
+        const auto *n2 = mesh.findNode(facet.nodeIds[2]);
+        if (n0 == nullptr || n1 == nullptr || n2 == nullptr) {
+            return false;
+        }
+
+        const double ax = n1->x.x - n0->x.x;
+        const double ay = n1->x.y - n0->x.y;
+        const double az = n1->x.z - n0->x.z;
+        const double bx = n2->x.x - n0->x.x;
+        const double by = n2->x.y - n0->x.y;
+        const double bz = n2->x.z - n0->x.z;
+        double nx = ay * bz - az * by;
+        double ny = az * bx - ax * bz;
+        double nz = ax * by - ay * bx;
+        double norm = std::sqrt(nx * nx + ny * ny + nz * nz);
+        if (norm <= 1.0e-14) {
+            return false;
+        }
+
+        double fx = 0.0;
+        double fy = 0.0;
+        double fz = 0.0;
+        int facetNodeCount = 0;
+        for (const auto nodeId : facet.nodeIds) {
+            const auto *node = mesh.findNode(nodeId);
+            if (node == nullptr) {
+                continue;
+            }
+            fx += node->x.x;
+            fy += node->x.y;
+            fz += node->x.z;
+            ++facetNodeCount;
+        }
+        const auto *owner = mesh.findElement(facet.ownerElementId);
+        if (facetNodeCount == 0 || owner == nullptr) {
+            return false;
+        }
+        fx /= facetNodeCount;
+        fy /= facetNodeCount;
+        fz /= facetNodeCount;
+
+        double ex = 0.0;
+        double ey = 0.0;
+        double ez = 0.0;
+        int elementNodeCount = 0;
+        for (const auto nodeId : owner->nodeIds) {
+            const auto *node = mesh.findNode(nodeId);
+            if (node == nullptr) {
+                continue;
+            }
+            ex += node->x.x;
+            ey += node->x.y;
+            ez += node->x.z;
+            ++elementNodeCount;
+        }
+        if (elementNodeCount == 0) {
+            return false;
+        }
+        ex /= elementNodeCount;
+        ey /= elementNodeCount;
+        ez /= elementNodeCount;
+
+        const double inwardX = ex - fx;
+        const double inwardY = ey - fy;
+        const double inwardZ = ez - fz;
+        if (nx * inwardX + ny * inwardY + nz * inwardZ < 0.0) {
+            nx = -nx;
+            ny = -ny;
+            nz = -nz;
+        }
+        norm = std::sqrt(nx * nx + ny * ny + nz * nz);
+        if (norm <= 1.0e-14) {
+            return false;
+        }
+        x = nx / norm;
+        y = ny / norm;
+        z = nz / norm;
+        return true;
+    }
+    return false;
+}
+
+femcae::geometry::GeometryEntityId singleBoundaryHighlight(const BoundaryScopeResolution &resolution)
+{
+    if (!resolution.valid || resolution.geometryFaceIds.size() != 1) {
+        return femcae::geometry::InvalidGeometryId;
+    }
+    return resolution.geometryFaceIds.front();
+}
+
+QString contextTitleFor(const ViewportContext context)
+'''
+          replace_once(helper_anchor, helper_block, 'normal/highlight helper insertion')
+
+          old_loads = '''    const auto showLoadsView = [&] {
+        if (!mesh_->hasMesh()) {
+            showModelGeometry();
+            return;
+        }
+        QVector<BoundaryGlyph> glyphs;
+        const ObjectId analysisId = activeAnalysis();
+        const AnalysisRecord *record = analysis_->analysis(analysisId);
+        if (record != nullptr) {
+            for (const ObjectId supportId : record->supports) {
+                const SupportDefinition *definition = analysis_->support(supportId);
+                if (definition == nullptr) {
+                    continue;
+                }
+                BoundaryGlyph glyph;
+                glyph.geometryId = mesh_->geometryIdFor(definition->scope);
+                glyph.isLoad = false;
+                outwardNormal(definition->scope, glyph.dx, glyph.dy, glyph.dz);
+                glyph.dx = -glyph.dx;
+                glyph.dy = -glyph.dy;
+                glyph.dz = -glyph.dz;
+                glyphs.push_back(glyph);
+            }
+            for (const ObjectId loadId : record->loads) {
+                const LoadDefinition *definition = analysis_->load(loadId);
+                if (definition == nullptr) {
+                    continue;
+                }
+                BoundaryGlyph glyph;
+                glyph.geometryId = mesh_->geometryIdFor(definition->scope);
+                glyph.isLoad = true;
+                glyph.dx = definition->fxN;
+                glyph.dy = definition->fyN;
+                glyph.dz = definition->fzN;
+                if (definition->magnitudeN() < 1.0e-12) {
+                    outwardNormal(definition->scope, glyph.dx, glyph.dy, glyph.dz);
+                }
+                glyphs.push_back(glyph);
+            }
+        }
+        viewport->showModelWithBoundaryConditions(mesh_->mesh(), glyphs);
+    };
+'''
+          new_loads = '''    const auto showLoadsView = [&] {
+        if (!mesh_->hasMesh()) {
+            showModelGeometry();
+            return;
+        }
+        QVector<BoundaryGlyph> glyphs;
+        const ObjectId analysisId = activeAnalysis();
+        const AnalysisRecord *record = analysis_->analysis(analysisId);
+        const auto &currentMesh = mesh_->mesh();
+        if (record != nullptr) {
+            for (const ObjectId supportId : record->supports) {
+                const SupportDefinition *definition = analysis_->support(supportId);
+                if (definition == nullptr) {
+                    continue;
+                }
+                const BoundaryScopeResolution resolution = analysis_->resolveBoundaryScope(*definition);
+                if (!resolution.valid) {
+                    continue;
+                }
+                for (const auto geometryId : resolution.geometryFaceIds) {
+                    BoundaryGlyph glyph;
+                    glyph.geometryId = geometryId;
+                    glyph.isLoad = false;
+                    if (!inwardBoundaryNormal(currentMesh, geometryId, glyph.dx, glyph.dy, glyph.dz)) {
+                        if (definition->scopingMethod != BoundaryScopingMethod::GeometrySelection) {
+                            continue;
+                        }
+                        outwardNormal(definition->scope, glyph.dx, glyph.dy, glyph.dz);
+                        glyph.dx = -glyph.dx;
+                        glyph.dy = -glyph.dy;
+                        glyph.dz = -glyph.dz;
+                    }
+                    glyphs.push_back(glyph);
+                }
+            }
+            for (const ObjectId loadId : record->loads) {
+                const LoadDefinition *definition = analysis_->load(loadId);
+                if (definition == nullptr) {
+                    continue;
+                }
+                const BoundaryScopeResolution resolution = analysis_->resolveBoundaryScope(*definition);
+                if (!resolution.valid) {
+                    continue;
+                }
+                for (const auto geometryId : resolution.geometryFaceIds) {
+                    BoundaryGlyph glyph;
+                    glyph.geometryId = geometryId;
+                    glyph.isLoad = true;
+                    glyph.dx = definition->fxN;
+                    glyph.dy = definition->fyN;
+                    glyph.dz = definition->fzN;
+                    if (definition->magnitudeN() < 1.0e-12) {
+                        double inwardX = 0.0;
+                        double inwardY = 0.0;
+                        double inwardZ = 0.0;
+                        if (inwardBoundaryNormal(currentMesh, geometryId, inwardX, inwardY, inwardZ)) {
+                            glyph.dx = -inwardX;
+                            glyph.dy = -inwardY;
+                            glyph.dz = -inwardZ;
+                        } else if (definition->scopingMethod == BoundaryScopingMethod::GeometrySelection) {
+                            outwardNormal(definition->scope, glyph.dx, glyph.dy, glyph.dz);
+                        } else {
+                            continue;
+                        }
+                    }
+                    glyphs.push_back(glyph);
+                }
+            }
+        }
+        viewport->showModelWithBoundaryConditions(currentMesh, glyphs);
+    };
+'''
+          replace_once(old_loads, new_loads, 'resolver-aware boundary glyphs')
+
+          old_highlight = '''    if (type == ObjectType::FixedSupport) {
+        if (const SupportDefinition *definition = analysis_->support(selected_)) {
+            viewport->setHighlightedGeometry(mesh_->geometryIdFor(definition->scope));
+        }
+    } else if (type == ObjectType::Force) {
+        if (const LoadDefinition *definition = analysis_->load(selected_)) {
+            viewport->setHighlightedGeometry(mesh_->geometryIdFor(definition->scope));
+        }
+    } else {
+        viewport->setHighlightedGeometry(femcae::geometry::InvalidGeometryId);
+    }
+'''
+          new_highlight = '''    femcae::geometry::GeometryEntityId highlighted = femcae::geometry::InvalidGeometryId;
+    if (type == ObjectType::FixedSupport) {
+        if (const SupportDefinition *definition = analysis_->support(selected_)) {
+            highlighted = singleBoundaryHighlight(analysis_->resolveBoundaryScope(*definition));
+        }
+    } else if (type == ObjectType::Force) {
+        if (const LoadDefinition *definition = analysis_->load(selected_)) {
+            highlighted = singleBoundaryHighlight(analysis_->resolveBoundaryScope(*definition));
+        }
+    }
+    viewport->setHighlightedGeometry(highlighted);
+'''
+          replace_once(old_highlight, new_highlight, 'resolver-aware selected boundary highlight')
+
+          old_status = '''    const ObjectType type = project_->typeOf(selected_);
+    if (type == ObjectType::FixedSupport) {
+        if (const SupportDefinition *definition = analysis_->support(selected_)) {
+            engineeringStatus_->setSelection(tr("%1  •  %2 facet  •  Global Coordinate System")
+                                                 .arg(displayName(definition->scope))
+                                                 .arg(mesh_->facetCountFor(definition->scope)));
+            return;
+        }
+    } else if (type == ObjectType::Force) {
+        if (const LoadDefinition *definition = analysis_->load(selected_)) {
+            engineeringStatus_->setSelection(tr("%1  •  %2 facet  •  Global Coordinate System")
+                                                 .arg(displayName(definition->scope))
+                                                 .arg(mesh_->facetCountFor(definition->scope)));
+            return;
+        }
+    }
+'''
+          new_status = '''    const auto setBoundaryStatus = [this](const auto &definition) {
+        const BoundaryScopeResolution resolution = analysis_->resolveBoundaryScope(definition);
+        if (!resolution.valid) {
+            engineeringStatus_->setSelection(
+                tr("Scope  •  %1").arg(resolution.error.isEmpty() ? tr("Geçersiz kapsam") : resolution.error));
+            return;
+        }
+        const qlonglong faceCount = static_cast<qlonglong>(resolution.geometryFaceIds.size());
+        if (mesh_->hasMesh() && !mesh_->isOutOfDate()) {
+            engineeringStatus_->setSelection(
+                tr("%1  •  %2 face  •  %3 node  •  Global Coordinate System")
+                    .arg(resolution.label)
+                    .arg(faceCount)
+                    .arg(analysis_->resolvedBoundaryNodeCount(definition)));
+        } else {
+            engineeringStatus_->setSelection(
+                tr("%1  •  %2 face  •  Mesh güncel değil  •  Global Coordinate System")
+                    .arg(resolution.label)
+                    .arg(faceCount));
+        }
+    };
+
+    const ObjectType type = project_->typeOf(selected_);
+    if (type == ObjectType::FixedSupport) {
+        if (const SupportDefinition *definition = analysis_->support(selected_)) {
+            setBoundaryStatus(*definition);
+            return;
+        }
+    } else if (type == ObjectType::Force) {
+        if (const LoadDefinition *definition = analysis_->load(selected_)) {
+            setBoundaryStatus(*definition);
+            return;
+        }
+    }
+'''
+          replace_once(old_status, new_status, 'resolver-aware boundary status')
+
+          if 'glyph.geometryId = mesh_->geometryIdFor(definition->scope);' in text:
+              raise SystemExit('legacy boundary glyph geometry fallback still present')
+          if 'displayName(definition->scope)' in text:
+              raise SystemExit('legacy boundary status label still present')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          git diff --check
+          git diff --stat -- gui/shell/Dynamics26MainWindow.cpp
+          test "$(git diff --name-only | grep -v '^\.github/workflows/one-shot-boundary-presentation.yml$' | sort -u)" = "gui/shell/Dynamics26MainWindow.cpp"
+
+      - name: Commit exact patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Dynamics26 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/one-shot-boundary-presentation.yml
+          git add gui/shell/Dynamics26MainWindow.cpp
+          git diff --cached --check
+          git commit -m "fix: resolve boundary presentation from persistent scope"
+          git push origin HEAD:main
