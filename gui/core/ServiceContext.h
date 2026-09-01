@@ -10,6 +10,7 @@ class ProjectModel;
 class GeometryService;
 class MeshService;
 class NamedSelectionService;
+class ContactService;
 class MaterialService;
 class AnalysisService;
 class DocumentCommandManager;
@@ -23,6 +24,10 @@ struct ServiceContext {
     // sahibi değildir; Named Selection yaşam döngüsü ve kalıcılığı application
     // composition üzerinden açıkça erişilebilir olur.
     NamedSelectionService *namedSelections{nullptr};
+    // ContactRegion tree identity ProjectModel'de, source/target persistent
+    // engineering scope ise ContactService'te yaşar. Viewport display primitive
+    // kimlikleri bu servis kontratına girmez.
+    ContactService *contacts{nullptr};
     MaterialService *materials{nullptr};
     AnalysisService *analysis{nullptr};
     // Model mutasyonları servisleri DOĞRUDAN çağırmaz; domain command olarak
