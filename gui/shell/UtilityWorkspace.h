@@ -68,6 +68,11 @@ private:
     QTableWidget *convergence_{nullptr};
     QTableWidget *results_{nullptr};
     QTableWidget *timings_{nullptr};
+    // Legacy MainWindow::runPreflight() önce Messages'a marker + her kontrol
+    // satırını gönderir. Structured Preflight ayrıntının tek presentation yüzeyi
+    // olduğundan bu geçici echo state'i ayrıntı satırlarını yutar; yalnız final
+    // Ready/Failed özeti Messages tarihçesinde kalır.
+    bool suppressingPreflightEcho_{false};
     bool userDismissed_{false};
 };
 
