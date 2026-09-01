@@ -1,6 +1,7 @@
 #include "Dynamics26MainWindow.h"
 
 #include "../commands/DomainCommands.h"
+#include "../commands/NamedSelectionCommands.h"
 #include "../core/CaeIcons.h"
 #include "../core/DependencyEngine.h"
 #include "../core/DocumentCommandManager.h"
@@ -13,6 +14,7 @@
 #include "../services/GeometryService.h"
 #include "../services/MaterialService.h"
 #include "../services/MeshService.h"
+#include "../services/NamedSelectionService.h"
 #include "CommandRegistry.h"
 #include "DetailsHost.h"
 #include "EngineeringStatusBar.h"
@@ -32,6 +34,7 @@
 #include <QFont>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
@@ -109,6 +112,34 @@ QString contextTitleFor(const ViewportContext context)
     case ViewportContext::Empty:       break;
     }
     return QStringLiteral("Model");
+}
+
+bool parseDocumentObjectId(const QJsonValue &value, ObjectId *result)
+{
+    if (result == nullptr) {
+        return false;
+    }
+    if (value.isString()) {
+        bool ok = false;
+        const qulonglong parsed = value.toString().toULongLong(&ok, 10);
+        if (!ok) {
+            return false;
+        }
+        *result = static_cast<ObjectId>(parsed);
+        return true;
+    }
+    // V1.1 eski dosyaları next_object_id alanını JSON number olarak yazıyordu.
+    // Küçük legacy kimlikler için bu yol korunur; yeni dosyalar tam 64-bit
+    // hassasiyet için decimal string kullanır.
+    if (value.isDouble()) {
+        const qint64 parsed = value.toInteger(-1);
+        if (parsed < 0) {
+            return false;
+        }
+        *result = static_cast<ObjectId>(parsed);
+        return true;
+    }
+    return false;
 }
 
 } // namespace
@@ -254,7 +285,6 @@ void Dynamics26MainWindow::buildCommands()
     diagnosticsToggle->setCheckable(true);
     diagnosticsToggle->setChecked(false);
 
-    // --- doküman düzenleme komutları (§16/§17/§18) ---
     commands_->addPlain(QStringLiteral("edit.rename"), tr("Yeniden Adlandır"), QStringLiteral("F2"));
     commands_->addPlain(QStringLiteral("edit.duplicate"), tr("Çoğalt"), QStringLiteral("Shift+Ctrl+D"));
     commands_->addPlain(QStringLiteral("edit.delete"), tr("Sil"), QStringLiteral("Del"));
@@ -265,16 +295,13 @@ void Dynamics26MainWindow::buildCommands()
     commands_->addPlain(QStringLiteral("edit.suppress"), tr("Bastır"));
     commands_->addPlain(QStringLiteral("edit.unsuppress"), tr("Bastırmayı Kaldır"));
 
-    // --- dosya ---
     commands_->addPlain(QStringLiteral("file.saveAs"), tr("Farklı Kaydet…"), QStringLiteral("Shift+Ctrl+S"));
     commands_->addPlain(QStringLiteral("file.revert"), tr("Kaydedilene Dön"));
     commands_->addPlain(QStringLiteral("file.close"), tr("Kapat"), QStringLiteral("Ctrl+W"));
 
-    // --- ağaç üretkenliği ---
     commands_->addPlain(QStringLiteral("tree.expandAll"), tr("Tümünü Genişlet"));
     commands_->addPlain(QStringLiteral("tree.collapseAll"), tr("Tümünü Daralt"));
 
-    // --- yaşam döngüsü ---
     commands_->addPlain(QStringLiteral("mesh.clearGenerated"), tr("Clear Generated Mesh"));
     commands_->addPlain(QStringLiteral("analysis.preflight"), tr("Preflight"), QStringLiteral("Ctrl+R"));
     commands_->addPlain(QStringLiteral("analysis.clearSolution"), tr("Clear Solution"));
@@ -284,7 +311,6 @@ void Dynamics26MainWindow::buildCommands()
     commands_->addPlain(QStringLiteral("material.create"), tr("Yeni Malzeme"));
     commands_->addPlain(QStringLiteral("material.assign"), tr("Gövdeye Ata"));
 
-    // --- yardım ---
     commands_->addPlain(QStringLiteral("help.shortcuts"), tr("Klavye Kısayolları"));
     commands_->addPlain(QStringLiteral("help.systemInfo"), tr("Sistem Bilgisi"));
     commands_->addPlain(QStringLiteral("help.about"), tr("Dynamics26 Hakkında"));
@@ -332,13 +358,10 @@ void Dynamics26MainWindow::buildCommandSurface()
     contextToolBar_->setFloatable(false);
     contextToolBar_->setIconSize(QSize(15, 15));
     contextToolBar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-
-    // Bağlam başlığı ve komutları syncContextualSurface() tarafından kurulur.
 }
 
 void Dynamics26MainWindow::buildMenus()
 {
-    // Native macOS menü çubuğu kullanılır; özel başlık çubuğu hack'i yoktur.
     auto *fileMenu = menuBar()->addMenu(tr("Dosya"));
     fileMenu->addAction(commands_->action(QStringLiteral("file.new")));
     fileMenu->addAction(commands_->action(QStringLiteral("file.open")));
@@ -352,8 +375,6 @@ void Dynamics26MainWindow::buildMenus()
     fileMenu->addSeparator();
     fileMenu->addAction(commands_->action(QStringLiteral("file.close")));
 
-    // Edit menüsünün en üstünde Undo/Redo — QUndoStack dinamik metni üretir
-    // ("Geri Al Add Force", "Yinele Change Mesh Divisions" …).
     auto *editMenu = menuBar()->addMenu(tr("Düzenle"));
     editMenu_ = editMenu;
     undoAction_ = documentCommands_->createUndoAction(this);
@@ -444,10 +465,8 @@ void Dynamics26MainWindow::wireSignals()
     connect(navigator_, &ProjectNavigator::objectSelected, this, &Dynamics26MainWindow::handleSelection);
     connect(navigator_, &ProjectNavigator::contextMenuRequested, this,
             &Dynamics26MainWindow::showObjectContextMenu);
-    // Ağaç içi yeniden adlandırma undoable bir komuta çevrilir.
     connect(navigator_, &ProjectNavigator::renameCommitted, this, &Dynamics26MainWindow::renameObject);
 
-    // Doküman durumu: her komut sonrası bağımlılıklar yeniden değerlendirilir.
     connect(documentCommands_, &DocumentCommandManager::documentMutated, this, [this] {
         navigator_->expandAll();
         syncAll();
@@ -505,9 +524,6 @@ void Dynamics26MainWindow::wireSignals()
         }
     });
 }
-
-// ---------------------------------------------------------------------------
-// Komut yönlendirme
 
 void Dynamics26MainWindow::handleCommand(const QString &id)
 {
@@ -653,8 +669,6 @@ bool Dynamics26MainWindow::runCommand(const QString &commandId)
     if (action == nullptr || !action->isEnabled()) {
         return false;
     }
-    // trigger() kullanılır: checkable komutlarda işaretleme durumu da değişir,
-    // böylece programatik çağrı ile kullanıcı tıklaması aynı yolu izler.
     action->trigger();
     return true;
 }
@@ -681,7 +695,6 @@ void Dynamics26MainWindow::handleGeometryPick(const quint64 geometryId)
         syncStatusBar();
         return;
     }
-    // Seçilen provenance kimliğini adlandırılmış kutu yüzüne çevir.
     static const std::array<BoxFace, 6> faces{BoxFace::XMin, BoxFace::XMax, BoxFace::YMin,
                                               BoxFace::YMax, BoxFace::ZMin, BoxFace::ZMax};
     for (const auto face : faces) {
@@ -732,16 +745,11 @@ ObjectId Dynamics26MainWindow::activeAnalysis() const
     return all.isEmpty() ? InvalidObjectId : all.first();
 }
 
-// ---------------------------------------------------------------------------
-// Senkronizasyon
-
 void Dynamics26MainWindow::syncAll()
 {
     if (suppressSync_) {
         return;
     }
-    // Nesne durumlarının tek yazarı bağımlılık motorudur; arayüz bundan sonra
-    // tazelenir.
     dependencies_->evaluate();
     details_->refresh();
     syncViewport();
@@ -771,7 +779,6 @@ void Dynamics26MainWindow::syncViewport()
                 return;
             }
         }
-        // CAD yoksa model tanımı parametrik kutudur; bu da gerçek geometridir.
         const MeshService::Definition &definition = mesh_->definition();
         viewport->showGeometry(makeBoxDisplayTessellation(definition.lengthMm, definition.widthMm,
                                                           definition.heightMm));
@@ -794,7 +801,6 @@ void Dynamics26MainWindow::syncViewport()
                 BoundaryGlyph glyph;
                 glyph.geometryId = mesh_->geometryIdFor(definition->scope);
                 glyph.isLoad = false;
-                // Mesnet sembolü koni ucu yüzeye değecek şekilde İÇERİ bakar.
                 outwardNormal(definition->scope, glyph.dx, glyph.dy, glyph.dz);
                 glyph.dx = -glyph.dx;
                 glyph.dy = -glyph.dy;
@@ -861,7 +867,6 @@ void Dynamics26MainWindow::syncViewport()
         break;
     }
 
-    // Seçili sınır şartının kapsadığı yüz vurgulanır.
     if (type == ObjectType::FixedSupport) {
         if (const SupportDefinition *definition = analysis_->support(selected_)) {
             viewport->setHighlightedGeometry(mesh_->geometryIdFor(definition->scope));
@@ -908,7 +913,6 @@ void Dynamics26MainWindow::syncCommandStates()
     commands_->setEnabled(QStringLiteral("results.exportCsv"), hasResults, tr("Dışa aktarılacak sonuç yok."));
     commands_->setEnabled(QStringLiteral("results.exportVtk"), hasResults, tr("Dışa aktarılacak sonuç yok."));
 
-    // --- seçime bağlı düzenleme komutları ---
     const ObjectType type = project_->typeOf(selected_);
     const bool valid = project_->object(selected_) != nullptr;
     commands_->setEnabled(QStringLiteral("edit.rename"), valid && supportsRename(type),
@@ -917,13 +921,15 @@ void Dynamics26MainWindow::syncCommandStates()
                           tr("Bu nesne çoğaltılamaz."));
     commands_->setEnabled(QStringLiteral("edit.delete"), valid && supportsDelete(type),
                           tr("Bu nesne silinemez."));
-    commands_->setEnabled(QStringLiteral("edit.cut"), valid && supportsDuplicate(type) && supportsDelete(type),
+    const bool clipboardCompatible = valid && supportsDuplicate(type) && type != ObjectType::NamedSelection;
+    commands_->setEnabled(QStringLiteral("edit.cut"), clipboardCompatible && supportsDelete(type),
                           tr("Bu nesne kesilemez."));
-    commands_->setEnabled(QStringLiteral("edit.copy"), valid && supportsDuplicate(type),
-                          tr("Bu nesne kopyalanamaz."));
+    commands_->setEnabled(QStringLiteral("edit.copy"), clipboardCompatible,
+                          type == ObjectType::NamedSelection
+                              ? tr("Named Selection kopyala/yapıştır bu milestone kapsamında etkin değil.")
+                              : tr("Bu nesne kopyalanamaz."));
     commands_->setEnabled(QStringLiteral("edit.paste"), clipboardHasObject(),
                           tr("Panoda yapıştırılabilir Dynamics26 nesnesi yok."));
-    // Çoklu seçim Alpha.2 kapsamında; sahte bir komut sunulmaz.
     commands_->setEnabled(QStringLiteral("edit.selectAll"), false,
                           tr("Çoklu seçim bu sürümde etkin değil."));
     const bool suppressible = valid && supportsSuppression(type);
@@ -944,10 +950,6 @@ void Dynamics26MainWindow::syncCommandStates()
 
 void Dynamics26MainWindow::syncContextualSurface()
 {
-    // Bağlamsal komut şeridi seçime göre yeniden kurulur. Yalnız gerçekten
-    // bağlı komutlar gösterilir; süsleme amaçlı düğme eklenmez.
-    // QToolBar::clear() widget action'larını da yok eder; bağlam başlığı bu
-    // nedenle her yeniden kurulumda yeniden oluşturulur (asılı işaretçi yok).
     contextToolBar_->clear();
     contextTitle_ = new ui::SecondaryLabel(QString(), 0.56, 0.76, contextToolBar_);
     QFont contextFont = contextTitle_->font();
@@ -1003,6 +1005,12 @@ void Dynamics26MainWindow::syncContextualSurface()
     case ObjectType::ContactRegion:
         contextTitle_->setText(tr("CONNECTIONS"));
         break;
+    case ObjectType::NamedSelectionsFolder:
+        contextTitle_->setText(tr("NAMED SELECTIONS"));
+        break;
+    case ObjectType::NamedSelection:
+        contextTitle_->setText(tr("NAMED SELECTION"));
+        break;
     default:
         contextTitle_->setText(tr("PROJECT"));
         break;
@@ -1017,8 +1025,6 @@ void Dynamics26MainWindow::syncStatusBar()
 
     const ObjectId analysisId = activeAnalysis();
     const AnalysisRecord *record = analysis_->analysis(analysisId);
-    // Bayat sonuç "çözülemez" demek DEĞİLDİR: güncellik uyarısı ayrı bir
-    // segmentte gösterilir, çözücü durumu preflight sonucunu yansıtır.
     const bool ready = analysis_->preflight(analysisId).passed();
     const bool stale = record != nullptr && record->solved && analysis_->solutionIsOutOfDate(analysisId);
     if (solving_) {
@@ -1063,9 +1069,6 @@ void Dynamics26MainWindow::syncDocumentState()
     engineeringStatus_->setDocumentState(documentCommands_->isDirty(), stale);
 }
 
-// ---------------------------------------------------------------------------
-// Model ağacı bakımı
-
 void Dynamics26MainWindow::rebuildGeometryNodes()
 {
     project_->removeChildren(project_->geometryNode());
@@ -1079,8 +1082,6 @@ void Dynamics26MainWindow::rebuildGeometryNodes()
         project_->setState(project_->geometryNode(), ObjectState::UpToDate,
                            tr("%1 — %2 body").arg(summary.sourceFileName).arg(summary.bodyCount));
     } else {
-        // CAD içe aktarılmadıysa model tanımı parametrik kutudur. Bu sahte bir
-        // düğüm değildir: mesh ve çözüm gerçekten bu gövde üzerinden yürür.
         const ObjectId node = project_->addObject(project_->geometryNode(), ObjectType::Body,
                                                   tr("Body 1"), 0);
         project_->setState(node, ObjectState::Ready, tr("Parametrik kutu"));
@@ -1092,6 +1093,12 @@ void Dynamics26MainWindow::rebuildGeometryNodes()
 void Dynamics26MainWindow::newProjectWithoutPrompt()
 {
     suppressSync_ = true;
+    // Persistent scope servisi ProjectModel kimliklerini kullanır; model reset'ten
+    // ÖNCE temizlenmelidir. Aksi halde servis definitions_ içinde artık ağaçta
+    // bulunmayan ObjectId'ler kalır ve sonraki projede ad/kimlik çakışması doğar.
+    if (services_.namedSelections != nullptr) {
+        services_.namedSelections->clear();
+    }
     analysis_->clearAll();
     materials_->clear();
     geometry_->clear();
@@ -1175,7 +1182,6 @@ bool Dynamics26MainWindow::openProjectFromPath(const QString &path)
                       Severity::Error);
         return false;
     }
-    // Mevcut şema doğrulama/migration yolu korunur (CTest: gui.project_schema_migration).
     const auto migration = femcae::gui::ProjectFileMigrator::migrate(document.object(), fem_project_schema_version());
     if (!migration.ok) {
         reportMessage(tr("Proje şema doğrulama/migration hatası: %1").arg(migration.message), Severity::Error);
@@ -1189,7 +1195,6 @@ bool Dynamics26MainWindow::openProjectFromPath(const QString &path)
     newProjectWithoutPrompt();
 
     suppressSync_ = true;
-    // V1.1 tam nesne grafiği varsa onu kullan; yoksa eski (V1.0) şemadan yükle.
     const QJsonObject documentObject = root.value(QStringLiteral("dynamics26_document")).toObject();
     const bool hasFullDocument = !documentObject.isEmpty();
 
@@ -1199,17 +1204,42 @@ bool Dynamics26MainWindow::openProjectFromPath(const QString &path)
     if (hasFullDocument) {
         analysis_->clearAll();
         materials_->clear();
-        // KRİTİK SIRA: kimlik sayacı YÜKLEMEDEN ÖNCE rezerve edilir. Aksi halde
-        // otomatik üretilen ara düğüm kimlikleri, dosyadan gelen açık
-        // ObjectId'lerle çakışıp nesne kaybına yol açar.
-        const auto reservedId =
-            static_cast<ObjectId>(documentObject.value(QStringLiteral("next_object_id")).toInteger(0));
-        project_->reserveIdsUpTo(reservedId);
+
+        ObjectId reservedId = InvalidObjectId;
+        const QJsonValue nextIdValue = documentObject.value(QStringLiteral("next_object_id"));
+        if (!nextIdValue.isUndefined() && !parseDocumentObjectId(nextIdValue, &reservedId)) {
+            suppressSync_ = false;
+            newProjectWithoutPrompt();
+            reportMessage(tr("Proje açılamadı: next_object_id geçerli bir 64-bit kimlik değil."), Severity::Error);
+            return false;
+        }
+        if (reservedId != InvalidObjectId) {
+            project_->reserveIdsUpTo(reservedId);
+        }
+
         materials_->fromJson(documentObject.value(QStringLiteral("materials")).toObject());
         analysis_->fromJson(documentObject.value(QStringLiteral("analyses")).toObject());
+
+        const QJsonObject namedSelectionsObject =
+            documentObject.value(QStringLiteral("named_selections")).toObject();
+        if (!namedSelectionsObject.isEmpty()) {
+            if (services_.namedSelections == nullptr) {
+                suppressSync_ = false;
+                newProjectWithoutPrompt();
+                reportMessage(tr("Proje Named Selection içeriyor ancak persistent scope servisi hazır değil."),
+                              Severity::Error);
+                return false;
+            }
+            QString namedSelectionError;
+            if (!services_.namedSelections->fromJson(namedSelectionsObject, &namedSelectionError)) {
+                suppressSync_ = false;
+                newProjectWithoutPrompt();
+                reportMessage(tr("Named Selection verisi yüklenemedi: %1").arg(namedSelectionError),
+                              Severity::Error);
+                return false;
+            }
+        }
     } else {
-        // Eski proje: tek malzeme ve tek skaler yük. Yeni nesne modeli bu
-        // değerlerden TÜRETİLİR; eski şemaya sıkıştırılmaz.
         materials_->fromLegacyJson(root.value(QStringLiteral("material")).toObject());
         analysis_->applyLegacyLoadJson(root.value(QStringLiteral("load")).toObject());
         reportMessage(tr("Eski proje şeması yüklendi; nesne grafiği varsayılanlardan tamamlandı."),
@@ -1259,8 +1289,6 @@ void Dynamics26MainWindow::saveProjectAs()
 
 bool Dynamics26MainWindow::saveProjectToPath(const QString &path)
 {
-    // Şema anahtarları V1.0 ile uyumlu tutulur (eski sürümler dosyayı açabilir),
-    // TAM nesne grafiği ise ayrı bir "dynamics26_document" bölümünde saklanır.
     QJsonObject root;
     root[QStringLiteral("application_version")] = QStringLiteral("%1.%2.%3")
                                                       .arg(fem_version_major())
@@ -1282,7 +1310,12 @@ bool Dynamics26MainWindow::saveProjectToPath(const QString &path)
     documentObject[QStringLiteral("version")] = 1;
     documentObject[QStringLiteral("materials")] = materials_->toJson();
     documentObject[QStringLiteral("analyses")] = analysis_->toJson();
-    documentObject[QStringLiteral("next_object_id")] = static_cast<qint64>(project_->peekNextId());
+    // ObjectId aynı engineering identity contract'inin parçasıdır; JSON number
+    // (>2^53) precision riski alınmaz. Loader eski numeric alanı da kabul eder.
+    documentObject[QStringLiteral("next_object_id")] = QString::number(project_->peekNextId());
+    if (services_.namedSelections != nullptr) {
+        documentObject[QStringLiteral("named_selections")] = services_.namedSelections->toJson();
+    }
     documentObject[QStringLiteral("gui_milestone")] = QStringLiteral(DYNAMICS26_GUI_MILESTONE);
     root[QStringLiteral("dynamics26_document")] = documentObject;
 
@@ -1363,7 +1396,6 @@ void Dynamics26MainWindow::updateWindowTitle()
         title += tr(" — Düzenlendi");
     }
     setWindowTitle(title);
-    // macOS native "kaydedilmemiş değişiklik" göstergesi.
     setWindowModified(false);
     setWindowFilePath(currentProjectPath_);
 }
@@ -1423,7 +1455,6 @@ void Dynamics26MainWindow::generateMesh()
 
 void Dynamics26MainWindow::clearGeneratedMesh()
 {
-    // Üretilmiş veri türetilmiştir: Undo yığınına girmez, proje tanımı korunur.
     mesh_->clearGenerated();
     selectObject(project_->meshNode());
     syncAll();
@@ -1474,8 +1505,6 @@ void Dynamics26MainWindow::solveActiveAnalysis()
     dependencies_->setSolvingAnalysis(analysisId);
     engineeringStatus_->setSolverState(SolverState::Solving);
     QApplication::setOverrideCursor(Qt::BusyCursor);
-    // Çözüm eşzamanlı çalışır: doğrulanmış Fortran çekirdeğine iş parçacığı
-    // güvenliği varsayımı eklemek yerine mesh boyutu DOF sınırıyla korunur.
     QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 
     const bool ok = analysis_->solve(analysisId);
@@ -1504,7 +1533,6 @@ void Dynamics26MainWindow::solveActiveAnalysis()
             selectObject(deformation);
         }
     } else {
-        // Gerçek solver/preflight hatası: Messages sekmesi otomatik açılır (§19).
         showUtility(UtilityWorkspace::Tab::Messages, true);
     }
     syncAll();
@@ -1638,7 +1666,6 @@ void Dynamics26MainWindow::runVerificationPreset(const QString &id)
         utility_->appendSolverOutput(tr("  Newton düzeltmesi   = %1").arg(totalIterations));
         utility_->appendSolverOutput(tr("  Cutback             = %1").arg(cutbacks));
 
-        // Gerçek yakınsama geçmişi Convergence sekmesini doldurur.
         QVector<QStringList> rows;
         rows.reserve(historyCount);
         for (int i = 0; i < historyCount; ++i) {
@@ -1678,12 +1705,8 @@ void Dynamics26MainWindow::runVerificationPreset(const QString &id)
     }
 }
 
-// ---------------------------------------------------------------------------
-
 void Dynamics26MainWindow::showUtility(const UtilityWorkspace::Tab tab, const bool force)
 {
-    // Kullanıcı paneli bir kez kapattıysa yalnız gerçek bir olay (force) onu
-    // yeniden açabilir; normal modelleme sırasında kendiliğinden açılmaz.
     if (utility_->userDismissed() && !force) {
         return;
     }
@@ -1723,15 +1746,17 @@ QVector<ObjectId> Dynamics26MainWindow::objectsOfType(const ObjectType type) con
     return found;
 }
 
-// --- nesne düzenleme (§17/§18) -----------------------------------------------
-
 void Dynamics26MainWindow::renameObject(const ObjectId id, const QString &newName)
 {
     const ProjectObject *object = project_->object(id);
     if (object == nullptr || newName.trimmed().isEmpty() || newName.trimmed() == object->name) {
         return;
     }
-    documentCommands_->push(new commands::RenameObjectCommand(services_, id, newName));
+    if (object->type == ObjectType::NamedSelection) {
+        documentCommands_->push(new commands::RenameNamedSelectionCommand(services_, id, newName));
+    } else {
+        documentCommands_->push(new commands::RenameObjectCommand(services_, id, newName));
+    }
     syncAll();
 }
 
@@ -1777,6 +1802,18 @@ void Dynamics26MainWindow::duplicateObject(const ObjectId id)
                                                          tr("Duplicate %1").arg(definition->name));
         documentCommands_->push(command);
         created = command->createdId();
+    } else if (type == ObjectType::NamedSelection && services_.namedSelections != nullptr) {
+        const NamedSelectionDefinition *definition = services_.namedSelections->byId(id);
+        if (definition == nullptr) {
+            return;
+        }
+        NamedSelectionDefinition copy = *definition;
+        copy.name = tr("%1 Copy").arg(definition->name);
+        auto *command = new commands::CreateNamedSelectionCommand(
+            services_, copy, services_.namedSelections->rowOf(id) + 1,
+            tr("Duplicate %1").arg(definition->name));
+        documentCommands_->push(command);
+        created = command->createdId();
     }
     if (created != InvalidObjectId) {
         navigator_->expandAll();
@@ -1804,6 +1841,8 @@ void Dynamics26MainWindow::deleteObject(const ObjectId id)
         documentCommands_->push(new commands::DeleteBoundaryConditionCommand(services_, id));
     } else if (isResultDefinition(type)) {
         documentCommands_->push(new commands::DeleteResultDefinitionCommand(services_, id));
+    } else if (type == ObjectType::NamedSelection && services_.namedSelections != nullptr) {
+        documentCommands_->push(new commands::DeleteNamedSelectionCommand(services_, id));
     }
     navigator_->expandAll();
     selectObject(project_->projectRoot());
@@ -1819,8 +1858,6 @@ void Dynamics26MainWindow::setObjectSuppressed(const ObjectId id, const bool sup
     syncAll();
 }
 
-// --- pano (§16) ---------------------------------------------------------------
-
 namespace {
 const char *kClipboardMime = "application/x-dynamics26-object+json";
 }
@@ -1834,7 +1871,7 @@ bool Dynamics26MainWindow::clipboardHasObject() const
 void Dynamics26MainWindow::copySelectedObject(const bool cut)
 {
     const ObjectType type = project_->typeOf(selected_);
-    if (!supportsDuplicate(type)) {
+    if (!supportsDuplicate(type) || type == ObjectType::NamedSelection) {
         return;
     }
     QJsonObject payload;
@@ -1918,8 +1955,6 @@ void Dynamics26MainWindow::pasteObject()
     syncAll();
 }
 
-// --- bağlam menüleri (§19) ----------------------------------------------------
-
 void Dynamics26MainWindow::showObjectContextMenu(const ObjectId id, const QPoint &globalPosition)
 {
     QMenu *menu = buildContextMenu(id, this);
@@ -1985,6 +2020,16 @@ QMenu *Dynamics26MainWindow::buildContextMenu(const ObjectId id, QWidget *parent
         menu.addSeparator();
         add(project_->isSuppressed(id) ? "edit.unsuppress" : "edit.suppress");
         break;
+    case ObjectType::NamedSelection:
+        add("edit.rename");
+        add("edit.duplicate");
+        menu.addSeparator();
+        add("edit.delete");
+        break;
+    case ObjectType::NamedSelectionsFolder:
+        add("tree.expandAll");
+        add("tree.collapseAll");
+        break;
     case ObjectType::Analysis:
     case ObjectType::AnalysisSettings: {
         add("analysis.preflight");
@@ -2032,8 +2077,6 @@ QMenu *Dynamics26MainWindow::buildContextMenu(const ObjectId id, QWidget *parent
     }
     return menuPtr;
 }
-
-// --- yardım -------------------------------------------------------------------
 
 void Dynamics26MainWindow::showKeyboardShortcuts()
 {
@@ -2140,9 +2183,6 @@ void Dynamics26MainWindow::closeEvent(QCloseEvent *event)
 bool Dynamics26MainWindow::event(QEvent *event)
 {
     if (event->type() == QEvent::ApplicationPaletteChange || event->type() == QEvent::PaletteChange) {
-        // macOS System Appearance değişimi: ikonlar ve viewport paleti yeniden
-        // üretilir. Qt widget'ları native style ile kendiliğinden güncellenir;
-        // global QSS veya QPalette zorlaması yoktur.
         commands_->refreshIcons();
         graphics_->refreshIcons();
         navigator_->refreshDecorations();
