@@ -99,14 +99,16 @@ bool isResultDefinition(const ObjectType type)
 
 bool supportsSuppression(const ObjectType type)
 {
-    return type == ObjectType::Body || type == ObjectType::FixedSupport || type == ObjectType::Force
+    return type == ObjectType::Body || type == ObjectType::ContactRegion
+        || type == ObjectType::FixedSupport || type == ObjectType::Force
         || isResultDefinition(type);
 }
 
 bool supportsRename(const ObjectType type)
 {
     return type == ObjectType::Body || type == ObjectType::Material || type == ObjectType::Analysis
-        || type == ObjectType::FixedSupport || type == ObjectType::Force || type == ObjectType::NamedSelection
+        || type == ObjectType::ContactRegion || type == ObjectType::FixedSupport
+        || type == ObjectType::Force || type == ObjectType::NamedSelection
         || isResultDefinition(type);
 }
 
@@ -118,8 +120,10 @@ bool supportsDuplicate(const ObjectType type)
 
 bool supportsDelete(const ObjectType type)
 {
-    return type == ObjectType::Material || type == ObjectType::Analysis || type == ObjectType::FixedSupport
-        || type == ObjectType::Force || type == ObjectType::NamedSelection || isResultDefinition(type);
+    return type == ObjectType::Material || type == ObjectType::Analysis
+        || type == ObjectType::ContactRegion || type == ObjectType::FixedSupport
+        || type == ObjectType::Force || type == ObjectType::NamedSelection
+        || isResultDefinition(type);
 }
 
 ViewportContext viewportContextFor(const ObjectType type)
