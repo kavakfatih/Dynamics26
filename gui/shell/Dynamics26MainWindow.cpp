@@ -187,15 +187,19 @@ void Dynamics26MainWindow::buildServices()
     mesh_ = new MeshService(geometry_, this);
     materials_ = new MaterialService(project_, this);
     analysis_ = new AnalysisService(project_, mesh_, materials_, this);
+    auto *namedSelections = new NamedSelectionService(project_, geometry_, mesh_, this);
 
     services_.project = project_;
     services_.geometry = geometry_;
     services_.mesh = mesh_;
+    services_.namedSelections = namedSelections;
     services_.materials = materials_;
     services_.analysis = analysis_;
 
     // Doküman komut sistemi ve bağımlılık motoru servislerin ÜSTÜNDE durur:
-    // servisler bunları tanımaz, kabuk ve komutlar kullanır.
+    // servisler bunları tanımaz, kabuk ve komutlar kullanır. Persistent scope
+    // servisi bu noktada hazırdır; DetailsHost ve alt Details sayfaları dahil
+    // ServiceContext kopyası alan tüm consumer'lar aynı örneği görür.
     documentCommands_ = new DocumentCommandManager(this);
     dependencies_ = new DependencyEngine(services_, this);
     services_.commands = documentCommands_;
