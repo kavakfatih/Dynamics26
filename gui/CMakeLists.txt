@@ -129,7 +129,7 @@ target_include_directories(femcae_gui PRIVATE
 )
 target_compile_definitions(femcae_gui PRIVATE
     FEMCAE_APP_VERSION="${PROJECT_VERSION}"
-    DYNAMICS26_GUI_MILESTONE="1.1.0-alpha.3.5"
+    DYNAMICS26_GUI_MILESTONE="1.1.0-alpha.3.6"
     $<$<CONFIG:Debug>:DYNAMICS26_VIEWPORT_INPUT_TRACE=1>
 )
 
