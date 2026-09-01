@@ -12,13 +12,20 @@ on:
       - "gui/core/SelectionManager.cpp"
       - "gui/core/SelectionManager.h"
       - "gui/core/ScopeReferenceBuilder.h"
+      - "gui/core/ServiceContext.h"
+      - "gui/core/NamedSelectionCompositionContract.h"
+      - "gui/commands/NamedSelectionCommands.h"
       - "gui/services/NamedSelectionService.cpp"
       - "gui/services/NamedSelectionService.h"
+      - "gui/shell/Dynamics26MainWindow.cpp"
+      - "gui/shell/Dynamics26MainWindow.h"
       - "gui/shell/GraphicsWorkspace.cpp"
       - "gui/shell/GraphicsWorkspace.h"
       - "gui/shell/SelectionCoordinator.cpp"
       - "gui/shell/SelectionCoordinator.h"
+      - "gui/support/SelfTest.cpp"
       - "gui/support/SelectionAcceptanceTest.h"
+      - "gui/main.cpp"
       - "gui/viewport/GeometrySelectionScene.h"
       - "gui/viewport/GeometryTopologyScene.h"
       - "gui/viewport/GeometryHardwareSelector.h"
@@ -64,8 +71,11 @@ jobs:
           test "$(uname -m)" = "arm64"
           git diff --check
           test -f gui/core/ScopeReferenceBuilder.h
+          test -f gui/core/NamedSelectionCompositionContract.h
+          test -f gui/commands/NamedSelectionCommands.h
           test -f gui/services/NamedSelectionService.cpp
           test -f gui/services/NamedSelectionService.h
+          test -f gui/shell/Dynamics26MainWindow.cpp
           test -f gui/shell/SelectionCoordinator.cpp
           test -f gui/viewport/GeometryTopologyScene.h
           test -f gui/viewport/GeometryHardwareSelector.h
@@ -80,6 +90,8 @@ jobs:
           test -f tests/gui/test_geometry_window_selection.cpp
           test -f tests/gui/test_mesh_viewport_selection.cpp
           grep -q 'femcae_named_selection_test' gui/CMakeLists.txt
+          grep -q 'NamedSelectionService \*namedSelections' gui/core/ServiceContext.h
+          grep -q 'CreateNamedSelectionCommand' gui/commands/NamedSelectionCommands.h
           grep -q 'SelectionInputActionType::WindowCommit' gui/viewport/ViewportSelectionController.h
           grep -q 'PendingWindowSelectionBatch' gui/shell/SelectionCoordinator.cpp
           grep -q 'manager->apply(batch.items' gui/shell/SelectionCoordinator.cpp
@@ -109,11 +121,16 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          # Dependency graph scope + Named Selection + viewport-input + FEM
-          # provenance/scope testlerini de build eder. Production GUI burada
-          # bilinçli olarak derlenmez; bu hosted gate VTK/OCCT gerektirmeyen
-          # state/persistence kontratıdır.
           cmake --build build-selection --parallel --target femcae_selection_manager_test
+
+      - name: Build application composition without VTK or OCCT
+        shell: bash
+        run: |
+          set -euxo pipefail
+          # Named Selection service wiring, MainWindow persistence/CRUD ve
+          # SelectionCoordinator application bridge'i production GUI target'ında
+          # derlenir. Ağır VTK/OCCT bağımlılıkları bu hızlı hosted gate'te kapalıdır.
+          cmake --build build-selection --parallel --target femcae_gui
 
       - name: Selection and scope regression gate
         run: ctest --test-dir build-selection -L selection --output-on-failure
@@ -128,6 +145,7 @@ jobs:
             "build-selection/gui/femcae_named_selection_test"
             "build-selection/gui/femcae_viewport_selection_input_test"
             "build-selection/gui/femcae_mesh_selection_test"
+            "build-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
           )
           for binary in "${binaries[@]}"; do
             test -x "$binary"
