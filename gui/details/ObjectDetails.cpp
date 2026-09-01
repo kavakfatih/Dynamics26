@@ -5,12 +5,41 @@
 #include "../services/GeometryService.h"
 #include "../services/MaterialService.h"
 #include "../services/MeshService.h"
+#include "../services/NamedSelectionService.h"
 
 #include <femcae/femcae.h>
 
 #include <QLabel>
 
 namespace d26 {
+namespace {
+
+QString scopeDomainName(const SelectionDomain domain)
+{
+    switch (domain) {
+    case SelectionDomain::Geometry: return QStringLiteral("Geometry");
+    case SelectionDomain::Mesh: return QStringLiteral("Mesh");
+    case SelectionDomain::ProjectObject: return QStringLiteral("Project Object");
+    }
+    return QStringLiteral("—");
+}
+
+QString scopeKindName(const SelectionKind kind)
+{
+    switch (kind) {
+    case SelectionKind::Object: return QStringLiteral("Object");
+    case SelectionKind::Body: return QStringLiteral("Body");
+    case SelectionKind::Face: return QStringLiteral("Face");
+    case SelectionKind::Edge: return QStringLiteral("Edge");
+    case SelectionKind::Vertex: return QStringLiteral("Vertex");
+    case SelectionKind::Node: return QStringLiteral("Node");
+    case SelectionKind::Element: return QStringLiteral("Element");
+    case SelectionKind::Facet: return QStringLiteral("Facet");
+    }
+    return QStringLiteral("—");
+}
+
+} // namespace
 
 ObjectDetails::ObjectDetails(const ServiceContext &services, QWidget *parent)
     : DetailsPage(parent), services_(services)
@@ -21,15 +50,17 @@ void ObjectDetails::refresh()
 {
     clearSections();
     switch (services_.project->typeOf(objectId_)) {
-    case ObjectType::Project:           buildProject(); break;
-    case ObjectType::Model:             buildModel(); break;
-    case ObjectType::Body:              buildBody(); break;
-    case ObjectType::MaterialsFolder:   buildMaterialsFolder(); break;
+    case ObjectType::Project:               buildProject(); break;
+    case ObjectType::Model:                 buildModel(); break;
+    case ObjectType::Body:                  buildBody(); break;
+    case ObjectType::MaterialsFolder:       buildMaterialsFolder(); break;
     case ObjectType::SectionsFolder:
-    case ObjectType::Section:           buildSections(); break;
-    case ObjectType::ConnectionsFolder: buildConnections(); break;
-    case ObjectType::Solution:          buildSolution(); break;
-    default:                            buildModel(); break;
+    case ObjectType::Section:               buildSections(); break;
+    case ObjectType::ConnectionsFolder:     buildConnections(); break;
+    case ObjectType::NamedSelectionsFolder: buildNamedSelectionsFolder(); break;
+    case ObjectType::NamedSelection:        buildNamedSelection(); break;
+    case ObjectType::Solution:              buildSolution(); break;
+    default:                                buildModel(); break;
     }
     addStretch();
 }
@@ -141,6 +172,73 @@ void ObjectDetails::buildConnections()
                            "bu sürümde eklenemez."));
 }
 
+void ObjectDetails::buildNamedSelectionsFolder()
+{
+    auto *definition = addSection(tr("Definition"));
+    if (services_.namedSelections == nullptr) {
+        definition->addValueRow(tr("Status"), tr("Persistent scope servisi kullanılamıyor"));
+        return;
+    }
+    definition->addValueRow(tr("Named Selections"), QString::number(services_.namedSelections->count()));
+    definition->addNote(tr("Named Selection; transient viewport seçimini CAD topology veya FEM mesh "
+                           "kimlikleriyle kalıcı bir mühendislik kapsamına dönüştürür."));
+}
+
+void ObjectDetails::buildNamedSelection()
+{
+    auto *definitionSection = addSection(tr("Definition"));
+    const ProjectObject *object = services_.project->object(objectId_);
+    if (services_.namedSelections == nullptr) {
+        definitionSection->addValueRow(tr("Status"), tr("Persistent scope servisi kullanılamıyor"));
+        return;
+    }
+
+    const NamedSelectionDefinition *definition = services_.namedSelections->byId(objectId_);
+    if (definition == nullptr || definition->scope.entities.isEmpty()) {
+        definitionSection->addValueRow(tr("Status"), tr("Named Selection tanımı bulunamadı"));
+        return;
+    }
+
+    const ScopeReference &scope = definition->scope;
+    const ScopeEntityReference &first = scope.entities.front();
+    definitionSection->addValueRow(tr("Name"), definition->name);
+    definitionSection->addValueRow(tr("Domain"), scopeDomainName(first.domain));
+    definitionSection->addValueRow(tr("Entity Type"), scopeKindName(first.kind));
+    definitionSection->addValueRow(tr("Entities"), QString::number(scope.entities.size()));
+
+    auto *lifecycle = addSection(tr("Lifecycle"));
+    lifecycle->addValueRow(tr("Status"), object != nullptr && !object->statusText.isEmpty()
+                                            ? object->statusText
+                                            : tr("—"));
+    if (first.domain == SelectionDomain::Geometry) {
+        lifecycle->addValueRow(tr("CAD Revision"), QString::number(scope.sourceRevision));
+    } else if (first.domain == SelectionDomain::Mesh) {
+        lifecycle->addValueRow(tr("Mesh Generation"), QString::number(scope.sourceRevision));
+    }
+
+    auto *identity = addSection(tr("Engineering Identity"), true, true);
+    if (first.domain == SelectionDomain::Geometry) {
+        identity->addValueRow(tr("Geometry Entity ID"),
+                              QString::number(static_cast<qulonglong>(first.geometryEntityId)));
+        if (geometrySelectionKindHasBodyParent(first.kind)) {
+            identity->addValueRow(tr("Parent Body ID"),
+                                  QString::number(static_cast<qulonglong>(first.parentGeometryId)));
+        }
+        identity->addValueRow(tr("Persistent Key"), first.persistentKey);
+        if (scope.entities.size() > 1) {
+            identity->addNote(tr("Kimlik bölümü ilk entity'yi gösterir; toplam kapsam %1 entity içeriyor.")
+                                  .arg(scope.entities.size()));
+        }
+    } else if (first.domain == SelectionDomain::Mesh) {
+        identity->addValueRow(tr("Mesh Entity ID"),
+                              QString::number(static_cast<qulonglong>(first.meshEntityId)));
+        if (scope.entities.size() > 1) {
+            identity->addNote(tr("Kimlik bölümü ilk entity'yi gösterir; toplam kapsam %1 entity içeriyor.")
+                                  .arg(scope.entities.size()));
+        }
+    }
+}
+
 void ObjectDetails::buildSolution()
 {
     const ObjectId analysisId = services_.analysis->owningAnalysis(objectId_);
@@ -158,7 +256,7 @@ void ObjectDetails::buildSolution()
     auto *summary = addSection(tr("Summary"));
     summary->addValueRow(tr("Nodes"), QString::number(results.nodeCount));
     summary->addValueRow(tr("Elements"), QString::number(results.elementCount));
-    summary->addValueRow(tr("Degrees of Freedom"), QString::number(results.dofCount));
+    summary->addValueRow(tr("Degrees of Freedom"), QString::number(results.dofCount()));
     summary->addValueRow(tr("Max Total Deformation"), QStringLiteral("%1 mm").arg(results.maxDisplacementMm, 0, 'g', 6));
     summary->addValueRow(tr("Max Equivalent Stress"), QStringLiteral("%1 MPa").arg(results.maxVonMisesMPa, 0, 'g', 6));
 }
