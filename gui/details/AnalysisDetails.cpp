@@ -110,6 +110,72 @@ void AnalysisDetails::refresh()
         }
         delete item;
     }
+
+    // Alpha.4 summary yalnız aynı authoritative PreflightReport'u özetler.
+    // Yeni bir validation state'i veya paralel kural seti oluşturulmaz. İlk
+    // actionable konu önce Failed, sonra Warning sırasıyla seçilir; navigation
+    // document mutation değildir ve canonical MainWindow::selectObject yoluna gider.
+    int blockingCount = 0;
+    int warningCount = 0;
+    ObjectId firstBlockingSubject = InvalidObjectId;
+    ObjectId firstWarningSubject = InvalidObjectId;
+    for (const auto &check : report.checks) {
+        if (check.status == PreflightCheck::Status::Failed) {
+            ++blockingCount;
+            if (firstBlockingSubject == InvalidObjectId && check.subject != InvalidObjectId
+                && services_.project != nullptr && services_.project->object(check.subject) != nullptr) {
+                firstBlockingSubject = check.subject;
+            }
+        } else if (check.status == PreflightCheck::Status::Warning) {
+            ++warningCount;
+            if (firstWarningSubject == InvalidObjectId && check.subject != InvalidObjectId
+                && services_.project != nullptr && services_.project->object(check.subject) != nullptr) {
+                firstWarningSubject = check.subject;
+            }
+        }
+    }
+
+    auto *summaryRow = new QWidget(validationBody_);
+    auto *summaryLayout = new QHBoxLayout(summaryRow);
+    summaryLayout->setContentsMargins(0, 0, 0, 3);
+    summaryLayout->setSpacing(6);
+    auto *summary = new QLabel(summaryRow);
+    summary->setObjectName(QStringLiteral("Dynamics26PreflightSummary"));
+    if (blockingCount == 0 && warningCount == 0) {
+        summary->setText(tr("Ready to Solve · engel yok"));
+    } else {
+        summary->setText(tr("%1 engel · %2 uyarı").arg(blockingCount).arg(warningCount));
+    }
+    QFont summaryFont = summary->font();
+    summaryFont.setBold(true);
+    summary->setFont(summaryFont);
+    const ui::StatusTone summaryTone = blockingCount > 0
+        ? ui::StatusTone::Error
+        : (warningCount > 0 ? ui::StatusTone::Warning : ui::StatusTone::UpToDate);
+    QPalette summaryPalette = summary->palette();
+    summaryPalette.setColor(QPalette::WindowText, ui::statusColor(summaryTone));
+    summaryPalette.setColor(QPalette::Text, ui::statusColor(summaryTone));
+    summary->setPalette(summaryPalette);
+    summaryLayout->addWidget(summary, 1);
+
+    const ObjectId firstActionableSubject = firstBlockingSubject != InvalidObjectId
+        ? firstBlockingSubject : firstWarningSubject;
+    if (firstActionableSubject != InvalidObjectId) {
+        auto *nextIssue = new QToolButton(summaryRow);
+        nextIssue->setText(tr("İlk Konuya Git"));
+        nextIssue->setAutoRaise(true);
+        nextIssue->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        nextIssue->setObjectName(QStringLiteral("Dynamics26PreflightNextIssue"));
+        nextIssue->setToolTip(tr("İlk çözülmesi gereken model nesnesini göster"));
+        summaryLayout->addWidget(nextIssue, 0, Qt::AlignTop);
+        connect(nextIssue, &QToolButton::clicked, this, [this, firstActionableSubject] {
+            if (auto *mainWindow = qobject_cast<Dynamics26MainWindow *>(window())) {
+                mainWindow->selectObject(firstActionableSubject);
+            }
+        });
+    }
+    validationLayout_->addWidget(summaryRow);
+
     for (const auto &check : report.checks) {
         const QString mark = check.status == PreflightCheck::Status::Passed
             ? QStringLiteral("✓")
