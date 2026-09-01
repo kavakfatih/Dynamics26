@@ -1,9 +1,10 @@
 #include "BoundaryConditionDetails.h"
 
-#include "../services/AnalysisService.h"
-#include "../services/MeshService.h"
 #include "../commands/DomainCommands.h"
 #include "../core/DocumentCommandManager.h"
+#include "../services/AnalysisService.h"
+#include "../services/MeshService.h"
+#include "../services/NamedSelectionService.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -31,6 +32,18 @@ QStringList faceNames()
     return names;
 }
 
+bool isGeometryFaceScope(const NamedSelectionDefinition &definition)
+{
+    if (definition.scope.entities.isEmpty()) {
+        return false;
+    }
+    return std::all_of(definition.scope.entities.cbegin(), definition.scope.entities.cend(),
+                       [](const ScopeEntityReference &entity) {
+                           return entity.domain == SelectionDomain::Geometry
+                               && entity.kind == SelectionKind::Face;
+                       });
+}
+
 } // namespace
 
 BoundaryConditionDetails::BoundaryConditionDetails(const ServiceContext &services, QWidget *parent)
@@ -40,9 +53,17 @@ BoundaryConditionDetails::BoundaryConditionDetails(const ServiceContext &service
     name_ = new QLineEdit;
     name_->setMinimumHeight(22);
     scopeSection->addRow(tr("Name"), name_);
-    scopingMethod_ = scopeSection->addValueRow(tr("Scoping Method"), tr("Geometry Selection"));
+
+    scopingMethod_ = makeCombo({tr("Geometry Selection"), tr("Named Selection")});
+    scopingMethod_->setItemData(0, static_cast<int>(BoundaryScopingMethod::GeometrySelection));
+    scopingMethod_->setItemData(1, static_cast<int>(BoundaryScopingMethod::NamedSelection));
+    scopeSection->addRow(tr("Scoping Method"), scopingMethod_);
+
     scope_ = makeCombo(faceNames());
-    scopeSection->addRow(tr("Geometry"), scope_);
+    geometryScopeRow_ = scopeSection->addRow(tr("Geometry"), scope_);
+
+    namedSelection_ = makeCombo({});
+    namedSelectionRow_ = scopeSection->addRow(tr("Named Selection"), namedSelection_);
     scopeStatistics_ = scopeSection->addValueRow(tr("Resolved"));
 
     supportSection_ = addSection(tr("Definition"));
@@ -74,15 +95,19 @@ BoundaryConditionDetails::BoundaryConditionDetails(const ServiceContext &service
     coordinateSystem_ = coordinateSection->addValueRow(tr("System"), tr("Global"));
 
     auto *advanced = addSection(tr("Advanced"), true, true);
-    advanced->addNote(tr("Toplam kuvvet, kapsanan yüzün çözülmüş FEM düğümlerine eşit dağıtılır. "
-                         "Düğüm listesi geometri provenance'ı üzerinden AssignmentResolver ile bulunur; "
-                         "görüntüleme üçgenlemesi bu zincirin hiçbir adımında kullanılmaz."));
+    advanced->addNote(tr("Geometry Selection tek CAD yüzünü doğrudan kapsar. Named Selection ise yalnız "
+                         "persistent ObjectId referansı taşır; yüz kimlikleri Fixed Support / Force içine "
+                         "kopyalanmaz. Birden fazla yüz kapsayan Force için bütün FEM düğümleri önce tek "
+                         "union kümesine alınır ve toplam kuvvet bu kümeye yalnız bir kez dağıtılır. "
+                         "Display tessellation solver scope değildir."));
 
     addStretch();
 
     const auto pushEdit = [this] { push(); };
     connect(name_, &QLineEdit::editingFinished, this, pushEdit);
+    connect(scopingMethod_, &QComboBox::currentIndexChanged, this, pushEdit);
     connect(scope_, &QComboBox::currentIndexChanged, this, pushEdit);
+    connect(namedSelection_, &QComboBox::currentIndexChanged, this, pushEdit);
     connect(fixX_, &QCheckBox::toggled, this, pushEdit);
     connect(fixY_, &QCheckBox::toggled, this, pushEdit);
     connect(fixZ_, &QCheckBox::toggled, this, pushEdit);
@@ -91,13 +116,69 @@ BoundaryConditionDetails::BoundaryConditionDetails(const ServiceContext &service
     connect(fz_, &QDoubleSpinBox::valueChanged, this, pushEdit);
 }
 
+ObjectId BoundaryConditionDetails::selectedNamedSelectionId() const
+{
+    if (namedSelection_ == nullptr || namedSelection_->currentIndex() < 0) {
+        return InvalidObjectId;
+    }
+    bool ok = false;
+    const qulonglong value = namedSelection_->currentData().toString().toULongLong(&ok, 10);
+    return ok ? static_cast<ObjectId>(value) : InvalidObjectId;
+}
+
+void BoundaryConditionDetails::populateNamedSelections(const ObjectId currentId)
+{
+    namedSelection_->clear();
+    namedSelection_->addItem(tr("— Seçin —"), QString());
+
+    bool currentFound = currentId == InvalidObjectId;
+    if (services_.namedSelections != nullptr) {
+        for (const ObjectId id : services_.namedSelections->order()) {
+            const NamedSelectionDefinition *definition = services_.namedSelections->byId(id);
+            if (definition == nullptr) {
+                continue;
+            }
+            const bool compatible = isGeometryFaceScope(*definition);
+            if (!compatible && id != currentId) {
+                continue;
+            }
+
+            QString label = definition->name;
+            if (!compatible) {
+                label += tr(" — Uyumsuz kapsam");
+            } else if (services_.namedSelections->validate(id) != ScopeReferenceValidationError::None) {
+                label += tr(" — Out of Date");
+            }
+            namedSelection_->addItem(label, QString::number(static_cast<qulonglong>(id)));
+            if (id == currentId) {
+                namedSelection_->setCurrentIndex(namedSelection_->count() - 1);
+                currentFound = true;
+            }
+        }
+    }
+
+    // Dosyada artık bulunmayan bir persistent ObjectId sessizce placeholder'a
+    // dönüştürülmez. Kullanıcı dangling referansı Details'ta açıkça görür.
+    if (!currentFound && currentId != InvalidObjectId) {
+        namedSelection_->addItem(tr("Eksik Named Selection — ID %1").arg(currentId),
+                                 QString::number(static_cast<qulonglong>(currentId)));
+        namedSelection_->setCurrentIndex(namedSelection_->count() - 1);
+    }
+}
+
 void BoundaryConditionDetails::push()
 {
     if (updating_) {
         return;
     }
+
     const int index = qBound(0, scope_->currentIndex(), 5);
     const BoxFace face = kFaces[static_cast<std::size_t>(index)];
+    const auto method = static_cast<BoundaryScopingMethod>(
+        scopingMethod_->currentData().toInt(static_cast<int>(BoundaryScopingMethod::GeometrySelection)));
+    const ObjectId namedSelectionId = method == BoundaryScopingMethod::NamedSelection
+        ? selectedNamedSelectionId() : InvalidObjectId;
+
     if (isLoad_) {
         const LoadDefinition *existing = services_.analysis->load(objectId_);
         if (existing == nullptr) {
@@ -105,12 +186,18 @@ void BoundaryConditionDetails::push()
         }
         LoadDefinition definition = *existing;
         definition.name = name_->text().trimmed().isEmpty() ? existing->name : name_->text().trimmed();
+        definition.scopingMethod = method;
         definition.scope = face;
+        definition.namedSelectionId = namedSelectionId;
         definition.fxN = fx_->value();
         definition.fyN = fy_->value();
         definition.fzN = fz_->value();
-        if (definition.name == existing->name && definition.scope == existing->scope
-            && qFuzzyCompare(definition.fxN, existing->fxN) && qFuzzyCompare(definition.fyN, existing->fyN)
+        if (definition.name == existing->name
+            && definition.scopingMethod == existing->scopingMethod
+            && definition.scope == existing->scope
+            && definition.namedSelectionId == existing->namedSelectionId
+            && qFuzzyCompare(definition.fxN, existing->fxN)
+            && qFuzzyCompare(definition.fyN, existing->fyN)
             && qFuzzyCompare(definition.fzN, existing->fzN)) {
             return;
         }
@@ -122,18 +209,28 @@ void BoundaryConditionDetails::push()
         }
         SupportDefinition definition = *existing;
         definition.name = name_->text().trimmed().isEmpty() ? existing->name : name_->text().trimmed();
+        definition.scopingMethod = method;
         definition.scope = face;
+        definition.namedSelectionId = namedSelectionId;
         definition.fixX = fixX_->isChecked();
         definition.fixY = fixY_->isChecked();
         definition.fixZ = fixZ_->isChecked();
-        if (definition.name == existing->name && definition.scope == existing->scope
+        if (definition.name == existing->name
+            && definition.scopingMethod == existing->scopingMethod
+            && definition.scope == existing->scope
+            && definition.namedSelectionId == existing->namedSelectionId
             && definition.fixX == existing->fixX && definition.fixY == existing->fixY
             && definition.fixZ == existing->fixZ) {
             return;
         }
         services_.commands->push(new commands::SetSupportCommand(services_, objectId_, *existing, definition));
     }
-    emit scopeHighlightRequested(services_.mesh->geometryIdFor(face));
+
+    // Tek yüz Geometry Selection mevcut tek-ID highlight yolunu kullanabilir.
+    // Named Selection birden fazla Face içerebileceği için şimdilik highlight
+    // temizlenir; ilk yüzü seçilmiş gibi göstermek mühendislik açısından yanlış.
+    emit scopeHighlightRequested(method == BoundaryScopingMethod::GeometrySelection
+                                     ? services_.mesh->geometryIdFor(face) : 0);
     emit modelEdited();
 }
 
@@ -149,17 +246,35 @@ void BoundaryConditionDetails::refresh()
     supportSection_->setVisible(!isLoad_);
     loadSection_->setVisible(isLoad_);
 
+    const BoundaryScopingMethod method = isLoad_ ? load->scopingMethod : support->scopingMethod;
+    const ObjectId namedSelectionId = isLoad_ ? load->namedSelectionId : support->namedSelectionId;
     const BoxFace face = isLoad_ ? load->scope : support->scope;
+
+    const int methodIndex = scopingMethod_->findData(static_cast<int>(method));
+    scopingMethod_->setCurrentIndex(methodIndex >= 0 ? methodIndex : 0);
     const auto position = std::find(kFaces.begin(), kFaces.end(), face);
-    scope_->setCurrentIndex(static_cast<int>(std::distance(kFaces.begin(), position)));
+    scope_->setCurrentIndex(position != kFaces.end()
+                                ? static_cast<int>(std::distance(kFaces.begin(), position)) : 0);
+    populateNamedSelections(namedSelectionId);
+    geometryScopeRow_->setVisible(method == BoundaryScopingMethod::GeometrySelection);
+    namedSelectionRow_->setVisible(method == BoundaryScopingMethod::NamedSelection);
     name_->setText(isLoad_ ? load->name : support->name);
 
-    if (services_.mesh->hasMesh()) {
-        scopeStatistics_->setText(tr("%1 facet · %2 node")
-                                      .arg(services_.mesh->facetCountFor(face))
-                                      .arg(services_.mesh->nodeCountFor(face)));
+    const BoundaryScopeResolution resolved = isLoad_
+        ? services_.analysis->resolveBoundaryScope(*load)
+        : services_.analysis->resolveBoundaryScope(*support);
+    if (!resolved.valid) {
+        scopeStatistics_->setText(resolved.error.isEmpty() ? tr("Scope çözülemedi") : resolved.error);
+    } else if (services_.mesh->hasMesh() && !services_.mesh->isOutOfDate()) {
+        const int nodeCount = isLoad_
+            ? services_.analysis->resolvedBoundaryNodeCount(*load)
+            : services_.analysis->resolvedBoundaryNodeCount(*support);
+        scopeStatistics_->setText(tr("%1 face · %2 node")
+                                      .arg(resolved.geometryFaceIds.size())
+                                      .arg(nodeCount));
     } else {
-        scopeStatistics_->setText(tr("Mesh üretilmedi"));
+        scopeStatistics_->setText(tr("%1 face · Mesh üretilmedi/güncel değil")
+                                      .arg(resolved.geometryFaceIds.size()));
     }
 
     if (isLoad_) {
@@ -176,7 +291,8 @@ void BoundaryConditionDetails::refresh()
     }
     updating_ = false;
 
-    emit scopeHighlightRequested(services_.mesh->geometryIdFor(face));
+    emit scopeHighlightRequested(method == BoundaryScopingMethod::GeometrySelection
+                                     ? services_.mesh->geometryIdFor(face) : 0);
 }
 
 } // namespace d26
