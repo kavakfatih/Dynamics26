@@ -6,9 +6,12 @@ name: macOS GUI application acceptance
     # Application-level acceptance yalnız integrated selection / Preflight /
     # analysis workflow yüzeyi değiştiğinde çalışır. Trusted Mac fast gate ana
     # günlük yol olarak kalırken hosted Apple Silicon runner Debug + Release
-    # davranış farklarının sessiz regresyon üretmesini engeller.
+    # davranış farklarının sessiz regresyon üretmesini engeller. GUI milestone /
+    # CMake composition değişiklikleri de aynı gerçek application selftest'i
+    # yeniden çalıştırmalıdır.
     paths:
       - ".github/workflows/macos-gui-app-acceptance.yml"
+      - "gui/CMakeLists.txt"
       - "gui/main.cpp"
       - "gui/shell/Dynamics26MainWindow.*"
       - "gui/shell/SelectionCoordinator.*"
