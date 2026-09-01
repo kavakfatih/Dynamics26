@@ -26,6 +26,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QMetaObject>
+#include <QPlainTextEdit>
 #include <QTableWidget>
 #include <QTabWidget>
 #include <QToolButton>
@@ -158,6 +159,11 @@ inline int runPreflightAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
     // yazar. Satır sayısı ve engineering ObjectId bağı doğrudan doğrulanır.
     window.selectObject(analysisId);
     flushUi();
+    auto *messages = window.findChild<QPlainTextEdit *>(QStringLiteral("Dynamics26UtilityMessages"));
+    const QString messagesBefore = messages != nullptr ? messages->toPlainText() : QString();
+    check(messages != nullptr,
+          "Utility workspace exposes Messages console for Preflight echo regression coverage");
+
     check(window.runCommand(QStringLiteral("analysis.preflight")),
           "Run Preflight command executes through canonical shell command registry");
     flushUi();
@@ -199,6 +205,18 @@ inline int runPreflightAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
             check(undoStack->index() == undoBeforeUtilityNavigation,
                   "structured Preflight subject navigation does not mutate document Undo history");
         }
+    }
+
+    if (messages != nullptr) {
+        const QString messagesAfter = messages->toPlainText();
+        const QString delta = messagesAfter.mid(messagesBefore.size());
+        check(!delta.contains(QStringLiteral("── PRE-FLIGHT ──"))
+                  && !delta.contains(QStringLiteral("✕ "))
+                  && !delta.contains(QStringLiteral("✓ "))
+                  && !delta.contains(QStringLiteral("! ")),
+              "Messages no longer duplicates marker or detailed Preflight check rows");
+        check(delta.contains(QStringLiteral("Preflight başarısız — çözüm başlatılamaz.")),
+              "Messages retains the one-line final Preflight outcome summary");
     }
 
     // Fixture'i exact persistent state'e geri getir. MaterialService::fromJson
