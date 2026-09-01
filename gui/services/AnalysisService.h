@@ -34,6 +34,7 @@
 
 namespace d26 {
 
+class ContactService;
 class NamedSelectionService;
 
 // Boundary-condition consumer scope tipi. Geometry Selection legacy/current
@@ -158,10 +159,11 @@ public:
     AnalysisService(ProjectModel *project, MeshService *mesh, MaterialService *materials,
                     QObject *parent = nullptr);
 
-    // Named Selection servisi AnalysisService'ten bağımsız kurulur ve composition
-    // root tarafından bir kez bağlanır. Setter yalnız pointer wiring yapar; servis
-    // sahipliği QObject parent tree'sinde kalır.
+    // Persistent engineering servisleri AnalysisService'ten bağımsız kurulur ve
+    // composition root tarafından bir kez bağlanır. Setter'lar yalnız pointer
+    // wiring yapar; servis sahipliği QObject parent tree'sinde kalır.
     void setNamedSelectionService(NamedSelectionService *service) noexcept { namedSelections_ = service; }
+    void setContactService(ContactService *service) noexcept { contacts_ = service; }
 
     // --- analiz nesneleri ---
     ObjectId createAnalysis(AnalysisType type, int row = -1, ObjectId requestedId = InvalidObjectId,
@@ -269,6 +271,7 @@ private:
     MeshService *mesh_;
     MaterialService *materials_;
     NamedSelectionService *namedSelections_{nullptr};
+    ContactService *contacts_{nullptr};
     QHash<ObjectId, AnalysisRecord> analyses_;
     QHash<ObjectId, SupportDefinition> supports_;
     QHash<ObjectId, LoadDefinition> loads_;
