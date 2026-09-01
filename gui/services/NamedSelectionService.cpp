@@ -185,6 +185,19 @@ NamedSelectionService::NamedSelectionService(ProjectModel *project, GeometryServ
                                              MeshService *mesh, QObject *parent)
     : QObject(parent), project_(project), geometry_(geometry), mesh_(mesh)
 {
+    // Persistent scope state kaynak servislerin yaşam döngüsünü kendisi izler.
+    // UI veya consumer'ın refreshValidation() çağırmasını beklemek stale rozeti
+    // geciktirir ve aynı servisin farklı consumer'larda farklı davranmasına yol
+    // açar. Geometry revision / Mesh generation değişimi bu nedenle doğrudan
+    // servis seviyesinde yeniden doğrulama tetikler; otomatik rebind YAPILMAZ.
+    if (geometry_ != nullptr) {
+        connect(geometry_, &GeometryService::changed,
+                this, &NamedSelectionService::refreshValidation);
+    }
+    if (mesh_ != nullptr) {
+        connect(mesh_, &MeshService::changed,
+                this, &NamedSelectionService::refreshValidation);
+    }
 }
 
 const NamedSelectionDefinition *NamedSelectionService::byId(const ObjectId id) const noexcept
