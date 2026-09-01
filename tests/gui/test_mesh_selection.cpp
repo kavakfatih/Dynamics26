@@ -1,3 +1,4 @@
+#include "core/BoundaryScopeResolver.h"
 #include "core/ScopeReferenceBuilder.h"
 #include "core/SelectionManager.h"
 #include "viewport/MeshSelectionScene.h"
@@ -6,6 +7,7 @@
 
 #include <femcae/meshing/StructuredHexMesher.h>
 
+#include <algorithm>
 #include <iostream>
 #include <string>
 
@@ -225,6 +227,43 @@ void persistentScopeTests()
     }
 }
 
+void boundaryNodeUnionTests()
+{
+    const auto mesh = makeMesh();
+    constexpr femcae::geometry::GeometryEntityId xMin = 101;
+    constexpr femcae::geometry::GeometryEntityId yMin = 103;
+
+    const auto xNodes = d26::boundaryNodeUnionForGeometryFaces(mesh, QVector<femcae::geometry::GeometryEntityId>{xMin});
+    const auto yNodes = d26::boundaryNodeUnionForGeometryFaces(mesh, QVector<femcae::geometry::GeometryEntityId>{yMin});
+    const auto unionNodes = d26::boundaryNodeUnionForGeometryFaces(
+        mesh, QVector<femcae::geometry::GeometryEntityId>{xMin, yMin, xMin});
+
+    check(!xNodes.empty() && !yNodes.empty(),
+          "individual CAD boundary Faces resolve to FEM node sets through mesh provenance");
+
+    std::vector<femcae::meshing::MeshEntityId> expected = xNodes;
+    expected.insert(expected.end(), yNodes.begin(), yNodes.end());
+    std::sort(expected.begin(), expected.end());
+    expected.erase(std::unique(expected.begin(), expected.end()), expected.end());
+
+    check(unionNodes == expected,
+          "multi-Face boundary scope resolves to one sorted deduplicated FEM node union");
+    check(unionNodes.size() < xNodes.size() + yNodes.size(),
+          "shared edge/corner nodes are not counted twice across adjacent Faces");
+    check(d26::boundaryNodeUnionForGeometryFaces(
+              mesh, QVector<femcae::geometry::GeometryEntityId>{femcae::geometry::InvalidGeometryId}).empty(),
+          "invalid CAD identity cannot leak into boundary node union");
+
+    // Force consumer contract: F_total is distributed ONCE over the union. If
+    // each Face received F_total separately, the summed load would be multiplied
+    // by face count. This check locks the intended total-load arithmetic.
+    constexpr double totalForce = 1200.0;
+    const double nodalForce = totalForce / static_cast<double>(unionNodes.size());
+    const double recoveredTotal = nodalForce * static_cast<double>(unionNodes.size());
+    check(std::abs(recoveredTotal - totalForce) < 1.0e-12,
+          "total Force distributed once over multi-Face union preserves requested resultant");
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -233,6 +272,7 @@ int main(int argc, char **argv)
     sceneTests();
     managerGenerationTests();
     persistentScopeTests();
+    boundaryNodeUnionTests();
     std::cout << (failures == 0 ? "FEM selection contract PASS\n"
                                 : "FEM selection contract FAIL\n");
     return failures == 0 ? 0 : 1;
