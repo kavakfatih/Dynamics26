@@ -2,6 +2,7 @@
 
 #include "DetailsPage.h"
 
+#include "../core/ProjectTypes.h"
 #include "../core/ServiceContext.h"
 
 class QCheckBox;
