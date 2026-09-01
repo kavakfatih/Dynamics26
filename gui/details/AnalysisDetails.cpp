@@ -4,11 +4,15 @@
 #include "../services/MeshService.h"
 #include "../commands/DomainCommands.h"
 #include "../core/DocumentCommandManager.h"
+#include "../core/ProjectModel.h"
+#include "../shell/Dynamics26MainWindow.h"
 
 #include <QComboBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLayoutItem>
 #include <QPushButton>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include "../core/UiTheme.h"
@@ -129,7 +133,41 @@ void AnalysisDetails::refresh()
         linePalette.setColor(QPalette::WindowText, ui::statusColor(tone));
         linePalette.setColor(QPalette::Text, ui::statusColor(tone));
         line->setPalette(linePalette);
-        validationLayout_->addWidget(line);
+
+        // Alpha.4 Integrated Modeling Workflow foundation:
+        // PreflightCheck zaten authoritative subject ObjectId taşıyor. Validation
+        // mantığını veya engineering state'i kopyalamadan, yalnız Failed/Warning
+        // satırını canonical MainWindow::selectObject() navigation yoluna bağlarız.
+        // Böylece "Mesh güncel değil" veya "scope stale" gibi bir diagnostic
+        // doğrudan ilgili Navigator/Details nesnesine götürür; Undo geçmişi değişmez.
+        const bool actionable = check.status != PreflightCheck::Status::Passed
+            && check.subject != InvalidObjectId
+            && services_.project != nullptr
+            && services_.project->object(check.subject) != nullptr;
+        if (actionable) {
+            auto *row = new QWidget(validationBody_);
+            auto *rowLayout = new QHBoxLayout(row);
+            rowLayout->setContentsMargins(0, 0, 0, 0);
+            rowLayout->setSpacing(6);
+            rowLayout->addWidget(line, 1);
+
+            auto *show = new QToolButton(row);
+            show->setText(tr("Göster"));
+            show->setAutoRaise(true);
+            show->setToolButtonStyle(Qt::ToolButtonTextOnly);
+            show->setToolTip(tr("Model ağacında ilgili nesneyi göster"));
+            show->setObjectName(QStringLiteral("Dynamics26PreflightSubject_%1")
+                                    .arg(static_cast<qulonglong>(check.subject)));
+            rowLayout->addWidget(show, 0, Qt::AlignTop);
+            connect(show, &QToolButton::clicked, this, [this, subject = check.subject] {
+                if (auto *mainWindow = qobject_cast<Dynamics26MainWindow *>(window())) {
+                    mainWindow->selectObject(subject);
+                }
+            });
+            validationLayout_->addWidget(row);
+        } else {
+            validationLayout_->addWidget(line);
+        }
     }
 
     const bool canSolve = report.passed();
