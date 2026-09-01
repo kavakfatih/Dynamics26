@@ -42,6 +42,7 @@ set(FEMCAE_GUI_SOURCES
     services/MaterialService.cpp
     services/MaterialService.h
     services/AnalysisService.cpp
+    services/AnalysisBoundaryScope.cpp
     services/AnalysisService.h
 
     viewport/RenderRoles.cpp
