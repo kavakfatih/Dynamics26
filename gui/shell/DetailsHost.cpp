@@ -4,6 +4,8 @@
 #include "../core/UiTheme.h"
 #include "../details/AnalysisDetails.h"
 #include "../details/BoundaryConditionDetails.h"
+#include "../details/ConnectionsDetails.h"
+#include "../details/ContactDetails.h"
 #include "../details/DetailsPage.h"
 #include "../details/GeometryDetails.h"
 #include "../details/MaterialDetails.h"
@@ -60,7 +62,7 @@ DetailsHost::DetailsHost(const ServiceContext &services, QWidget *parent)
     selectionSummary_->setFont(selectionFont);
     selectionSummary_->setWordWrap(true);
     selectionSummary_->setVisible(false);
-    headerLayout->addWidget(selectionSummary_);
+    headerLayout_->addWidget(selectionSummary_);
 
     layout->addWidget(header);
 
@@ -90,11 +92,14 @@ DetailsHost::DetailsHost(const ServiceContext &services, QWidget *parent)
     material_ = new MaterialDetails(services_, stack_);
     analysis_ = new AnalysisDetails(services_, stack_);
     boundary_ = new BoundaryConditionDetails(services_, stack_);
+    connections_ = new ConnectionsDetails(services_, stack_);
+    contact_ = new ContactDetails(services_, stack_);
     result_ = new ResultDetails(services_, stack_);
     object_ = new ObjectDetails(services_, stack_);
     for (DetailsPage *page : {static_cast<DetailsPage *>(geometry_), static_cast<DetailsPage *>(mesh_),
                               static_cast<DetailsPage *>(material_), static_cast<DetailsPage *>(analysis_),
-                              static_cast<DetailsPage *>(boundary_), static_cast<DetailsPage *>(result_),
+                              static_cast<DetailsPage *>(boundary_), static_cast<DetailsPage *>(connections_),
+                              static_cast<DetailsPage *>(contact_), static_cast<DetailsPage *>(result_),
                               static_cast<DetailsPage *>(object_)}) {
         stack_->addWidget(page);
         connectPage(page);
@@ -123,6 +128,10 @@ DetailsPage *DetailsHost::pageFor(const ObjectType type) const
     case ObjectType::FixedSupport:
     case ObjectType::Force:
         return boundary_;
+    case ObjectType::ConnectionsFolder:
+        return connections_;
+    case ObjectType::ContactRegion:
+        return contact_;
     case ObjectType::TotalDeformation:
     case ObjectType::EquivalentStress:
     case ObjectType::ReactionForce:
