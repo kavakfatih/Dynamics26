@@ -8,7 +8,7 @@
 // Geliştirici bayrakları (normal kullanımda gerekmez):
 //   --bundle-smoke                       macOS bundle audit protokolü
 //   --selftest                           genel GUI öz-testi
-//   --selection-selftest                 Alpha.3.6 selection + persistent consumer acceptance
+//   --selection-selftest                 Alpha.3.6 selection + persistent consumer + Alpha.4 preflight acceptance
 //   --capture <dizin>                    belgeleme ekran görüntüleri
 //   --capture-appearance light|dark      çekim için görünümü sabitler
 //   --import-step <dosya>                dosya diyaloğu olmadan STEP yükler
@@ -17,6 +17,7 @@
 #include "shell/Dynamics26MainWindow.h"
 #include "shell/SelectionCoordinator.h"
 #include "support/BoundaryConsumerAcceptance.h"
+#include "support/PreflightAcceptance.h"
 #include "support/ScreenshotDriver.h"
 #include "support/SelectionAcceptanceTest.h"
 #include "support/SelfTest.h"
@@ -121,15 +122,21 @@ int main(int argc, char *argv[])
     }
 
     if (selectionSelfTest) {
-        // Alpha.3.6 selection acceptance önce transient/persistent authoring
-        // zincirini, sonra Fixed Support / Force persistent scope consumer
-        // kontratını aynı gerçek application composition üzerinde çalıştırır.
-        // Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
+        // Selection acceptance transient/persistent authoring zincirini;
+        // boundary consumer acceptance Fixed Support / Force persistent scope
+        // kontratını; Alpha.4 Preflight acceptance ise integrated diagnostic
+        // navigation davranışını aynı gerçek application composition üzerinde
+        // sırasıyla çalıştırır. Fiziksel pointer/mouse/trackpad kabulünün yerine
+        // geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
             return selectionStatus;
         }
-        return d26::runBoundaryConsumerAcceptanceTest(app, window);
+        const int boundaryStatus = d26::runBoundaryConsumerAcceptanceTest(app, window);
+        if (boundaryStatus != 0) {
+            return boundaryStatus;
+        }
+        return d26::runPreflightAcceptanceTest(app, window);
     }
 
     if (hasArgument(argc, argv, "--selftest")) {
