@@ -188,6 +188,8 @@ inline int runIntegratedWorkflowAcceptanceTest(QApplication &app, Dynamics26Main
     check(record->solveResults.nodeCount > 0 && record->solveResults.elementCount > 0
               && record->solveResults.dofCount > 0,
           "solver result metadata reports real mesh and DOF counts");
+    check(solveAction != nullptr && solveAction->isEnabled(),
+          "Completed analysis state releases Solve command for a valid re-solve");
 
     const ObjectId deformationId = window.firstObjectOfType(ObjectType::TotalDeformation);
     check(deformationId != InvalidObjectId,
