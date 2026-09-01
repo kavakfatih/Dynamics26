@@ -1,0 +1,225 @@
+name: One-shot named selection persistent view patch
+
+"on":
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-named-selection-view.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-persistent-view:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Apply exact Named Selection persistent view patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str, label: str) -> None:
+              text = path.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, got {count}')
+              path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          header = Path('gui/shell/SelectionCoordinator.h')
+          header_anchor = '''    void configurePolicy(SelectionFilter filter);\n'''
+          header_insert = r'''    // Normal Named Selection görünümü persistent scope'u TRANSIENT selection'a
+    // dönüştürmez. ScopeReference yalnız current CAD/FEM provenance'ına karşı
+    // doğrulanmış bir overlay olarak çizilir. Böylece Navigator'daki engineering
+    // object ile kullanıcının geçici viewport seçimi birbirine karışmaz.
+    [[nodiscard]] bool refreshNamedSelectionView(const ObjectId target)
+    {
+        if (editingNamedSelection_ != InvalidObjectId || target == InvalidObjectId
+            || selection_ == nullptr || graphics_ == nullptr || navigator_ == nullptr
+            || services_.project == nullptr || services_.namedSelections == nullptr
+            || services_.project->typeOf(target) != ObjectType::NamedSelection) {
+            return false;
+        }
+
+        const NamedSelectionDefinition *definition = services_.namedSelections->byId(target);
+        if (definition == nullptr || definition->scope.entities.isEmpty()) {
+            return false;
+        }
+        const ScopeEntityReference &first = definition->scope.entities.front();
+        const auto filter = selectionFilterForKind(first.kind);
+        ViewportWidget *viewport = graphics_->viewport();
+        if (!filter.has_value() || viewport == nullptr) {
+            return false;
+        }
+
+        const auto kindText = [](const SelectionKind kind) {
+            switch (kind) {
+            case SelectionKind::Body: return QStringLiteral("Body");
+            case SelectionKind::Face: return QStringLiteral("Face");
+            case SelectionKind::Edge: return QStringLiteral("Edge");
+            case SelectionKind::Vertex: return QStringLiteral("Vertex");
+            case SelectionKind::Node: return QStringLiteral("Node");
+            case SelectionKind::Element: return QStringLiteral("Element");
+            case SelectionKind::Facet: return QStringLiteral("Facet");
+            default: return QStringLiteral("Entity");
+            }
+        };
+        const auto setPersistentFeedback = [this, definition, first, kindText](
+                                               const ScopeSelectionItemsResult &resolved) {
+            const QString kind = kindText(first.kind);
+            if (resolved.success()) {
+                if (graphics_ != nullptr) {
+                    graphics_->setSelectionLabel(
+                        tr("%1 · %2 %3 · Persistent Scope")
+                            .arg(definition->name).arg(resolved.items.size()).arg(kind));
+                }
+                if (status_ != nullptr) {
+                    status_->setSelection(
+                        tr("%1  •  %2 %3  •  Persistent Scope")
+                            .arg(definition->name).arg(resolved.items.size()).arg(kind));
+                }
+            } else {
+                if (graphics_ != nullptr) {
+                    graphics_->setSelectionLabel(tr("%1 · Out of Date").arg(definition->name));
+                }
+                if (status_ != nullptr) {
+                    status_->setSelection(
+                        tr("%1  •  Out of Date  •  %2 scope")
+                            .arg(definition->name, kind));
+                }
+            }
+        };
+
+        // Önce önceki transient state temizlenir. Persistent overlay aşağıda
+        // bridge'e doğrudan verilir; SelectionManager bilinçli olarak boş kalır.
+        selection_->clearPreselection();
+        if (!selection_->items().isEmpty()) {
+            (void)selection_->clear();
+        }
+
+        if (first.domain == SelectionDomain::Geometry) {
+            if (services_.geometry == nullptr || !services_.geometry->summary().hasGeometry) {
+                return false;
+            }
+            const GeometrySummary summary = services_.geometry->summary();
+            const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
+            const auto edges = services_.geometry->displayEdgeScene(tessellationDeflection_);
+            const auto vertices = services_.geometry->displayVertexScene();
+            const qsizetype expected = static_cast<qsizetype>(summary.bodyCount);
+            if (surfaces.size() != expected || edges.size() != expected || vertices.size() != expected) {
+                return false;
+            }
+
+            viewport->setContext(ViewportContext::Geometry);
+            graphics_->setContextLabel(tr("Geometry — Named Selection"));
+            viewport->showGeometry(surfaces);
+            if (meshBridge_ != nullptr) {
+                meshBridge_->setInputEnabled(false);
+                meshBridge_->clearScene();
+            }
+            graphics_->setSelectionFilterDomain(SelectionDomain::Geometry);
+            graphics_->setMeshSelectionAvailable(false, false, false);
+            if (bridge_ == nullptr || !bridge_->setScene(surfaces, edges, vertices)) {
+                return false;
+            }
+            graphics_->setTopologySelectionAvailable(bridge_->hasFaceProvenance(),
+                                                     bridge_->hasEdgeProvenance(),
+                                                     bridge_->hasVertexProvenance());
+            graphics_->setSelectionFilter(*filter);
+            configurePolicy(*filter);
+
+            const ScopeSelectionItemsResult resolved =
+                selectionItemsForGeometryScope(definition->scope, services_.geometry->document());
+            bridge_->setSelection(resolved.success() ? resolved.items : QVector<SelectionItem>{});
+            bridge_->setPreselection(std::nullopt);
+            setPersistentFeedback(resolved);
+            return true;
+        }
+
+        if (first.domain == SelectionDomain::Mesh) {
+            if (services_.mesh == nullptr || !services_.mesh->hasMesh()) {
+                // Mesh artık yoksa old generation kimlikleri hiçbir biçimde
+                // gösterilmez. MainWindow'ın passive backdrop'u korunur.
+                if (bridge_ != nullptr) {
+                    bridge_->clearScene();
+                }
+                if (meshBridge_ != nullptr) {
+                    meshBridge_->setInputEnabled(false);
+                    meshBridge_->clearScene();
+                }
+                graphics_->setSelectionFilterDomain(std::nullopt);
+                graphics_->setMeshSelectionAvailable(false, false, false);
+                ScopeSelectionItemsResult unresolved;
+                unresolved.error = ScopeReferenceValidationError::StaleMeshGeneration;
+                setPersistentFeedback(unresolved);
+                return true;
+            }
+
+            viewport->setContext(ViewportContext::Mesh);
+            graphics_->setContextLabel(tr("Mesh — Named Selection"));
+            viewport->showMesh(services_.mesh->mesh(), false);
+            if (bridge_ != nullptr) {
+                bridge_->clearScene();
+            }
+            graphics_->setTopologySelectionAvailable(false, false, false);
+            graphics_->setSelectionFilterDomain(SelectionDomain::Mesh);
+            graphics_->setMeshSelectionAvailable(true, true, true);
+            graphics_->setSelectionFilter(*filter);
+            configurePolicy(*filter);
+            if (meshBridge_ == nullptr
+                || !meshBridge_->setScene(services_.mesh->mesh(), services_.mesh->generation())) {
+                return false;
+            }
+            meshBridge_->setInputEnabled(true);
+
+            const ScopeSelectionItemsResult resolved =
+                selectionItemsForMeshScope(definition->scope,
+                                           services_.mesh->mesh(), services_.mesh->generation());
+            meshBridge_->setSelection(resolved.success() ? resolved.items : QVector<SelectionItem>{});
+            meshBridge_->setPreselection(std::nullopt);
+            setPersistentFeedback(resolved);
+            return true;
+        }
+
+        return false;
+    }
+
+    void configurePolicy(SelectionFilter filter);
+'''
+          replace_once(header, header_anchor, header_insert, 'SelectionCoordinator persistent-view method')
+
+          cpp = Path('gui/shell/SelectionCoordinator.cpp')
+          cpp_anchor = '''    ViewportWidget *viewport = graphics_->viewport();\n    if (viewport == nullptr) {\n        return;\n    }\n\n    const ViewportContext context = viewport->context();\n'''
+          cpp_insert = '''    ViewportWidget *viewport = graphics_->viewport();\n    if (viewport == nullptr) {\n        return;\n    }\n\n    // Normal Named Selection current project object ise viewport domain'i statik\n    // ObjectType eşlemesinden değil persistent ScopeReference'tan çözülür. Edit\n    // session kendi transient akışını yönettiği için burada yalnız normal görünüm\n    // ele alınır.\n    if (editingNamedSelection_ == InvalidObjectId && navigator_ != nullptr\n        && services_.project != nullptr\n        && services_.project->typeOf(navigator_->selectedObject()) == ObjectType::NamedSelection\n        && refreshNamedSelectionView(navigator_->selectedObject())) {\n        return;\n    }\n\n    const ViewportContext context = viewport->context();\n'''
+          replace_once(cpp, cpp_anchor, cpp_insert, 'SelectionCoordinator refresh hook')
+
+          acceptance = Path('gui/support/SelectionAcceptanceTest.h')
+          normal_anchor = '''            check(navigator->selectedObject() == named.id && details->currentObject() == named.id,\n                  "Named Selection is current in Navigator and Details before edit session");\n\n            QPushButton *editButton = details->findChild<QPushButton *>(\n'''
+          normal_insert = '''            check(navigator->selectedObject() == named.id && details->currentObject() == named.id,\n                  "Named Selection is current in Navigator and Details before edit session");\n            check(graphics->viewport()->context() == ViewportContext::Mesh\n                      && graphics->selectionFilter() == SelectionFilter::Node,\n                  "normal persistent Node Named Selection resolves Mesh/Node viewport context from stored scope");\n            check(selection->items().isEmpty(),\n                  "normal persistent Named Selection overlay does not masquerade as transient SelectionManager state");\n\n            QPushButton *editButton = details->findChild<QPushButton *>(\n'''
+          replace_once(acceptance, normal_anchor, normal_insert, 'normal persistent-view acceptance')
+
+          stale_anchor = '''            window.selectObject(named.id);\n            flushUi();\n            editButton = details->findChild<QPushButton *>(QStringLiteral("Dynamics26NamedSelectionEdit"));\n            check(editButton != nullptr,\n                  "stale Named Selection still offers explicit Edit Selection repair workflow");\n'''
+          stale_insert = '''            window.selectObject(named.id);\n            flushUi();\n            check(graphics->viewport()->context() == ViewportContext::Mesh\n                      && graphics->selectionFilter() == SelectionFilter::Node\n                      && selection->items().isEmpty(),\n                  "stale persistent Named Selection keeps current Mesh/Node context without preloading old generation IDs");\n            editButton = details->findChild<QPushButton *>(QStringLiteral("Dynamics26NamedSelectionEdit"));\n            check(editButton != nullptr,\n                  "stale Named Selection still offers explicit Edit Selection repair workflow");\n'''
+          replace_once(acceptance, stale_anchor, stale_insert, 'stale persistent-view acceptance')
+          PY
+
+          git diff --check
+          grep -q 'refreshNamedSelectionView' gui/shell/SelectionCoordinator.h
+          grep -q 'normal persistent Named Selection overlay does not masquerade' gui/support/SelectionAcceptanceTest.h
+
+      - name: Commit exact patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/one-shot-named-selection-view.yml
+          git config user.name "Dynamics26 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add gui/shell/SelectionCoordinator.h gui/shell/SelectionCoordinator.cpp gui/support/SelectionAcceptanceTest.h .github/workflows/one-shot-named-selection-view.yml
+          git diff --cached --check
+          git commit -m "feat: show persistent named selection scope"
+          git push origin HEAD:main
