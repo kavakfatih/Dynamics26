@@ -107,6 +107,7 @@ private:
     void configurePolicy(SelectionFilter filter);
     void refreshSelectionScene();
     void handleNavigatorSelection(ObjectId id);
+    void showSelectionContextMenu(ObjectId objectId, const QPoint &globalPosition);
 
     void handleViewportSelection(SelectionKind kind, quint64 bodyId, quint64 geometryId,
                                  SelectionOperation operation);
