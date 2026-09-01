@@ -111,7 +111,11 @@ public:
                                  MaterialDefinition after);
     void redo() override;
     void undo() override;
-    [[nodiscard]] int id() const override { return IdSetMaterial; }
+
+    // Material Inspector alanları edit commit anında tek transaction üretir.
+    // Farklı engineering property'lerin yalnız zaman yakınlığı nedeniyle aynı
+    // Undo adımına birleşmesi istenmez; bu nedenle material command merge kapalıdır.
+    [[nodiscard]] int id() const override { return -1; }
     bool mergeWith(const QUndoCommand *other) override;
 
 private:
