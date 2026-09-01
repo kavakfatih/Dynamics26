@@ -138,21 +138,25 @@ MaterialDetails::MaterialDetails(const ServiceContext &services, QWidget *parent
         services_.commands->push(new commands::AssignMaterialCommand(services_, objectId_));
         emit modelEdited();
     });
+
+    // Engineering property'leri kullanıcının edit commit anında document'a
+    // yazılır. Böylece spinbox yazımı sırasında her ara rakam ayrı Undo adımı
+    // üretmez ve farklı alanlar zaman yakınlığı nedeniyle birbirine karışmaz.
     const auto push = [this] { pushDefinition(); };
     connect(name_, &QLineEdit::editingFinished, this, push);
-    connect(density_, &QDoubleSpinBox::valueChanged, this, push);
-    connect(young_, &QDoubleSpinBox::valueChanged, this, push);
-    connect(poisson_, &QDoubleSpinBox::valueChanged, this, push);
-    connect(bulk_, &QDoubleSpinBox::valueChanged, this, push);
-    connect(c10_, &QDoubleSpinBox::valueChanged, this, push);
-    connect(c01_, &QDoubleSpinBox::valueChanged, this, push);
-    connect(c20_, &QDoubleSpinBox::valueChanged, this, push);
-    connect(c30_, &QDoubleSpinBox::valueChanged, this, push);
-    connect(ogdenTerms_, &QSpinBox::valueChanged, this, push);
+    connect(density_, &QDoubleSpinBox::editingFinished, this, push);
+    connect(young_, &QDoubleSpinBox::editingFinished, this, push);
+    connect(poisson_, &QDoubleSpinBox::editingFinished, this, push);
+    connect(bulk_, &QDoubleSpinBox::editingFinished, this, push);
+    connect(c10_, &QDoubleSpinBox::editingFinished, this, push);
+    connect(c01_, &QDoubleSpinBox::editingFinished, this, push);
+    connect(c20_, &QDoubleSpinBox::editingFinished, this, push);
+    connect(c30_, &QDoubleSpinBox::editingFinished, this, push);
+    connect(ogdenTerms_, &QSpinBox::editingFinished, this, push);
     for (int i = 0; i < 3; ++i) {
         const std::size_t index = static_cast<std::size_t>(i);
-        connect(ogdenMu_[index], &QDoubleSpinBox::valueChanged, this, push);
-        connect(ogdenAlpha_[index], &QDoubleSpinBox::valueChanged, this, push);
+        connect(ogdenMu_[index], &QDoubleSpinBox::editingFinished, this, push);
+        connect(ogdenAlpha_[index], &QDoubleSpinBox::editingFinished, this, push);
     }
     connect(model_, &QComboBox::currentIndexChanged, this, [this](int) {
         pushDefinition();
