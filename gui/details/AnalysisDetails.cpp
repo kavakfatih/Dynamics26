@@ -164,6 +164,24 @@ void AnalysisDetails::refresh()
                     mainWindow->selectObject(subject);
                 }
             });
+
+            // Quick-fix yalnız subject engineering type kesin olarak Mesh ise
+            // sunulur. Diagnostic label metnine bakılmaz; böylece çeviri/metin
+            // değişikliği command routing'i bozmaz. Generate Mesh mevcut shell
+            // komutuna gider: timing, selection, dependency refresh ve derived
+            // mesh lifecycle tek canonical uygulama yolunda kalır.
+            if (services_.project->typeOf(check.subject) == ObjectType::Mesh) {
+                auto *fix = new QToolButton(row);
+                fix->setText(tr("Mesh Üret"));
+                fix->setAutoRaise(true);
+                fix->setToolButtonStyle(Qt::ToolButtonTextOnly);
+                fix->setToolTip(tr("Güncel FEM mesh üret"));
+                fix->setObjectName(QStringLiteral("Dynamics26PreflightFixMesh"));
+                rowLayout->addWidget(fix, 0, Qt::AlignTop);
+                connect(fix, &QToolButton::clicked, this, [this] {
+                    emit requestCommand(QStringLiteral("mesh.generate"));
+                });
+            }
             validationLayout_->addWidget(row);
         } else {
             validationLayout_->addWidget(line);
