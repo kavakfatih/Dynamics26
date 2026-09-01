@@ -9,6 +9,7 @@ namespace d26 {
 class ProjectModel;
 class GeometryService;
 class MeshService;
+class NamedSelectionService;
 class MaterialService;
 class AnalysisService;
 class DocumentCommandManager;
@@ -18,6 +19,10 @@ struct ServiceContext {
     ProjectModel *project{nullptr};
     GeometryService *geometry{nullptr};
     MeshService *mesh{nullptr};
+    // Persistent engineering scope servisidir. Transient viewport selection'ın
+    // sahibi değildir; Named Selection yaşam döngüsü ve kalıcılığı application
+    // composition üzerinden açıkça erişilebilir olur.
+    NamedSelectionService *namedSelections{nullptr};
     MaterialService *materials{nullptr};
     AnalysisService *analysis{nullptr};
     // Model mutasyonları servisleri DOĞRUDAN çağırmaz; domain command olarak
