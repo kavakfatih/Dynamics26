@@ -21,7 +21,17 @@ static void fem_accelerate_report_error(const char *message) {
 
 int fem_accelerate_sparse_available(void) {
 #ifdef __APPLE__
-    return 1;
+    /*
+     * SparseFactorizationLU macOS 15.5 ile geldi. Uygulamanin deployment
+     * target'i 15.0 oldugu icin backend'i yalniz gercek runtime bu API'yi
+     * sagliyorsa kullanilabilir ilan ederiz. Boylece 15.0-15.4 sistemlerinde
+     * eksik sembole/API'ye girilmez ve Fortran katmani diger backend'e duzgun
+     * sekilde geri donebilir.
+     */
+    if (__builtin_available(macOS 15.5, *)) {
+        return 1;
+    }
+    return 0;
 #else
     return 0;
 #endif
@@ -52,6 +62,9 @@ int fem_accelerate_sparse_solve(int32_t n,
 
     if (n <= 0 || nnz <= 0 || !row_ptr || !col_ind || !values || !rhs || !solution) {
         return -1;
+    }
+    if (!fem_accelerate_sparse_available()) {
+        return -101;
     }
     rows = (int *)malloc((size_t)nnz * sizeof(int));
     cols = (int *)malloc((size_t)nnz * sizeof(int));
@@ -102,7 +115,18 @@ int fem_accelerate_sparse_solve(int32_t n,
     sfoptions.free = free;
     sfoptions.reportError = fem_accelerate_report_error;
 
-    symbolic = SparseFactor(SparseFactorizationLU, matrix.structure, sfoptions);
+    /*
+     * Availability kontrolu ayni lexical scope'ta tutulur. AppleClang ancak bu
+     * sekilde API availability analizi yapip 15.0 deployment target'inda
+     * unguarded-availability uyarisi vermeden SparseFactorizationLU'yu kabul eder.
+     */
+    if (__builtin_available(macOS 15.5, *)) {
+        symbolic = SparseFactor(SparseFactorizationLU, matrix.structure, sfoptions);
+    } else {
+        SparseCleanup(matrix);
+        free(rows); free(cols);
+        return -101;
+    }
     if (symbolic.status < 0 || fem_accelerate_error_seen) {
         SparseCleanup(symbolic);
         SparseCleanup(matrix);
