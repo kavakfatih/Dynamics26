@@ -21,6 +21,7 @@
 #include <QMenu>
 #include <QPixmap>
 #include <QPushButton>
+#include <QToolButton>
 #include <QUndoStack>
 #include <QStyleHints>
 #include <QtGlobal>
@@ -210,6 +211,9 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
     }
 
     // 11) Preflight — kasıtlı olarak eksik model üzerinde doğrulama raporu.
+    // Alpha.4 foundation acceptance: Failed Mesh kontrolündeki "Göster" aksiyonu
+    // engineering state'i mutate etmeden canonical Navigator/Details context'ini
+    // gerçek Mesh project object'ine taşımalıdır.
     {
         window.runCommand(QStringLiteral("mesh.clearGenerated"));
         settle(240);
@@ -220,6 +224,31 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
         }
         window.runCommand(QStringLiteral("analysis.preflight"));
         settle(320);
+
+        const ObjectId meshObject = window.services().project->meshNode();
+        const int undoBeforeNavigation = window.documentCommands()->stack()->index();
+        auto *showMesh = window.findChild<QToolButton *>(
+            QStringLiteral("Dynamics26PreflightSubject_%1").arg(static_cast<qulonglong>(meshObject)));
+        if (showMesh == nullptr) {
+            std::cerr << "FAILED   actionable Preflight Mesh control missing\n";
+            ++failures;
+        } else {
+            showMesh->click();
+            settle(220);
+            if (window.navigator()->selectedObject() != meshObject) {
+                std::cerr << "FAILED   actionable Preflight did not focus Mesh project object\n";
+                ++failures;
+            }
+            if (window.documentCommands()->stack()->index() != undoBeforeNavigation) {
+                std::cerr << "FAILED   actionable Preflight navigation mutated document Undo history\n";
+                ++failures;
+            }
+            if (analysis != InvalidObjectId) {
+                window.selectObject(analysis);
+                settle(180);
+            }
+        }
+
         shot(QStringLiteral("11-preflight"));
         window.runCommand(QStringLiteral("panel.diagnostics"));
         settle(160);
