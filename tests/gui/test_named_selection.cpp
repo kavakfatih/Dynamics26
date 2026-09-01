@@ -1,3 +1,4 @@
+#include "core/ScopeSelectionBridge.h"
 #include "services/NamedSelectionService.h"
 
 #include <QCoreApplication>
@@ -60,6 +61,88 @@ d26::ScopeReference meshScope(const quint64 generation,
     scope.sourceRevision = generation;
     scope.entities.push_back(reference);
     return scope;
+}
+
+void preloadBridgeTests()
+{
+    using femcae::geometry::GeometryDocument;
+    using femcae::geometry::GeometryEntityKind;
+    using femcae::geometry::InvalidGeometryId;
+
+    GeometryDocument document("named-selection-preload");
+    const auto bodyId = document.addEntity(GeometryEntityKind::Body, InvalidGeometryId,
+                                           "Body", "cad/body/1");
+    const auto faceId = document.addEntity(GeometryEntityKind::Face, bodyId,
+                                           "Face", "cad/body/1/face/1");
+    const auto edgeId = document.addEntity(GeometryEntityKind::Edge, bodyId,
+                                           "Edge", "cad/body/1/edge/1");
+    const quint64 revision = document.revision();
+
+    const d26::ScopeReference geometryScope = geometryFaceScope(
+        revision, faceId, bodyId, QStringLiteral("cad/body/1/face/1"));
+    const auto geometryPreload = d26::selectionItemsForGeometryScope(geometryScope, document);
+    check(geometryPreload.success() && geometryPreload.items.size() == 1
+              && geometryPreload.items.front().domain == d26::SelectionDomain::Geometry
+              && geometryPreload.items.front().kind == d26::SelectionKind::Face
+              && geometryPreload.items.front().geometryEntityId == faceId
+              && geometryPreload.items.front().parentGeometryId == bodyId
+              && geometryPreload.items.front().sourceRevision == revision,
+          "valid CAD Named Selection scope preloads exact current engineering identities");
+
+    d26::ScopeReference staleGeometry = geometryScope;
+    staleGeometry.sourceRevision = revision - 1;
+    const auto staleGeometryPreload = d26::selectionItemsForGeometryScope(staleGeometry, document);
+    check(!staleGeometryPreload.success() && staleGeometryPreload.items.isEmpty()
+              && staleGeometryPreload.error == d26::ScopeReferenceValidationError::StaleGeometryRevision,
+          "stale CAD Named Selection never preloads old numeric topology IDs");
+
+    d26::ScopeReference mixedGeometry = geometryScope;
+    d26::ScopeEntityReference edgeReference;
+    edgeReference.domain = d26::SelectionDomain::Geometry;
+    edgeReference.kind = d26::SelectionKind::Edge;
+    edgeReference.geometryEntityId = edgeId;
+    edgeReference.parentGeometryId = bodyId;
+    edgeReference.persistentKey = QStringLiteral("cad/body/1/edge/1");
+    mixedGeometry.entities.push_back(edgeReference);
+    const auto mixedGeometryPreload = d26::selectionItemsForGeometryScope(mixedGeometry, document);
+    check(!mixedGeometryPreload.success() && mixedGeometryPreload.items.isEmpty()
+              && mixedGeometryPreload.error == d26::ScopeReferenceValidationError::UnsupportedKind,
+          "preload bridge refuses mixed CAD Face/Edge kinds even when each identity exists");
+
+    d26::GeometryService geometry;
+    d26::MeshService mesh(&geometry);
+    mesh.setDivisions(1, 1, 1);
+    check(mesh.generate(), "preload bridge fixture can generate a current FEM mesh");
+    const quint64 generation = mesh.generation();
+    const auto nodeId = mesh.mesh().nodes.front().id;
+    const auto elementId = mesh.mesh().elements.front().id;
+
+    const d26::ScopeReference nodeScope = meshScope(generation, d26::SelectionKind::Node, nodeId);
+    const auto meshPreload = d26::selectionItemsForMeshScope(nodeScope, mesh.mesh(), generation);
+    check(meshPreload.success() && meshPreload.items.size() == 1
+              && meshPreload.items.front().domain == d26::SelectionDomain::Mesh
+              && meshPreload.items.front().kind == d26::SelectionKind::Node
+              && meshPreload.items.front().meshEntityId == nodeId
+              && meshPreload.items.front().sourceRevision == generation,
+          "valid FEM Named Selection scope preloads exact current MeshEntityId and generation");
+
+    const auto staleMeshPreload = d26::selectionItemsForMeshScope(
+        nodeScope, mesh.mesh(), generation + 1);
+    check(!staleMeshPreload.success() && staleMeshPreload.items.isEmpty()
+              && staleMeshPreload.error == d26::ScopeReferenceValidationError::StaleMeshGeneration,
+          "stale FEM Named Selection never preloads reused numeric MeshEntityId values");
+
+    d26::ScopeReference mixedMesh = nodeScope;
+    d26::ScopeEntityReference elementReference;
+    elementReference.domain = d26::SelectionDomain::Mesh;
+    elementReference.kind = d26::SelectionKind::Element;
+    elementReference.meshEntityId = elementId;
+    mixedMesh.entities.push_back(elementReference);
+    const auto mixedMeshPreload = d26::selectionItemsForMeshScope(
+        mixedMesh, mesh.mesh(), generation);
+    check(!mixedMeshPreload.success() && mixedMeshPreload.items.isEmpty()
+              && mixedMeshPreload.error == d26::ScopeReferenceValidationError::UnsupportedKind,
+          "preload bridge refuses mixed FEM Node/Element kinds even when each identity exists");
 }
 
 void serviceContractTests()
@@ -326,6 +409,7 @@ void persistenceTests()
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    preloadBridgeTests();
     serviceContractTests();
     persistenceTests();
 
