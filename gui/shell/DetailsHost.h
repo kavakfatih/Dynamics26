@@ -25,6 +25,8 @@ class MeshDetails;
 class MaterialDetails;
 class AnalysisDetails;
 class BoundaryConditionDetails;
+class ConnectionsDetails;
+class ContactDetails;
 class ResultDetails;
 class ObjectDetails;
 
@@ -43,6 +45,8 @@ public:
     [[nodiscard]] ObjectId currentObject() const noexcept { return current_; }
     [[nodiscard]] GeometryDetails *geometryPage() const noexcept { return geometry_; }
     [[nodiscard]] BoundaryConditionDetails *boundaryConditionPage() const noexcept { return boundary_; }
+    [[nodiscard]] ConnectionsDetails *connectionsPage() const noexcept { return connections_; }
+    [[nodiscard]] ContactDetails *contactPage() const noexcept { return contact_; }
     [[nodiscard]] ResultDetails *resultPage() const noexcept { return result_; }
 
 signals:
@@ -68,6 +72,8 @@ private:
     MaterialDetails *material_{nullptr};
     AnalysisDetails *analysis_{nullptr};
     BoundaryConditionDetails *boundary_{nullptr};
+    ConnectionsDetails *connections_{nullptr};
+    ContactDetails *contact_{nullptr};
     ResultDetails *result_{nullptr};
     ObjectDetails *object_{nullptr};
 };
