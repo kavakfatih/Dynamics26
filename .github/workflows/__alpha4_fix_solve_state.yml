@@ -20,31 +20,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('gui/shell/Dynamics26MainWindow.cpp')
-          text = path.read_text()
-          old = '''    connect(analysis_, &AnalysisService::solveStateChanged, this, [this](const bool solving) {
-        solving_ = solving;
-        engineeringStatus_->setSolverState(solving ? SolverState::Solving : SolverState::Idle);
-    });'''
-          new = '''    connect(analysis_, &AnalysisService::solveStateChanged, this,
-            [this](const ObjectId analysisId, const SolveState state) {
-                // AnalysisService signal'i (ObjectId, SolveState) taşır. ObjectId'yi
-                // bool gibi yorumlamak geçerli her analiz kimliğinde UI'yi sonsuza
-                // kadar "solving" durumunda bırakır ve Solve komutunu kilitlerdi.
-                // Yalnız aktif analizin lifecycle state'i global shell durumunu etkiler.
-                if (analysisId != activeAnalysis()) {
-                    return;
-                }
-                solving_ = state == SolveState::Preflight || state == SolveState::Solving;
-                syncCommandStates();
-                syncStatusBar();
-            });'''
-          if text.count(old) != 1:
-              raise SystemExit(f'exact solve-state block count={text.count(old)}; expected 1')
-          path.write_text(text.replace(old, new, 1))
-          PY
+          python3 -c 'from pathlib import Path; p=Path("gui/shell/Dynamics26MainWindow.cpp"); t=p.read_text(); old="    connect(analysis_, &AnalysisService::solveStateChanged, this, [this](const bool solving) {\n        solving_ = solving;\n        engineeringStatus_->setSolverState(solving ? SolverState::Solving : SolverState::Idle);\n    });"; new="    connect(analysis_, &AnalysisService::solveStateChanged, this,\n            [this](const ObjectId analysisId, const SolveState state) {\n                // AnalysisService signal i (ObjectId, SolveState) tasir. ObjectId yi\n                // bool gibi yorumlamak gecerli her analiz kimliginde UI yi sonsuza\n                // kadar solving durumunda birakir ve Solve komutunu kilitlerdi.\n                // Yalniz aktif analizin lifecycle state i global shell durumunu etkiler.\n                if (analysisId != activeAnalysis()) {\n                    return;\n                }\n                solving_ = state == SolveState::Preflight || state == SolveState::Solving;\n                syncCommandStates();\n                syncStatusBar();\n            });"; assert t.count(old)==1, f"exact block count={t.count(old)}"; p.write_text(t.replace(old,new,1))'
           git diff --check
           git diff -- gui/shell/Dynamics26MainWindow.cpp
       - name: Commit fix directly to main
