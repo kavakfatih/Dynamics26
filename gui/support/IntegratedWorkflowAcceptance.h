@@ -17,9 +17,11 @@
 #include "../services/AnalysisService.h"
 #include "../services/MaterialService.h"
 #include "../services/MeshService.h"
+#include "../shell/CommandRegistry.h"
 #include "../shell/Dynamics26MainWindow.h"
 #include "../shell/ProjectNavigator.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QEvent>
@@ -156,6 +158,15 @@ inline int runIntegratedWorkflowAcceptanceTest(QApplication &app, Dynamics26Main
     flushUi();
     check(services.analysis->preflight(analysisId).passed(),
           "Preflight remains Ready to Solve after structured diagnostics presentation");
+
+    // SolveState::Idle / Completed gibi durumlar geçerli ObjectId ile signal
+    // taşır. UI bu ObjectId'yi bool sanmamalı; Ready modelde Solve komutu açık
+    // kalmalıdır. Bu assertion lifecycle signal imzasının yanlış bağlanmasına
+    // karşı doğrudan regresyon kapısıdır.
+    QAction *solveAction = window.commandRegistry() != nullptr
+        ? window.commandRegistry()->action(QStringLiteral("analysis.solve")) : nullptr;
+    check(solveAction != nullptr && solveAction->isEnabled(),
+          "Idle/Ready analysis state keeps Solve command enabled after passing Preflight");
 
     // ------------------------------------------------------------------
     // Solve / Results
