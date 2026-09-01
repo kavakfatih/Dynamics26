@@ -1,13 +1,13 @@
 #pragma once
 
-// Dynamics26 V1.1.0-alpha.4 — tam integrated modeling workflow acceptance.
+// Dynamics26 V1.1 — integrated modeling workflow acceptance.
 //
 // Bu test ayrı bir demo/model state kurmaz. Gerçek Dynamics26MainWindow
 // composition'ı ve canonical command/DomainCommand yollarını kullanarak şu
 // mühendislik zincirini doğrular:
 //
-// Geometry -> Material -> Mesh -> Analysis -> BC/Load -> Preflight -> Solve
-// -> Results -> input mutation -> Solution Out of Date -> Undo recovery.
+// Geometry -> Material Inspector -> Mesh -> Analysis -> BC/Load -> Preflight
+// -> Solve -> Results -> input mutation -> Solution Out of Date -> Undo recovery.
 //
 // Fiziksel pointer/trackpad UX kabulünün yerine geçmez.
 
@@ -24,9 +24,12 @@
 #include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDoubleSpinBox>
 #include <QEvent>
 #include <QLabel>
+#include <QMetaObject>
 #include <QUndoStack>
+#include <QWidget>
 
 #include <cmath>
 #include <iostream>
@@ -47,6 +50,14 @@ inline int runIntegratedWorkflowAcceptanceTest(QApplication &app, Dynamics26Main
         app.processEvents();
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
         app.processEvents();
+    };
+    const auto commitSpinEdit = [&flushUi](QDoubleSpinBox *field) {
+        if (field == nullptr) {
+            return false;
+        }
+        const bool invoked = QMetaObject::invokeMethod(field, "editingFinished", Qt::DirectConnection);
+        flushUi();
+        return invoked;
     };
 
     const ServiceContext services = window.services();
@@ -82,6 +93,94 @@ inline int runIntegratedWorkflowAcceptanceTest(QApplication &app, Dynamics26Main
           "Material stage has a persistent assigned Material ObjectId");
     check(material != nullptr && material->supportsLinearStaticSolve(),
           "assigned material is compatible with the current Static Structural solver path");
+
+    // ------------------------------------------------------------------
+    // Beta.1 B1.1 — real Material Inspector binding + Undo contract
+    // ------------------------------------------------------------------
+    if (material != nullptr) {
+        window.selectObject(assignedMaterialId);
+        flushUi();
+
+        auto *materialInspector = window.findChild<QWidget *>(QStringLiteral("Dynamics26MaterialInspector"));
+        auto *youngField = window.findChild<QDoubleSpinBox *>(QStringLiteral("Dynamics26MaterialYoungGPa"));
+        auto *densityField = window.findChild<QDoubleSpinBox *>(QStringLiteral("Dynamics26MaterialDensity"));
+        auto *identityLabel = window.findChild<QLabel *>(QStringLiteral("Dynamics26MaterialObjectId"));
+        auto *revisionLabel = window.findChild<QLabel *>(QStringLiteral("Dynamics26MaterialRevision"));
+        auto *compatibilityLabel =
+            window.findChild<QLabel *>(QStringLiteral("Dynamics26MaterialSolveCompatibility"));
+
+        check(materialInspector != nullptr && youngField != nullptr && densityField != nullptr,
+              "Material Inspector exposes stable engineering edit controls");
+        check(identityLabel != nullptr && identityLabel->text() == QString::number(assignedMaterialId),
+              "Material Inspector displays the real persistent Material ObjectId");
+        check(revisionLabel != nullptr && revisionLabel->text() == QString::number(services.materials->revision()),
+              "Material Inspector displays the authoritative MaterialService revision");
+        check(compatibilityLabel != nullptr && compatibilityLabel->text().contains(QStringLiteral("Ready")),
+              "Material Inspector exposes current Static Structural compatibility");
+        check(youngField != nullptr
+                  && qFuzzyCompare(youngField->value() + 1.0, material->youngGPa + 1.0),
+              "Material Inspector Young modulus field is bound from MaterialService state");
+        check(densityField != nullptr
+                  && qFuzzyCompare(densityField->value() + 1.0, material->densityKgM3 + 1.0),
+              "Material Inspector density field is bound from MaterialService state");
+
+        if (youngField != nullptr && densityField != nullptr) {
+            const double originalYoung = material->youngGPa;
+            const double originalDensity = material->densityKgM3;
+            const int undoBeforeNoOp = undoStack->index();
+            check(commitSpinEdit(youngField),
+                  "Material Inspector edit commit signal is invokable in application acceptance");
+            check(undoStack->index() == undoBeforeNoOp,
+                  "committing an unchanged Material field does not create a fake Undo transaction");
+
+            const double changedYoung = originalYoung + 1.0;
+            youngField->setValue(changedYoung);
+            flushUi();
+            const MaterialDefinition *beforeCommit = services.materials->byId(assignedMaterialId);
+            check(beforeCommit != nullptr
+                      && qFuzzyCompare(beforeCommit->youngGPa + 1.0, originalYoung + 1.0),
+                  "Material spinbox typing does not mutate engineering state before edit commit");
+
+            const int undoBeforeYoung = undoStack->index();
+            check(commitSpinEdit(youngField),
+                  "Young modulus edit commits through the Inspector binding");
+            const MaterialDefinition *afterYoung = services.materials->byId(assignedMaterialId);
+            check(afterYoung != nullptr
+                      && qFuzzyCompare(afterYoung->youngGPa + 1.0, changedYoung + 1.0),
+                  "Young modulus edit reaches authoritative MaterialService state");
+            check(undoStack->index() == undoBeforeYoung + 1,
+                  "one Material field edit creates exactly one document Undo transaction");
+
+            const double changedDensity = originalDensity + 10.0;
+            densityField->setValue(changedDensity);
+            flushUi();
+            const int undoBeforeDensity = undoStack->index();
+            check(commitSpinEdit(densityField),
+                  "density edit commits through the Inspector binding");
+            const MaterialDefinition *afterDensity = services.materials->byId(assignedMaterialId);
+            check(afterDensity != nullptr
+                      && qFuzzyCompare(afterDensity->densityKgM3 + 1.0, changedDensity + 1.0),
+                  "density edit reaches authoritative MaterialService state");
+            check(undoStack->index() == undoBeforeDensity + 1,
+                  "different Material fields remain distinct Undo transactions");
+
+            undoStack->undo();
+            flushUi();
+            const MaterialDefinition *densityRestored = services.materials->byId(assignedMaterialId);
+            check(densityRestored != nullptr
+                      && qFuzzyCompare(densityRestored->densityKgM3 + 1.0, originalDensity + 1.0),
+                  "Undo restores the exact previous density value");
+
+            undoStack->undo();
+            flushUi();
+            const MaterialDefinition *youngRestored = services.materials->byId(assignedMaterialId);
+            check(youngRestored != nullptr
+                      && qFuzzyCompare(youngRestored->youngGPa + 1.0, originalYoung + 1.0),
+                  "Undo restores the exact previous Young modulus value");
+            check(undoStack->index() == undoBeforeYoung,
+                  "Material Inspector acceptance returns document history to its original index");
+        }
+    }
 
     const QVector<ObjectId> analyses = services.project->analyses();
     check(!analyses.isEmpty(),
@@ -253,8 +352,8 @@ inline int runIntegratedWorkflowAcceptanceTest(QApplication &app, Dynamics26Main
     check(summary != nullptr && summary->text() == QStringLiteral("Ready to Solve · engel yok"),
           "Analysis Details summary returns to Ready to Solve after Undo recovery");
 
-    std::cout << (failures == 0 ? "Alpha.4 Integrated workflow acceptance PASS"
-                                : "Alpha.4 Integrated workflow acceptance FAIL")
+    std::cout << (failures == 0 ? "Integrated workflow + Material Inspector acceptance PASS"
+                                : "Integrated workflow + Material Inspector acceptance FAIL")
               << " checks=" << checks << " failures=" << failures << '\n';
     return failures == 0 ? 0 : 1;
 }

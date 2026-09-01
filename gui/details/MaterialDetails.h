@@ -16,7 +16,11 @@ class MaterialCurveWidget;
 
 namespace d26 {
 
-// Material Details.
+// Material Details / Engineering Inspector.
+//
+// Bu sayfa MaterialService'in sahibi olduğu gerçek MaterialDefinition state'ini
+// gösterir ve tüm kalıcı değişiklikleri canonical DocumentCommand yolu üzerinden
+// uygular. Inspector ikinci bir material state veya validation sistemi tutmaz.
 //
 // Malzeme modeli seçimi hyperelastic ailesini (Neo-Hookean / Mooney-Rivlin /
 // Yeoh / Ogden) destekleyecek şekilde kurgulanmıştır. Eğri önizlemesi gerçek
@@ -69,6 +73,8 @@ private:
     QLabel *curveStatus_{nullptr};
     QLabel *solveNote_{nullptr};
     QLabel *assignment_{nullptr};
+    QLabel *identity_{nullptr};
+    QLabel *revision_{nullptr};
     QPushButton *assignButton_{nullptr};
 };
 
