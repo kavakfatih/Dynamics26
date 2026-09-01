@@ -1,5 +1,6 @@
 name: Alpha4 one-shot solve-state fix
 
+# Temporary exact-string patch runner. Removed immediately after success.
 on:
   push:
     branches: [main]
