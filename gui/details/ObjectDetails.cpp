@@ -6,10 +6,12 @@
 #include "../services/MaterialService.h"
 #include "../services/MeshService.h"
 #include "../services/NamedSelectionService.h"
+#include "../shell/SelectionCoordinator.h"
 
 #include <femcae/femcae.h>
 
 #include <QLabel>
+#include <QPushButton>
 
 namespace d26 {
 namespace {
@@ -214,6 +216,46 @@ void ObjectDetails::buildNamedSelection()
         lifecycle->addValueRow(tr("CAD Revision"), QString::number(scope.sourceRevision));
     } else if (first.domain == SelectionDomain::Mesh) {
         lifecycle->addValueRow(tr("Mesh Generation"), QString::number(scope.sourceRevision));
+    }
+
+    auto *selection = addSection(tr("Selection"));
+    SelectionCoordinator *coordinator = nullptr;
+    if (QWidget *topLevel = window()) {
+        coordinator = topLevel->findChild<SelectionCoordinator *>();
+    }
+    if (coordinator == nullptr) {
+        selection->addNote(tr("Selection coordinator kullanılamıyor."));
+    } else if (coordinator->editingNamedSelection() == objectId_) {
+        selection->addNote(tr("Kapsam düzenleme açık. Viewport'tan yeni %1 seçimlerini oluşturun; "
+                              "yalnız Apply Selection kalıcı document değişikliği üretir.")
+                               .arg(scopeKindName(first.kind)));
+        if (coordinator->editPreloadError() != ScopeReferenceValidationError::None) {
+            selection->addNote(tr("Kayıtlı scope current model üzerinde preload edilemedi. Eski CAD/FEM "
+                                  "kimlikleri seçili gösterilmedi; yeni kapsamı açıkça yeniden seçin."));
+        }
+
+        auto *apply = makeActionButton(tr("Apply Selection"));
+        apply->setObjectName(QStringLiteral("Dynamics26NamedSelectionApply"));
+        selection->addFullWidth(apply);
+        connect(apply, &QPushButton::clicked, this, [coordinator] {
+            (void)coordinator->applyNamedSelectionEdit();
+        });
+
+        auto *cancel = makeActionButton(tr("Cancel"));
+        cancel->setObjectName(QStringLiteral("Dynamics26NamedSelectionCancel"));
+        selection->addFullWidth(cancel);
+        connect(cancel, &QPushButton::clicked, this, [coordinator] {
+            coordinator->cancelNamedSelectionEdit();
+        });
+    } else {
+        selection->addNote(tr("Persistent scope'u viewport üzerinde düzenlemek için edit oturumu açın. "
+                              "Transient seçimler Undo geçmişine girmez."));
+        auto *edit = makeActionButton(tr("Edit Selection…"));
+        edit->setObjectName(QStringLiteral("Dynamics26NamedSelectionEdit"));
+        selection->addFullWidth(edit);
+        connect(edit, &QPushButton::clicked, this, [coordinator, objectId = objectId_] {
+            (void)coordinator->beginNamedSelectionEdit(objectId);
+        });
     }
 
     auto *identity = addSection(tr("Engineering Identity"), true, true);
