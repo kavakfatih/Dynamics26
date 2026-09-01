@@ -2,13 +2,16 @@
 
 // Dynamics26 Alpha.3.6 — Fixed Support / Force persistent scope consumer
 // acceptance. Bu test fiziksel pointer UX testi değildir; gerçek application
-// servisleri üzerinde persistence, preflight, dependency state ve legacy solver
-// regresyonunu çalıştırır.
+// servisleri üzerinde persistence, preflight, dependency state ve solver
+// regresyonunu çalıştırır. OCCT topology gate gerçek STEP import ettiğinde aynı
+// test valid CAD Face Named Selection -> FEM Mesh -> solver zincirini de yürütür.
 
 #include "../core/DependencyEngine.h"
 #include "../core/ProjectModel.h"
+#include "../core/ScopeReferenceBuilder.h"
 #include "../core/SelectionTypes.h"
 #include "../services/AnalysisService.h"
+#include "../services/GeometryService.h"
 #include "../services/MeshService.h"
 #include "../services/NamedSelectionService.h"
 #include "../shell/Dynamics26MainWindow.h"
@@ -17,6 +20,7 @@
 #include <QCoreApplication>
 #include <QEvent>
 
+#include <cmath>
 #include <iostream>
 #include <string>
 
@@ -38,11 +42,13 @@ inline int runBoundaryConsumerAcceptanceTest(QApplication &app, Dynamics26MainWi
     };
 
     const ServiceContext services = window.services();
-    check(services.project != nullptr && services.mesh != nullptr && services.analysis != nullptr
-              && services.namedSelections != nullptr && services.dependencies != nullptr,
-          "boundary consumer acceptance has Project/Mesh/Analysis/NamedSelection/Dependency collaborators");
-    if (services.project == nullptr || services.mesh == nullptr || services.analysis == nullptr
-        || services.namedSelections == nullptr || services.dependencies == nullptr) {
+    check(services.project != nullptr && services.geometry != nullptr && services.mesh != nullptr
+              && services.analysis != nullptr && services.namedSelections != nullptr
+              && services.dependencies != nullptr,
+          "boundary consumer acceptance has Project/Geometry/Mesh/Analysis/NamedSelection/Dependency collaborators");
+    if (services.project == nullptr || services.geometry == nullptr || services.mesh == nullptr
+        || services.analysis == nullptr || services.namedSelections == nullptr
+        || services.dependencies == nullptr) {
         return 1;
     }
 
@@ -85,7 +91,7 @@ inline int runBoundaryConsumerAcceptanceTest(QApplication &app, Dynamics26MainWi
           "legacy boundary JSON without scoping method remains Geometry Selection");
 
     // ------------------------------------------------------------------
-    // Real mesh + application consumer behavior
+    // Real mesh + invalid consumer behavior
     // ------------------------------------------------------------------
     services.mesh->setDivisions(2, 1, 1);
     check(services.mesh->generate(),
@@ -177,6 +183,120 @@ inline int runBoundaryConsumerAcceptanceTest(QApplication &app, Dynamics26MainWi
           "legacy Geometry Selection Fixed Support / Force still pass preflight");
     check(services.analysis->solve(analysisId),
           "legacy Geometry Selection Static Structural solve still completes after consumer refactor");
+
+    // ------------------------------------------------------------------
+    // OCCT-enabled topology gate: valid CAD Face NS -> FEM -> solver
+    // ------------------------------------------------------------------
+    // Normal hosted/self-hosted acceptance parametric geometry ile çalışabilir.
+    // Topology workflow uygulamayı --import-step ile başlattığında bu blok gerçek
+    // B-Rep identity/provenance zincirini ayrıca doğrular.
+    if (services.geometry->summary().hasGeometry) {
+        const auto bodies = services.geometry->bodies();
+        check(bodies.size() == 1,
+              "imported CAD consumer fixture exposes exactly one Body");
+        if (bodies.size() == 1) {
+            const auto descriptor = services.geometry->boxDescriptor(bodies.front());
+            check(descriptor.has_value(),
+                  "imported CAD consumer fixture exposes axis-aligned real Face provenance");
+            if (descriptor.has_value()) {
+                services.mesh->setDivisions(2, 2, 1);
+                check(services.mesh->generate(),
+                      "CAD Named Selection consumer regenerates current geometry-driven HEX8 mesh");
+
+                const auto makeFaceItem = [&](const femcae::geometry::GeometryEntityId faceId) {
+                    SelectionItem item;
+                    const auto *entity = services.geometry->document().find(faceId);
+                    item.domain = SelectionDomain::Geometry;
+                    item.kind = SelectionKind::Face;
+                    item.geometryEntityId = faceId;
+                    item.parentGeometryId = entity != nullptr
+                        ? entity->parentId : femcae::geometry::InvalidGeometryId;
+                    item.sourceRevision = services.geometry->summary().revision;
+                    return item;
+                };
+
+                const SelectionItem supportFace = makeFaceItem(descriptor->xMinFace);
+                const SelectionItem loadFaceA = makeFaceItem(descriptor->xMaxFace);
+                const SelectionItem loadFaceB = makeFaceItem(descriptor->yMaxFace);
+                check(supportFace.isValid() && loadFaceA.isValid() && loadFaceB.isValid(),
+                      "real CAD Face transient identities preserve parent Body and revision");
+
+                const NamedSelectionCreateResult supportNamed = services.namedSelections->createFromSelection(
+                    QVector<SelectionItem>{supportFace}, QStringLiteral("OCCT Fixed End"));
+                const NamedSelectionCreateResult loadNamed = services.namedSelections->createFromSelection(
+                    QVector<SelectionItem>{loadFaceA, loadFaceB}, QStringLiteral("OCCT Loaded Faces"));
+                check(supportNamed.success() && loadNamed.success(),
+                      "real CAD Face scopes create persistent Named Selection consumers");
+
+                if (supportNamed.success() && loadNamed.success()) {
+                    SupportDefinition namedSupport = originalSupport;
+                    namedSupport.scopingMethod = BoundaryScopingMethod::NamedSelection;
+                    namedSupport.namedSelectionId = supportNamed.id;
+                    services.analysis->updateSupport(supportId, namedSupport);
+
+                    LoadDefinition namedLoad = originalLoad;
+                    namedLoad.scopingMethod = BoundaryScopingMethod::NamedSelection;
+                    namedLoad.namedSelectionId = loadNamed.id;
+                    namedLoad.fxN = 1200.0;
+                    namedLoad.fyN = 0.0;
+                    namedLoad.fzN = 0.0;
+                    services.analysis->updateLoad(loadId, namedLoad);
+
+                    const BoundaryScopeResolution supportResolution =
+                        services.analysis->resolveBoundaryScope(namedSupport);
+                    const BoundaryScopeResolution loadResolution =
+                        services.analysis->resolveBoundaryScope(namedLoad);
+                    check(supportResolution.valid && supportResolution.geometryFaceIds.size() == 1,
+                          "Fixed Support resolves Named Selection ObjectId to one real CAD Face");
+                    check(loadResolution.valid && loadResolution.geometryFaceIds.size() == 2,
+                          "Force resolves Named Selection ObjectId to two real CAD Faces");
+
+                    const int loadUnionNodes = services.analysis->resolvedBoundaryNodeCount(namedLoad);
+                    const int separateNodeCount = services.mesh->nodeCountFor(BoxFace::XMax)
+                        + services.mesh->nodeCountFor(BoxFace::YMax);
+                    check(loadUnionNodes > 0 && loadUnionNodes < separateNodeCount,
+                          "multi-Face Named Selection deduplicates shared FEM edge/corner nodes");
+
+                    check(services.analysis->preflight(analysisId).passed(),
+                          "valid CAD Face Named Selection consumers pass preflight");
+                    check(services.analysis->solve(analysisId),
+                          "Static Structural solver consumes valid CAD Face Named Selection scopes");
+
+                    const AnalysisRecord *namedSolved = services.analysis->analysis(analysisId);
+                    if (namedSolved != nullptr && namedSolved->solved) {
+                        const double reactionMagnitudeX = std::abs(namedSolved->solveResults.reactionXN);
+                        check(std::abs(reactionMagnitudeX - 1200.0) < 1.0e-5,
+                              "two-Face Named Selection applies one total 1200 N Force, not 2400 N");
+                    } else {
+                        check(false, "Named Selection solve produces solved result state");
+                    }
+
+                    const NamedSelectionDefinition *loadDefinition =
+                        services.namedSelections->byId(loadNamed.id);
+                    if (loadDefinition != nullptr) {
+                        const ScopeReference originalNamedScope = loadDefinition->scope;
+                        const ScopeReferenceBuildResult singleFace = buildGeometryScopeReference(
+                            QVector<SelectionItem>{loadFaceA}, services.geometry->document());
+                        check(singleFace.success(),
+                              "alternate valid CAD Face scope builds for solution staleness test");
+                        if (singleFace.success()) {
+                            services.namedSelections->replaceScope(loadNamed.id, singleFace.scope);
+                            check(services.analysis->solutionIsOutOfDate(analysisId),
+                                  "referenced Named Selection scope change makes solution OutOfDate");
+                            services.namedSelections->replaceScope(loadNamed.id, originalNamedScope);
+                            check(!services.analysis->solutionIsOutOfDate(analysisId),
+                                  "restoring identical Named Selection scope restores solver signature validity");
+                        }
+                    }
+
+                    services.analysis->updateSupport(supportId, originalSupport);
+                    services.analysis->updateLoad(loadId, originalLoad);
+                    (void)services.namedSelections->remove(supportNamed.id);
+                    (void)services.namedSelections->remove(loadNamed.id);
+                }
+            }
+        }
+    }
 
     std::cout << (failures == 0 ? "Boundary consumer acceptance PASS" : "Boundary consumer acceptance FAIL")
               << " checks=" << checks << " failures=" << failures << '\n';
