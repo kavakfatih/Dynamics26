@@ -3,12 +3,10 @@
 // Dynamics26 V1.1.0-beta.1 / B1.2 — Connections authoring inspector.
 //
 // Connections klasörü ProjectModel tree container'dır; Contact engineering
-// verisinin sahibi ContactService'tir. Bu sayfa servis durumunu okur ve yeni
-// ContactRegion oluşturmayı yalnız QUndoStack domain command üzerinden yapar.
+// verisinin sahibi ContactService'tir. Bu sayfa yalnız servis durumunu okur;
+// Contact oluşturma shell'in canonical connections.insertContact komutuna gider.
 
 #include "DetailsPage.h"
-#include "../commands/ContactCommands.h"
-#include "../core/DocumentCommandManager.h"
 #include "../core/ServiceContext.h"
 #include "../services/ContactService.h"
 
@@ -43,18 +41,13 @@ public:
                               "Source ve Target surface kapsamları Contact Inspector içinde tanımlanır."));
         auto *create = makeActionButton(tr("Yeni Contact Region"));
         create->setObjectName(QStringLiteral("Dynamics26ConnectionsAddContact"));
-        create->setEnabled(services_.commands != nullptr);
+        create->setEnabled(services_.contacts != nullptr);
         authoring->addFullWidth(create);
         connect(create, &QPushButton::clicked, this, [this] {
-            if (services_.commands == nullptr || services_.contacts == nullptr) {
+            if (services_.contacts == nullptr) {
                 return;
             }
-            ContactDefinition definition;
-            auto *command = new commands::CreateContactCommand(services_, definition);
-            services_.commands->push(command);
-            if (command->createdId() != InvalidObjectId) {
-                emit modelEdited();
-            }
+            emit requestCommand(QStringLiteral("connections.insertContact"));
         });
 
         auto *solver = addSection(tr("Solver Support"));
