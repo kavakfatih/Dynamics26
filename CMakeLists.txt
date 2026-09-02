@@ -149,8 +149,6 @@ set(FEMCAE_ELEMENT_SOURCES
     src/elements/fem_mixed_up_hex8.f90
 )
 
-
-
 set(FEMCAE_ASSEMBLY_SOURCES
     src/assembly/fem_element_dof_map.f90
     src/assembly/fem_sparsity_graph.f90
@@ -242,7 +240,10 @@ if(APPLE)
     target_link_libraries(femcae_core PUBLIC "-framework Accelerate")
 endif()
 
-add_library(femcae_api SHARED src/api/fem_c_api.f90)
+add_library(femcae_api SHARED
+    src/api/fem_c_api.f90
+    src/api/fem_nonlinear_diagnostics_api.f90
+)
 target_link_libraries(femcae_api PRIVATE femcae_core)
 set_target_properties(femcae_api PROPERTIES
     OUTPUT_NAME "femcae"

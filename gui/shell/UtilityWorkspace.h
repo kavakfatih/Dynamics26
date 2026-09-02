@@ -73,6 +73,10 @@ private:
     QPlainTextEdit *solverOutput_{nullptr};
     QLabel *convergenceSummary_{nullptr};
     QTableWidget *convergence_{nullptr};
+    // B2.5 advanced diagnostics temel convergence tablosunun 7 kolonluk B2.1
+    // contract'ını bozmaz; ayrı typed presentation yüzeyidir.
+    QLabel *diagnosticsSummary_{nullptr};
+    QTableWidget *diagnostics_{nullptr};
     QTableWidget *results_{nullptr};
     QTableWidget *timings_{nullptr};
     // Legacy MainWindow::runPreflight() önce Messages'a marker + her kontrol

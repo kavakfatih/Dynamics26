@@ -61,6 +61,47 @@ QString convergenceStateText(const SolverConvergenceState state)
     return QStringLiteral("Unavailable");
 }
 
+QString optionalNumber(const std::optional<double> &value)
+{
+    return value.has_value() ? QString::number(*value, 'g', 8) : QStringLiteral("—");
+}
+
+QString adaptiveEventText(const SolverAdaptiveEvent event)
+{
+    switch (event) {
+    case SolverAdaptiveEvent::Unavailable: return QStringLiteral("—");
+    case SolverAdaptiveEvent::None:        return QStringLiteral("—");
+    case SolverAdaptiveEvent::Growth:      return QStringLiteral("Growth");
+    case SolverAdaptiveEvent::Cutback:     return QStringLiteral("Cutback");
+    }
+    return QStringLiteral("—");
+}
+
+QString criterionText(const SolverCriterionState residual,
+                     const SolverCriterionState displacement)
+{
+    const auto symbol = [](const SolverCriterionState state) {
+        switch (state) {
+        case SolverCriterionState::Satisfied:   return QStringLiteral("✓");
+        case SolverCriterionState::Unsatisfied: return QStringLiteral("✕");
+        case SolverCriterionState::Unavailable: return QStringLiteral("—");
+        }
+        return QStringLiteral("—");
+    };
+    if (residual == SolverCriterionState::Unavailable
+        && displacement == SolverCriterionState::Unavailable) {
+        return QStringLiteral("—");
+    }
+    return QStringLiteral("R %1 • Δu %2").arg(symbol(residual), symbol(displacement));
+}
+
+QString availabilityText(const SolverMetricAvailability availability)
+{
+    return availability == SolverMetricAvailability::Available
+        ? QStringLiteral("Available")
+        : QStringLiteral("Unavailable");
+}
+
 ObjectId subjectFromItem(const QTableWidgetItem *item)
 {
     if (item == nullptr) {
@@ -118,8 +159,20 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
                               QStringLiteral("α"), tr("Durum")},
                              convergencePage);
     convergence_->setObjectName(QStringLiteral("Dynamics26UtilityConvergence"));
+
+    diagnosticsSummary_ = new QLabel(tr("Advanced diagnostics: Unavailable"), convergencePage);
+    diagnosticsSummary_->setObjectName(QStringLiteral("Dynamics26UtilityConvergenceDiagnosticsSummary"));
+    diagnosticsSummary_->setWordWrap(true);
+    diagnosticsSummary_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    diagnostics_ = makeTable({tr("Attempt"), tr("Iter"), QStringLiteral("Δλ"), QStringLiteral("|R|"),
+                              QStringLiteral("|Δu|"), tr("min J"), tr("Adaptive"), tr("Criteria")},
+                             convergencePage);
+    diagnostics_->setObjectName(QStringLiteral("Dynamics26UtilityConvergenceDiagnostics"));
+
     convergenceLayout->addWidget(convergenceSummary_);
-    convergenceLayout->addWidget(convergence_, 1);
+    convergenceLayout->addWidget(convergence_, 2);
+    convergenceLayout->addWidget(diagnosticsSummary_);
+    convergenceLayout->addWidget(diagnostics_, 1);
 
     results_ = makeTable({tr("Sonuç"), tr("Değer")}, tabs_);
     timings_ = makeTable({tr("İşlem"), tr("Süre")}, tabs_);
@@ -229,8 +282,39 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
     }
     convergence_->resizeRowsToContents();
 
+    QVector<const SolverConvergenceEntry *> advancedRows;
+    advancedRows.reserve(rowCount);
+    for (const SolverConvergenceEntry &entry : snapshot.entries) {
+        const bool hasAdvanced = entry.loadIncrement.has_value()
+            || entry.residualNorm.has_value()
+            || entry.displacementIncrementNorm.has_value()
+            || entry.minimumJacobian.has_value()
+            || entry.adaptiveEvent != SolverAdaptiveEvent::Unavailable
+            || entry.residualCriterion != SolverCriterionState::Unavailable
+            || entry.displacementCriterion != SolverCriterionState::Unavailable;
+        if (hasAdvanced) {
+            advancedRows.push_back(&entry);
+        }
+    }
+
+    diagnostics_->setRowCount(static_cast<int>(advancedRows.size()));
+    for (int row = 0; row < advancedRows.size(); ++row) {
+        const SolverConvergenceEntry &entry = *advancedRows.at(row);
+        diagnostics_->setItem(row, 0, new QTableWidgetItem(QString::number(entry.attempt)));
+        diagnostics_->setItem(row, 1, new QTableWidgetItem(QString::number(entry.iteration)));
+        diagnostics_->setItem(row, 2, new QTableWidgetItem(optionalNumber(entry.loadIncrement)));
+        diagnostics_->setItem(row, 3, new QTableWidgetItem(optionalNumber(entry.residualNorm)));
+        diagnostics_->setItem(row, 4, new QTableWidgetItem(optionalNumber(entry.displacementIncrementNorm)));
+        diagnostics_->setItem(row, 5, new QTableWidgetItem(optionalNumber(entry.minimumJacobian)));
+        diagnostics_->setItem(row, 6, new QTableWidgetItem(adaptiveEventText(entry.adaptiveEvent)));
+        diagnostics_->setItem(row, 7, new QTableWidgetItem(
+            criterionText(entry.residualCriterion, entry.displacementCriterion)));
+    }
+    diagnostics_->resizeRowsToContents();
+
     if (snapshot.summary.state == SolverConvergenceState::Unavailable && snapshot.entries.isEmpty()) {
         convergenceSummary_->setText(tr("Yakınsama verisi yok."));
+        diagnosticsSummary_->setText(tr("Advanced diagnostics: Unavailable"));
         return;
     }
 
@@ -241,6 +325,8 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
         convergenceSummary_->setText(
             tr("Durum: %1 | Direct solve | Newton history: not applicable")
                 .arg(convergenceStateText(snapshot.summary.state)));
+        diagnosticsSummary_->setText(tr("Advanced diagnostics: Direct solve için uygulanmaz."));
+        diagnostics_->setRowCount(0);
         return;
     }
 
@@ -251,6 +337,7 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
         || (snapshot.summary.executionMode == SolverExecutionMode::Unavailable && !snapshot.entries.isEmpty());
     if (!nonlinearHistory) {
         convergenceSummary_->setText(tr("Yakınsama verisi yok."));
+        diagnosticsSummary_->setText(tr("Advanced diagnostics: Unavailable"));
         return;
     }
 
@@ -262,6 +349,22 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
             .arg(snapshot.summary.totalIterations)
             .arg(snapshot.summary.cutbackCount)
             .arg(snapshot.summary.finalResidualNorm, 0, 'g', 8));
+
+    if (advancedRows.isEmpty()) {
+        diagnosticsSummary_->setText(
+            tr("Advanced diagnostics: Bu telemetry kaynağında Unavailable. Mixed u-p: %1 | Contact: %2")
+                .arg(availabilityText(snapshot.summary.pressureMetrics),
+                     availabilityText(snapshot.summary.contactMetrics)));
+    } else {
+        const QString minimumJ = snapshot.summary.minimumJacobian.has_value()
+            ? QString::number(*snapshot.summary.minimumJacobian, 'g', 8)
+            : QStringLiteral("Unavailable");
+        diagnosticsSummary_->setText(
+            tr("Advanced diagnostics: min J = %1 | Mixed u-p: %2 | Contact: %3")
+                .arg(minimumJ,
+                     availabilityText(snapshot.summary.pressureMetrics),
+                     availabilityText(snapshot.summary.contactMetrics)));
+    }
 }
 
 void UtilityWorkspace::appendTiming(const QString &operation, const double seconds)
@@ -281,6 +384,8 @@ void UtilityWorkspace::clearAll()
     solverOutput_->clear();
     convergence_->setRowCount(0);
     convergenceSummary_->setText(tr("Yakınsama verisi yok."));
+    diagnostics_->setRowCount(0);
+    diagnosticsSummary_->setText(tr("Advanced diagnostics: Unavailable"));
     results_->setRowCount(0);
     timings_->setRowCount(0);
 }

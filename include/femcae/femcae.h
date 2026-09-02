@@ -63,6 +63,45 @@ int fem_demo_nonlinear_hex8(double young_modulus,
                             double *history_alpha,
                             int *history_converged);
 
+/* Beta.2 B2.5: additive advanced diagnostics ABI for the same nonlinear
+ * verification model. The V0.8 function above remains binary/source compatible.
+ * Mixed u-p and Contact metrics are intentionally not represented by fake zeros
+ * here; those remain unavailable until a supporting solve consumer is bridged. */
+int fem_demo_nonlinear_hex8_diagnostics(
+    double young_modulus,
+    double poisson_ratio,
+    double area,
+    double length,
+    double force,
+    double initial_increment,
+    double minimum_increment,
+    double maximum_increment,
+    int method,
+    int line_search_enabled,
+    int max_iterations,
+    int adaptive_stepping,
+    double *tip_displacement,
+    double *completed_load_factor,
+    double *final_residual_norm,
+    double *minimum_j,
+    int *accepted_steps,
+    int *total_iterations,
+    int *cutbacks,
+    int history_capacity,
+    int *history_count,
+    int *history_attempt,
+    int *history_accepted_step_before,
+    int *history_iteration,
+    double *history_load_factor,
+    double *history_load_increment,
+    double *history_residual_norm,
+    double *history_relative_residual,
+    double *history_displacement_increment_norm,
+    double *history_relative_displacement,
+    double *history_alpha,
+    double *history_minimum_j,
+    int *history_converged);
+
 
 /* V0.10: mixed u-p HEX8/P0 manufactured simple-shear verification preset.
  * The requested shear gamma is converted to an internally equilibrated nodal

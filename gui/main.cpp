@@ -33,6 +33,7 @@
 #include "support/ScreenshotDriver.h"
 #include "support/SelectionAcceptanceTest.h"
 #include "support/SelfTest.h"
+#include "support/SolverDiagnosticsAcceptance.h"
 #include "support/SolverWorkspaceAcceptance.h"
 
 #include <QApplication>
@@ -236,6 +237,10 @@ int main(int argc, char *argv[])
         const int solverWorkspaceStatus = d26::runSolverWorkspaceAcceptanceTest(app, window);
         if (solverWorkspaceStatus != 0) {
             return solverWorkspaceStatus;
+        }
+        const int solverDiagnosticsStatus = d26::runSolverDiagnosticsAcceptanceTest(app, window);
+        if (solverDiagnosticsStatus != 0) {
+            return solverDiagnosticsStatus;
         }
         const int boundaryStatus = d26::runBoundaryConsumerAcceptanceTest(app, window);
         if (boundaryStatus != 0) {

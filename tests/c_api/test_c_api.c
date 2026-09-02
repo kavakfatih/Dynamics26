@@ -15,7 +15,7 @@ static int require_equal(const char *name, int actual, int expected)
 int main(void)
 {
     int failed = 0;
-    failed |= require_equal("api", fem_api_version(), 1);
+    failed |= require_equal("api", fem_api_version(), 2);
     failed |= require_equal("project_schema", fem_project_schema_version(), 1);
     failed |= require_equal("result_schema", fem_result_schema_version(), 1);
     failed |= require_equal("version_major", fem_version_major(), 1);
@@ -49,7 +49,6 @@ int main(void)
         }
     }
 
-
     {
         const double e=6.0e6, nu=0.29, area=1.0, length=1.0, stretch=1.10;
         const double g=e/(2.0*(1.0+nu));
@@ -65,6 +64,38 @@ int main(void)
             fprintf(stderr,"FAIL nonlinear demo rc=%d u=%.17g lf=%.17g steps=%d iters=%d cutbacks=%d rn=%.17g\n",
                     rc,u,lf,steps,iters,cutbacks,rn);
             failed=1;
+        }
+    }
+
+    {
+        const double e=6.0e6, nu=0.29, area=1.0, length=1.0, stretch=1.10;
+        const double g=e/(2.0*(1.0+nu));
+        const double lam=e*nu/((1.0+nu)*(1.0-2.0*nu));
+        const double e11=0.5*(stretch*stretch-1.0);
+        const double force=area*stretch*(lam+2.0*g)*e11;
+        double u=0.0,lf=0.0,rn=0.0,minj=0.0;
+        int steps=0,iters=0,cutbacks=0,hcount=0;
+        int hatt[64]={0},hstep[64]={0},hiter[64]={0},hconv[64]={0};
+        double hload[64]={0.0},hinc[64]={0.0},habsr[64]={0.0},hrelr[64]={0.0};
+        double habsdu[64]={0.0},hreldu[64]={0.0},halpha[64]={0.0},hminj[64]={0.0};
+        int rc=fem_demo_nonlinear_hex8_diagnostics(
+            e,nu,area,length,force,0.25,0.01,0.5,1,1,25,1,
+            &u,&lf,&rn,&minj,&steps,&iters,&cutbacks,64,&hcount,
+            hatt,hstep,hiter,hload,hinc,habsr,hrelr,habsdu,hreldu,halpha,hminj,hconv);
+        if(rc!=0 || u<0.099999 || u>0.100001 || lf!=1.0 || steps<1 || iters<1 || hcount<1 || minj<=0.0){
+            fprintf(stderr,"FAIL nonlinear diagnostics rc=%d u=%.17g lf=%.17g minJ=%.17g steps=%d iters=%d hcount=%d\n",
+                    rc,u,lf,minj,steps,iters,hcount);
+            failed=1;
+        } else {
+            int i;
+            for(i=0;i<hcount;i++){
+                if(hatt[i]<1 || hstep[i]<0 || hiter[i]<1 || hinc[i]<=0.0 || habsr[i]<0.0 || habsdu[i]<0.0 || hminj[i]<=0.0){
+                    fprintf(stderr,"FAIL nonlinear diagnostics row=%d att=%d step=%d iter=%d dload=%.17g R=%.17g du=%.17g minJ=%.17g\n",
+                            i,hatt[i],hstep[i],hiter[i],hinc[i],habsr[i],habsdu[i],hminj[i]);
+                    failed=1;
+                    break;
+                }
+            }
         }
     }
 
