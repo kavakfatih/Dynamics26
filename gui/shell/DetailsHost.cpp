@@ -1,5 +1,6 @@
 #include "DetailsHost.h"
 
+#include "../core/DocumentCommandManager.h"
 #include "../core/ProjectModel.h"
 #include "../core/UiTheme.h"
 #include "../details/AnalysisDetails.h"
@@ -105,6 +106,17 @@ DetailsHost::DetailsHost(const ServiceContext &services, QWidget *parent)
         connectPage(page);
     }
     stack_->setCurrentWidget(emptyState_);
+
+    // QUndoStack komutlari tamamen unwind olmadan shell'in direct
+    // documentMutated consumer'lari calisabilir. MainWindow'in immediate
+    // dependency/shell sync'i korunur; Inspector ise ayni authoritative model
+    // durumunu event-loop sonunda bir kez daha okur. Bu, Undo/Redo sonrasinda
+    // QLineEdit gibi edit alanlarinin eski snapshot'ta kalmasini engeller ve
+    // widget icinde ikinci bir engineering state olusturmaz.
+    if (services_.commands != nullptr) {
+        connect(services_.commands, &DocumentCommandManager::documentMutated,
+                this, &DetailsHost::refresh, Qt::QueuedConnection);
+    }
 }
 
 void DetailsHost::connectPage(DetailsPage *page)
