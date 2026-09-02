@@ -12,6 +12,8 @@
 // Üretilmiş FEM mesh proje dosyasının MODEL STATE'i değildir ve saklanmaz.
 // Bu nedenle Mesh/Facet Contact scope'u proje yeniden açıldığında eski generation
 // kimliğini korumalı fakat current mesh'e ASLA sessizce rebind edilmemelidir.
+// Canonical draft scope ise source_revision="0" + entities=[] olarak kalmalı;
+// save/open sırasında hayali Source/Target scope üretilmemelidir.
 
 #include "../core/DocumentCommandManager.h"
 #include "../services/ContactService.h"
@@ -43,6 +45,18 @@ inline ScopeReference facetScope(const quint64 generation,
     scope.sourceRevision = generation;
     scope.entities.push_back(reference);
     return scope;
+}
+
+inline QJsonObject contactItemById(const QJsonArray &items, const ObjectId id)
+{
+    const QString expected = QString::number(id);
+    for (const QJsonValue &value : items) {
+        const QJsonObject item = value.toObject();
+        if (item.value(QStringLiteral("object_id")).toString() == expected) {
+            return item;
+        }
+    }
+    return {};
 }
 
 } // namespace contact_persistence_acceptance_detail
@@ -165,6 +179,8 @@ inline int runContactPersistenceAcceptanceTest(QApplication &app,
     check(restored != nullptr
               && restored->sourceScope.sourceRevision == savedGeneration
               && restored->targetScope.sourceRevision == savedGeneration
+              && !restored->sourceScope.entities.isEmpty()
+              && !restored->targetScope.entities.isEmpty()
               && restored->sourceScope.entities.front().meshEntityId == savedSourceFacet
               && restored->targetScope.entities.front().meshEntityId == savedTargetFacet,
           "Contact project reopen preserves exact original generation and FEM Facet identities");
@@ -181,6 +197,72 @@ inline int runContactPersistenceAcceptanceTest(QApplication &app,
           "stale reopened ContactRegion is surfaced as OutOfDate in ProjectModel");
     check(!window.documentCommands()->isDirty(),
           "successful project reopen leaves document history clean");
+
+    // Draft authoring state gerçek application save/open yolunda da exact kalmalı.
+    // Özellikle source_revision=0 + entities=[] loader tarafından sahte current
+    // CAD/FEM scope'a dönüştürülemez.
+    constexpr ObjectId requestedDraftId = 9007199254743999ULL; // > 2^53
+    ContactDefinition draft;
+    draft.name = QStringLiteral("Draft Persistence Contact");
+    const ObjectId draftId = services.contacts->createContact(draft, -1, requestedDraftId);
+    const int draftRow = services.contacts->rowOf(draftId);
+    check(draftId == requestedDraftId
+              && services.contacts->validate(draftId).error == ContactValidationError::MissingSourceScope,
+          "application persistence fixture creates exact >2^53 incomplete Contact state");
+
+    const QString draftProjectPath = temporary.filePath(
+        QStringLiteral("contact-draft-persistence.femcae.json"));
+    check(window.saveProjectToPath(draftProjectPath),
+          "application save path persists complete and draft Contact states together");
+
+    QFile draftFile(draftProjectPath);
+    check(draftFile.open(QIODevice::ReadOnly),
+          "saved draft Contact project can be inspected as JSON");
+    QJsonDocument draftDocument;
+    if (draftFile.isOpen()) {
+        draftDocument = QJsonDocument::fromJson(draftFile.readAll());
+        draftFile.close();
+    }
+    const QJsonObject draftRoot = draftDocument.object();
+    const QJsonObject draftDocumentObject =
+        draftRoot.value(QStringLiteral("dynamics26_document")).toObject();
+    const QJsonArray draftItems =
+        draftDocumentObject.value(QStringLiteral("contacts")).toObject()
+            .value(QStringLiteral("items")).toArray();
+    const QJsonObject draftItem =
+        contact_persistence_acceptance_detail::contactItemById(draftItems, requestedDraftId);
+    const QJsonObject draftSource = draftItem.value(QStringLiteral("source_scope")).toObject();
+    const QJsonObject draftTarget = draftItem.value(QStringLiteral("target_scope")).toObject();
+    check(draftItems.size() == 2 && !draftItem.isEmpty(),
+          "application JSON stores complete and draft Contact as two distinct engineering objects");
+    check(draftSource.value(QStringLiteral("source_revision")).toString() == QStringLiteral("0")
+              && draftSource.value(QStringLiteral("entities")).toArray().isEmpty()
+              && draftTarget.value(QStringLiteral("source_revision")).toString() == QStringLiteral("0")
+              && draftTarget.value(QStringLiteral("entities")).toArray().isEmpty(),
+          "canonical incomplete Contact serializes both unset scopes as revision zero plus empty entity arrays");
+
+    window.newProjectWithoutPrompt();
+    check(window.openProjectFromPath(draftProjectPath),
+          "application open path restores project containing incomplete Contact data");
+    const ContactDefinition *restoredDraft = services.contacts->byId(requestedDraftId);
+    check(restoredDraft != nullptr
+              && services.contacts->rowOf(requestedDraftId) == draftRow
+              && restoredDraft->name == draft.name,
+          "draft Contact reopen preserves exact ObjectId, row and engineering display name");
+    check(restoredDraft != nullptr
+              && restoredDraft->sourceScope.sourceRevision == 0
+              && restoredDraft->sourceScope.entities.isEmpty()
+              && restoredDraft->targetScope.sourceRevision == 0
+              && restoredDraft->targetScope.entities.isEmpty()
+              && services.contacts->validate(requestedDraftId).error
+                     == ContactValidationError::MissingSourceScope,
+          "draft Contact reopen preserves canonical unset scopes instead of auto-rebinding them");
+    check(services.project->object(requestedDraftId) != nullptr
+              && services.project->object(requestedDraftId)->state == ObjectState::Error
+              && services.project->object(requestedDraftId)->statusText.contains(QStringLiteral("Source")),
+          "restored draft Contact remains explicit missing-Source authoring state in ProjectModel");
+    check(!window.documentCommands()->isDirty(),
+          "draft Contact project reopen leaves document history clean");
 
     // Corrupt one persisted 64-bit ObjectId beyond uint64 max. The application
     // loader must reject it explicitly; truncation, double conversion or partial
@@ -204,7 +286,8 @@ inline int runContactPersistenceAcceptanceTest(QApplication &app,
         check(!window.openProjectFromPath(corruptPath),
               "application loader rejects Contact ObjectId uint64 overflow");
         check(services.contacts->count() == 0
-                  && services.project->object(requestedContactId) == nullptr,
+                  && services.project->object(requestedContactId) == nullptr
+                  && services.project->object(requestedDraftId) == nullptr,
               "failed Contact load leaves no partially restored persistent Contact state");
         check(!window.documentCommands()->isDirty(),
               "failed Contact load returns to a clean safe new-project state");
