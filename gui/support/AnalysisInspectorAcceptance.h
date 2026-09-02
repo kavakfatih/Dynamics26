@@ -14,6 +14,7 @@
 #include "../services/AnalysisService.h"
 #include "../services/MaterialService.h"
 #include "../services/MeshService.h"
+#include "../shell/DetailsHost.h"
 #include "../shell/Dynamics26MainWindow.h"
 #include "../shell/UtilityWorkspace.h"
 
@@ -62,13 +63,14 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
     QUndoStack *stack = window.documentCommands() != nullptr
         ? window.documentCommands()->stack() : nullptr;
     AnalysisDetails *details = window.findChild<AnalysisDetails *>();
+    DetailsHost *detailsHost = window.detailsHost();
     check(services.project != nullptr && services.mesh != nullptr
               && services.materials != nullptr && services.analysis != nullptr
-              && stack != nullptr && details != nullptr,
+              && stack != nullptr && details != nullptr && detailsHost != nullptr,
           "Analysis Inspector acceptance has authoritative Project/Mesh/Material/Analysis/Undo composition");
     if (services.project == nullptr || services.mesh == nullptr
         || services.materials == nullptr || services.analysis == nullptr
-        || stack == nullptr || details == nullptr) {
+        || stack == nullptr || details == nullptr || detailsHost == nullptr) {
         return 1;
     }
 
@@ -144,7 +146,6 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
     settle(250);
     window.selectObject(analysisId);
     flushUi();
-    details->refresh();
     check(services.mesh->hasMesh() && services.mesh->isUpToDate()
               && services.analysis->preflight(analysisId).passed()
               && meshReadiness->text().contains(QStringLiteral("Ready"), Qt::CaseInsensitive)
@@ -154,13 +155,20 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
     const int solveUndoIndex = stack->index();
     solve->click();
     settle(350);
-    details->refresh();
     record = services.analysis->analysis(analysisId);
     check(record != nullptr && record->solved
               && services.analysis->hasResults(analysisId)
               && !services.analysis->solutionIsOutOfDate(analysisId)
               && stack->index() == solveUndoIndex,
           "Analysis Inspector Solve creates only derived solution state and no document Undo transaction");
+
+    // Başarılı Solve, normal ürün akışında Total Deformation sonucuna gider.
+    // Analysis Inspector property acceptance'ına devam etmek için kullanıcı gibi
+    // Analysis nesnesini yeniden seçeriz; hidden page'i doğrudan mutate etmeyiz.
+    window.selectObject(analysisId);
+    flushUi();
+    check(detailsHost->currentObject() == analysisId && details->objectId() == analysisId,
+          "Analysis Inspector is current again before editable definition checks");
     check(state->text().contains(QStringLiteral("Solved"), Qt::CaseInsensitive)
               && !state->text().contains(QStringLiteral("Out of Date"), Qt::CaseInsensitive)
               && results->text().contains(QStringLiteral("Calculated"), Qt::CaseInsensitive)
@@ -196,20 +204,8 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
     flushUi();
     check(services.project->object(analysisId)->name == originalName,
           "Undo restores exact authoritative Analysis name in ProjectModel");
-    check(details->objectId() == analysisId,
-          "Undo keeps AnalysisDetails bound to the same Analysis ObjectId");
     check(name->text() == originalName,
-          "Undo automatically refreshes the Analysis name widget from authoritative ProjectModel state");
-
-    // Diagnostic split: explicit refresh must be sufficient if delivery/timing is
-    // the only remaining fault. This does not replace the automatic-refresh
-    // acceptance above; a failure there still keeps B1.4 red.
-    details->refresh();
-    check(name->text() == originalName,
-          "Explicit AnalysisDetails refresh restores authoritative Analysis name");
-    flushUi();
-    check(name->text() == originalName,
-          "Authoritative Analysis name remains stable after event-loop drain");
+          "Undo refreshes the visible Analysis name widget from authoritative ProjectModel state");
     check(!services.analysis->solutionIsOutOfDate(analysisId),
           "Undo Analysis display-name edit preserves current solved engineering signature");
 
@@ -221,7 +217,6 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
     const int beforeSolverEdit = stack->index();
     largeDeflection->setCurrentIndex(originalLargeDeflection ? 0 : 1);
     flushUi();
-    details->refresh();
     check(stack->index() == beforeSolverEdit + 1
               && services.analysis->analysis(analysisId)->largeDeflection != originalLargeDeflection
               && services.analysis->solutionIsOutOfDate(analysisId),
@@ -232,7 +227,6 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
 
     stack->undo();
     flushUi();
-    details->refresh();
     check(services.analysis->analysis(analysisId)->largeDeflection == originalLargeDeflection
               && !services.analysis->solutionIsOutOfDate(analysisId)
               && state->text().contains(QStringLiteral("Solved"), Qt::CaseInsensitive)
