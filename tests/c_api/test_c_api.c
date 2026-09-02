@@ -15,7 +15,7 @@ static int require_equal(const char *name, int actual, int expected)
 int main(void)
 {
     int failed = 0;
-    failed |= require_equal("api", fem_api_version(), 2);
+    failed |= require_equal("api", fem_api_version(), 1);
     failed |= require_equal("project_schema", fem_project_schema_version(), 1);
     failed |= require_equal("result_schema", fem_result_schema_version(), 1);
     failed |= require_equal("version_major", fem_version_major(), 1);

@@ -11,8 +11,9 @@ module fem_version
 
     integer, parameter, public :: FEM_PROJECT_SCHEMA_VERSION = 1
     integer, parameter, public :: FEM_RESULT_SCHEMA_VERSION = 1
-    !! Beta.2 B2.5 additive diagnostics entry point ile C ABI capability seviyesi 2.
-    !! V1 fonksiyonlari binary/source compatible kalir; mevcut imzalar degistirilmez.
-    integer, parameter, public :: FEM_C_API_VERSION = 2
+    !! Beta.2 B2.5 diagnostics entry point additive bir C ABI genislemesidir.
+    !! Mevcut V1 fonksiyon imzalari ve davranis contract'i degismedigi icin API
+    !! major/capability contract'i 1 olarak korunur.
+    integer, parameter, public :: FEM_C_API_VERSION = 1
 
 end module fem_version
