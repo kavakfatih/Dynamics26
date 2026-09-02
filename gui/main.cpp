@@ -189,7 +189,9 @@ int main(int argc, char *argv[])
         // Aynı gerçek application composition üzerinde sırasıyla transient/
         // persistent selection, Material/Mesh/Analysis Inspector, boundary
         // consumers, Preflight, integrated workflow ve Contact acceptance zinciri
-        // yürütülür. Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
+        // yürütülür. Inspector acceptance'ları yalnız görünür/current project
+        // object bağlamını düzenler; hidden Details sayfaları test fixture state'i
+        // olarak kullanılmaz. Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
             return selectionStatus;
