@@ -18,6 +18,15 @@ namespace d26 {
 // görünür ve düzenlenebilir yapar; ikinci bir preflight/lifecycle state tutmaz.
 // §11 gereği kullanıcı niyeti (Incompressibility: Automatic) ile solver
 // implementasyonu (mixed u-p / HEX8-P0) ayrılır.
+//
+// Alpha.4/Beta.1 routing invariants:
+// - Preflight satırları yalnız authoritative subject ObjectId ile Navigator'a
+//   gider; diagnostic metni engineering identity veya routing anahtarı değildir.
+// - Mesh quick-fix yalnız subject ObjectType::Mesh olduğunda canonical shell
+//   komutunu kullanır; derived mesh state ayrı bir Inspector state'i değildir.
+// - Eksik material assignment otomatik oluşturulmaz/atanmaz; bu kullanıcı
+//   mühendislik kararıdır ve Inspector yalnız Materials authoring bağlamına gider.
+// - Support/Load quick-fix mevcut undoable Insert command'lerini kullanır.
 class AnalysisDetails final : public DetailsPage
 {
     Q_OBJECT
