@@ -9,6 +9,7 @@
 //
 // Beta.1 sözleşmesi:
 //   * Project/Connections altındaki aktif ContactRegion'lar model-level state'tir.
+//   * draft Contact Source/Target eksikleri Preflight'ta Contact ObjectId ile bloklayıcıdır.
 //   * suppressed ContactRegion Solve'u bloklamaz.
 //   * stale / mixed-domain / identical / dangling contact bloklayıcıdır.
 //   * scope tamamen geçerli olsa bile model-tabanlı Contact solver consumer henüz
@@ -117,18 +118,44 @@ inline int runContactPreflightAcceptanceTest(QApplication &app,
     const quint64 generation = services.mesh->generation();
     const auto sourceFacet = services.mesh->mesh().boundaryFacets.at(0).id;
     const auto targetFacet = services.mesh->mesh().boundaryFacets.at(1).id;
+    const ScopeReference sourceScope =
+        contact_preflight_acceptance_detail::meshFacetScope(generation, sourceFacet);
+    const ScopeReference targetScope =
+        contact_preflight_acceptance_detail::meshFacetScope(generation, targetFacet);
 
-    ContactDefinition definition;
-    definition.name = QStringLiteral("Preflight Contact");
-    definition.formulation = ContactFormulation::Bonded;
-    definition.sourceScope = contact_preflight_acceptance_detail::meshFacetScope(generation, sourceFacet);
-    definition.targetScope = contact_preflight_acceptance_detail::meshFacetScope(generation, targetFacet);
-
-    const ObjectId contactId = services.contacts->createContact(definition);
-    check(contactId != InvalidObjectId && services.contacts->validate(contactId).valid(),
-          "valid active Mesh/Facet Contact fixture is accepted by ContactService");
+    // Gerçek authoring sırası: Contact önce kalıcı fakat eksik bir document
+    // object olarak oluşur. Source/Target tamamlanana kadar Preflight exact
+    // Contact ObjectId'yi bloklayıcı diagnostic subject olarak taşımalıdır.
+    ContactDefinition draft;
+    draft.name = QStringLiteral("Preflight Contact");
+    draft.formulation = ContactFormulation::Bonded;
+    const ObjectId contactId = services.contacts->createContact(draft);
+    check(contactId != InvalidObjectId
+              && services.contacts->validate(contactId).error == ContactValidationError::MissingSourceScope,
+          "draft Contact fixture persists explicit missing-Source authoring state");
 
     PreflightReport report = services.analysis->preflight(analysisId);
+    check(!report.passed()
+              && contact_preflight_acceptance_detail::hasCheck(
+                  report, QStringLiteral("Contact Kapsamı"), PreflightCheck::Status::Failed,
+                  contactId, QStringLiteral("Source")),
+          "Preflight blocks missing Contact Source with exact Contact ObjectId");
+
+    check(services.contacts->replaceSourceScope(contactId, sourceScope)
+              && services.contacts->validate(contactId).error == ContactValidationError::MissingTargetScope,
+          "setting Source advances draft Contact to explicit missing-Target state");
+    report = services.analysis->preflight(analysisId);
+    check(!report.passed()
+              && contact_preflight_acceptance_detail::hasCheck(
+                  report, QStringLiteral("Contact Kapsamı"), PreflightCheck::Status::Failed,
+                  contactId, QStringLiteral("Target")),
+          "Preflight blocks missing Contact Target with exact Contact ObjectId");
+
+    check(services.contacts->replaceTargetScope(contactId, targetScope)
+              && services.contacts->validate(contactId).valid(),
+          "setting Target completes a valid active Mesh/Facet Contact definition");
+
+    report = services.analysis->preflight(analysisId);
     check(!report.passed(),
           "active valid Contact blocks model solve until Contact solver consumer exists");
     check(contact_preflight_acceptance_detail::hasCheck(
@@ -178,8 +205,8 @@ inline int runContactPreflightAcceptanceTest(QApplication &app,
                   contactId, QStringLiteral("aynı engineering domain")),
           "mixed Mesh/Geometry Contact domain is a blocking Contact diagnostic");
 
-    const ScopeReference sourceScope = services.contacts->byId(contactId)->sourceScope;
-    check(services.contacts->replaceTargetScope(contactId, sourceScope),
+    const ScopeReference persistedSourceScope = services.contacts->byId(contactId)->sourceScope;
+    check(services.contacts->replaceTargetScope(contactId, persistedSourceScope),
           "Contact fixture can persist identical source/target scope for validation regression");
     report = services.analysis->preflight(analysisId);
     check(!report.passed()
