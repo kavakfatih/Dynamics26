@@ -1,5 +1,6 @@
 #include "SelectionCoordinator.h"
 
+#include "../commands/DomainCommands.h"
 #include "../core/DocumentCommandManager.h"
 #include "../core/ProjectModel.h"
 #include "DetailsHost.h"
@@ -20,6 +21,8 @@
 #include <QSignalBlocker>
 #include <QStatusBar>
 #include <QTimer>
+
+#include <algorithm>
 
 using femcae::geometry::GeometryEntityId;
 using femcae::geometry::InvalidGeometryId;
@@ -701,6 +704,92 @@ void SelectionCoordinator::showSelectionContextMenu(const ObjectId objectId,
 
     const ScopeReferenceBuildResult scope = currentPersistentScope();
     if (scope.success() && services_.namedSelections != nullptr && services_.commands != nullptr) {
+        const bool geometryFaceScope = !scope.scope.entities.isEmpty()
+            && std::all_of(scope.scope.entities.cbegin(), scope.scope.entities.cend(),
+                           [](const ScopeEntityReference &entity) {
+                               return entity.domain == SelectionDomain::Geometry
+                                   && entity.kind == SelectionKind::Face;
+                           });
+        const ObjectId analysisId = window_->currentAnalysis();
+
+        // ANSYS/COMSOL benzeri hızlı authoring yolu: viewport'ta seçilmiş gerçek
+        // CAD Face seti önce persistent Named Selection olarak dondurulur, ardından
+        // Fixed Support / Force bu ObjectId'ye bağlanır. BC/load içine topology ID
+        // kopyalanmaz; existing stale-detection ve resolver tek doğruluk kaynağı
+        // olarak kalır. İki document mutation tek Undo transaction'dır.
+        const auto createBoundaryFromSelection = [this, analysisId](const bool force) {
+            if (window_ == nullptr || services_.commands == nullptr || services_.analysis == nullptr
+                || analysisId == InvalidObjectId) {
+                return;
+            }
+            const ScopeReferenceBuildResult current = currentGeometryScope();
+            const bool currentIsFaceScope = current.success() && !current.scope.entities.isEmpty()
+                && std::all_of(current.scope.entities.cbegin(), current.scope.entities.cend(),
+                               [](const ScopeEntityReference &entity) {
+                                   return entity.domain == SelectionDomain::Geometry
+                                       && entity.kind == SelectionKind::Face;
+                               });
+            if (!currentIsFaceScope) {
+                return;
+            }
+
+            const QString transactionName = force ? tr("Add Force from Selection")
+                                                  : tr("Add Fixed Support from Selection");
+            services_.commands->beginMacro(transactionName);
+            const NamedSelectionCreateResult named = createNamedSelectionFromCurrentSelection(
+                force ? tr("Force Scope") : tr("Fixed Support Scope"));
+
+            ObjectId createdBoundary = InvalidObjectId;
+            if (named.success()) {
+                if (force) {
+                    LoadDefinition definition;
+                    definition.scopingMethod = BoundaryScopingMethod::NamedSelection;
+                    definition.namedSelectionId = named.id;
+                    auto *command = new commands::CreateForceCommand(
+                        services_, analysisId, definition, -1, tr("Add Force"));
+                    services_.commands->push(command);
+                    createdBoundary = command->createdId();
+                } else {
+                    SupportDefinition definition;
+                    definition.scopingMethod = BoundaryScopingMethod::NamedSelection;
+                    definition.namedSelectionId = named.id;
+                    auto *command = new commands::CreateFixedSupportCommand(
+                        services_, analysisId, definition, -1, tr("Add Fixed Support"));
+                    services_.commands->push(command);
+                    createdBoundary = command->createdId();
+                }
+            }
+            services_.commands->endMacro();
+
+            if (createdBoundary != InvalidObjectId) {
+                window_->selectObject(createdBoundary);
+                window_->syncAll();
+            }
+        };
+
+        QAction *insertBefore = menu->actions().isEmpty() ? nullptr : menu->actions().constFirst();
+        if (geometryFaceScope && analysisId != InvalidObjectId && services_.analysis != nullptr) {
+            auto *supportAction = new QAction(tr("Fixed Support from Selection"), menu);
+            supportAction->setToolTip(
+                tr("Seçili CAD Face kapsamını kalıcı scope olarak kaydet ve Fixed Support oluştur"));
+            connect(supportAction, &QAction::triggered, this,
+                    [createBoundaryFromSelection] { createBoundaryFromSelection(false); });
+
+            auto *forceAction = new QAction(tr("Force from Selection"), menu);
+            forceAction->setToolTip(
+                tr("Seçili CAD Face kapsamını kalıcı scope olarak kaydet ve Force oluştur"));
+            connect(forceAction, &QAction::triggered, this,
+                    [createBoundaryFromSelection] { createBoundaryFromSelection(true); });
+
+            if (insertBefore == nullptr) {
+                menu->addAction(supportAction);
+                menu->addAction(forceAction);
+            } else {
+                menu->insertAction(insertBefore, supportAction);
+                menu->insertAction(insertBefore, forceAction);
+            }
+        }
+
         auto *createAction = new QAction(tr("Create Named Selection"), menu);
         createAction->setToolTip(tr("Geçerli CAD/FEM seçimini kalıcı engineering scope olarak kaydet"));
         connect(createAction, &QAction::triggered, this, [this] {
@@ -713,12 +802,11 @@ void SelectionCoordinator::showSelectionContextMenu(const ObjectId objectId,
             window_->selectObject(created.id);
         });
 
-        if (menu->actions().isEmpty()) {
+        if (insertBefore == nullptr) {
             menu->addAction(createAction);
         } else {
-            QAction *before = menu->actions().constFirst();
-            menu->insertAction(before, createAction);
-            menu->insertSeparator(before);
+            menu->insertAction(insertBefore, createAction);
+            menu->insertSeparator(insertBefore);
         }
     }
 
