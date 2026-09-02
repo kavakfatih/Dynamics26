@@ -178,6 +178,11 @@ int main(int argc, char *argv[])
     }
 
     if (selectionSelfTest) {
+        // Acceptance binary'si crash ederse son başarılı assertion CI logunda
+        // kaybolmamalıdır. Yalnız self-test modunda stdout'u line-buffer benzeri
+        // unitbuf davranışına alırız; normal uygulama I/O davranışı değişmez.
+        std::cout << std::unitbuf;
+
         // Aynı gerçek application composition üzerinde sırasıyla:
         //   1) transient/persistent selection authoring,
         //   2) Beta.1 Material Inspector binding + Undo/dependency contract,
