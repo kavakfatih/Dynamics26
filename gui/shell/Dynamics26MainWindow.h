@@ -91,6 +91,10 @@ private:
     // sahnesini yeniden kurmadan senkronlayabilmesi için kabuğun kontrollü
     // composition-helper erişimine sahiptir.
     friend class SelectionCoordinator;
+    // Beta.2 B2.5 production verification migration. Helper ayrı engineering
+    // state yaratmaz; mevcut private Utility/reporting yüzeyini tek canonical
+    // verify.nonlinear QAction'ı için kullanır.
+    friend void runAdvancedNonlinearVerification(Dynamics26MainWindow &window);
 
     void buildServices();
     void buildLayout();

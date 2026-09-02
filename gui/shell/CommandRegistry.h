@@ -30,6 +30,11 @@ public:
 
     void setEnabled(const QString &id, bool enabled, const QString &disabledReason = QString());
     void trigger(const QString &id);
+    // Aynı QAction/menu/shortcut kimliğini koruyup yalnız application composition
+    // katmanına yayılan command signal ID'sini değiştirir. Bu mekanizma migration
+    // sırasında eski command surface'i ikinci QAction oluşturmadan yeni canonical
+    // handler'a taşımak içindir. Boş routedId varsayılan id davranışını geri yükler.
+    void routeSignal(const QString &id, const QString &routedId);
     // Görünüm değişiminde ikonlar palet rengiyle yeniden üretilir.
     void refreshIcons();
 
@@ -40,6 +45,7 @@ private:
     QHash<QString, QAction *> actions_;
     QHash<QString, CommandGlyph> glyphs_;
     QHash<QString, QString> baseToolTips_;
+    QHash<QString, QString> routedIds_;
 };
 
 } // namespace d26

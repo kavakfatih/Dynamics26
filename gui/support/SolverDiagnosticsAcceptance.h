@@ -64,6 +64,19 @@ inline int runSolverDiagnosticsAcceptanceTest(QApplication &app, Dynamics26MainW
         return 1;
     }
 
+    // SolverWorkspaceAcceptance hemen önce canonical verify.nonlinear QAction'ını
+    // çalıştırır. B2.5b routing başarılıysa aynı production command artık advanced
+    // diagnostics ABI'den tek solve ile hem basic hem advanced tabloyu doldurmuş
+    // olmalıdır. Bu state'i kendi fixture'ımızla overwrite etmeden önce doğrularız.
+    check(basicTable->rowCount() > 0,
+          "Production verify.nonlinear keeps the basic convergence history populated");
+    check(diagnosticsTable->rowCount() > 0,
+          "Production verify.nonlinear populates advanced diagnostics through the routed handler");
+    check(diagnosticsSummary->text().contains(QStringLiteral("min J"))
+              && diagnosticsSummary->text().contains(QStringLiteral("Mixed u-p: Unavailable"))
+              && diagnosticsSummary->text().contains(QStringLiteral("Contact: Unavailable")),
+          "Production verification exposes min J without inventing pressure/contact metrics");
+
     constexpr int kCapacity = 512;
     std::vector<int> attempts(kCapacity);
     std::vector<int> acceptedStepBefore(kCapacity);

@@ -33,7 +33,12 @@ QAction *CommandRegistry::addPlain(const QString &id, const QString &text, const
         baseToolTips_.insert(id, text);
     }
     actions_.insert(id, action);
-    connect(action, &QAction::triggered, this, [this, id] { emit commandTriggered(id); });
+    // Routed signal ID trigger anında okunur. Böylece menu/toolbar'ın elindeki
+    // QAction pointer'ı değişmeden application composition handler'ı migrate
+    // edilebilir; command surface identity ise daima orijinal id olarak kalır.
+    connect(action, &QAction::triggered, this, [this, id] {
+        emit commandTriggered(routedIds_.value(id, id));
+    });
     return action;
 }
 
@@ -59,6 +64,18 @@ void CommandRegistry::trigger(const QString &id)
     QAction *target = action(id);
     if (target != nullptr && target->isEnabled()) {
         target->trigger();
+    }
+}
+
+void CommandRegistry::routeSignal(const QString &id, const QString &routedId)
+{
+    if (!actions_.contains(id)) {
+        return;
+    }
+    if (routedId.isEmpty() || routedId == id) {
+        routedIds_.remove(id);
+    } else {
+        routedIds_.insert(id, routedId);
     }
 }
 

@@ -29,6 +29,7 @@
 #include "support/IntegratedWorkflowAcceptance.h"
 #include "support/MaterialInspectorAcceptance.h"
 #include "support/MeshInspectorAcceptance.h"
+#include "support/NonlinearVerificationCommand.h"
 #include "support/PreflightAcceptance.h"
 #include "support/ScreenshotDriver.h"
 #include "support/SelectionAcceptanceTest.h"
@@ -119,6 +120,21 @@ int main(int argc, char *argv[])
     // ağacında kalır.
     window.services().analysis->setNamedSelectionService(window.services().namedSelections);
     window.services().analysis->setContactService(window.services().contacts);
+
+    // B2.5b: command surface identity `verify.nonlinear` olarak kalır. Registry
+    // yalnız emitted internal route ID'sini değiştirir; MainWindow'un legacy
+    // `verify.*` generic handler'ı bu ID'yi tüketmez. Böylece yeni advanced
+    // handler tek solver çağrısı yapar ve ikinci/fake verification solve oluşmaz.
+    constexpr auto kAdvancedNonlinearVerificationRoute = "solver.verifyNonlinearAdvanced";
+    window.commandRegistry()->routeSignal(
+        QStringLiteral("verify.nonlinear"),
+        QString::fromLatin1(kAdvancedNonlinearVerificationRoute));
+    QObject::connect(window.commandRegistry(), &d26::CommandRegistry::commandTriggered, &window,
+                     [&window](const QString &commandId) {
+        if (commandId == QStringLiteral("solver.verifyNonlinearAdvanced")) {
+            d26::runAdvancedNonlinearVerification(window);
+        }
+    });
 
     auto *selectionCoordinator = new d26::SelectionCoordinator(&window, &window);
     Q_UNUSED(selectionCoordinator);
