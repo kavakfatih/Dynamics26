@@ -22,6 +22,7 @@
 #include "support/ContactInspectorAcceptance.h"
 #include "support/ContactPersistenceAcceptance.h"
 #include "support/ContactPreflightAcceptance.h"
+#include "support/ContactScreenshotDriver.h"
 #include "support/ContactShellAcceptance.h"
 #include "support/IntegratedWorkflowAcceptance.h"
 #include "support/MaterialInspectorAcceptance.h"
@@ -239,8 +240,13 @@ int main(int argc, char *argv[])
     if (!captureDirectory.empty()) {
         // Geliştirici modu: belgelenmiş ekran görüntülerini üretir ve çıkar.
         const std::string appearance = argumentValue(argc, argv, "--capture-appearance");
-        return d26::runScreenshotDriver(app, window, QString::fromStdString(captureDirectory),
-                                        QString::fromStdString(appearance));
+        const QString outputDirectory = QString::fromStdString(captureDirectory);
+        const int baseCaptureStatus = d26::runScreenshotDriver(
+            app, window, outputDirectory, QString::fromStdString(appearance));
+        if (baseCaptureStatus != 0) {
+            return baseCaptureStatus;
+        }
+        return d26::runContactScreenshotDriver(app, window, outputDirectory);
     }
 
     return app.exec();

@@ -36,6 +36,7 @@ jobs:
           test "$(uname -m)" = "arm64"
           git diff --check
           test -f gui/support/ScreenshotDriver.cpp
+          test -f gui/support/ContactScreenshotDriver.h
           test -f gui/support/SelfTest.cpp
           test -f gui/shell/Dynamics26MainWindow.cpp
           if grep -R --line-number --fixed-strings 'setStyleSheet(' gui; then
@@ -124,13 +125,16 @@ jobs:
           set -euxo pipefail
           light_count="$(find "$UI_AUDIT_DIR/light" -type f -name '*.png' | wc -l | tr -d ' ')"
           dark_count="$(find "$UI_AUDIT_DIR/dark" -type f -name '*.png' | wc -l | tr -d ' ')"
-          test "$light_count" -eq 16
-          test "$dark_count" -eq 16
+          test "$light_count" -eq 19
+          test "$dark_count" -eq 19
           for appearance in light dark; do
             test -s "$UI_AUDIT_DIR/$appearance/13-named-selection-$appearance.png"
             test -s "$UI_AUDIT_DIR/$appearance/14-named-selection-edit-$appearance.png"
             test -s "$UI_AUDIT_DIR/$appearance/15-named-selection-stale-$appearance.png"
             test -s "$UI_AUDIT_DIR/$appearance/16-named-selection-stale-edit-$appearance.png"
+            test -s "$UI_AUDIT_DIR/$appearance/17-connections-$appearance.png"
+            test -s "$UI_AUDIT_DIR/$appearance/18-contact-inspector-$appearance.png"
+            test -s "$UI_AUDIT_DIR/$appearance/19-contact-edit-source-$appearance.png"
           done
           while IFS= read -r image; do
             test -s "$image"
