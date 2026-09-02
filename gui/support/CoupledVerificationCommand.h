@@ -24,8 +24,10 @@ inline void publishFailedVerificationTelemetry(Dynamics26MainWindow &window)
     failed.summary.state = SolverConvergenceState::Failed;
     failed.summary.pressureMetrics = SolverMetricAvailability::Unavailable;
     failed.summary.contactMetrics = SolverMetricAvailability::Unavailable;
-    window.utility_->setConvergenceData(failed);
-    window.showUtility(UtilityWorkspace::Tab::Convergence, true);
+    if (UtilityWorkspace *utility = window.utility()) {
+        utility->setConvergenceData(failed);
+        utility->showTab(UtilityWorkspace::Tab::Convergence);
+    }
 }
 
 inline void runAdvancedMixedUpVerification(Dynamics26MainWindow &window)
