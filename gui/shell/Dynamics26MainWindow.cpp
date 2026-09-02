@@ -422,6 +422,7 @@ void Dynamics26MainWindow::buildCommands()
     commands_->addPlain(QStringLiteral("analysis.insertReaction"), tr("Reaction Force"));
     commands_->addPlain(QStringLiteral("material.create"), tr("Yeni Malzeme"));
     commands_->addPlain(QStringLiteral("material.assign"), tr("Gövdeye Ata"));
+    commands_->addPlain(QStringLiteral("connections.insertContact"), tr("Yeni Contact Region"));
 
     commands_->addPlain(QStringLiteral("help.shortcuts"), tr("Klavye Kısayolları"));
     commands_->addPlain(QStringLiteral("help.systemInfo"), tr("Sistem Bilgisi"));
@@ -714,6 +715,15 @@ void Dynamics26MainWindow::handleCommand(const QString &id)
             documentCommands_->push(new commands::AssignMaterialCommand(services_, selected_));
             syncAll();
         }
+    } else if (id == QStringLiteral("connections.insertContact")) {
+        ContactDefinition definition;
+        auto *command = new commands::CreateContactCommand(services_, definition);
+        documentCommands_->push(command);
+        navigator_->expandAll();
+        if (command->createdId() != InvalidObjectId) {
+            selectObject(command->createdId());
+        }
+        syncAll();
     } else if (id == QStringLiteral("help.shortcuts")) {
         showKeyboardShortcuts();
     } else if (id == QStringLiteral("help.systemInfo")) {
@@ -1046,6 +1056,8 @@ void Dynamics26MainWindow::syncCommandStates()
     commands_->setEnabled(QStringLiteral("mesh.showNodes"), mesh_->hasMesh(), tr("Önce mesh üretin."));
     commands_->setEnabled(QStringLiteral("mesh.clearGenerated"), mesh_->hasMesh(),
                           tr("Temizlenecek üretilmiş mesh yok."));
+    commands_->setEnabled(QStringLiteral("connections.insertContact"), services_.contacts != nullptr,
+                          tr("ContactService kullanılamıyor."));
 
     const ObjectId analysisId = activeAnalysis();
     const PreflightReport report = analysis_->preflight(analysisId);
@@ -1158,6 +1170,7 @@ void Dynamics26MainWindow::syncContextualSurface()
     case ObjectType::ConnectionsFolder:
     case ObjectType::ContactRegion:
         contextTitle_->setText(tr("CONNECTIONS"));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("connections.insertContact")));
         break;
     case ObjectType::NamedSelectionsFolder:
         contextTitle_->setText(tr("NAMED SELECTIONS"));
@@ -2225,7 +2238,12 @@ QMenu *Dynamics26MainWindow::buildContextMenu(const ObjectId id, QWidget *parent
         menu.addSeparator();
         add(project_->isSuppressed(id) ? "edit.unsuppress" : "edit.suppress");
         break;
+    case ObjectType::ConnectionsFolder:
+        add("connections.insertContact");
+        break;
     case ObjectType::ContactRegion:
+        add("connections.insertContact");
+        menu.addSeparator();
         add("edit.rename");
         menu.addSeparator();
         add(project_->isSuppressed(id) ? "edit.unsuppress" : "edit.suppress");
