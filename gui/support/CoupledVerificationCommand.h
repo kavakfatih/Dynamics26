@@ -17,6 +17,17 @@
 
 namespace d26 {
 
+inline void publishFailedVerificationTelemetry(Dynamics26MainWindow &window)
+{
+    SolverConvergenceSnapshot failed;
+    failed.summary.executionMode = SolverExecutionMode::NonlinearNewton;
+    failed.summary.state = SolverConvergenceState::Failed;
+    failed.summary.pressureMetrics = SolverMetricAvailability::Unavailable;
+    failed.summary.contactMetrics = SolverMetricAvailability::Unavailable;
+    window.utility_->setConvergenceData(failed);
+    window.showUtility(UtilityWorkspace::Tab::Convergence, true);
+}
+
 inline void runAdvancedMixedUpVerification(Dynamics26MainWindow &window)
 {
     window.showUtility(UtilityWorkspace::Tab::SolverOutput, true);
@@ -63,6 +74,7 @@ inline void runAdvancedMixedUpVerification(Dynamics26MainWindow &window)
     if (status != 0) {
         window.utility_->appendSolverOutput(
             window.tr("  BAŞARISIZ — engine status %1").arg(status));
+        publishFailedVerificationTelemetry(window);
         window.reportMessage(
             window.tr("Mixed u-p doğrulama başarısız (status %1).").arg(status),
             Severity::Error);
@@ -128,9 +140,20 @@ inline void runAdvancedContactVerification(Dynamics26MainWindow &window)
     window.utility_->appendSolverOutput(
         window.tr("Doğrulama preset'i: Rigid-master frictionless Contact"));
 
-    const MaterialDefinition *material = window.materials_->assigned();
-    const double young = (material != nullptr ? material->youngGPa : 210.0) * 1.0e9;
-    const double poisson = material != nullptr ? material->poisson : 0.30;
+    // Verification preset'i document Material state'ini çözmez. V0.11'in
+    // regression contract'ında kullanılan canonical, dimensionally consistent
+    // değerlerle bağımsız solver doğrulaması yapılır. Böylece bu komut general
+    // model Contact consumer'ı veya aktif proje malzemesi desteği iddia etmez.
+    constexpr double young = 1.0e6;
+    constexpr double poisson = 0.30;
+    constexpr double normalPenalty = 1.0e8;
+    constexpr double totalForce = 1000.0;
+    constexpr int enforcement = 1;
+    window.utility_->appendSolverOutput(
+        window.tr("  Canonical fixture: E = %1 Pa | ν = %2 | penalty = %3 N/m")
+            .arg(young, 0, 'g', 8)
+            .arg(poisson, 0, 'g', 8)
+            .arg(normalPenalty, 0, 'g', 8));
 
     constexpr int kCapacity = 512;
     std::vector<int> attempts(kCapacity), acceptedStepBefore(kCapacity), iterations(kCapacity), converged(kCapacity);
@@ -154,7 +177,7 @@ inline void runAdvancedContactVerification(Dynamics26MainWindow &window)
     int historyCount = 0;
 
     const int status = fem_demo_contact_hex8_diagnostics(
-        young, poisson, young * 100.0, 1000.0, 1,
+        young, poisson, normalPenalty, totalForce, enforcement,
         &maximumPenetration, &totalNormalForce,
         &activeContacts, &stickContacts, &slipContacts,
         &completedLoadFactor, &finalResidualNorm, &minimumJacobian,
@@ -169,6 +192,7 @@ inline void runAdvancedContactVerification(Dynamics26MainWindow &window)
     if (status != 0) {
         window.utility_->appendSolverOutput(
             window.tr("  BAŞARISIZ — engine status %1").arg(status));
+        publishFailedVerificationTelemetry(window);
         window.reportMessage(
             window.tr("Contact doğrulama başarısız (status %1).").arg(status),
             Severity::Error);
