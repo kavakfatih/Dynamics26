@@ -202,7 +202,9 @@ int main(int argc, char *argv[])
         if (meshInspectorStatus != 0) {
             return meshInspectorStatus;
         }
+        std::cout << "BEGIN Analysis Inspector acceptance\n";
         const int analysisInspectorStatus = d26::runAnalysisInspectorAcceptanceTest(app, window);
+        std::cout << "END Analysis Inspector acceptance status=" << analysisInspectorStatus << '\n';
         if (analysisInspectorStatus != 0) {
             return analysisInspectorStatus;
         }
