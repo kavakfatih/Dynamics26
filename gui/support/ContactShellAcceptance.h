@@ -4,18 +4,21 @@
 //
 // Bu test ContactRegion'ın yalnız servis/komut seviyesinde değil, gerçek
 // Dynamics26MainWindow komut yüzeyinden de ContactService authoritative state'ine
-// gittiğini doğrular. Generic ProjectModel rename/suppress/delete yolunun Contact
-// engineering tanımını tree state'ten koparmasına izin verilmez.
+// gittiğini doğrular. Contact oluşturma, rename, suppress ve delete işlemleri
+// shell'in canonical QAction/DocumentCommand yolundan geçer; ProjectModel içinde
+// ikinci bir engineering state oluşturulmasına izin verilmez.
 
 #include "../core/DocumentCommandManager.h"
 #include "../services/ContactService.h"
 #include "../services/MeshService.h"
 #include "../shell/CommandRegistry.h"
+#include "../shell/DetailsHost.h"
 #include "../shell/Dynamics26MainWindow.h"
 
 #include <QAction>
 #include <QApplication>
 #include <QMenu>
+#include <QToolBar>
 #include <QUndoStack>
 
 #include <iostream>
@@ -37,17 +40,19 @@ inline ScopeReference meshFacetScope(const quint64 generation,
     return scope;
 }
 
-inline bool menuContainsAction(const QMenu *menu, const QString &objectName)
+inline bool actionListContains(const QList<QAction *> &actions, const QString &objectName)
 {
-    if (menu == nullptr) {
-        return false;
-    }
-    for (const QAction *action : menu->actions()) {
+    for (const QAction *action : actions) {
         if (action != nullptr && action->objectName() == objectName) {
             return true;
         }
     }
     return false;
+}
+
+inline bool menuContainsAction(const QMenu *menu, const QString &objectName)
+{
+    return menu != nullptr && actionListContains(menu->actions(), objectName);
 }
 
 } // namespace contact_shell_acceptance_detail
@@ -67,11 +72,11 @@ inline int runContactShellAcceptanceTest(QApplication &app,
     const ServiceContext services = window.services();
     check(services.project != nullptr && services.mesh != nullptr
               && services.contacts != nullptr && window.documentCommands() != nullptr
-              && window.commandRegistry() != nullptr,
-          "Contact shell acceptance has Project/Mesh/Contact/Undo/CommandRegistry composition");
+              && window.commandRegistry() != nullptr && window.detailsHost() != nullptr,
+          "Contact shell acceptance has Project/Mesh/Contact/Undo/CommandRegistry/Details composition");
     if (services.project == nullptr || services.mesh == nullptr
         || services.contacts == nullptr || window.documentCommands() == nullptr
-        || window.commandRegistry() == nullptr) {
+        || window.commandRegistry() == nullptr || window.detailsHost() == nullptr) {
         return 1;
     }
 
@@ -86,19 +91,76 @@ inline int runContactShellAcceptanceTest(QApplication &app,
         return failures + 1;
     }
 
-    ContactDefinition definition;
-    definition.name = QStringLiteral("Shell Contact");
-    definition.sourceScope = contact_shell_acceptance_detail::meshFacetScope(
-        services.mesh->generation(), services.mesh->mesh().boundaryFacets.at(0).id);
-    definition.targetScope = contact_shell_acceptance_detail::meshFacetScope(
-        services.mesh->generation(), services.mesh->mesh().boundaryFacets.at(1).id);
+    // --- Canonical Contact create command -------------------------------------
+    window.documentCommands()->resetHistory();
+    QUndoStack *stack = window.documentCommands()->stack();
+    window.selectObject(services.project->connectionsNode());
 
-    const ObjectId contactId = services.contacts->createContact(definition);
-    check(contactId != InvalidObjectId && services.contacts->validate(contactId).valid(),
-          "Contact shell fixture creates valid Contact engineering state");
+    QAction *insertAction = window.commandRegistry()->action(
+        QStringLiteral("connections.insertContact"));
+    check(insertAction != nullptr && insertAction->isEnabled(),
+          "Connections exposes enabled canonical connections.insertContact QAction");
+
+    QMenu *connectionsMenu = window.buildContextMenu(
+        services.project->connectionsNode(), &window);
+    check(contact_shell_acceptance_detail::menuContainsAction(
+              connectionsMenu, QStringLiteral("connections.insertContact")),
+          "Connections folder context menu exposes canonical Contact insert QAction");
+    delete connectionsMenu;
+
+    QToolBar *contextSurface = window.findChild<QToolBar *>(
+        QStringLiteral("Dynamics26ContextSurface"));
+    check(contextSurface != nullptr
+              && contact_shell_acceptance_detail::actionListContains(
+                  contextSurface->actions(), QStringLiteral("connections.insertContact")),
+          "Connections contextual command surface exposes the same Contact insert QAction");
+
+    const int beforeInsertIndex = stack->index();
+    const int beforeInsertCount = stack->count();
+    check(window.runCommand(QStringLiteral("connections.insertContact")),
+          "MainWindow runCommand executes canonical Contact insert QAction");
+
+    const ObjectId contactId = services.contacts->order().isEmpty()
+        ? InvalidObjectId : services.contacts->order().last();
+    check(contactId != InvalidObjectId
+              && stack->index() == beforeInsertIndex + 1
+              && stack->count() == beforeInsertCount + 1
+              && services.contacts->count() == 1
+              && services.contacts->validate(contactId).error
+                     == ContactValidationError::MissingSourceScope
+              && services.project->object(contactId) != nullptr,
+          "canonical Contact insert creates exactly one persistent incomplete Contact transaction");
+    check(contactId != InvalidObjectId
+              && window.detailsHost()->currentObject() == contactId,
+          "canonical Contact insert auto-selects the created Contact Inspector object");
     if (contactId == InvalidObjectId) {
         return failures + 1;
     }
+
+    stack->undo();
+    check(stack->index() == beforeInsertIndex
+              && services.contacts->byId(contactId) == nullptr
+              && services.project->object(contactId) == nullptr,
+          "Undo canonical Contact insert removes engineering state and tree identity together");
+    stack->redo();
+    check(stack->index() == beforeInsertIndex + 1
+              && services.contacts->byId(contactId) != nullptr
+              && services.contacts->validate(contactId).error
+                     == ContactValidationError::MissingSourceScope
+              && services.project->object(contactId) != nullptr,
+          "Redo canonical Contact insert restores the exact ObjectId and draft authoring state");
+
+    // Tam yüzey kapsamı, aşağıdaki shell mutation testinin fixture'ıdır. Create
+    // transaction zaten yukarıda sınandı; burada doğrudan authoritative service
+    // üzerinde iki geçerli FEM Facet scope'u kurup mutation history'sini sıfırlarız.
+    check(services.contacts->replaceSourceScope(
+              contactId, contact_shell_acceptance_detail::meshFacetScope(
+                  services.mesh->generation(), services.mesh->mesh().boundaryFacets.at(0).id))
+              && services.contacts->replaceTargetScope(
+                  contactId, contact_shell_acceptance_detail::meshFacetScope(
+                      services.mesh->generation(), services.mesh->mesh().boundaryFacets.at(1).id))
+              && services.contacts->validate(contactId).valid(),
+          "Contact shell mutation fixture completes created draft with two valid FEM Facet scopes");
 
     window.documentCommands()->resetHistory();
     window.selectObject(contactId);
@@ -118,14 +180,19 @@ inline int runContactShellAcceptanceTest(QApplication &app,
           "selected ContactRegion enables shell Rename/Delete/Suppress command surface");
 
     QMenu *contextMenu = window.buildContextMenu(contactId, &window);
-    check(contact_shell_acceptance_detail::menuContainsAction(contextMenu, QStringLiteral("edit.rename"))
-              && contact_shell_acceptance_detail::menuContainsAction(contextMenu, QStringLiteral("edit.suppress"))
-              && contact_shell_acceptance_detail::menuContainsAction(contextMenu, QStringLiteral("edit.delete"))
-              && !contact_shell_acceptance_detail::menuContainsAction(contextMenu, QStringLiteral("edit.duplicate")),
-          "ContactRegion context menu exposes only supported mutation actions");
+    check(contact_shell_acceptance_detail::menuContainsAction(
+              contextMenu, QStringLiteral("connections.insertContact"))
+              && contact_shell_acceptance_detail::menuContainsAction(
+                  contextMenu, QStringLiteral("edit.rename"))
+              && contact_shell_acceptance_detail::menuContainsAction(
+                  contextMenu, QStringLiteral("edit.suppress"))
+              && contact_shell_acceptance_detail::menuContainsAction(
+                  contextMenu, QStringLiteral("edit.delete"))
+              && !contact_shell_acceptance_detail::menuContainsAction(
+                  contextMenu, QStringLiteral("edit.duplicate")),
+          "ContactRegion context menu exposes canonical insert plus only supported mutation actions");
     delete contextMenu;
 
-    QUndoStack *stack = window.documentCommands()->stack();
     const int baselineCount = stack->count();
     window.renameObject(contactId, QStringLiteral("Shell Bonded Interface"));
     check(stack->count() == baselineCount + 1
@@ -135,30 +202,41 @@ inline int runContactShellAcceptanceTest(QApplication &app,
               && services.project->object(contactId)->name == QStringLiteral("Shell Bonded Interface"),
           "MainWindow rename routes through Contact domain command and keeps tree/service names synchronized");
     stack->undo();
-    check(services.contacts->byId(contactId)->name == QStringLiteral("Shell Contact")
-              && services.project->object(contactId)->name == QStringLiteral("Shell Contact"),
+    check(services.contacts->byId(contactId) != nullptr
+              && services.contacts->byId(contactId)->name == QStringLiteral("Contact Region")
+              && services.project->object(contactId) != nullptr
+              && services.project->object(contactId)->name == QStringLiteral("Contact Region"),
           "Undo shell Contact rename restores authoritative engineering name");
     stack->redo();
-    check(services.contacts->byId(contactId)->name == QStringLiteral("Shell Bonded Interface"),
+    check(services.contacts->byId(contactId) != nullptr
+              && services.contacts->byId(contactId)->name == QStringLiteral("Shell Bonded Interface"),
           "Redo shell Contact rename restores final engineering name");
 
     const int beforeSuppressCount = stack->count();
     window.setObjectSuppressed(contactId, true);
     check(stack->count() == beforeSuppressCount + 1
               && services.project->isSuppressed(contactId)
+              && services.project->object(contactId) != nullptr
               && services.project->object(contactId)->state == ObjectState::Suppressed,
           "MainWindow suppress routes through ContactService document command");
     stack->undo();
     check(!services.project->isSuppressed(contactId)
               && services.contacts->validate(contactId).valid()
+              && services.project->object(contactId) != nullptr
               && services.project->object(contactId)->state == ObjectState::Ready,
           "Undo shell Contact suppression restores current validation state");
     stack->redo();
     check(services.project->isSuppressed(contactId)
+              && services.project->object(contactId) != nullptr
               && services.project->object(contactId)->state == ObjectState::Suppressed,
           "Redo shell Contact suppression restores canonical Suppressed state");
 
-    const ContactDefinition beforeDelete = *services.contacts->byId(contactId);
+    const ContactDefinition *beforeDeletePtr = services.contacts->byId(contactId);
+    if (beforeDeletePtr == nullptr) {
+        check(false, "Contact exists before shell delete fixture");
+        return failures + 1;
+    }
+    const ContactDefinition beforeDelete = *beforeDeletePtr;
     const int rowBeforeDelete = services.contacts->rowOf(contactId);
     const int beforeDeleteCount = stack->count();
     window.deleteObject(contactId);
@@ -172,12 +250,15 @@ inline int runContactShellAcceptanceTest(QApplication &app,
               && restored->name == beforeDelete.name
               && restored->sourceScope.sourceRevision == beforeDelete.sourceScope.sourceRevision
               && restored->targetScope.sourceRevision == beforeDelete.targetScope.sourceRevision
+              && !restored->sourceScope.entities.isEmpty()
+              && !restored->targetScope.entities.isEmpty()
               && restored->sourceScope.entities.front().meshEntityId
                      == beforeDelete.sourceScope.entities.front().meshEntityId
               && restored->targetScope.entities.front().meshEntityId
                      == beforeDelete.targetScope.entities.front().meshEntityId,
           "Undo shell Contact delete restores exact ObjectId row name and source/target engineering scopes");
     check(services.project->isSuppressed(contactId)
+              && services.project->object(contactId) != nullptr
               && services.project->object(contactId)->state == ObjectState::Suppressed,
           "Undo shell Contact delete also restores suppressed document state");
     stack->redo();
