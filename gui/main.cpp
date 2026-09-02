@@ -26,6 +26,7 @@
 #include "support/ContactShellAcceptance.h"
 #include "support/IntegratedWorkflowAcceptance.h"
 #include "support/MaterialInspectorAcceptance.h"
+#include "support/MeshInspectorAcceptance.h"
 #include "support/PreflightAcceptance.h"
 #include "support/ScreenshotDriver.h"
 #include "support/SelectionAcceptanceTest.h"
@@ -184,18 +185,10 @@ int main(int argc, char *argv[])
         // unitbuf davranışına alırız; normal uygulama I/O davranışı değişmez.
         std::cout << std::unitbuf;
 
-        // Aynı gerçek application composition üzerinde sırasıyla:
-        //   1) transient/persistent selection authoring,
-        //   2) Beta.1 Material Inspector binding + Undo/dependency contract,
-        //   3) Fixed Support / Force persistent scope consumer,
-        //   4) Alpha.4 Preflight interaction/structured diagnostics,
-        //   5) tam Geometry->...->Solve->Results->Out-of-Date->Undo recovery,
-        //   6) Beta.1 Contact Preflight safety gate,
-        //   7) Beta.1 Contact project persistence + stale-scope load safety,
-        //   8) Beta.1 Contact shell Rename/Delete/Suppress domain routing,
-        //   9) Beta.1 Connections authoring + Contact Inspector binding
-        // zinciri yürütülür. Fiziksel pointer/mouse/trackpad kabulünün yerine
-        // geçmez.
+        // Aynı gerçek application composition üzerinde sırasıyla transient/
+        // persistent selection, Material/Mesh Inspector, boundary consumers,
+        // Preflight, integrated workflow ve Contact acceptance zinciri yürütülür.
+        // Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
             return selectionStatus;
@@ -203,6 +196,10 @@ int main(int argc, char *argv[])
         const int materialInspectorStatus = d26::runMaterialInspectorAcceptanceTest(app, window);
         if (materialInspectorStatus != 0) {
             return materialInspectorStatus;
+        }
+        const int meshInspectorStatus = d26::runMeshInspectorAcceptanceTest(app, window);
+        if (meshInspectorStatus != 0) {
+            return meshInspectorStatus;
         }
         const int boundaryStatus = d26::runBoundaryConsumerAcceptanceTest(app, window);
         if (boundaryStatus != 0) {

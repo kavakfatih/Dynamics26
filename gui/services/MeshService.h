@@ -85,8 +85,12 @@ public:
     [[nodiscard]] bool isOutOfDate() const { return hasMesh() && !isUpToDate(); }
     // Bağımlılık motoru için: ayar her değiştiğinde artar.
     [[nodiscard]] quint64 settingsRevision() const noexcept { return settingsRevision_; }
-    // Her başarılı üretimde artar; çözüm bu değere bağlanır.
+    // Her başarılı üretim/clear/reset lifecycle geçişinde artar. Persistent FEM
+    // scope bu değere bağlanır; yeni generation'a sessizce rebind edilmez.
     [[nodiscard]] quint64 generation() const noexcept { return generation_; }
+    // Son başarılı generate sırasında kullanılan CAD document revision'ı.
+    // Parametric Box kaynağında 0'dır; display tessellation revision'ı değildir.
+    [[nodiscard]] quint64 meshedGeometryRevision() const noexcept { return meshedGeometryRevision_; }
 
     [[nodiscard]] QJsonObject projectJson() const;
     void loadProjectJson(const QJsonObject &object);
