@@ -45,7 +45,13 @@ DetailsRow::DetailsRow(const QString &label, QWidget *value, const bool shaded, 
     // Inspector paneli daraltıldığında uzun engineering etiketleri kesilmez.
     // Sabit label kolonu korunur; yalnız satır gerektiği kadar düşey büyür.
     label_->setWordWrap(true);
-    label_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    QSizePolicy labelPolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    // QSizePolicy yeniden atanırken QLabel'in word-wrap için kullandığı
+    // height-for-width bayrağı varsayılan olarak false olur. Bunu açıkça
+    // korumazsak metin satır kaydırsa bile parent layout düşey yüksekliği
+    // hesaba katamaz ve uzun engineering etiketlerini kırpabilir.
+    labelPolicy.setHeightForWidth(true);
+    label_->setSizePolicy(labelPolicy);
     label_->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     layout->addWidget(label_);
 
