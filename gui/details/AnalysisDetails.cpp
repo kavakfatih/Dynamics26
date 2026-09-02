@@ -94,10 +94,23 @@ AnalysisDetails::AnalysisDetails(const ServiceContext &services, QWidget *parent
 
     addStretch();
 
-    connect(preflight_, &QPushButton::clicked, this,
-            [this] { emit requestCommand(QStringLiteral("analysis.preflight")); });
-    connect(solve_, &QPushButton::clicked, this,
-            [this] { emit requestCommand(QStringLiteral("analysis.solve")); });
+    // Inspector action düğmeleri shell handler'ını doğrudan çağırmaz. Canonical
+    // QAction yoluna gitmek CommandRegistry::commandTriggered observer'larını da
+    // çalıştırır; özellikle structured Preflight presentation bununla senkron kalır.
+    connect(preflight_, &QPushButton::clicked, this, [this] {
+        if (auto *mainWindow = qobject_cast<Dynamics26MainWindow *>(window())) {
+            (void)mainWindow->runCommand(QStringLiteral("analysis.preflight"));
+            return;
+        }
+        emit requestCommand(QStringLiteral("analysis.preflight"));
+    });
+    connect(solve_, &QPushButton::clicked, this, [this] {
+        if (auto *mainWindow = qobject_cast<Dynamics26MainWindow *>(window())) {
+            (void)mainWindow->runCommand(QStringLiteral("analysis.solve"));
+            return;
+        }
+        emit requestCommand(QStringLiteral("analysis.solve"));
+    });
 
     connect(name_, &QLineEdit::editingFinished, this, [this] {
         if (updating_ || services_.project == nullptr || services_.analysis == nullptr
