@@ -8,11 +8,13 @@
 // durumunda yeniden açılır.
 
 #include "../core/ProjectTypes.h"
+#include "../core/SolverTelemetry.h"
 
 #include <QString>
 #include <QVector>
 #include <QWidget>
 
+class QLabel;
 class QPlainTextEdit;
 class QTabWidget;
 class QTableWidget;
@@ -44,6 +46,13 @@ public:
     void appendSolverOutput(const QString &text);
     void clearSolverOutput();
     void setResultRows(const QVector<QPair<QString, QString>> &rows);
+
+    // Beta.2 canonical presentation girişi. Typed snapshot document state veya
+    // ikinci solver state değildir; yalnız türetilmiş telemetry'yi render eder.
+    void setConvergenceData(const SolverConvergenceSnapshot &snapshot);
+
+    // B2.1 compatibility yolu: mevcut nonlinear verification producer'ı B2.2'de
+    // typed contract'a taşınana kadar korunur. Yeni consumer'lar bunu kullanmaz.
     void setConvergenceRows(const QVector<QStringList> &rows);
     void appendTiming(const QString &operation, double seconds);
     void clearAll();
@@ -65,6 +74,7 @@ private:
     QPlainTextEdit *messages_{nullptr};
     QTableWidget *preflight_{nullptr};
     QPlainTextEdit *solverOutput_{nullptr};
+    QLabel *convergenceSummary_{nullptr};
     QTableWidget *convergence_{nullptr};
     QTableWidget *results_{nullptr};
     QTableWidget *timings_{nullptr};

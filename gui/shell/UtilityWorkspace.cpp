@@ -4,6 +4,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QHeaderView>
+#include <QLabel>
 #include <QPlainTextEdit>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -46,6 +47,17 @@ QString severityTag(const Severity severity)
     case Severity::Error:   return QStringLiteral("[HATA]    ");
     }
     return {};
+}
+
+QString convergenceStateText(const SolverConvergenceState state)
+{
+    switch (state) {
+    case SolverConvergenceState::Unavailable: return QStringLiteral("Unavailable");
+    case SolverConvergenceState::Running:     return QStringLiteral("Running");
+    case SolverConvergenceState::Converged:   return QStringLiteral("Converged");
+    case SolverConvergenceState::Failed:      return QStringLiteral("Failed");
+    }
+    return QStringLiteral("Unavailable");
 }
 
 ObjectId subjectFromItem(const QTableWidgetItem *item)
@@ -91,15 +103,29 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
     preflight_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     preflight_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
     solverOutput_ = makeConsole(tabs_);
+
+    auto *convergencePage = new QWidget(tabs_);
+    convergencePage->setObjectName(QStringLiteral("Dynamics26UtilityConvergencePage"));
+    auto *convergenceLayout = new QVBoxLayout(convergencePage);
+    convergenceLayout->setContentsMargins(8, 6, 8, 6);
+    convergenceLayout->setSpacing(6);
+    convergenceSummary_ = new QLabel(tr("Yakınsama verisi yok."), convergencePage);
+    convergenceSummary_->setObjectName(QStringLiteral("Dynamics26UtilityConvergenceSummary"));
+    convergenceSummary_->setWordWrap(true);
+    convergenceSummary_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     convergence_ = makeTable({tr("Attempt"), tr("Iter"), tr("Load Factor"), tr("Rel. |R|"), tr("Rel. Δu"),
                               QStringLiteral("α"), tr("Durum")},
-                             tabs_);
+                             convergencePage);
+    convergence_->setObjectName(QStringLiteral("Dynamics26UtilityConvergence"));
+    convergenceLayout->addWidget(convergenceSummary_);
+    convergenceLayout->addWidget(convergence_, 1);
+
     results_ = makeTable({tr("Sonuç"), tr("Değer")}, tabs_);
     timings_ = makeTable({tr("İşlem"), tr("Süre")}, tabs_);
 
     tabs_->addTab(messages_, tr("Messages"));
     tabs_->addTab(preflight_, tr("Preflight"));
-    tabs_->addTab(convergence_, tr("Convergence"));
+    tabs_->addTab(convergencePage, tr("Convergence"));
     tabs_->addTab(solverOutput_, tr("Solver Output"));
     tabs_->addTab(results_, tr("Results Table"));
     tabs_->addTab(timings_, tr("Timings"));
@@ -186,6 +212,36 @@ void UtilityWorkspace::setResultRows(const QVector<QPair<QString, QString>> &row
     results_->resizeColumnToContents(0);
 }
 
+void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snapshot)
+{
+    QVector<QStringList> rows;
+    rows.reserve(snapshot.entries.size());
+    for (const SolverConvergenceEntry &entry : snapshot.entries) {
+        rows.push_back({QString::number(entry.attempt),
+                        QString::number(entry.iteration),
+                        QString::number(entry.loadFactor, 'g', 6),
+                        QString::number(entry.relativeResidual, 'g', 5),
+                        QString::number(entry.relativeDisplacement, 'g', 5),
+                        QString::number(entry.lineSearchAlpha, 'g', 5),
+                        entry.converged ? tr("Converged") : tr("Iterating")});
+    }
+    setConvergenceRows(rows);
+
+    if (snapshot.summary.state == SolverConvergenceState::Unavailable && snapshot.entries.isEmpty()) {
+        convergenceSummary_->setText(tr("Yakınsama verisi yok."));
+        return;
+    }
+
+    convergenceSummary_->setText(
+        tr("Durum: %1 | λ = %2 | Kabul edilen adım = %3 | Newton iterasyonu = %4 | Cutback = %5 | Final |R| = %6")
+            .arg(convergenceStateText(snapshot.summary.state))
+            .arg(snapshot.summary.completedLoadFactor, 0, 'g', 8)
+            .arg(snapshot.summary.acceptedSteps)
+            .arg(snapshot.summary.totalIterations)
+            .arg(snapshot.summary.cutbackCount)
+            .arg(snapshot.summary.finalResidualNorm, 0, 'g', 8));
+}
+
 void UtilityWorkspace::setConvergenceRows(const QVector<QStringList> &rows)
 {
     convergence_->setRowCount(static_cast<int>(rows.size()));
@@ -195,6 +251,10 @@ void UtilityWorkspace::setConvergenceRows(const QVector<QStringList> &rows)
             convergence_->setItem(row, column, new QTableWidgetItem(values.at(column)));
         }
     }
+    convergence_->resizeRowsToContents();
+    convergenceSummary_->setText(rows.isEmpty()
+                                     ? tr("Yakınsama verisi yok.")
+                                     : tr("Convergence geçmişi: %1 kayıt.").arg(rows.size()));
 }
 
 void UtilityWorkspace::appendTiming(const QString &operation, const double seconds)
@@ -213,6 +273,7 @@ void UtilityWorkspace::clearAll()
     preflight_->setRowCount(0);
     solverOutput_->clear();
     convergence_->setRowCount(0);
+    convergenceSummary_->setText(tr("Yakınsama verisi yok."));
     results_->setRowCount(0);
     timings_->setRowCount(0);
 }

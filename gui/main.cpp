@@ -33,6 +33,7 @@
 #include "support/ScreenshotDriver.h"
 #include "support/SelectionAcceptanceTest.h"
 #include "support/SelfTest.h"
+#include "support/SolverWorkspaceAcceptance.h"
 
 #include <QApplication>
 #include <QSurfaceFormat>
@@ -189,10 +190,10 @@ int main(int argc, char *argv[])
 
         // Aynı gerçek application composition üzerinde sırasıyla transient/
         // persistent selection, Material/Mesh/Analysis Inspector, shared Inspector
-        // UX, boundary consumers, Preflight, integrated workflow ve Contact
-        // acceptance zinciri yürütülür. Inspector acceptance'ları yalnız
-        // görünür/current project object bağlamını düzenler; hidden Details
-        // sayfaları test fixture state'i olarak kullanılmaz. Fiziksel
+        // UX, Solver Workspace, boundary consumers, Preflight, integrated workflow
+        // ve Contact acceptance zinciri yürütülür. Inspector/solver-workspace
+        // acceptance'ları yalnız görünür/current application state'i düzenler;
+        // hidden widget state'i veya ikinci engineering state kullanılmaz. Fiziksel
         // pointer/mouse/trackpad kabulünün yerine geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
@@ -215,6 +216,10 @@ int main(int argc, char *argv[])
         const int inspectorUxStatus = d26::runInspectorUxAcceptanceTest(app, window);
         if (inspectorUxStatus != 0) {
             return inspectorUxStatus;
+        }
+        const int solverWorkspaceStatus = d26::runSolverWorkspaceAcceptanceTest(app, window);
+        if (solverWorkspaceStatus != 0) {
+            return solverWorkspaceStatus;
         }
         const int boundaryStatus = d26::runBoundaryConsumerAcceptanceTest(app, window);
         if (boundaryStatus != 0) {
