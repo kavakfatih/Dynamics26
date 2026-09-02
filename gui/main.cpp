@@ -25,6 +25,7 @@
 #include "support/ContactPreflightAcceptance.h"
 #include "support/ContactScreenshotDriver.h"
 #include "support/ContactShellAcceptance.h"
+#include "support/InspectorUxAcceptance.h"
 #include "support/IntegratedWorkflowAcceptance.h"
 #include "support/MaterialInspectorAcceptance.h"
 #include "support/MeshInspectorAcceptance.h"
@@ -187,11 +188,12 @@ int main(int argc, char *argv[])
         std::cout << std::unitbuf;
 
         // Aynı gerçek application composition üzerinde sırasıyla transient/
-        // persistent selection, Material/Mesh/Analysis Inspector, boundary
-        // consumers, Preflight, integrated workflow ve Contact acceptance zinciri
-        // yürütülür. Inspector acceptance'ları yalnız görünür/current project
-        // object bağlamını düzenler; hidden Details sayfaları test fixture state'i
-        // olarak kullanılmaz. Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
+        // persistent selection, Material/Mesh/Analysis Inspector, shared Inspector
+        // UX, boundary consumers, Preflight, integrated workflow ve Contact
+        // acceptance zinciri yürütülür. Inspector acceptance'ları yalnız
+        // görünür/current project object bağlamını düzenler; hidden Details
+        // sayfaları test fixture state'i olarak kullanılmaz. Fiziksel
+        // pointer/mouse/trackpad kabulünün yerine geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
             return selectionStatus;
@@ -209,6 +211,10 @@ int main(int argc, char *argv[])
         std::cout << "END Analysis Inspector acceptance status=" << analysisInspectorStatus << '\n';
         if (analysisInspectorStatus != 0) {
             return analysisInspectorStatus;
+        }
+        const int inspectorUxStatus = d26::runInspectorUxAcceptanceTest(app, window);
+        if (inspectorUxStatus != 0) {
+            return inspectorUxStatus;
         }
         const int boundaryStatus = d26::runBoundaryConsumerAcceptanceTest(app, window);
         if (boundaryStatus != 0) {
