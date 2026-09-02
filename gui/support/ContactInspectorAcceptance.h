@@ -8,12 +8,13 @@
 // viewport seçimi Undo üretmez, yalnız Apply Selection tek persistent Contact
 // scope transaction'ı oluşturur; Cancel ise document state'i değiştirmez.
 //
-// Domain kontratı:
-//   * Draft Contact ve güncel CAD varsa dayanıklı Geometry/Face scope ile başlar.
-//   * Bir taraf Mesh/Facet ise diğer taraf aynı Mesh domain'ini miras alır.
-//   * Mesh generation değişince eski Facet kimlikleri preload edilmez.
+// Bu application acceptance kendi fixture'ını açıkça kurar. Önce CAD state'i
+// temizlenir ve gerçek FEM mesh üretilir; böylece beginContactEdit() sözleşmesinin
+// "CAD yoksa Mesh/Facet fallback" dalı önceki acceptance testlerinin bıraktığı
+// application state'e bağlı olmadan deterministik biçimde sınanır. Geometry/Face
+// scope doğrulaması ayrı ScopeReference/ContactService testlerinde kalır; burada
+// sahte CAD kimliği üretmeyiz.
 
-#include "../commands/ContactCommands.h"
 #include "../core/DocumentCommandManager.h"
 #include "../core/SelectionTypes.h"
 #include "../details/ConnectionsDetails.h"
@@ -38,20 +39,6 @@
 namespace d26 {
 namespace contact_inspector_acceptance_detail {
 
-inline ScopeReference meshFacetScope(const quint64 generation,
-                                     const femcae::meshing::MeshEntityId facetId)
-{
-    ScopeEntityReference reference;
-    reference.domain = SelectionDomain::Mesh;
-    reference.kind = SelectionKind::Facet;
-    reference.meshEntityId = facetId;
-
-    ScopeReference scope;
-    scope.sourceRevision = generation;
-    scope.entities.push_back(reference);
-    return scope;
-}
-
 inline SelectionItem meshFacetSelection(const quint64 generation,
                                         const femcae::meshing::MeshEntityId facetId)
 {
@@ -61,30 +48,6 @@ inline SelectionItem meshFacetSelection(const quint64 generation,
     item.meshEntityId = facetId;
     item.sourceRevision = generation;
     return item;
-}
-
-inline SelectionItem geometryFaceSelection(
-    const quint64 revision,
-    const femcae::geometry::GeometryEntityId faceId,
-    const femcae::geometry::GeometryEntityId parentId)
-{
-    SelectionItem item;
-    item.domain = SelectionDomain::Geometry;
-    item.kind = SelectionKind::Face;
-    item.geometryEntityId = faceId;
-    item.parentGeometryId = parentId;
-    item.sourceRevision = revision;
-    return item;
-}
-
-inline bool isSingleGeometryFace(const ScopeReference &scope,
-                                 const quint64 revision,
-                                 const femcae::geometry::GeometryEntityId faceId)
-{
-    return scope.sourceRevision == revision && scope.entities.size() == 1
-        && scope.entities.front().domain == SelectionDomain::Geometry
-        && scope.entities.front().kind == SelectionKind::Face
-        && scope.entities.front().geometryEntityId == faceId;
 }
 
 inline bool isSingleMeshFacet(const ScopeReference &scope,
@@ -127,6 +90,7 @@ inline int runContactInspectorAcceptanceTest(QApplication &app,
     GraphicsWorkspace *graphics = window.graphics();
     SelectionCoordinator *selectionCoordinator =
         contact_inspector_acceptance_detail::coordinator(window);
+
     check(services.project != nullptr && services.contacts != nullptr
               && services.geometry != nullptr && services.mesh != nullptr
               && details != nullptr && details->connectionsPage() != nullptr
@@ -143,7 +107,30 @@ inline int runContactInspectorAcceptanceTest(QApplication &app,
         return 1;
     }
 
+    // Önceki persistence acceptance güvenli new-project state bırakabilir. Bu
+    // test implicit state'e güvenmez: CAD yok + current FEM mesh fixture'ını
+    // explicit kurar. Bu aynı zamanda draft Contact'ın Mesh/Facet fallback dalını
+    // kesin olarak seçer.
     services.contacts->clear();
+    services.geometry->clear();
+    check(!services.geometry->summary().hasGeometry,
+          "Contact Inspector fixture explicitly starts without CAD geometry");
+    check(services.mesh->generate(),
+          "Contact Inspector fixture generates a current FEM mesh without CAD identity coercion");
+    check(services.mesh->mesh().boundaryFacets.size() >= 2,
+          "Contact Inspector fixture exposes at least two real FEM boundary Facet identities");
+    if (services.mesh->mesh().boundaryFacets.size() < 2) {
+        return failures + 1;
+    }
+
+    const quint64 generation = services.mesh->generation();
+    const auto sourceFacet = services.mesh->mesh().boundaryFacets.at(0).id;
+    const auto targetFacet = services.mesh->mesh().boundaryFacets.at(1).id;
+    const SelectionItem sourceFacetSelection =
+        contact_inspector_acceptance_detail::meshFacetSelection(generation, sourceFacet);
+    const SelectionItem targetFacetSelection =
+        contact_inspector_acceptance_detail::meshFacetSelection(generation, targetFacet);
+
     commands->resetHistory();
     window.selectObject(services.project->connectionsNode());
     details->refresh();
@@ -160,6 +147,7 @@ inline int runContactInspectorAcceptanceTest(QApplication &app,
     addContact->click();
     check(commands->stack()->count() == beforeCreateCount + 1 && services.contacts->count() == 1,
           "Connections Inspector creates Contact through exactly one document command");
+
     const ObjectId contactId = services.contacts->order().isEmpty()
         ? InvalidObjectId : services.contacts->order().last();
     check(contactId != InvalidObjectId
@@ -171,7 +159,8 @@ inline int runContactInspectorAcceptanceTest(QApplication &app,
     }
 
     commands->stack()->undo();
-    check(services.contacts->byId(contactId) == nullptr && services.project->object(contactId) == nullptr,
+    check(services.contacts->byId(contactId) == nullptr
+              && services.project->object(contactId) == nullptr,
           "Undo Connections create removes draft Contact engineering state and tree identity");
     commands->stack()->redo();
     check(services.contacts->byId(contactId) != nullptr
@@ -199,6 +188,7 @@ inline int runContactInspectorAcceptanceTest(QApplication &app,
     auto *applyTarget = contactPage->findChild<QPushButton *>(QStringLiteral("Dynamics26ContactApplyTarget"));
     auto *cancelTarget = contactPage->findChild<QPushButton *>(QStringLiteral("Dynamics26ContactCancelTarget"));
     auto *clearTarget = contactPage->findChild<QPushButton *>(QStringLiteral("Dynamics26ContactClearTarget"));
+
     check(name != nullptr && sourceSummary != nullptr && targetSummary != nullptr
               && validation != nullptr && solverSupport != nullptr
               && editSource != nullptr && applySource != nullptr && cancelSource != nullptr
@@ -231,6 +221,7 @@ inline int runContactInspectorAcceptanceTest(QApplication &app,
               && services.project->object(contactId) != nullptr
               && services.project->object(contactId)->name == QStringLiteral("Inspector Bonded Interface"),
           "Contact Name widget creates one canonical rename transaction and keeps tree/service synchronized");
+
     commands->stack()->undo();
     details->refresh();
     const ContactDefinition *undoRenamed = services.contacts->byId(contactId);
@@ -240,142 +231,121 @@ inline int runContactInspectorAcceptanceTest(QApplication &app,
     commands->stack()->redo();
     details->refresh();
 
-    // Draft Contact dayanıklı CAD Face scope ile başlamalıdır. Contact mesh'ten
-    // önce tanımlanabilsin ve remesh engineering kimliğini gereksiz yere bozmasın.
-    const auto &document = services.geometry->document();
-    const auto geometryFaces = document.entitiesOfKind(femcae::geometry::GeometryEntityKind::Face);
-    check(services.geometry->summary().hasGeometry && geometryFaces.size() >= 2,
-          "Contact Inspector fixture exposes at least two canonical CAD Face identities");
-    if (!services.geometry->summary().hasGeometry || geometryFaces.size() < 2) {
-        return failures + 1;
-    }
-    const auto sourceFaceId = geometryFaces.at(0);
-    const auto targetFaceId = geometryFaces.at(1);
-    const auto *sourceFaceEntity = document.find(sourceFaceId);
-    const auto *targetFaceEntity = document.find(targetFaceId);
-    check(sourceFaceEntity != nullptr && targetFaceEntity != nullptr
-              && sourceFaceEntity->parentId != femcae::geometry::InvalidGeometryId
-              && targetFaceEntity->parentId != femcae::geometry::InvalidGeometryId,
-          "Contact Inspector CAD Face fixture resolves canonical parent Body identities");
-    if (sourceFaceEntity == nullptr || targetFaceEntity == nullptr
-        || sourceFaceEntity->parentId == femcae::geometry::InvalidGeometryId
-        || targetFaceEntity->parentId == femcae::geometry::InvalidGeometryId) {
-        return failures + 1;
-    }
-    const quint64 geometryRevision = document.revision();
-    const SelectionItem sourceFaceSelection =
-        contact_inspector_acceptance_detail::geometryFaceSelection(
-            geometryRevision, sourceFaceId, sourceFaceEntity->parentId);
-    const SelectionItem targetFaceSelection =
-        contact_inspector_acceptance_detail::geometryFaceSelection(
-            geometryRevision, targetFaceId, targetFaceEntity->parentId);
-
-    // --- Draft Source: Geometry/Face transient selection -> single Apply -------
+    // --- Draft Source: Mesh/Facet fallback -------------------------------------
     const int beforeSourceEditCount = commands->stack()->count();
     editSource->click();
     check(selectionCoordinator->contactEditActive()
               && selectionCoordinator->editingContact() == contactId
               && selectionCoordinator->editingContactSource()
               && details->currentObject() == contactId
-              && graphics->selectionFilter() == SelectionFilter::Face
+              && graphics->selectionFilter() == SelectionFilter::Facet
               && selectionCoordinator->selectionManager()->items().isEmpty()
               && commands->stack()->count() == beforeSourceEditCount,
-          "draft Edit Source opens durable Geometry/Face transient session while Contact context stays current");
-    check(selectionCoordinator->selectionManager()->apply(sourceFaceSelection, SelectionOperation::Replace),
-          "Source edit accepts real current CAD Face transient selection");
+          "draft Edit Source opens Mesh/Facet fallback session while Contact project context stays current");
+
+    check(selectionCoordinator->selectionManager()->apply(
+              sourceFacetSelection, SelectionOperation::Replace),
+          "Source edit accepts real current FEM Facet transient selection");
     check(commands->stack()->count() == beforeSourceEditCount
               && details->currentObject() == contactId
               && applySource->isEnabled(),
-          "transient Source Face creates no document Undo entry and keeps Contact context");
+          "transient Source Facet creates no document Undo entry and keeps Contact context");
+
     applySource->click();
     const ContactDefinition *afterSource = services.contacts->byId(contactId);
     check(!selectionCoordinator->contactEditActive()
               && commands->stack()->count() == beforeSourceEditCount + 1
               && afterSource != nullptr
-              && contact_inspector_acceptance_detail::isSingleGeometryFace(
-                     afterSource->sourceScope, geometryRevision, sourceFaceId)
+              && contact_inspector_acceptance_detail::isSingleMeshFacet(
+                     afterSource->sourceScope, generation, sourceFacet)
               && services.contacts->validate(contactId).error == ContactValidationError::MissingTargetScope,
-          "Apply Source creates exactly one persistent Geometry/Face transaction and advances to missing-Target state");
+          "Apply Source creates exactly one persistent Mesh/Facet transaction and advances to missing-Target state");
 
-    // --- Draft Target: domain locked to Source Geometry/Face -------------------
+    // --- Draft Target: domain locked to Source Mesh/Facet ----------------------
     const int beforeTargetEditCount = commands->stack()->count();
     editTarget->click();
     check(selectionCoordinator->contactEditActive()
               && selectionCoordinator->editingContactTarget()
-              && graphics->selectionFilter() == SelectionFilter::Face
+              && graphics->selectionFilter() == SelectionFilter::Facet
               && selectionCoordinator->selectionManager()->items().isEmpty()
               && commands->stack()->count() == beforeTargetEditCount,
-          "Edit Target inherits Source Geometry/Face domain without document mutation");
-    check(selectionCoordinator->selectionManager()->apply(targetFaceSelection, SelectionOperation::Replace),
-          "Target edit accepts a second real current CAD Face transient selection");
+          "Edit Target inherits Source Mesh/Facet domain without document mutation");
+
+    check(selectionCoordinator->selectionManager()->apply(
+              targetFacetSelection, SelectionOperation::Replace),
+          "Target edit accepts a second real current FEM Facet transient selection");
     check(commands->stack()->count() == beforeTargetEditCount && applyTarget->isEnabled(),
-          "transient Target Face remains outside document Undo history");
+          "transient Target Facet remains outside document Undo history");
+
     applyTarget->click();
     const ContactDefinition *completed = services.contacts->byId(contactId);
     check(!selectionCoordinator->contactEditActive()
               && commands->stack()->count() == beforeTargetEditCount + 1
               && completed != nullptr
-              && contact_inspector_acceptance_detail::isSingleGeometryFace(
-                     completed->targetScope, geometryRevision, targetFaceId)
+              && contact_inspector_acceptance_detail::isSingleMeshFacet(
+                     completed->sourceScope, generation, sourceFacet)
+              && contact_inspector_acceptance_detail::isSingleMeshFacet(
+                     completed->targetScope, generation, targetFacet)
               && services.contacts->validate(contactId).valid(),
-          "Apply Target creates one persistent Geometry/Face transaction and completes valid Contact definition");
-    details->refresh();
-    check(sourceSummary->text().contains(QStringLiteral("Geometry / Face"))
-              && targetSummary->text().contains(QStringLiteral("Geometry / Face"))
-              && clearSource->isEnabled() && clearTarget->isEnabled(),
-          "Contact Inspector reads completed persistent CAD Source/Target scope from ContactService");
+          "Apply Target creates one persistent Mesh/Facet transaction and completes valid Contact definition");
 
+    details->refresh();
+    check(sourceSummary->text().contains(QStringLiteral("Mesh / Facet"))
+              && targetSummary->text().contains(QStringLiteral("Mesh / Facet"))
+              && clearSource->isEnabled() && clearTarget->isEnabled(),
+          "Contact Inspector reads completed persistent Mesh Source/Target scope from ContactService");
+
+    // Undo/Redo must restore the exact engineering identity, not only UI text.
     commands->stack()->undo();
     details->refresh();
     const ContactDefinition *undoTarget = services.contacts->byId(contactId);
     check(undoTarget != nullptr
               && services.contacts->validate(contactId).error == ContactValidationError::MissingTargetScope
-              && contact_inspector_acceptance_detail::isSingleGeometryFace(
-                     undoTarget->sourceScope, geometryRevision, sourceFaceId)
+              && contact_inspector_acceptance_detail::isSingleMeshFacet(
+                     undoTarget->sourceScope, generation, sourceFacet)
               && undoTarget->targetScope.entities.isEmpty(),
-          "Undo Target Apply restores exact CAD Source and missing-Target authoring state");
+          "Undo Target Apply restores exact Source Facet and missing-Target authoring state");
+
     commands->stack()->redo();
     details->refresh();
     const ContactDefinition *redoTarget = services.contacts->byId(contactId);
     check(redoTarget != nullptr && services.contacts->validate(contactId).valid()
-              && contact_inspector_acceptance_detail::isSingleGeometryFace(
-                     redoTarget->targetScope, geometryRevision, targetFaceId),
-          "Redo Target Apply restores completed CAD Contact exactly");
+              && contact_inspector_acceptance_detail::isSingleMeshFacet(
+                     redoTarget->targetScope, generation, targetFacet),
+          "Redo Target Apply restores completed Mesh Contact exactly");
 
-    // --- Cancel: changed transient CAD selection must not persist --------------
+    // --- Cancel: transient change must never persist ---------------------------
     const int beforeCancelCount = commands->stack()->count();
     editTarget->click();
     const bool targetPreloaded = selectionCoordinator->contactEditActive()
         && selectionCoordinator->editingContactTarget()
         && selectionCoordinator->selectionManager()->items().size() == 1
-        && selectionCoordinator->selectionManager()->items().front().domain == SelectionDomain::Geometry
-        && selectionCoordinator->selectionManager()->items().front().geometryEntityId == targetFaceId;
+        && selectionCoordinator->selectionManager()->items().front().domain == SelectionDomain::Mesh
+        && selectionCoordinator->selectionManager()->items().front().kind == SelectionKind::Facet
+        && selectionCoordinator->selectionManager()->items().front().meshEntityId == targetFacet;
     check(targetPreloaded,
-          "editing an existing current Target safely preloads its exact persistent CAD Face identity");
+          "editing existing Target safely preloads its exact current FEM Facet identity");
+
     if (selectionCoordinator->contactEditActive()) {
-        check(selectionCoordinator->selectionManager()->apply(sourceFaceSelection, SelectionOperation::Replace),
-              "Cancel fixture changes only transient Target CAD selection");
+        check(selectionCoordinator->selectionManager()->apply(
+                  sourceFacetSelection, SelectionOperation::Replace),
+              "Cancel fixture changes only transient Target Facet selection");
     } else {
-        check(false, "Cancel fixture changes only transient Target CAD selection");
+        check(false, "Cancel fixture changes only transient Target Facet selection");
     }
     check(commands->stack()->count() == beforeCancelCount,
-          "changed transient Target CAD selection still creates no document transaction");
+          "changed transient Target selection still creates no document transaction");
+
     cancelTarget->click();
     const ContactDefinition *afterCancel = services.contacts->byId(contactId);
     check(!selectionCoordinator->contactEditActive()
               && commands->stack()->count() == beforeCancelCount
               && afterCancel != nullptr
-              && contact_inspector_acceptance_detail::isSingleGeometryFace(
-                     afterCancel->targetScope, geometryRevision, targetFaceId),
-          "Cancel Target closes session with zero document mutation and preserves persisted CAD Target scope");
+              && contact_inspector_acceptance_detail::isSingleMeshFacet(
+                     afterCancel->targetScope, generation, targetFacet),
+          "Cancel Target closes session with zero document mutation and preserves persisted Facet scope");
 
     // --- Clear buttons remain canonical persistent operations ------------------
-    const ContactDefinition *beforeClear = services.contacts->byId(contactId);
-    if (beforeClear == nullptr) {
-        return failures + 1;
-    }
-    const ScopeReference source = beforeClear->sourceScope;
-    const ScopeReference target = beforeClear->targetScope;
     const int beforeClearSourceCount = commands->stack()->count();
     clearSource->click();
     check(commands->stack()->count() == beforeClearSourceCount + 1
@@ -385,11 +355,9 @@ inline int runContactInspectorAcceptanceTest(QApplication &app,
     details->refresh();
     const ContactDefinition *undoClearSource = services.contacts->byId(contactId);
     check(undoClearSource != nullptr && services.contacts->validate(contactId).valid()
-              && contact_inspector_acceptance_detail::isSingleGeometryFace(
-                     undoClearSource->sourceScope, source.sourceRevision,
-                     source.entities.isEmpty() ? femcae::geometry::InvalidGeometryId
-                                               : source.entities.front().geometryEntityId),
-          "Undo Clear Source restores exact previous CAD Face identity");
+              && contact_inspector_acceptance_detail::isSingleMeshFacet(
+                     undoClearSource->sourceScope, generation, sourceFacet),
+          "Undo Clear Source restores exact previous FEM Facet identity");
 
     const int beforeClearTargetCount = commands->stack()->count();
     clearTarget->click();
@@ -400,93 +368,35 @@ inline int runContactInspectorAcceptanceTest(QApplication &app,
     details->refresh();
     const ContactDefinition *undoClearTarget = services.contacts->byId(contactId);
     check(undoClearTarget != nullptr && services.contacts->validate(contactId).valid()
-              && contact_inspector_acceptance_detail::isSingleGeometryFace(
-                     undoClearTarget->targetScope, target.sourceRevision,
-                     target.entities.isEmpty() ? femcae::geometry::InvalidGeometryId
-                                               : target.entities.front().geometryEntityId),
-          "Undo Clear Target restores exact previous CAD Face identity");
-
-    // --- Mesh/Facet edit path ---------------------------------------------------
-    // Unit/command persistence testleri Mesh scope oluşturmayı zaten doğruluyor.
-    // Burada mevcut Contact'ı current Mesh scope'a seed edip Inspector'ın domain
-    // inheritance, preload, Apply ve stale-generation repair davranışını test ederiz.
-    if (!services.mesh->hasMesh() || services.mesh->isOutOfDate()) {
-        check(services.mesh->generate(), "Contact Inspector Mesh fixture generates current FEM mesh");
-    }
-    check(services.mesh->mesh().boundaryFacets.size() >= 2,
-          "Contact Inspector Mesh fixture exposes real boundary Facet identities");
-    if (services.mesh->mesh().boundaryFacets.size() < 2) {
-        return failures + 1;
-    }
-    const quint64 generation = services.mesh->generation();
-    const auto sourceFacet = services.mesh->mesh().boundaryFacets.at(0).id;
-    const auto targetFacet = services.mesh->mesh().boundaryFacets.at(1).id;
-    const ScopeReference meshSource =
-        contact_inspector_acceptance_detail::meshFacetScope(generation, sourceFacet);
-    check(services.contacts->replaceSourceScope(contactId, meshSource)
-              && services.contacts->replaceTargetScope(contactId, ScopeReference{}),
-          "Mesh edit fixture switches Contact to current Source Facet plus missing Target without ID coercion");
-    commands->resetHistory();
-    details->refresh();
-
-    editSource->click();
-    const bool meshSourcePreloaded = selectionCoordinator->contactEditActive()
-        && selectionCoordinator->editingContactSource()
-        && graphics->selectionFilter() == SelectionFilter::Facet
-        && selectionCoordinator->selectionManager()->items().size() == 1
-        && selectionCoordinator->selectionManager()->items().front().domain == SelectionDomain::Mesh
-        && selectionCoordinator->selectionManager()->items().front().meshEntityId == sourceFacet;
-    check(meshSourcePreloaded,
-          "existing Mesh Source opens Facet session and safely preloads exact current MeshEntityId");
-    cancelSource->click();
-    check(!selectionCoordinator->contactEditActive() && commands->stack()->count() == 0,
-          "Cancel existing Mesh Source edit closes with zero document transaction");
-
-    const int beforeMeshTargetEditCount = commands->stack()->count();
-    editTarget->click();
-    check(selectionCoordinator->contactEditActive()
-              && selectionCoordinator->editingContactTarget()
-              && graphics->selectionFilter() == SelectionFilter::Facet
-              && selectionCoordinator->selectionManager()->items().isEmpty()
-              && commands->stack()->count() == beforeMeshTargetEditCount,
-          "missing Target inherits existing Source Mesh/Facet domain with exact Facet filter");
-    const SelectionItem targetFacetSelection =
-        contact_inspector_acceptance_detail::meshFacetSelection(generation, targetFacet);
-    check(selectionCoordinator->selectionManager()->apply(targetFacetSelection, SelectionOperation::Replace),
-          "Mesh Target edit accepts real current FEM Facet transient selection");
-    check(commands->stack()->count() == beforeMeshTargetEditCount && applyTarget->isEnabled(),
-          "transient Mesh Target selection remains outside document Undo history");
-    applyTarget->click();
-    const ContactDefinition *meshCompleted = services.contacts->byId(contactId);
-    check(!selectionCoordinator->contactEditActive()
-              && commands->stack()->count() == beforeMeshTargetEditCount + 1
-              && meshCompleted != nullptr
               && contact_inspector_acceptance_detail::isSingleMeshFacet(
-                     meshCompleted->sourceScope, generation, sourceFacet)
-              && contact_inspector_acceptance_detail::isSingleMeshFacet(
-                     meshCompleted->targetScope, generation, targetFacet)
-              && services.contacts->validate(contactId).valid(),
-          "Mesh Target Apply creates one persistent Facet transaction and completes valid Contact");
+                     undoClearTarget->targetScope, generation, targetFacet),
+          "Undo Clear Target restores exact previous FEM Facet identity");
 
     // --- Stale Mesh scope never preloads old MeshEntityId ----------------------
     const quint64 oldGeneration = services.mesh->generation();
     const int beforeStaleEditCount = commands->stack()->count();
     check(services.mesh->generate() && services.mesh->generation() != oldGeneration,
           "mesh regeneration advances generation before stale Contact edit acceptance");
+
     const ContactDefinition *staleDefinition = services.contacts->byId(contactId);
+    const ContactValidationResult staleValidation = services.contacts->validate(contactId);
     check(staleDefinition != nullptr
-              && services.contacts->validate(contactId).error == ContactValidationError::SourceScopeInvalid
+              && staleValidation.error == ContactValidationError::SourceScopeInvalid
+              && staleValidation.sourceScopeError == ScopeReferenceValidationError::StaleMeshGeneration
               && services.project->object(contactId) != nullptr
               && services.project->object(contactId)->state == ObjectState::OutOfDate,
-          "mesh regeneration marks stored Contact scope stale before repair edit");
+          "mesh regeneration marks stored Contact Facet scope stale before repair edit");
+
     details->refresh();
     editSource->click();
     check(selectionCoordinator->contactEditActive()
               && selectionCoordinator->editingContactSource()
+              && graphics->selectionFilter() == SelectionFilter::Facet
               && selectionCoordinator->editPreloadError() == ScopeReferenceValidationError::StaleMeshGeneration
               && selectionCoordinator->selectionManager()->items().isEmpty()
               && commands->stack()->count() == beforeStaleEditCount,
           "stale Contact Source edit opens with zero old-ID preload and explicit StaleMeshGeneration diagnostic");
+
     cancelSource->click();
     const ContactDefinition *afterStaleCancel = services.contacts->byId(contactId);
     check(!selectionCoordinator->contactEditActive()
