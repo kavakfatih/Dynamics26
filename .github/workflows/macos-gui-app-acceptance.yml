@@ -6,9 +6,9 @@ name: macOS GUI application acceptance
     # Application-level acceptance yalnız integrated selection / Preflight /
     # analysis workflow yüzeyi değiştiğinde çalışır. Trusted Mac fast gate ana
     # günlük yol olarak kalırken hosted Apple Silicon runner Debug + Release
-    # davranış farklarının sessiz regresyon üretmesini engeller. GUI milestone /
-    # CMake composition değişiklikleri de aynı gerçek application selftest'i
-    # yeniden çalıştırmalıdır.
+    # davranış farklarının sessiz regresyon üretmesini engeller. Engineering
+    # Inspector primitive/binding ve GUI milestone/CMake composition değişiklikleri
+    # de aynı gerçek application selftest'i yeniden çalıştırmalıdır.
     paths:
       - ".github/workflows/macos-gui-app-acceptance.yml"
       - "gui/CMakeLists.txt"
@@ -17,6 +17,10 @@ name: macOS GUI application acceptance
       - "gui/shell/SelectionCoordinator.*"
       - "gui/shell/UtilityWorkspace.*"
       - "gui/support/SelectionAcceptanceTest.h"
+      - "gui/support/MaterialInspectorAcceptance.h"
+      - "gui/support/MeshInspectorAcceptance.h"
+      - "gui/support/AnalysisInspectorAcceptance.h"
+      - "gui/support/InspectorUxAcceptance.h"
       - "gui/support/BoundaryConsumerAcceptance.h"
       - "gui/support/PreflightAcceptance.h"
       - "gui/support/IntegratedWorkflowAcceptance.h"
@@ -32,9 +36,13 @@ name: macOS GUI application acceptance
       - "gui/services/AnalysisBoundaryScope.cpp"
       - "gui/services/AnalysisService.*"
       - "gui/services/MaterialService.*"
+      - "gui/details/DetailsPage.*"
       - "gui/details/ObjectDetails.*"
+      - "gui/details/MaterialDetails.*"
+      - "gui/details/MeshDetails.*"
       - "gui/details/AnalysisDetails.*"
       - "gui/details/BoundaryConditionDetails.*"
+      - "gui/details/ResultDetails.*"
       - "gui/details/ConnectionsDetails.h"
       - "gui/details/ContactDetails.h"
       - "gui/commands/NamedSelectionCommands.h"
@@ -116,6 +124,10 @@ jobs:
           printf '%s\n' "$output"
           test "$status" -eq 0
           grep -q "selection shell acceptance PASS" <<< "$output"
+          grep -q "Material Inspector acceptance: 26/26 PASS" <<< "$output"
+          grep -q "Mesh Inspector acceptance PASS" <<< "$output"
+          grep -q "Analysis Inspector acceptance PASS" <<< "$output"
+          grep -q "Inspector UX consistency acceptance PASS" <<< "$output"
           grep -q "Boundary consumer acceptance PASS" <<< "$output"
           grep -q "Alpha.4 Preflight acceptance PASS" <<< "$output"
           grep -q "Alpha.4 Integrated workflow acceptance PASS" <<< "$output"
