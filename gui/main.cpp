@@ -38,6 +38,7 @@
 #include "support/SolverCoupledDiagnosticsAcceptance.h"
 #include "support/SolverDiagnosticsAcceptance.h"
 #include "support/SolverWorkspaceAcceptance.h"
+#include "support/SolverWorkspaceAccessibilityAcceptance.h"
 
 #include <QApplication>
 #include <QSurfaceFormat>
@@ -231,11 +232,11 @@ int main(int argc, char *argv[])
 
         // Aynı gerçek application composition üzerinde sırasıyla transient/
         // persistent selection, Material/Mesh/Analysis Inspector, shared Inspector
-        // UX, Solver Workspace, boundary consumers, Preflight, integrated workflow
-        // ve Contact acceptance zinciri yürütülür. Inspector/solver-workspace
-        // acceptance'ları yalnız görünür/current application state'i düzenler;
-        // hidden widget state'i veya ikinci engineering state kullanılmaz. Fiziksel
-        // pointer/mouse/trackpad kabulünün yerine geçmez.
+        // UX, Solver Workspace accessibility, Solver Workspace, boundary consumers,
+        // Preflight, integrated workflow ve Contact acceptance zinciri yürütülür.
+        // Inspector/solver-workspace acceptance'ları yalnız görünür/current
+        // application state'i düzenler; hidden widget state'i veya ikinci engineering
+        // state kullanılmaz. Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
             return selectionStatus;
@@ -257,6 +258,11 @@ int main(int argc, char *argv[])
         const int inspectorUxStatus = d26::runInspectorUxAcceptanceTest(app, window);
         if (inspectorUxStatus != 0) {
             return inspectorUxStatus;
+        }
+        const int solverWorkspaceAccessibilityStatus =
+            d26::runSolverWorkspaceAccessibilityAcceptanceTest(app, window);
+        if (solverWorkspaceAccessibilityStatus != 0) {
+            return solverWorkspaceAccessibilityStatus;
         }
         const int solverWorkspaceStatus = d26::runSolverWorkspaceAcceptanceTest(app, window);
         if (solverWorkspaceStatus != 0) {

@@ -197,6 +197,40 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
     tabs_->addTab(timings_, tr("Timings"));
     layout->addWidget(tabs_);
 
+    // B2.6 closeout: Solver/Utility Workspace accessibility sahibi bu widget'tır.
+    // main.cpp üzerinden sonradan UI patch'i yapılmaz. Convergence tabı ve üç
+    // diagnostics tablosu explicit keyboard focus alır; özet/tablo yüzeyleri
+    // assistive technology için kararlı isim ve açıklama taşır.
+    tabs_->setFocusPolicy(Qt::StrongFocus);
+    tabs_->setAccessibleName(tr("Utility workspace tabs"));
+    tabs_->setAccessibleDescription(
+        tr("Messages, Preflight, Convergence, Solver Output, Results Table ve Timings sekmeleri arasında klavyeyle gezinmeyi sağlar."));
+    convergencePage->setAccessibleName(tr("Convergence workspace"));
+
+    convergenceSummary_->setAccessibleName(tr("Convergence summary"));
+    convergenceSummary_->setAccessibleDescription(
+        tr("Geçerli solver oturumunun yakınsama durumunu ve özet metriklerini gösterir."));
+    convergence_->setFocusPolicy(Qt::StrongFocus);
+    convergence_->setAccessibleName(tr("Convergence iteration history"));
+    convergence_->setAccessibleDescription(
+        tr("Solver yakınsama iterasyonlarını ve temel yakınsama metriklerini satır bazında gösterir."));
+
+    diagnosticsSummary_->setAccessibleName(tr("Advanced convergence diagnostics summary"));
+    diagnosticsSummary_->setAccessibleDescription(
+        tr("Mevcut olduğunda ileri nonlinear yakınsama metriklerinin özetini gösterir."));
+    diagnostics_->setFocusPolicy(Qt::StrongFocus);
+    diagnostics_->setAccessibleName(tr("Advanced convergence diagnostics table"));
+    diagnostics_->setAccessibleDescription(
+        tr("Mevcut olduğunda load increment, residual, displacement increment, minimum J ve criterion metriklerini gösterir."));
+
+    coupledDiagnosticsSummary_->setAccessibleName(tr("Coupled and contact diagnostics summary"));
+    coupledDiagnosticsSummary_->setAccessibleDescription(
+        tr("Mevcut verification telemetry için mixed u-p ve Contact diagnostics özetini gösterir."));
+    coupledDiagnostics_->setFocusPolicy(Qt::StrongFocus);
+    coupledDiagnostics_->setAccessibleName(tr("Coupled and contact diagnostics table"));
+    coupledDiagnostics_->setAccessibleDescription(
+        tr("Mevcut verification telemetry için pressure residual ve Contact durum metriklerini gösterir."));
+
     const auto activateSubject = [this](const int row, const int column) {
         if (column != 3 || row < 0 || row >= preflight_->rowCount()) {
             return;
