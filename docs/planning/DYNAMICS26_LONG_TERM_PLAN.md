@@ -1,516 +1,571 @@
-# Dynamics26 — Uzun Vadeli Geliştirme Planı
+# Dynamics26 — Ana Geliştirme Planı
 
-**Belge durumu:** Onaylı ana plan  
-**Başlangıç tabanı:** V1.0.2  
+**Plan revizyonu:** 2026-09  
+**Durum:** Aktif source-of-truth ürün planı  
 **Platform:** macOS / Apple Silicon (`arm64`)  
-**Ana geliştirme dalı:** `main`  
-**Ana solver:** Modern Fortran  
-**Uygulama katmanı:** C++20 / Qt 6 / VTK / OCCT  
+**Ana dal:** `main`  
+**Engineering core:** Modern Fortran  
+**Application:** C++20 / Qt 6 / VTK / OCCT  
+**Current GUI milestone:** `V1.1.0-beta.2`
 
-Bu belge V1.0.2 sonrasında Dynamics26 için onaylanan ana ürün yol haritasını tanımlar. `docs/architecture/MASTER_ROADMAP.md` içindeki V0.x–V1.0 mimari temelini devam ettirir; geçmiş mimari kararları geçersiz kılmaz.
+Bu plan Beta.2 sonrasında öncelikleri yeniden sıralar. Amaç önce gerçek bir nonlinear analiz workflow'unu kullanılabilir hale getirmek, sonra mesh/material/solver matematiğini derinleştirmek ve ardından elastomer/rubber mechanics altyapısını büyütmektir.
 
-## 1. Değişmez proje ilkeleri
+# 1. Değişmez ilkeler
 
-1. **Dynamics26 özgün bir FEM/CAE platformudur.** Code_Aster, ANSYS, Marc, Abaqus, Simufact, COMSOL, Altair ve benzeri sistemler yalnız özellik, kullanıcı akışı, mühendislik davranışı ve doğrulama açısından araştırma referansı olabilir. Kaynak kod kopyalanmaz veya uyarlanarak lisans bağı kaldırılmaya çalışılmaz.
-2. **Research-first geliştirme uygulanır.** Yeni fizik veya sayısal yöntem önce fizik, continuum mechanics, FEM teorisi, akademik literatür ve benchmark problemleri üzerinden incelenir; sonra Dynamics26'a özgü formülasyon ve kod geliştirilir.
-3. **CAD Geometry != Display Tessellation != FEM Mesh.** Bu üç veri modeli mimari olarak ayrı kalır.
-4. **GUI solver implementasyon detaylarını doğrudan kullanıcıya dayatmaz.** Kullanıcı mühendislik niyetini tanımlar; element formülasyonu ve solver ayrıntıları gerektiğinde Advanced seviyede açılır.
-5. **Modern Fortran solver çekirdeği korunur.** C/C ABI sınırı, C++20 application/geometry/meshing katmanı, Qt 6 GUI, VTK ve OCCT mimarisi korunur.
-6. **macOS / Apple Silicon ana ve tek ürün platformudur.** Linux ürün hedefi değildir.
-7. **Tek geliştirme dalı `main`'dir.** Sürüm geçmişi version/tag/release ile yönetilir; gereksiz feature/fix branch kullanılmaz.
-8. **Her PASS kanıtlanmalıdır.** Derleme, test, benchmark veya CI sonucu çalıştırılmadan başarılı kabul edilmez.
-9. **Fortran mühendislik ve matematik açıklamaları Türkçe ve ayrıntılı olmalıdır.** Denklem, varsayım, birim, işaret konvansiyonu ve fiziksel anlam mümkün olduğunda kaynak kodda açıklanır.
+1. Dynamics26 özgün bir nonlinear FEM/CAE platformudur.
+2. Code_Aster, ANSYS, Marc, COMSOL ve diğer CAE ürünleri araştırma/benchmark referansıdır; kaynak kod kopyalanmaz.
+3. `CAD Geometry != Display Tessellation != FEM Mesh` ayrımı korunur.
+4. Document state, derived state ve transient selection ayrımı korunur.
+5. Persistent engineering mutation canonical command + Undo/Redo yolundan geçer.
+6. Solver telemetry ve results derived state'tir; gereksiz document history oluşturmaz.
+7. Unsupported capability `Unavailable` gösterilir; sahte `0` kullanılmaz.
+8. C ABI geriye dönük uyumlu tutulur; yeni solver/telemetry ihtiyacı additive API ile çözülür.
+9. Fortran core, fizik/matematik açıklamalarını Türkçe ve izlenebilir biçimde taşır.
+10. macOS / Apple Silicon tek ürün platformudur.
+11. Ana branch yalnız `main`'dir.
+12. Büyük feature implementation'dan önce research gate zorunludur.
 
-## 2. Standart geliştirme zinciri
+# 2. Yeni ürün stratejisi — Vertical Slice First
 
-```text
-Research
-   ↓
-Physics / Mathematics
-   ↓
-Mathematical Formulation
-   ↓
-Numerical Algorithm
-   ↓
-Dynamics26 Architecture
-   ↓
-Implementation
-   ↓
-Unit / Verification Tests
-   ↓
-Independent Benchmark
-   ↓
-Regression Tests
-   ↓
-macOS CI
-   ↓
-Version Close / Tag / Release
-```
+Eski stratejide CAD, meshing, element, verification ve nonlinear gelişim büyük ölçüde ayrı sürüm sütunlarıydı. Yeni strateji kullanıcının tamamlayabileceği dikey workflow'u öne alır.
 
-Her ileri solver özelliğinde en az şu izlenebilirlik hedeflenir:
+İlk hedef:
 
 ```text
-Teori / denklem
-      ↕
-Bağımsız akademik kaynak
-      ↕
-Dynamics26 implementasyonu
-      ↕
-Verification testi
-      ↕
-Kabul toleransı / benchmark sonucu
-```
-
-## 3. Onaylı V1.1–V2.0 ana yol haritası
-
-| Sürüm | Ana hedef | Ana çıktı |
-|---|---|---|
-| **V1.1.0** | GUI / UI / UX + Dynamics26 Identity | Profesyonel CAE application shell ve araştırmaya dayalı kullanıcı akışı |
-| **V1.2.0** | General CAD & Geometry Platform | Genel CAD import/modelleme, healing, topology/provenance |
-| **V1.3.0** | General FEM Meshing | 1D/2D/3D genel mesh altyapısı, quality ve geometry-aware controls |
-| **V1.4.0** | Advanced Element Library | Beam/shell/solid/higher-order/mixed element ailesi ve sertifikasyon testleri |
-| **V1.5.0** | Physics & Mathematics Verification Audit | Mevcut fiziğin ve matematiğin bağımsız yeniden denetimi |
-| **V1.6.0** | Code Quality & Reliability Audit | Fortran/C/C++/ABI kalite, sanitizer, static-analysis ve error-path denetimi |
-| **V1.7.0** | Inter-module Communication & Performance | Qt/C++/OCCT/VTK/C ABI/Fortran veri akışı ve performans iyileştirmesi |
-| **V1.8.0** | Advanced Nonlinear Mechanics | İleri nonlinear kontrol, finite-strain constitutive ve robust convergence |
-| **V1.9.0** | Advanced Contact | Deformable/deformable, surface contact, finite sliding ve gelişmiş friction |
-| **V1.10.0** | Advanced Meshing & Adaptivity | Error estimator, adaptive refinement, remesh ve state transfer |
-| **V1.11.0** | Large-Scale Solver & Performance | Büyük sparse sistemler, ileri backend ve ölçeklenebilir benchmark |
-| **V1.12.0** | Advanced Postprocessing | Profesyonel field/history/result inceleme ve karşılaştırma |
-| **V1.13.0** | Dynamics | Modal genişletme, harmonic, transient, spectrum, random ve nonlinear dynamics |
-| **V2.0.0** | Integrated CAE Qualification | CAD→mesh→solve→results zincirinin production qualification sürümü |
-
-Bu başlıklar ana ürün sütunlarıdır. Sürüm içi alt kapsam research sonuçlarına göre ayrıntılandırılabilir; ancak ana sütunların yol haritasından çıkarılması açık proje kararı gerektirir.
-
-## 4. V1.1.0 — GUI / UI / UX + Dynamics26 Identity
-
-V1.1 ilk aktif fazdır. Yeni solver fiziği eklemek yerine mevcut çekirdeğin gerçek bir mühendisin kullanabileceği CAE uygulamasına dönüştürülmesi hedeflenir.
-
-Ana araştırma referansları:
-
-- ANSYS Mechanical,
-- Hexagon Marc / Mentat,
-- Simufact,
-- Abaqus/CAE,
-- COMSOL,
-- Altair HyperMesh / HyperView,
-- gerektiğinde Siemens Simcenter,
-- Apple macOS Human Interface Guidelines.
-
-Araştırmanın amacı ekran kopyalamak değildir. Her gözlem `Adopt / Adapt / Reject` kararıyla Dynamics26 kullanıcı akışına çevrilir.
-
-Hedef application shell:
-
-```text
-┌────────────────────────────────────────────────────────────┐
-│ Dynamics26        Context Toolbar / Search                 │
-├──────────────┬─────────────────────────────┬───────────────┤
-│ PROJECT      │                             │ INSPECTOR     │
-│ NAVIGATOR    │                             │               │
-│              │        3D VIEWPORT          │ Properties    │
-│ Geometry     │                             │ Scope         │
-│ Materials    │                             │ Definition    │
-│ Connections  │                             │ Advanced      │
-│ Mesh         │                             │               │
-│ Analyses     │                             │               │
-│ Results      │                             │               │
-├──────────────┴─────────────────────────────┴───────────────┤
-│ Diagnostics / Solve / Convergence / Messages        ▲     │
-└────────────────────────────────────────────────────────────┘
-```
-
-V1.1 aynı zamanda kullanıcıya görünen **FEMCAE → Dynamics26** geçiş sürümüdür. Uygulama adı, pencere başlığı, menüler, About, dokümantasyon başlıkları, bundle display name ve artifact/release adları gözden geçirilir. Mevcut `femcae_*`, `libfemcae`, `FEMCAE_*` gibi internal/public API veya CMake isimleri ABI/API etkisi incelenmeden topluca değiştirilmez.
-
-Ayrıntılı V1.1 planı: `docs/planning/V1.1_GUI_UX_PLAN.md`.
-
-## 5. V1.2.0 — General CAD & Geometry Platform
-
-Hedef, mevcut OCCT STEP baseline'ını genel CAE geometri platformuna yükseltmektir.
-
-Planlanan araştırma ve geliştirme başlıkları:
-
-- STEP / IGES / BREP import,
-- parts, bodies, faces, edges, vertices ve assemblies,
-- primitives,
-- extrude / revolve / sweep / loft araştırması,
-- boolean işlemler,
-- fillet / chamfer,
-- transformations / patterns,
-- shape healing / repair,
-- defeaturing,
-- partition / imprint,
-- named geometry / persistent selection,
-- CAD-to-mesh provenance,
-- topological naming stratejisi.
-
-Release gate: arbitrary CAD model, display tessellation ve FEM meshing giriş verisi ayrı sözleşmelerle doğrulanmalıdır.
-
-## 6. V1.3.0 — General FEM Meshing
-
-Mevcut structured HEX8 baseline genel mesh platformuna genişletilir.
-
-Hedefler:
-
-- 1D line mesh,
-- TRIA / QUAD surface mesh,
-- TET / HEX volume mesh altyapısı,
-- wedge / pyramid için topology hazırlığı,
-- global ve local sizing,
-- curvature-aware sizing,
-- boundary-layer meshing araştırması,
-- mesh quality ölçümleri,
-- geometry entity → FEM entity association,
-- import/export altyapısı,
-- deterministic IDs ve provenance.
-
-V1.3 production-quality otomatik all-hex mesher iddiası taşımaz; ileri remeshing/adaptivity V1.10 kapsamındadır.
-
-## 7. V1.4.0 — Advanced Element Library
-
-Element framework aşağıdaki aileleri taşıyacak şekilde genişletilir:
-
-- 0D: mass, spring, damper,
-- 1D: truss, Euler-Bernoulli, Timoshenko beam,
-- 2D: plane stress, plane strain, axisymmetric,
-- structural surface: membrane, shell, layered shell,
-- 3D: tetrahedron, hexahedron, wedge, pyramid,
-- higher-order interpolation,
-- reduced/selective integration,
-- mixed displacement-pressure,
-- assumed/enhanced strain,
-- hourglass control,
-- cohesive/connector araştırması.
-
-Bir element yalnız implement edildiği için production kabul edilmez. Minimum certification zinciri:
-
-```text
-Patch Test
-→ Analytical Benchmark
-→ Distortion Test
-→ Locking Test
-→ Mesh Convergence
-→ Nonlinear Benchmark (uygunsa)
-```
-
-## 8. V1.5.0 — Physics & Mathematics Verification Audit
-
-Bu sürüm feature sürümü değil, doğrulama sürümüdür.
-
-Denetim kapsamı:
-
-- birimler ve boyut tutarlılığı,
-- tensor ve Voigt convention,
-- işaret convention,
-- local/global coordinate transformations,
-- shape functions ve partition of unity,
-- Jacobian ve isoparametric mapping,
-- Gauss quadrature,
-- strain-displacement matrisleri,
-- stress/strain measures,
-- finite-strain kinematics (`F`, `J`, `C`, `b` vb.),
-- objectivity,
-- material ve geometric tangent,
-- residual ve equilibrium,
-- Newton / line search / step control,
-- hyperelastic constitutive modeller,
-- mixed `u-p`,
-- contact/friction,
-- mass/stiffness formulations,
-- generalized eigenproblem,
-- energy/work checks,
-- limiting cases ve mesh convergence.
-
-Her kritik formulasyon için teori-kod-test traceability kaydı oluşturulması hedeflenir.
-
-## 9. V1.6.0 — Code Quality & Reliability Audit
-
-Fortran odakları:
-
-- `implicit none`, explicit interface ve kind tutarlılığı,
-- bounds/runtime checks,
-- uninitialized/undefined state,
-- allocation/deallocation ve ownership,
-- error propagation,
-- global mutable state,
-- module dependency graph,
-- gereksiz data copy,
-- compiler warning gate.
-
-C/C++ odakları:
-
-- Apple Clang warnings,
-- clang-tidy / static analysis,
-- RAII ve lifetime,
-- sanitizer testleri,
-- thread safety,
-- malformed/corrupt input,
-- C ABI ownership ve lifecycle.
-
-Coverage tek başına fizik doğruluğu ölçütü sayılmaz; risk görünürlüğü amacıyla kullanılır.
-
-## 10. V1.7.0 — Inter-module Communication & Performance
-
-Ana veri yolu:
-
-```text
-Qt GUI
-   ↓
-C++ Application Model
-   ├── OCCT Geometry
-   ├── Meshing
-   └── VTK Visualization
-   ↓
-Stable / Bulk C ABI
-   ↓
-Modern Fortran Solver
-```
-
-Araştırılacak ve ölçülecek konular:
-
-- chatty API yerine bulk transfer,
-- gereksiz array/data copy azaltma,
-- açık ownership/lifetime,
-- reusable buffers,
-- sparse pattern ve factorization reuse,
-- cache locality / memory layout,
-- element batching,
-- asynchronous solver worker,
-- UI thread izolasyonu,
-- result streaming,
-- VTK topology reuse,
-- profiler ve timing telemetry.
-
-Bu sürüm V1.11 large-scale solver çalışmasının mimari ön hazırlığıdır.
-
-## 11. V1.8.0 — Advanced Nonlinear Mechanics
-
-Research başlıkları:
-
-- robust full Newton,
-- modified Newton,
-- quasi-Newton,
-- advanced line search,
-- automatic increments ve cutback,
-- displacement control,
-- arc-length / Riks,
-- follower loads,
-- finite-strain plasticity,
-- viscoelasticity,
-- creep,
-- damage foundation,
-- consistent tangent verification,
-- history/state management.
-
-Her yeni model akademik formülasyon ve bağımsız benchmark ile sertifikalandırılır.
-
-## 12. V1.9.0 — Advanced Contact
-
-Mevcut rigid-master baseline'dan aşağıdaki seviyeye ilerleme hedeflenir:
-
-- deformable ↔ deformable,
-- surface-to-surface,
-- finite sliding,
-- self-contact,
-- edge/contact özel durumları,
-- penalty ve augmented Lagrangian geliştirmeleri,
-- mortar ve diğer ileri enforcement araştırmaları,
-- Coulomb/friction genişletmeleri,
-- stick/slip robust active set,
-- BVH veya benzeri broad-phase acceleration,
-- curved master surfaces,
-- contact pressure/postprocess,
-- disk restart/history.
-
-## 13. V1.10.0 — Advanced Meshing & Adaptivity
-
-V1.3 mesh üretimidir; V1.10 çözüm odaklı adaptivity'dir.
-
-```text
-Solve
-  ↓
-Error Estimation
-  ↓
-Refinement / Remesh Decision
-  ↓
-Mesh Update
-  ↓
-Solution + State Transfer
-  ↓
-Continue Solve
-```
-
-Kapsam:
-
-- error estimators,
-- h-refinement,
-- local adaptive refinement,
-- mesh distortion monitoring,
-- remeshing / rezoning,
-- solution mapping,
-- history/state-variable mapping,
-- contact recreation,
-- adaptivity convergence criteria.
-
-## 14. V1.11.0 — Large-Scale Solver & Performance
-
-Research adayları Apple Accelerate, ARPACK-NG, SLEPc, PETSc, MUMPS ve uygun diğer sparse backend'lerdir. Yeni dependency kararı lisans, macOS dağıtımı, Fortran/C sınırı ve benchmark sonuçları birlikte değerlendirilmeden verilmez.
-
-Örnek benchmark kademeleri:
-
-```text
-10k DOF
-100k DOF
-500k DOF
-1M DOF
-5M DOF
-```
-
-Ölçümler:
-
-- assembly time,
-- factorization/preconditioner time,
-- solve time,
-- peak RAM,
-- nonlinear/linear iteration count,
-- eigen solve time,
-- parallel efficiency,
-- model/result transfer cost.
-
-## 15. V1.12.0 — Advanced Postprocessing
-
-Raw solver result ile kullanıcıya sunulan derived/averaged result ayrı tutulur.
-
-Hedefler:
-
-- nodal ve integration-point fields,
-- extrapolation / averaging seçenekleri,
-- stress/strain invariants ve principal values,
-- deformed/undeformed overlay,
-- vector glyphs,
-- probe / path,
-- section cut / clipping / iso-surface,
-- XY/history plots,
-- load-displacement, force-time, energy-time,
-- contact pressure/opening/slip,
-- case comparison,
-- modal/transient animation,
-- large-result lazy loading,
-- export/report altyapısı.
-
-GUI, kullanıcının `Integration Point`, `Nodal Extrapolated` veya `Nodal Averaged` sonuç gördüğünü açıkça göstermelidir.
-
-## 16. V1.13.0 — Dynamics
-
-Planlanan analiz ailesi:
-
-- modal,
-- prestressed modal,
-- harmonic response,
-- transient structural,
-- direct time integration,
-- modal superposition,
-- Rayleigh/modal/structural damping,
-- base excitation,
-- response spectrum,
-- random vibration / PSD,
-- nonlinear dynamics.
-
-İleri araştırma hattı:
-
-- rotordynamics,
-- gyroscopic effects,
-- Campbell diagram,
-- critical speeds,
-- complex eigenvalues,
-- imbalance response.
-
-## 17. V2.0.0 — Integrated CAE Qualification
-
-V2.0 yeni özellik sayısından çok bütün zincirin yeterliliğine odaklanır:
-
-```text
-CAD
-→ Mesh
-→ Materials / Sections / Connections
-→ Analysis / Loads / BC
+STEP Geometry
+→ Select Body / Face
+→ Assign Material
+→ Generate Mesh
+→ Create Static Structural Analysis
+→ Enable Nonlinear / Large Deformation
+→ Select Fixed Face
+→ Select Loaded Face
+→ Apply Force / Pressure
+→ Preflight
 → Solve
-→ Results
-→ Project Save / Restart / Reopen
+→ Monitor Newton Convergence
+→ Inspect Displacement / Stress / Reactions
 ```
 
-Qualification kapsamı:
+Bu akış gerçek product consumer ile çalışmadan Dynamics26 “nonlinear analysis ready” sayılmaz.
 
-- independent benchmark suite,
-- regression suite,
-- performance qualification,
-- project schema/backward compatibility,
-- crash/error recovery,
-- documentation/examples,
-- native macOS distribution,
-- Developer ID signing / notarization / stapling,
-- third-party license inventory.
+# 3. Research Gate
 
-## 18. CI stratejisi
+Her büyük work package için implementation öncesinde `docs/research/` altında bir araştırma notu tutulur.
 
-### 18.1 Fast main CI
-
-Her değişiklikte hızlı feedback hedefi:
+Minimum şablon:
 
 ```text
-Configure
-→ Core Build
-→ Core Tests
-→ GUI Compile
-→ Small GUI Smoke
+1. User / Engineering Problem
+2. ANSYS Mechanical
+3. Hexagon Marc / Mentat
+4. COMSOL Multiphysics
+5. Code_Aster / relevant open-source references
+6. Physics / Mathematics
+7. Licensing / source boundary
+8. Dynamics26 Adopt / Adapt / Reject decisions
+9. Architecture impact
+10. Verification / benchmark plan
 ```
 
-### 18.2 Self-hosted MacBook runner
+Araştırma yalnız UI screenshot kıyaslaması değildir. Solver feature için denklem/formülasyon ve benchmark, UI feature için engineering semantics ve interaction modeli incelenir.
 
-Self-hosted `macOS` / `ARM64` runner yalnız güvenilir proje kodunda ve kontrollü workflow ile kullanılır. Özellikle:
+İlk kayıt:
 
-- GUI geliştirme,
-- Qt/VTK/OCCT dependency cache,
-- incremental build,
-- profiling,
-- uzun verification,
-- developer-triggered engineering CI
+`docs/research/NONLINEAR_CAE_REFERENCE_STUDY_2026-09.md`
 
-için kullanılabilir. Untrusted PR kodu otomatik olarak kişisel runner üzerinde çalıştırılmaz.
+# 4. Phase A — Minimum Usable Nonlinear Analysis Workflow
 
-### 18.3 Clean GitHub-hosted release CI
+Bu faz V1.1.0-beta.3'ün ana kapsamıdır.
 
-Release kanıtı temiz ortamda korunur:
+## A1. Project / Navigator workflow
+
+Project tree minimum modeli:
 
 ```text
-Clean macOS ARM64
-→ Release Build
-→ Full Tests
-→ GUI
-→ Install/Deploy
-→ Bundle Fixup
-→ Strict Mach-O Audit
-→ Codesign
-→ Bundle Smoke
-→ Artifact
+Model
+├─ Geometry
+├─ Materials
+├─ Connections
+├─ Mesh
+└─ Analyses
+   └─ Static Structural
+      ├─ Analysis Settings
+      ├─ Fixed Support
+      ├─ Force / Pressure
+      └─ Solution
+         ├─ Total Deformation
+         ├─ Equivalent Stress
+         └─ Reaction Force
 ```
 
-Strict bundle audit yalnız CI geçsin diye gevşetilmez.
+Amaç ANSYS benzeri okunabilir engineering object hiyerarşisi ile COMSOL benzeri physics-aware settings yaklaşımını birleştirmektir; görsel kopyalama yapılmaz.
 
-### 18.4 GUI build performans çalışması
+## A2. Selection / scoping
 
-`gui-build` optimizasyonu tahminle değil ölçümle yapılır. En az şu adımların süreleri kaydedilir:
+Tamamlanacak davranışlar:
 
-- Homebrew/dependency setup,
-- configure,
-- compile,
-- CTest,
-- deploy/macdeployqt,
-- BundleUtilities/fixup,
-- Mach-O audit/sign,
-- artifact compression/upload.
+- Body / Face / Edge / Vertex,
+- FEM Node / Element / Facet,
+- visible-only rectangle selection,
+- current selection count / primary entity,
+- context-aware selection filter,
+- Named Selection create/edit,
+- Geometry Selection ↔ Named Selection scope method,
+- stale scope detection,
+- hide/show/isolate minimum productivity,
+- Esc / Shift / Command interaction,
+- viewport / Navigator / Inspector synchronization.
 
-Sonra caching, incremental build, ccache/sccache uygunluğu, target ayrıştırma ve packaging sıklığı ölçüm sonuçlarına göre değerlendirilir.
+### Load/BC creation workflow
 
-## 19. Sürüm kapatma kuralı
+Hedef kullanıcı davranışı:
 
-Bir sürüm ancak kapsamına uygun acceptance kriterleri ve test kanıtları tamamlandığında kapanır. Dokümantasyonda `PASS`, `verified`, `production-ready` gibi ifadeler gerçek kanıt olmadan kullanılmaz.
+```text
+Select face(s)
+→ Insert Fixed Support / Force / Pressure
+→ current selection persistent scope'a aktarılır
+→ object Inspector açılır
+→ scope ve definition aynı yerde görünür
+```
+
+Kullanıcı isterse önce object oluşturup sonra `Apply Selection` ile scope atayabilir.
+
+## A3. Fixed Support
+
+Minimum production semantics:
+
+- face scope,
+- selected face persistent reference,
+- UX'de fixed support glyph,
+- scope validity,
+- mesh regeneration sonrası re-resolution/stale behavior,
+- solve consumer'a doğru constrained DOF seti.
+
+İleri constraint family daha sonra gelir:
+
+- displacement,
+- remote displacement,
+- symmetry,
+- cylindrical support,
+- elastic support.
+
+## A4. Force / Pressure semantics
+
+ANSYS ve COMSOL'da total force seçili geometry üzerine dağıtılabilir; COMSOL ayrıca reference/deformed area ve pressure semantiğini açık ayırır. Dynamics26'ta da UI ve solver semantiği ayrık olmalıdır.
+
+### Force
+
+`Total Force` başlangıç semantiği:
+
+```text
+F_total = prescribed resultant vector
+A_ref   = total selected reference surface area
+t_ref   = F_total / A_ref
+```
+
+Uniform traction baseline yalnız desteklenen geometry/load türlerinde kullanılacaktır.
+
+### Pressure
+
+```text
+traction = -p n
+```
+
+İşaret convention açıkça dokümante edilmelidir. Large-deformation follower pressure için current normal/current area kullanımına geçiş ayrı formulation/verification work package'ıdır.
+
+### Consistent face load vector
+
+Gerçek FEM yükü viewport'taki arrow glyph sayısına bağlı değildir.
+
+Her element face için:
+
+```text
+f_e = ∫_Γ N^T t dΓ
+```
+
+uygun surface quadrature ile hesaplanır. Çoklu yüzey scope'ta element-face katkıları global load vector'a assemble edilir.
+
+### Arrow visualization
+
+VTK glyph sistemi:
+
+- yalnız kullanıcı feedback'idir,
+- selected geometry üzerinde area-aware sample noktaları üretir,
+- yüzey normali / user vector yönünü gösterir,
+- arrow density zoom ve alanla ölçeklenebilir,
+- magnitude renk/uzunluk semantiği tutarlı olur,
+- arrow count fiziksel yük bölme sayısı değildir,
+- curved surface üzerinde local normals gerekirse ayrı pressure glyph modu kullanır.
+
+## A5. Material assignment minimum
+
+GUI'nin ilk hedefi her constitutive modeli aynı anda production ilan etmek değildir.
+
+Minimum:
+
+- Material object,
+- Material Assignment,
+- Body scope,
+- density,
+- Linear Elastic `E`, `ν`,
+- unit validation,
+- duplicate/missing material diagnostics.
+
+Mevcut hyperelastic backend modelleri material cards'ta capability-aware gösterilebilir. General product consumer doğrulanmadıysa `Unavailable for current analysis consumer` açıkça yazılır.
+
+## A6. Mesh minimum
+
+- Generate Mesh,
+- global element size,
+- node/element count,
+- selected geometry provenance,
+- minimum Jacobian quality,
+- invalid/inverted element rejection,
+- stale state,
+- clear/regenerate,
+- boundary facet provenance for loads/supports.
+
+“Mesh generated” tek başına nonlinear-ready değildir. Preflight kalite ve formulation uyumluluğunu denetler.
+
+## A7. Analysis Settings
+
+Basic görünüm:
+
+- Analysis Type: Static Structural,
+- Linear / Nonlinear intent,
+- Large Deformation,
+- Number of load steps or Automatic,
+- End load factor.
+
+Advanced görünüm:
+
+- Newton method,
+- maximum iterations,
+- adaptive stepping,
+- initial/min/max increment,
+- line search,
+- residual relative tolerance,
+- displacement relative tolerance.
+
+Backend tarafından tüketilmeyen property enabled görünemez.
+
+## A8. Product nonlinear solve bridge
+
+Şu anki DirectLinear general solve ile verification-only nonlinear solver birbirinden ayrıdır.
+
+Beta.3 hedefi mevcut nonlinear core'un doğrulanmış subset'ini gerçek model consumer'a bağlamaktır.
+
+Required chain:
+
+```text
+Document Analysis State
+→ Preflight
+→ Immutable Solver Input Snapshot
+→ C++/C ABI Adapter
+→ Fortran Nonlinear Solver
+→ Typed Session Telemetry
+→ Result Dataset
+```
+
+Kurallar:
+
+- nonlinear intent → DirectLinear fallback yasak,
+- unsupported element/material/contact → solve blocked,
+- telemetry derived state,
+- document mutation solver thread'den yapılmaz,
+- failure reason typed olmalı,
+- rollback/cutback state ana modele kısmi yazılmamalı.
+
+## A9. Convergence UX
+
+Normal kullanıcıya:
+
+- current load factor,
+- current increment,
+- iteration,
+- convergence state,
+- residual trend,
+- warning/failure reason
+
+gösterilir.
+
+Advanced:
+
+- absolute/relative residual,
+- displacement increment,
+- line-search alpha,
+- cutback provenance,
+- minimum J,
+- contact/mixed diagnostics destekleniyorsa.
+
+## A10. Results MVP
+
+İlk production post-processing:
+
+- Total Deformation,
+- directional displacement,
+- Equivalent (von Mises) Stress,
+- reaction forces,
+- deformed shape,
+- undeformed overlay,
+- deformation scale,
+- min/max,
+- probe,
+- result step/substep selector,
+- result entity scope.
+
+Raw integration-point result ile averaged/nodal derived result etiketleri karıştırılmaz.
+
+# 5. Phase B — Mesh, Materials, Material Models, Solver Physics & Mathematics
+
+V1.2.0'ın ana konusu budur.
+
+## B1. Mesh engineering
+
+Araştırma ve geliştirme:
+
+- TET4/TET10 vs HEX8/higher-order stratejisi,
+- geometry curvature,
+- local sizing,
+- transition elements,
+- Jacobian quality,
+- distortion,
+- aspect ratio,
+- skewness,
+- reduced/full/selective integration compatibility,
+- boundary integration orientation,
+- mesh convergence automation,
+- nonlinear element distortion monitor.
+
+Her mesh quality metric'in solver anlamı dokümante edilir; sadece renkli kalite barı eklenmez.
+
+## B2. Material architecture
+
+Material data üç seviyeye ayrılır:
+
+```text
+Material Identity
+→ Physical Properties
+→ Constitutive Models
+```
+
+Her constitutive model:
+
+- input schema,
+- units,
+- parameter constraints,
+- state variables,
+- stress update,
+- tangent,
+- supported kinematics,
+- supported element/formulation,
+- required test data,
+- verification cases
+
+taşır.
+
+## B3. Hyperelastic equations
+
+Öncelik:
+
+1. Neo-Hookean,
+2. Mooney-Rivlin 2P,
+3. Yeoh,
+4. Ogden 1–3 term.
+
+Her model için:
+
+```text
+W(F or C)
+→ stress measure
+→ consistent material tangent
+→ volumetric/isochoric split
+→ parameter sanity
+→ material-point test
+→ single-element test
+→ component benchmark
+```
+
+## B4. Newton-Raphson certification
+
+Temel denge:
+
+```text
+R(u, λ) = F_ext(u, λ) - F_int(u) = 0
+```
+
+Iterasyon:
+
+```text
+K_T(u_i, λ_i) Δu_i = R_i
+u_(i+1) = u_i + α_i Δu_i
+```
+
+Sertifikasyon kapsamı:
+
+- residual sign/unit conventions,
+- tangent consistency,
+- finite-difference tangent check,
+- Full Newton,
+- Modified Newton,
+- tangent reuse,
+- line search,
+- automatic stepping,
+- cutback,
+- convergence tolerances,
+- singular/negative-J handling,
+- iteration cap,
+- rollback,
+- reproducibility.
+
+ANSYS, Marc, COMSOL ve Code_Aster davranışları yalnız reference behavior olarak karşılaştırılır; denklemler bağımsız FEM/continuum mechanics kaynaklarıyla türetilir.
+
+# 6. Phase C — Extension / Plugin Architecture
+
+Bu fazın architecture skeleton'ı V1.2 sırasında başlatılır, SDK V1.3.0'da stabilize edilir.
+
+## C1. Extension principles
+
+- plugin host = C++ application layer,
+- Fortran internals plugin ABI değildir,
+- versioned manifest,
+- semantic capability IDs,
+- explicit dependencies,
+- load/unload lifecycle,
+- errors isolated and reportable,
+- document changes command bus üzerinden,
+- solver extension immutable input/output DTO kullanır,
+- UI extension arbitrary global patch yapamaz.
+
+## C2. Extension types
+
+```text
+UI / Workflow
+Geometry Importer
+Mesh Generator
+Material Model
+Solver Backend
+Result Evaluator
+Exporter / Report
+```
+
+## C3. Material extension direction
+
+Marc user subroutine modeli ve Code_Aster MFront/UMAT coupling yaklaşımı, “constitutive model core solver'dan ayrılabilir mi?” sorusu açısından referanstır.
+
+Dynamics26 hedefi:
+
+```text
+Material Model Plugin
+→ stable constitutive interface
+→ stress + tangent + state update
+→ core element formulation
+```
+
+İleride MFront adapter araştırılabilir; lisans/distribution/API uygunluğu ayrıca denetlenir.
+
+# 7. Phase D — Rubber / Elastomer Mechanics
+
+V1.4.0 ve sonrası.
+
+## D1. Nearly incompressible formulation research
+
+Kauçukta volumetric locking ana risklerden biridir. Aşağıdaki yöntemler akademik benchmark ile karşılaştırılır:
+
+- mixed `u-p`,
+- Herrmann,
+- selective/B-bar,
+- F-bar,
+- reduced integration + stabilization.
+
+Karar kriterleri:
+
+- locking,
+- pressure oscillation,
+- distortion sensitivity,
+- contact compatibility,
+- consistent tangent complexity,
+- performance,
+- 2D/axisymmetric/3D genişleyebilirlik.
+
+## D2. Parameter fitting
+
+Test families:
+
+- uniaxial tension,
+- planar/pure shear,
+- biaxial tension,
+- volumetric/compression.
+
+Fit sisteminde:
+
+- engineering → true measures dönüşümü açık,
+- least-squares objective,
+- data weighting,
+- parameter bounds,
+- stability checks,
+- fit quality,
+- extrapolation warning,
+- model comparison
+
+olmalıdır.
+
+## D3. Rubber product analyses
+
+Representative benchmark components:
+
+- simple rubber block compression,
+- bonded rubber shear,
+- torsion annulus,
+- engine mount stiffness,
+- crank pulley rubber ring torsion,
+- contact-heavy elastomer case.
+
+Son hedef yalnız solver benchmark değil, fiziksel test korelasyonudur.
+
+# 8. Phase E — Advanced Rubber / Contact / Time Dependence
+
+- deformable-deformable finite sliding,
+- friction,
+- viscoelasticity,
+- Prony series,
+- Mullins effect,
+- temperature dependence,
+- frequency-dependent modulus research,
+- preload/history,
+- cyclic analysis,
+- fatigue/damage araştırması.
+
+# 9. Verification hierarchy
+
+Her solver/material özelliği şu piramitten geçer:
+
+```text
+Material Point
+→ Single Element
+→ Patch / Limiting Case
+→ Analytical Benchmark
+→ Published Benchmark
+→ Cross-Code Comparison
+→ Component Test Correlation
+```
+
+Cross-code comparison tek başına doğruluk kanıtı değildir; ANSYS/Marc/COMSOL sonuçları independent reference ile birlikte kullanılır.
+
+# 10. CI / release gates
+
+Her source milestone:
+
+- Debug core regression,
+- Release core regression,
+- C ABI consumer smoke,
+- GUI application acceptance,
+- native arm64 architecture,
+- selection/scope regression,
+- Light/Dark audit,
+- feature-specific benchmark
+
+geçmeden kapatılmaz.
+
+`USER VALIDATED` yalnız kullanıcının fiziksel Mac doğrulamasıdır.
