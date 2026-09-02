@@ -196,8 +196,20 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
     flushUi();
     check(services.project->object(analysisId)->name == originalName,
           "Undo restores exact authoritative Analysis name in ProjectModel");
+    check(details->objectId() == analysisId,
+          "Undo keeps AnalysisDetails bound to the same Analysis ObjectId");
     check(name->text() == originalName,
-          "Undo refreshes the Analysis name widget from authoritative ProjectModel state");
+          "Undo automatically refreshes the Analysis name widget from authoritative ProjectModel state");
+
+    // Diagnostic split: explicit refresh must be sufficient if delivery/timing is
+    // the only remaining fault. This does not replace the automatic-refresh
+    // acceptance above; a failure there still keeps B1.4 red.
+    details->refresh();
+    check(name->text() == originalName,
+          "Explicit AnalysisDetails refresh restores authoritative Analysis name");
+    flushUi();
+    check(name->text() == originalName,
+          "Authoritative Analysis name remains stable after event-loop drain");
     check(!services.analysis->solutionIsOutOfDate(analysisId),
           "Undo Analysis display-name edit preserves current solved engineering signature");
 
