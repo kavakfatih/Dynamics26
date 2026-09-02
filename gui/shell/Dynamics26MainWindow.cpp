@@ -1875,18 +1875,27 @@ void Dynamics26MainWindow::runVerificationPreset(const QString &id)
         utility_->appendSolverOutput(tr("  Newton düzeltmesi   = %1").arg(totalIterations));
         utility_->appendSolverOutput(tr("  Cutback             = %1").arg(cutbacks));
 
-        QVector<QStringList> rows;
-        rows.reserve(historyCount);
+        SolverConvergenceSnapshot snapshot;
+        snapshot.summary.state = SolverConvergenceState::Converged;
+        snapshot.summary.completedLoadFactor = completedLoadFactor;
+        snapshot.summary.finalResidualNorm = finalResidual;
+        snapshot.summary.acceptedSteps = acceptedSteps;
+        snapshot.summary.totalIterations = totalIterations;
+        snapshot.summary.cutbackCount = cutbacks;
+        snapshot.entries.reserve(historyCount);
         for (int i = 0; i < historyCount; ++i) {
-            rows.push_back({QString::number(attempts[static_cast<std::size_t>(i)]),
-                            QString::number(iterations[static_cast<std::size_t>(i)]),
-                            QString::number(loadFactors[static_cast<std::size_t>(i)], 'g', 6),
-                            QString::number(relativeResiduals[static_cast<std::size_t>(i)], 'g', 5),
-                            QString::number(relativeDisplacements[static_cast<std::size_t>(i)], 'g', 5),
-                            QString::number(alphas[static_cast<std::size_t>(i)], 'g', 5),
-                            converged[static_cast<std::size_t>(i)] ? tr("Converged") : tr("Iterating")});
+            const std::size_t index = static_cast<std::size_t>(i);
+            snapshot.entries.push_back(SolverConvergenceEntry{
+                attempts[index],
+                iterations[index],
+                loadFactors[index],
+                relativeResiduals[index],
+                relativeDisplacements[index],
+                alphas[index],
+                converged[index] != 0
+            });
         }
-        utility_->setConvergenceRows(rows);
+        utility_->setConvergenceData(snapshot);
         showUtility(UtilityWorkspace::Tab::Convergence, true);
         reportMessage(tr("Nonlineer doğrulama tamamlandı: %1 yakınsama kaydı.").arg(historyCount), Severity::Success);
         return;

@@ -51,9 +51,6 @@ public:
     // ikinci solver state değildir; yalnız türetilmiş telemetry'yi render eder.
     void setConvergenceData(const SolverConvergenceSnapshot &snapshot);
 
-    // B2.1 compatibility yolu: mevcut nonlinear verification producer'ı B2.2'de
-    // typed contract'a taşınana kadar korunur. Yeni consumer'lar bunu kullanmaz.
-    void setConvergenceRows(const QVector<QStringList> &rows);
     void appendTiming(const QString &operation, double seconds);
     void clearAll();
 

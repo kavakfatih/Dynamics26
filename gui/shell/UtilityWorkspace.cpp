@@ -214,18 +214,19 @@ void UtilityWorkspace::setResultRows(const QVector<QPair<QString, QString>> &row
 
 void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snapshot)
 {
-    QVector<QStringList> rows;
-    rows.reserve(snapshot.entries.size());
-    for (const SolverConvergenceEntry &entry : snapshot.entries) {
-        rows.push_back({QString::number(entry.attempt),
-                        QString::number(entry.iteration),
-                        QString::number(entry.loadFactor, 'g', 6),
-                        QString::number(entry.relativeResidual, 'g', 5),
-                        QString::number(entry.relativeDisplacement, 'g', 5),
-                        QString::number(entry.lineSearchAlpha, 'g', 5),
-                        entry.converged ? tr("Converged") : tr("Iterating")});
+    const int rowCount = static_cast<int>(snapshot.entries.size());
+    convergence_->setRowCount(rowCount);
+    for (int row = 0; row < rowCount; ++row) {
+        const SolverConvergenceEntry &entry = snapshot.entries.at(row);
+        convergence_->setItem(row, 0, new QTableWidgetItem(QString::number(entry.attempt)));
+        convergence_->setItem(row, 1, new QTableWidgetItem(QString::number(entry.iteration)));
+        convergence_->setItem(row, 2, new QTableWidgetItem(QString::number(entry.loadFactor, 'g', 8)));
+        convergence_->setItem(row, 3, new QTableWidgetItem(QString::number(entry.relativeResidual, 'g', 8)));
+        convergence_->setItem(row, 4, new QTableWidgetItem(QString::number(entry.relativeDisplacement, 'g', 8)));
+        convergence_->setItem(row, 5, new QTableWidgetItem(QString::number(entry.lineSearchAlpha, 'g', 8)));
+        convergence_->setItem(row, 6, new QTableWidgetItem(entry.converged ? tr("Converged") : tr("Iterating")));
     }
-    setConvergenceRows(rows);
+    convergence_->resizeRowsToContents();
 
     if (snapshot.summary.state == SolverConvergenceState::Unavailable && snapshot.entries.isEmpty()) {
         convergenceSummary_->setText(tr("Yakınsama verisi yok."));
@@ -233,28 +234,13 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
     }
 
     convergenceSummary_->setText(
-        tr("Durum: %1 | λ = %2 | Kabul edilen adım = %3 | Newton iterasyonu = %4 | Cutback = %5 | Final |R| = %6")
+        tr("Durum: %1 | λ = %2 | Kabul edilen adım = %3 | Newton iterasyonu = %4 | Cutback = %5 | Final residual norm = %6")
             .arg(convergenceStateText(snapshot.summary.state))
             .arg(snapshot.summary.completedLoadFactor, 0, 'g', 8)
             .arg(snapshot.summary.acceptedSteps)
             .arg(snapshot.summary.totalIterations)
             .arg(snapshot.summary.cutbackCount)
             .arg(snapshot.summary.finalResidualNorm, 0, 'g', 8));
-}
-
-void UtilityWorkspace::setConvergenceRows(const QVector<QStringList> &rows)
-{
-    convergence_->setRowCount(static_cast<int>(rows.size()));
-    for (int row = 0; row < rows.size(); ++row) {
-        const QStringList &values = rows.at(row);
-        for (int column = 0; column < values.size() && column < convergence_->columnCount(); ++column) {
-            convergence_->setItem(row, column, new QTableWidgetItem(values.at(column)));
-        }
-    }
-    convergence_->resizeRowsToContents();
-    convergenceSummary_->setText(rows.isEmpty()
-                                     ? tr("Yakınsama verisi yok.")
-                                     : tr("Convergence geçmişi: %1 kayıt.").arg(rows.size()));
 }
 
 void UtilityWorkspace::appendTiming(const QString &operation, const double seconds)
