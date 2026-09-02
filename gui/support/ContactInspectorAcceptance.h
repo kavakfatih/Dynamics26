@@ -359,9 +359,12 @@ inline int runContactInspectorAcceptanceTest(QApplication &app,
                      undoClearSource->sourceScope, generation, sourceFacet),
           "Undo Clear Source restores exact previous FEM Facet identity");
 
-    const int beforeClearTargetCount = commands->stack()->count();
+    // QUndoStack::count() undo ile azalmaz. Undo sonrasında yeni bir komut push
+    // edilirse redo branch'i kesilir ve toplam count aynı kalabilir; yeni document
+    // transaction'ını doğru ölçen değer stack index'idir.
+    const int beforeClearTargetIndex = commands->stack()->index();
     clearTarget->click();
-    check(commands->stack()->count() == beforeClearTargetCount + 1
+    check(commands->stack()->index() == beforeClearTargetIndex + 1
               && services.contacts->validate(contactId).error == ContactValidationError::MissingTargetScope,
           "Clear Target widget creates exactly one persistent scope transaction");
     commands->stack()->undo();
