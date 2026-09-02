@@ -33,7 +33,6 @@ int fem_demo_axial_modal(double young_modulus,
                          double *mid_mode_2,
                          double *tip_mode_2);
 
-
 /* V0.8: load-controlled Total-Lagrangian HEX8 nonlinear preset. Returns 0 on success. */
 int fem_demo_nonlinear_hex8(double young_modulus,
                             double poisson_ratio,
@@ -64,9 +63,7 @@ int fem_demo_nonlinear_hex8(double young_modulus,
                             int *history_converged);
 
 /* Beta.2 B2.5: additive advanced diagnostics ABI for the same nonlinear
- * verification model. The V0.8 function above remains binary/source compatible.
- * Mixed u-p and Contact metrics are intentionally not represented by fake zeros
- * here; those remain unavailable until a supporting solve consumer is bridged. */
+ * verification model. The V0.8 function above remains binary/source compatible. */
 int fem_demo_nonlinear_hex8_diagnostics(
     double young_modulus,
     double poisson_ratio,
@@ -102,7 +99,6 @@ int fem_demo_nonlinear_hex8_diagnostics(
     double *history_minimum_j,
     int *history_converged);
 
-
 /* V0.10: mixed u-p HEX8/P0 manufactured simple-shear verification preset.
  * The requested shear gamma is converted to an internally equilibrated nodal
  * load pattern; returns the coupled Newton solution and element P0 pressure. */
@@ -115,16 +111,87 @@ int fem_demo_mixed_up_hex8_shear(double c10,
                                  double *pressure_residual_norm,
                                  int *total_iterations);
 
-/* V0.11: rigid-master frictionless contact verification preset. enforcement: 1=penalty, 2=augmented Lagrangian. */
+/* Beta.2 B2.5 additive mixed u-p diagnostics. Legacy V0.10 signature is unchanged. */
+int fem_demo_mixed_up_hex8_shear_diagnostics(
+    double c10,
+    double bulk_modulus,
+    double shear_gamma,
+    double *recovered_shear_gamma,
+    double *element_pressure,
+    double *completed_load_factor,
+    double *final_residual_norm,
+    double *final_pressure_residual_norm,
+    double *minimum_j,
+    int *accepted_steps,
+    int *total_iterations,
+    int *cutbacks,
+    int history_capacity,
+    int *history_count,
+    int *history_attempt,
+    int *history_accepted_step_before,
+    int *history_iteration,
+    double *history_load_factor,
+    double *history_load_increment,
+    double *history_residual_norm,
+    double *history_relative_residual,
+    double *history_displacement_increment_norm,
+    double *history_relative_displacement,
+    double *history_pressure_residual_norm,
+    double *history_relative_pressure_residual,
+    double *history_pressure_increment_norm,
+    double *history_alpha,
+    double *history_minimum_j,
+    int *history_converged);
+
+/* V0.11: rigid-master frictionless contact verification preset.
+ * enforcement: 1=penalty, 2=augmented Lagrangian. */
 int fem_demo_contact_hex8(double young_modulus,
-                           double poisson_ratio,
-                           double normal_penalty,
-                           double total_force,
-                           int enforcement,
-                           double *maximum_penetration,
-                           double *total_normal_force,
-                           int *active_contacts,
-                           int *total_iterations);
+                          double poisson_ratio,
+                          double normal_penalty,
+                          double total_force,
+                          int enforcement,
+                          double *maximum_penetration,
+                          double *total_normal_force,
+                          int *active_contacts,
+                          int *total_iterations);
+
+/* Beta.2 B2.5 additive contact diagnostics for the real V0.11 verification
+ * consumer. This does not imply general document-model Contact solve support. */
+int fem_demo_contact_hex8_diagnostics(
+    double young_modulus,
+    double poisson_ratio,
+    double normal_penalty,
+    double total_force,
+    int enforcement,
+    double *maximum_penetration,
+    double *total_normal_force,
+    int *active_contacts,
+    int *stick_contacts,
+    int *slip_contacts,
+    double *completed_load_factor,
+    double *final_residual_norm,
+    double *minimum_j,
+    int *accepted_steps,
+    int *total_iterations,
+    int *cutbacks,
+    int history_capacity,
+    int *history_count,
+    int *history_attempt,
+    int *history_accepted_step_before,
+    int *history_iteration,
+    double *history_load_factor,
+    double *history_load_increment,
+    double *history_residual_norm,
+    double *history_relative_residual,
+    double *history_displacement_increment_norm,
+    double *history_relative_displacement,
+    double *history_alpha,
+    double *history_minimum_j,
+    int *history_active_contacts,
+    int *history_stick_contacts,
+    int *history_slip_contacts,
+    double *history_maximum_penetration,
+    int *history_converged);
 
 /* V0.9: hyperelastic Material Studio C ABI. Model IDs: 1=Neo-Hookean,
  * 2=Mooney-Rivlin, 3=Yeoh, 4=Ogden. Parameter arrays use Pa for stress-like

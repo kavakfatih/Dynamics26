@@ -11,9 +11,9 @@
 // Newton geçmişi üretmez. Bu yüzden Newton iteration/cutback/load-factor gibi
 // unavailable metrikler 0 ile doldurulup kullanıcıya gerçek ölçüm gibi sunulmaz.
 //
-// B2.5 advanced diagnostics alanlari std::optional ile temsil edilir. Solver veya
-// application boundary bir metriği gerçekten üretmiyorsa 0.0 mühendislik değeri
-// uydurmak yerine std::nullopt kullanılır.
+// B2.5 advanced/coupled diagnostics alanlari std::optional ile temsil edilir.
+// Solver veya application boundary bir metriği gerçekten üretmiyorsa 0.0
+// mühendislik değeri uydurmak yerine std::nullopt kullanılır.
 
 #include <QVector>
 
@@ -64,8 +64,7 @@ struct SolverConvergenceEntry {
     double lineSearchAlpha{1.0};
     bool converged{false};
 
-    // B2.5 authoritative advanced subset. Eski B2.1/B2.2 aggregate
-    // initializers ilk yedi alanla geriye uyumlu kalır.
+    // Shared nonlinear diagnostics.
     std::optional<int> acceptedStepBefore;
     std::optional<double> loadIncrement;
     std::optional<double> residualNorm;
@@ -74,6 +73,19 @@ struct SolverConvergenceEntry {
     SolverAdaptiveEvent adaptiveEvent{SolverAdaptiveEvent::Unavailable};
     SolverCriterionState residualCriterion{SolverCriterionState::Unavailable};
     SolverCriterionState displacementCriterion{SolverCriterionState::Unavailable};
+
+    // Mixed u-p telemetry. Yalnız pressure DOF içeren real solver consumer'ı
+    // tarafından doldurulur.
+    std::optional<double> pressureResidualNorm;
+    std::optional<double> relativePressureResidual;
+    std::optional<double> pressureIncrementNorm;
+
+    // Contact telemetry. 0 adet active/stick/slip gerçek bir ölçüm olabilir;
+    // availability std::optional ile ayrılır.
+    std::optional<int> activeContactCount;
+    std::optional<int> stickContactCount;
+    std::optional<int> slipContactCount;
+    std::optional<double> maximumPenetration;
 };
 
 struct SolverConvergenceSummary {
@@ -88,6 +100,12 @@ struct SolverConvergenceSummary {
     std::optional<double> minimumJacobian;
     SolverMetricAvailability pressureMetrics{SolverMetricAvailability::Unavailable};
     SolverMetricAvailability contactMetrics{SolverMetricAvailability::Unavailable};
+    std::optional<double> finalPressureResidualNorm;
+    std::optional<int> finalActiveContactCount;
+    std::optional<int> finalStickContactCount;
+    std::optional<int> finalSlipContactCount;
+    std::optional<double> maximumPenetration;
+    std::optional<double> totalContactNormalForce;
 };
 
 struct SolverConvergenceSnapshot {

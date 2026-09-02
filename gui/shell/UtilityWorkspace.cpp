@@ -66,6 +66,11 @@ QString optionalNumber(const std::optional<double> &value)
     return value.has_value() ? QString::number(*value, 'g', 8) : QStringLiteral("—");
 }
 
+QString optionalInteger(const std::optional<int> &value)
+{
+    return value.has_value() ? QString::number(*value) : QStringLiteral("—");
+}
+
 QString adaptiveEventText(const SolverAdaptiveEvent event)
 {
     switch (event) {
@@ -78,7 +83,7 @@ QString adaptiveEventText(const SolverAdaptiveEvent event)
 }
 
 QString criterionText(const SolverCriterionState residual,
-                     const SolverCriterionState displacement)
+                      const SolverCriterionState displacement)
 {
     const auto symbol = [](const SolverCriterionState state) {
         switch (state) {
@@ -114,10 +119,6 @@ ObjectId subjectFromItem(const QTableWidgetItem *item)
 
 bool isLegacyPreflightCheckEcho(const QString &text)
 {
-    // MainWindow::runPreflight() her ayrıntı satırını bu üç engineering status
-    // marker'ından biriyle üretir. Structured Preflight tablo ayrıntının tek
-    // sunum yüzeyi olduğundan yalnız bu marker'lı satırlar bastırılır; başka
-    // Warning/Error mesajları asla genel bir prefix filtresine takılmaz.
     return text.startsWith(QStringLiteral("✓ "))
         || text.startsWith(QStringLiteral("! "))
         || text.startsWith(QStringLiteral("✕ "));
@@ -151,13 +152,13 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
     auto *convergenceLayout = new QVBoxLayout(convergencePage);
     convergenceLayout->setContentsMargins(8, 6, 8, 6);
     convergenceLayout->setSpacing(6);
+
     convergenceSummary_ = new QLabel(tr("Yakınsama verisi yok."), convergencePage);
     convergenceSummary_->setObjectName(QStringLiteral("Dynamics26UtilityConvergenceSummary"));
     convergenceSummary_->setWordWrap(true);
     convergenceSummary_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     convergence_ = makeTable({tr("Attempt"), tr("Iter"), tr("Load Factor"), tr("Rel. |R|"), tr("Rel. Δu"),
-                              QStringLiteral("α"), tr("Durum")},
-                             convergencePage);
+                              QStringLiteral("α"), tr("Durum")}, convergencePage);
     convergence_->setObjectName(QStringLiteral("Dynamics26UtilityConvergence"));
 
     diagnosticsSummary_ = new QLabel(tr("Advanced diagnostics: Unavailable"), convergencePage);
@@ -169,10 +170,21 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
                              convergencePage);
     diagnostics_->setObjectName(QStringLiteral("Dynamics26UtilityConvergenceDiagnostics"));
 
+    coupledDiagnosticsSummary_ = new QLabel(tr("Coupled / Contact diagnostics: Unavailable"), convergencePage);
+    coupledDiagnosticsSummary_->setObjectName(QStringLiteral("Dynamics26UtilityCoupledDiagnosticsSummary"));
+    coupledDiagnosticsSummary_->setWordWrap(true);
+    coupledDiagnosticsSummary_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    coupledDiagnostics_ = makeTable({tr("Attempt"), tr("Iter"), QStringLiteral("|Rp|"), tr("Rel. Rp"),
+                                     QStringLiteral("|Δp|"), tr("Active"), tr("Stick"), tr("Slip"),
+                                     tr("Penetration")}, convergencePage);
+    coupledDiagnostics_->setObjectName(QStringLiteral("Dynamics26UtilityCoupledDiagnostics"));
+
     convergenceLayout->addWidget(convergenceSummary_);
     convergenceLayout->addWidget(convergence_, 2);
     convergenceLayout->addWidget(diagnosticsSummary_);
     convergenceLayout->addWidget(diagnostics_, 1);
+    convergenceLayout->addWidget(coupledDiagnosticsSummary_);
+    convergenceLayout->addWidget(coupledDiagnostics_, 1);
 
     results_ = makeTable({tr("Sonuç"), tr("Değer")}, tabs_);
     timings_ = makeTable({tr("İşlem"), tr("Süre")}, tabs_);
@@ -194,18 +206,12 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
             emit preflightSubjectActivated(subject);
         }
     };
-    // Subject sütununda tek tık hızlı navigation'dır; klavye/double-click ile
-    // oluşan cellActivated da aynı yolu kullanır. Aynı ObjectId'ye iki kez gitmek
-    // MainWindow::selectObject no-op davranışı sayesinde document state üretmez.
     connect(preflight_, &QTableWidget::cellClicked, this, activateSubject);
     connect(preflight_, &QTableWidget::cellActivated, this, activateSubject);
 }
 
 void UtilityWorkspace::appendMessage(const QString &text, const Severity severity)
 {
-    // Legacy Preflight marker ayrıntı echo'sunun başlangıcıdır. Marker ve devam
-    // eden check satırları Messages'a yazılmaz; ilk marker'sız mesaj canonical
-    // runPreflight() final Ready/Failed özetidir ve normal tarihçeye alınır.
     if (text == QStringLiteral("── PRE-FLIGHT ──")) {
         suppressingPreflightEcho_ = true;
         return;
@@ -283,7 +289,9 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
     convergence_->resizeRowsToContents();
 
     QVector<const SolverConvergenceEntry *> advancedRows;
+    QVector<const SolverConvergenceEntry *> coupledRows;
     advancedRows.reserve(rowCount);
+    coupledRows.reserve(rowCount);
     for (const SolverConvergenceEntry &entry : snapshot.entries) {
         const bool hasAdvanced = entry.loadIncrement.has_value()
             || entry.residualNorm.has_value()
@@ -294,6 +302,16 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
             || entry.displacementCriterion != SolverCriterionState::Unavailable;
         if (hasAdvanced) {
             advancedRows.push_back(&entry);
+        }
+        const bool hasCoupled = entry.pressureResidualNorm.has_value()
+            || entry.relativePressureResidual.has_value()
+            || entry.pressureIncrementNorm.has_value()
+            || entry.activeContactCount.has_value()
+            || entry.stickContactCount.has_value()
+            || entry.slipContactCount.has_value()
+            || entry.maximumPenetration.has_value();
+        if (hasCoupled) {
+            coupledRows.push_back(&entry);
         }
     }
 
@@ -312,32 +330,45 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
     }
     diagnostics_->resizeRowsToContents();
 
+    coupledDiagnostics_->setRowCount(static_cast<int>(coupledRows.size()));
+    for (int row = 0; row < coupledRows.size(); ++row) {
+        const SolverConvergenceEntry &entry = *coupledRows.at(row);
+        coupledDiagnostics_->setItem(row, 0, new QTableWidgetItem(QString::number(entry.attempt)));
+        coupledDiagnostics_->setItem(row, 1, new QTableWidgetItem(QString::number(entry.iteration)));
+        coupledDiagnostics_->setItem(row, 2, new QTableWidgetItem(optionalNumber(entry.pressureResidualNorm)));
+        coupledDiagnostics_->setItem(row, 3, new QTableWidgetItem(optionalNumber(entry.relativePressureResidual)));
+        coupledDiagnostics_->setItem(row, 4, new QTableWidgetItem(optionalNumber(entry.pressureIncrementNorm)));
+        coupledDiagnostics_->setItem(row, 5, new QTableWidgetItem(optionalInteger(entry.activeContactCount)));
+        coupledDiagnostics_->setItem(row, 6, new QTableWidgetItem(optionalInteger(entry.stickContactCount)));
+        coupledDiagnostics_->setItem(row, 7, new QTableWidgetItem(optionalInteger(entry.slipContactCount)));
+        coupledDiagnostics_->setItem(row, 8, new QTableWidgetItem(optionalNumber(entry.maximumPenetration)));
+    }
+    coupledDiagnostics_->resizeRowsToContents();
+
     if (snapshot.summary.state == SolverConvergenceState::Unavailable && snapshot.entries.isEmpty()) {
         convergenceSummary_->setText(tr("Yakınsama verisi yok."));
         diagnosticsSummary_->setText(tr("Advanced diagnostics: Unavailable"));
+        coupledDiagnosticsSummary_->setText(tr("Coupled / Contact diagnostics: Unavailable"));
         return;
     }
 
-    // B2.4: Direct linear solve Newton iteration history üretmez. Bu nedenle
-    // nonlinear-only metrikler 0 placeholder ile gösterilmez. Session state ve
-    // execution mode gerçek capability'yi açıkça ifade eder.
     if (snapshot.summary.executionMode == SolverExecutionMode::DirectLinear) {
         convergenceSummary_->setText(
             tr("Durum: %1 | Direct solve | Newton history: not applicable")
                 .arg(convergenceStateText(snapshot.summary.state)));
         diagnosticsSummary_->setText(tr("Advanced diagnostics: Direct solve için uygulanmaz."));
+        coupledDiagnosticsSummary_->setText(tr("Coupled / Contact diagnostics: Direct solve için uygulanmaz."));
         diagnostics_->setRowCount(0);
+        coupledDiagnostics_->setRowCount(0);
         return;
     }
 
-    // B2.1/B2.2 snapshot producer'ları executionMode alanından önce yazılmıştır.
-    // Non-empty Newton history güvenli compatibility provenance'ıdır; yeni model
-    // solve producer'ları ise executionMode'u her zaman explicit doldurur.
     const bool nonlinearHistory = snapshot.summary.executionMode == SolverExecutionMode::NonlinearNewton
         || (snapshot.summary.executionMode == SolverExecutionMode::Unavailable && !snapshot.entries.isEmpty());
     if (!nonlinearHistory) {
         convergenceSummary_->setText(tr("Yakınsama verisi yok."));
         diagnosticsSummary_->setText(tr("Advanced diagnostics: Unavailable"));
+        coupledDiagnosticsSummary_->setText(tr("Coupled / Contact diagnostics: Unavailable"));
         return;
     }
 
@@ -365,6 +396,26 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
                      availabilityText(snapshot.summary.pressureMetrics),
                      availabilityText(snapshot.summary.contactMetrics)));
     }
+
+    if (snapshot.summary.pressureMetrics == SolverMetricAvailability::Available) {
+        coupledDiagnosticsSummary_->setText(
+            tr("Mixed u-p verification: Available | Final |Rp| = %1 | Contact: %2")
+                .arg(optionalNumber(snapshot.summary.finalPressureResidualNorm),
+                     availabilityText(snapshot.summary.contactMetrics)));
+    } else if (snapshot.summary.contactMetrics == SolverMetricAvailability::Available) {
+        coupledDiagnosticsSummary_->setText(
+            tr("Contact verification: Available | Active = %1 | Stick = %2 | Slip = %3 | Max penetration = %4 | Normal force = %5 | Mixed u-p: %6")
+                .arg(optionalInteger(snapshot.summary.finalActiveContactCount),
+                     optionalInteger(snapshot.summary.finalStickContactCount),
+                     optionalInteger(snapshot.summary.finalSlipContactCount),
+                     optionalNumber(snapshot.summary.maximumPenetration),
+                     optionalNumber(snapshot.summary.totalContactNormalForce),
+                     availabilityText(snapshot.summary.pressureMetrics)));
+    } else {
+        coupledDiagnosticsSummary_->setText(
+            tr("Coupled / Contact diagnostics: Mixed u-p: Unavailable | Contact: Unavailable"));
+        coupledDiagnostics_->setRowCount(0);
+    }
 }
 
 void UtilityWorkspace::appendTiming(const QString &operation, const double seconds)
@@ -386,6 +437,8 @@ void UtilityWorkspace::clearAll()
     convergenceSummary_->setText(tr("Yakınsama verisi yok."));
     diagnostics_->setRowCount(0);
     diagnosticsSummary_->setText(tr("Advanced diagnostics: Unavailable"));
+    coupledDiagnostics_->setRowCount(0);
+    coupledDiagnosticsSummary_->setText(tr("Coupled / Contact diagnostics: Unavailable"));
     results_->setRowCount(0);
     timings_->setRowCount(0);
 }

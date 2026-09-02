@@ -109,11 +109,74 @@ int main(void)
     }
 
     {
+        double gamma=0.0,p=0.0,lf=0.0,rn=0.0,pr=0.0,minj=0.0;
+        int steps=0,iters=0,cutbacks=0,hcount=0;
+        int hatt[64]={0},hstep[64]={0},hiter[64]={0},hconv[64]={0};
+        double hload[64]={0.0},hinc[64]={0.0},hres[64]={0.0},hrelres[64]={0.0};
+        double hdu[64]={0.0},hreldu[64]={0.0},hpr[64]={0.0},hrelpr[64]={0.0};
+        double hdp[64]={0.0},halpha[64]={0.0},hminj[64]={0.0};
+        int rc=fem_demo_mixed_up_hex8_shear_diagnostics(
+            0.9e6,2.0e9,0.12,&gamma,&p,&lf,&rn,&pr,&minj,&steps,&iters,&cutbacks,
+            64,&hcount,hatt,hstep,hiter,hload,hinc,hres,hrelres,hdu,hreldu,
+            hpr,hrelpr,hdp,halpha,hminj,hconv);
+        if(rc!=0 || gamma<0.119999 || gamma>0.120001 || fabs(p)>1.0e-4 ||
+           lf!=1.0 || pr>1.0e-10 || iters<1 || hcount<1 || minj<=0.0){
+            fprintf(stderr,"FAIL mixed diagnostics rc=%d gamma=%.17g p=%.17g lf=%.17g pr=%.17g hcount=%d\n",
+                    rc,gamma,p,lf,pr,hcount);
+            failed=1;
+        } else {
+            int i;
+            for(i=0;i<hcount;i++){
+                if(hatt[i]<1 || hstep[i]<0 || hiter[i]<1 || hinc[i]<=0.0 || hres[i]<0.0 ||
+                   hdu[i]<0.0 || hpr[i]<0.0 || hdp[i]<0.0 || hminj[i]<=0.0){
+                    fprintf(stderr,"FAIL mixed diagnostics row=%d att=%d step=%d iter=%d dload=%.17g R=%.17g Rp=%.17g dp=%.17g minJ=%.17g\n",
+                            i,hatt[i],hstep[i],hiter[i],hinc[i],hres[i],hpr[i],hdp[i],hminj[i]);
+                    failed=1;
+                    break;
+                }
+            }
+        }
+    }
+
+    {
         double pen=0.0,nf=0.0; int active=0,iters=0;
         int rc=fem_demo_contact_hex8(1.0e6,0.30,1.0e8,1000.0,1,&pen,&nf,&active,&iters);
         if(rc!=0 || active!=4 || pen<=0.0 || pen>1.0e-4 || fabs(nf-1000.0)>1.0e-2 || iters<1){
             fprintf(stderr,"FAIL contact demo rc=%d pen=%.17g nf=%.17g active=%d iters=%d\n",rc,pen,nf,active,iters);
             failed=1;
+        }
+    }
+
+    {
+        double pen=0.0,nf=0.0,lf=0.0,rn=0.0,minj=0.0;
+        int active=0,stick=0,slip=0,steps=0,iters=0,cutbacks=0,hcount=0;
+        int hatt[64]={0},hstep[64]={0},hiter[64]={0},hconv[64]={0};
+        int hactive[64]={0},hstick[64]={0},hslip[64]={0};
+        double hload[64]={0.0},hinc[64]={0.0},hres[64]={0.0},hrelres[64]={0.0};
+        double hdu[64]={0.0},hreldu[64]={0.0},halpha[64]={0.0},hminj[64]={0.0},hpen[64]={0.0};
+        int rc=fem_demo_contact_hex8_diagnostics(
+            1.0e6,0.30,1.0e8,1000.0,1,&pen,&nf,&active,&stick,&slip,
+            &lf,&rn,&minj,&steps,&iters,&cutbacks,64,&hcount,
+            hatt,hstep,hiter,hload,hinc,hres,hrelres,hdu,hreldu,halpha,hminj,
+            hactive,hstick,hslip,hpen,hconv);
+        if(rc!=0 || active!=4 || pen<=0.0 || pen>1.0e-4 || fabs(nf-1000.0)>1.0e-2 ||
+           lf!=1.0 || iters<1 || hcount<1 || minj<=0.0){
+            fprintf(stderr,"FAIL contact diagnostics rc=%d pen=%.17g nf=%.17g active=%d stick=%d slip=%d hcount=%d\n",
+                    rc,pen,nf,active,stick,slip,hcount);
+            failed=1;
+        } else {
+            int i, saw_active=0;
+            for(i=0;i<hcount;i++){
+                if(hatt[i]<1 || hstep[i]<0 || hiter[i]<1 || hinc[i]<=0.0 || hres[i]<0.0 ||
+                   hdu[i]<0.0 || hactive[i]<0 || hstick[i]<0 || hslip[i]<0 || hpen[i]<0.0 || hminj[i]<=0.0){
+                    fprintf(stderr,"FAIL contact diagnostics row=%d att=%d step=%d iter=%d active=%d stick=%d slip=%d pen=%.17g\n",
+                            i,hatt[i],hstep[i],hiter[i],hactive[i],hstick[i],hslip[i],hpen[i]);
+                    failed=1;
+                    break;
+                }
+                if(hactive[i]>0) saw_active=1;
+            }
+            if(!saw_active){ fprintf(stderr,"FAIL contact diagnostics no active-contact history row\n"); failed=1; }
         }
     }
 

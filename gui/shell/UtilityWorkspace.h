@@ -77,6 +77,10 @@ private:
     // contract'ını bozmaz; ayrı typed presentation yüzeyidir.
     QLabel *diagnosticsSummary_{nullptr};
     QTableWidget *diagnostics_{nullptr};
+    // B2.5 coupled diagnostics yalnız real mixed/contact verification consumer'ı
+    // veri ürettiğinde dolar; unsupported metric hücreleri explicit unavailable'dır.
+    QLabel *coupledDiagnosticsSummary_{nullptr};
+    QTableWidget *coupledDiagnostics_{nullptr};
     QTableWidget *results_{nullptr};
     QTableWidget *timings_{nullptr};
     // Legacy MainWindow::runPreflight() önce Messages'a marker + her kontrol

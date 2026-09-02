@@ -92,9 +92,11 @@ private:
     // composition-helper erişimine sahiptir.
     friend class SelectionCoordinator;
     // Beta.2 B2.5 production verification migration. Helper ayrı engineering
-    // state yaratmaz; mevcut private Utility/reporting yüzeyini tek canonical
-    // verify.nonlinear QAction'ı için kullanır.
+    // state yaratmaz; mevcut private Utility/reporting yüzeyini canonical
+    // verification QAction'ları için kullanır.
     friend void runAdvancedNonlinearVerification(Dynamics26MainWindow &window);
+    friend void runAdvancedMixedUpVerification(Dynamics26MainWindow &window);
+    friend void runAdvancedContactVerification(Dynamics26MainWindow &window);
 
     void buildServices();
     void buildLayout();

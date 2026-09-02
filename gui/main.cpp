@@ -25,6 +25,7 @@
 #include "support/ContactPreflightAcceptance.h"
 #include "support/ContactScreenshotDriver.h"
 #include "support/ContactShellAcceptance.h"
+#include "support/CoupledVerificationCommand.h"
 #include "support/InspectorUxAcceptance.h"
 #include "support/IntegratedWorkflowAcceptance.h"
 #include "support/MaterialInspectorAcceptance.h"
@@ -34,6 +35,7 @@
 #include "support/ScreenshotDriver.h"
 #include "support/SelectionAcceptanceTest.h"
 #include "support/SelfTest.h"
+#include "support/SolverCoupledDiagnosticsAcceptance.h"
 #include "support/SolverDiagnosticsAcceptance.h"
 #include "support/SolverWorkspaceAcceptance.h"
 
@@ -121,18 +123,24 @@ int main(int argc, char *argv[])
     window.services().analysis->setNamedSelectionService(window.services().namedSelections);
     window.services().analysis->setContactService(window.services().contacts);
 
-    // B2.5b: command surface identity `verify.nonlinear` olarak kalır. Registry
-    // yalnız emitted internal route ID'sini değiştirir; MainWindow'un legacy
-    // `verify.*` generic handler'ı bu ID'yi tüketmez. Böylece yeni advanced
-    // handler tek solver çağrısı yapar ve ikinci/fake verification solve oluşmaz.
-    constexpr auto kAdvancedNonlinearVerificationRoute = "solver.verifyNonlinearAdvanced";
+    // B2.5: verification command surface identity'leri korunur. Registry yalnız
+    // emitted internal route ID'sini değiştirir; MainWindow'un legacy verify.*
+    // generic handler'ı routed ID'leri tüketmez. Her helper tek real solver çağrısı
+    // ile authoritative typed telemetry üretir; duplicate/fake solve oluşturulmaz.
     window.commandRegistry()->routeSignal(
-        QStringLiteral("verify.nonlinear"),
-        QString::fromLatin1(kAdvancedNonlinearVerificationRoute));
+        QStringLiteral("verify.nonlinear"), QStringLiteral("solver.verifyNonlinearAdvanced"));
+    window.commandRegistry()->routeSignal(
+        QStringLiteral("verify.mixedUp"), QStringLiteral("solver.verifyMixedUpAdvanced"));
+    window.commandRegistry()->routeSignal(
+        QStringLiteral("verify.contact"), QStringLiteral("solver.verifyContactAdvanced"));
     QObject::connect(window.commandRegistry(), &d26::CommandRegistry::commandTriggered, &window,
                      [&window](const QString &commandId) {
         if (commandId == QStringLiteral("solver.verifyNonlinearAdvanced")) {
             d26::runAdvancedNonlinearVerification(window);
+        } else if (commandId == QStringLiteral("solver.verifyMixedUpAdvanced")) {
+            d26::runAdvancedMixedUpVerification(window);
+        } else if (commandId == QStringLiteral("solver.verifyContactAdvanced")) {
+            d26::runAdvancedContactVerification(window);
         }
     });
 
@@ -257,6 +265,10 @@ int main(int argc, char *argv[])
         const int solverDiagnosticsStatus = d26::runSolverDiagnosticsAcceptanceTest(app, window);
         if (solverDiagnosticsStatus != 0) {
             return solverDiagnosticsStatus;
+        }
+        const int solverCoupledStatus = d26::runSolverCoupledDiagnosticsAcceptanceTest(app, window);
+        if (solverCoupledStatus != 0) {
+            return solverCoupledStatus;
         }
         const int boundaryStatus = d26::runBoundaryConsumerAcceptanceTest(app, window);
         if (boundaryStatus != 0) {
