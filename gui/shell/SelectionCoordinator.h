@@ -524,8 +524,14 @@ private:
                        this, &SelectionCoordinator::handleMeshContextMenu);
         }
 
-        graphics_->setSelectionFilter(*filter);
+        // Contact edit normalde Connections context'inden başlar. Bu context'te
+        // Mesh Facet (ve bazı CAD topology) filter action'ları gizli olabilir;
+        // filter'ı önce set etmek GraphicsWorkspace tarafından bilinçli olarak
+        // reddedilir. Önce doğru engineering viewport/domain'i aktive et, sonra
+        // zorunlu Face/Facet filter ve SelectionPolicy'yi kesin olarak uygula.
         activateContactEditViewport();
+        graphics_->setSelectionFilter(*filter);
+        configurePolicy(*filter);
         selection_->clearPreselection();
         (void)selection_->clear();
 
