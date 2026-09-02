@@ -20,19 +20,29 @@ name: macOS GUI application acceptance
       - "gui/support/BoundaryConsumerAcceptance.h"
       - "gui/support/PreflightAcceptance.h"
       - "gui/support/IntegratedWorkflowAcceptance.h"
+      - "gui/support/ContactPreflightAcceptance.h"
+      - "gui/support/ContactPersistenceAcceptance.h"
+      - "gui/support/ContactShellAcceptance.h"
+      - "gui/support/ContactInspectorAcceptance.h"
       - "gui/core/ScopeSelectionBridge.h"
       - "gui/core/ScopeReferenceBuilder.h"
       - "gui/core/SelectionManager.*"
       - "gui/services/NamedSelectionService.*"
+      - "gui/services/ContactService.*"
       - "gui/services/AnalysisBoundaryScope.cpp"
       - "gui/services/AnalysisService.*"
       - "gui/services/MaterialService.*"
       - "gui/details/ObjectDetails.*"
       - "gui/details/AnalysisDetails.*"
       - "gui/details/BoundaryConditionDetails.*"
+      - "gui/details/ConnectionsDetails.h"
+      - "gui/details/ContactDetails.h"
       - "gui/commands/NamedSelectionCommands.h"
+      - "gui/commands/ContactCommands.h"
       - "gui/commands/DomainCommands.*"
       - "tests/gui/test_named_selection.cpp"
+      - "tests/gui/test_contact_service.cpp"
+      - "tests/gui/test_contact_commands.cpp"
   workflow_dispatch:
 
 permissions:
@@ -109,6 +119,10 @@ jobs:
           grep -q "Boundary consumer acceptance PASS" <<< "$output"
           grep -q "Alpha.4 Preflight acceptance PASS" <<< "$output"
           grep -q "Alpha.4 Integrated workflow acceptance PASS" <<< "$output"
+          grep -q "Contact Preflight safety acceptance PASS" <<< "$output"
+          grep -q "Contact project persistence acceptance PASS" <<< "$output"
+          grep -q "Contact shell mutation acceptance PASS" <<< "$output"
+          grep -q "Contact Inspector authoring acceptance PASS" <<< "$output"
 
       - name: Verify native arm64 app
         shell: bash
