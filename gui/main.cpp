@@ -168,6 +168,22 @@ int main(int argc, char *argv[])
         window.selectObject(subject);
     });
 
+    // B2.4 model-solve telemetry presentation. AnalysisService owns the derived
+    // solve-session snapshot; composition root only routes the authoritative
+    // active-analysis snapshot into Utility Workspace. Document Undo/persistence
+    // is not touched by this presentation observer.
+    QObject::connect(window.services().analysis, &d26::AnalysisService::solverTelemetryChanged, &window,
+                     [&window](const d26::ObjectId analysisId) {
+        if (analysisId != window.currentAnalysis()) {
+            return;
+        }
+        const d26::SolverConvergenceSnapshot *snapshot =
+            window.services().analysis->solverTelemetry(analysisId);
+        if (snapshot != nullptr) {
+            window.utility()->setConvergenceData(*snapshot);
+        }
+    });
+
     // Hosted shell acceptance pencereyi göstermek zorunda değildir; QObject,
     // model ve widget-state signal zinciri görünürlükten bağımsız çalışır. Bu
     // ayrım QVTK/OpenGL'i headless CI'da gereksiz yere ekrana bağlamaz.

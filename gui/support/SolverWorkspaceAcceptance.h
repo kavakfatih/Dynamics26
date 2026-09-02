@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../commands/DomainCommands.h"
 #include "../core/DocumentCommandManager.h"
 #include "../core/ProjectModel.h"
 #include "../core/SolverTelemetry.h"
@@ -75,6 +76,7 @@ inline int runSolverWorkspaceAcceptanceTest(QApplication &app, Dynamics26MainWin
     // B2.1 foundation: typed DTO doğrudan presentation'a verildiğinde tablo ve
     // summary deterministik render edilir; bu telemetry document state değildir.
     SolverConvergenceSnapshot snapshot;
+    snapshot.summary.executionMode = SolverExecutionMode::NonlinearNewton;
     snapshot.summary.state = SolverConvergenceState::Converged;
     snapshot.summary.completedLoadFactor = 1.0;
     snapshot.summary.finalResidualNorm = 2.5e-10;
@@ -119,10 +121,6 @@ inline int runSolverWorkspaceAcceptanceTest(QApplication &app, Dynamics26MainWin
     check(undoStack->count() == undoBefore,
           "Empty telemetry reset also leaves document Undo state unchanged");
 
-    // B2.2 production-path acceptance: referans veri aynı gerçek C ABI nonlinear
-    // verification preset'inden alınır. Ardından shell'deki verify.nonlinear
-    // komutu çalıştırılır ve Utility Workspace satırları bu authoritative history
-    // ile bire bir karşılaştırılır. Fake telemetry bu bölümde kullanılmaz.
     const ServiceContext services = window.services();
     check(services.project != nullptr && services.geometry != nullptr && services.mesh != nullptr
               && services.materials != nullptr && services.analysis != nullptr,
@@ -132,6 +130,96 @@ inline int runSolverWorkspaceAcceptanceTest(QApplication &app, Dynamics26MainWin
         return 1;
     }
 
+    // B2.4 production model-solve acceptance. Normal AnalysisService::solve()
+    // şu anda gerçek lineer HEX8 consumer'dır. Bu nedenle typed telemetry Direct
+    // Linear session göstermeli ve unavailable Newton-only metrics üretmemelidir.
+    window.newProjectWithoutPrompt();
+    window.documentCommands()->resetHistory();
+    const ObjectId linearAnalysisId = window.firstObjectOfType(ObjectType::Analysis);
+    check(linearAnalysisId != InvalidObjectId,
+          "B2.4 fixture resolves the real default Static Structural analysis");
+    check(window.runCommand(QStringLiteral("mesh.generate")),
+          "B2.4 fixture generates current FEM mesh through canonical command");
+    app.processEvents();
+    check(services.analysis->preflight(linearAnalysisId).passed(),
+          "B2.4 production model solve fixture passes authoritative Preflight");
+
+    const int linearUndoCountBefore = undoStack->count();
+    const int linearUndoIndexBefore = undoStack->index();
+    const bool linearDirtyBefore = window.documentCommands()->isDirty();
+    const QJsonObject linearAnalysisJsonBefore = services.analysis->analysisToJson(linearAnalysisId);
+
+    check(window.runCommand(QStringLiteral("analysis.solve")),
+          "B2.4 executes production analysis.solve through canonical command registry");
+    app.processEvents();
+
+    const SolverConvergenceSnapshot *linearTelemetry = services.analysis->solverTelemetry(linearAnalysisId);
+    check(linearTelemetry != nullptr
+              && linearTelemetry->summary.executionMode == SolverExecutionMode::DirectLinear
+              && linearTelemetry->summary.state == SolverConvergenceState::Completed,
+          "AnalysisService owns a completed DirectLinear solve-session telemetry snapshot");
+    check(linearTelemetry != nullptr && linearTelemetry->entries.isEmpty(),
+          "Direct linear model solve publishes no fake Newton iteration history");
+    check(table->rowCount() == 0,
+          "Utility Convergence table remains empty for DirectLinear solve");
+
+    const QString directSummary = summary->text();
+    check(directSummary.contains(QStringLiteral("Completed"))
+              && directSummary.contains(QStringLiteral("Direct solve"))
+              && directSummary.contains(QStringLiteral("Newton history: not applicable")),
+          "Direct solve summary explicitly states execution mode and Newton-history applicability");
+    check(!directSummary.contains(QStringLiteral("Newton iterasyonu"))
+              && !directSummary.contains(QStringLiteral("Cutback ="))
+              && !directSummary.contains(QStringLiteral("λ ="))
+              && !directSummary.contains(QStringLiteral("Final residual norm")),
+          "Direct solve summary does not invent unavailable nonlinear metrics as zero values");
+    check(undoStack->count() == linearUndoCountBefore
+              && undoStack->index() == linearUndoIndexBefore
+              && window.documentCommands()->isDirty() == linearDirtyBefore,
+          "Production model solve telemetry creates no document Undo or dirty-state mutation");
+    check(services.analysis->analysisToJson(linearAnalysisId) == linearAnalysisJsonBefore,
+          "Derived solve-session telemetry is excluded from persistent Analysis JSON");
+
+    const AnalysisRecord *linearRecord = services.analysis->analysis(linearAnalysisId);
+    check(linearRecord != nullptr && linearRecord->solved
+              && !services.analysis->solutionIsOutOfDate(linearAnalysisId),
+          "B2.4 fixture has current calculated results before lifecycle-separation check");
+    if (linearRecord == nullptr || linearRecord->loads.isEmpty()) {
+        return 1;
+    }
+
+    const ObjectId loadId = linearRecord->loads.first();
+    const LoadDefinition *load = services.analysis->load(loadId);
+    check(load != nullptr, "B2.4 lifecycle fixture resolves the real Force definition");
+    if (load == nullptr) {
+        return 1;
+    }
+    LoadDefinition changedLoad = *load;
+    changedLoad.fxN += 125.0;
+    window.documentCommands()->push(
+        new commands::SetForceCommand(services, loadId, *load, changedLoad));
+    app.processEvents();
+
+    linearTelemetry = services.analysis->solverTelemetry(linearAnalysisId);
+    check(services.analysis->solutionIsOutOfDate(linearAnalysisId),
+          "Engineering input mutation marks calculated result lifecycle Out of Date");
+    check(linearTelemetry != nullptr
+              && linearTelemetry->summary.executionMode == SolverExecutionMode::DirectLinear
+              && linearTelemetry->summary.state == SolverConvergenceState::Completed
+              && linearTelemetry->entries.isEmpty(),
+          "Result staleness does not rewrite the last completed solve-session telemetry lifecycle");
+    check(summary->text().contains(QStringLiteral("Direct solve"))
+              && summary->text().contains(QStringLiteral("Completed")),
+          "Utility keeps last completed DirectLinear session while result state becomes stale");
+    undoStack->undo();
+    app.processEvents();
+    check(!services.analysis->solutionIsOutOfDate(linearAnalysisId),
+          "Undo engineering input restores current result signature without fabricating a new solve session");
+
+    // B2.2 production-path acceptance: referans veri aynı gerçek C ABI nonlinear
+    // verification preset'inden alınır. Ardından shell'deki verify.nonlinear
+    // komutu çalıştırılır ve Utility Workspace satırları bu authoritative history
+    // ile bire bir karşılaştırılır. Fake telemetry bu bölümde kullanılmaz.
     const MaterialDefinition *material = services.materials->assigned();
     const double young = (material != nullptr ? material->youngGPa : 210.0) * 1.0e9;
     const double poisson = material != nullptr ? material->poisson : 0.30;
@@ -226,6 +314,8 @@ inline int runSolverWorkspaceAcceptanceTest(QApplication &app, Dynamics26MainWin
           "Production summary contains direct C ABI cutback count");
     check(summaryText.contains(QStringLiteral("Final residual norm = %1").arg(finalResidualNorm, 0, 'g', 8)),
           "Production summary preserves absolute final residual norm semantics");
+    check(!summaryText.contains(QStringLiteral("Direct solve")),
+          "Real nonlinear verification history is not mislabeled as Direct solve");
 
     check(undoStack->count() == undoCountBeforeCommand
               && undoStack->index() == undoIndexBeforeCommand

@@ -7,18 +7,24 @@
 // taşır. Widget bu verinin sahibi veya validator'ı değildir; persistence ve
 // document Undo history'sine girmez.
 //
-// B2.1 bilinçli olarak bugün C ABI'den güvenilir şekilde çıkan ortak subset'i
-// tanımlar. Load increment, mixed u-p ve Contact metrikleri gerçek application
-// solve consumer'ları bağlandıkça bu contract'a ayrıca eklenecektir; mevcut
-// olmayan metrikler sahte 0 değerleriyle temsil edilmez.
+// B2.4 execution mode ayrımı kritik bir semantik sınırdır: doğrudan lineer solve
+// Newton geçmişi üretmez. Bu yüzden Newton iteration/cutback/load-factor gibi
+// unavailable metrikler 0 ile doldurulup kullanıcıya gerçek ölçüm gibi sunulmaz.
 
 #include <QVector>
 
 namespace d26 {
 
+enum class SolverExecutionMode {
+    Unavailable = 0,
+    DirectLinear,
+    NonlinearNewton
+};
+
 enum class SolverConvergenceState {
     Unavailable = 0,
     Running,
+    Completed,
     Converged,
     Failed
 };
@@ -34,6 +40,7 @@ struct SolverConvergenceEntry {
 };
 
 struct SolverConvergenceSummary {
+    SolverExecutionMode executionMode{SolverExecutionMode::Unavailable};
     SolverConvergenceState state{SolverConvergenceState::Unavailable};
     double completedLoadFactor{0.0};
     double finalResidualNorm{0.0};

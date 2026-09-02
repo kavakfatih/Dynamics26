@@ -9,8 +9,8 @@
 // Model durumu / türetilmiş veri ayrımı:
 //   MODEL STATE     → analiz ayarları, BC/yük tanımları, sonuç TANIMLARI
 //                     (undoable, projede saklanır)
-//   DERIVED STATE   → üretilmiş mesh sonuçları, ResultDatabase alan değerleri
-//                     (Undo yığınına girmez, projede saklanmaz)
+//   DERIVED STATE   → üretilmiş mesh sonuçları, ResultDatabase alan değerleri,
+//                     solve-session telemetry (Undo/persistence'a girmez)
 //
 // §11 gereği kullanıcı niyeti (Incompressibility: Automatic) ile solver
 // implementasyonu (mixed u-p / HEX8-P0) ayrılır.
@@ -18,6 +18,7 @@
 #include "../core/ProjectModel.h"
 #include "../core/ProjectTypes.h"
 #include "../core/ScopeReferenceBuilder.h"
+#include "../core/SolverTelemetry.h"
 #include "MaterialService.h"
 #include "MeshService.h"
 
@@ -180,6 +181,7 @@ struct AnalysisRecord {
     SolveResults solveResults;
     femcae::meshing::ResultDatabase resultDatabase;
     SolveState solveState{SolveState::Idle};
+    SolverConvergenceSnapshot solverTelemetry;
     // Çözümün üretildiği GİRDİ İMZASI. Monoton sayaç yerine içerik imzası
     // kullanılır: bir değişikliği Undo ile geri almak sonuçları yeniden
     // geçerli kılar, çünkü solver girdisi tekrar aynı hale gelir.
@@ -251,6 +253,11 @@ public:
     bool solve(ObjectId analysisId);
     void clearSolution(ObjectId analysisId);
     [[nodiscard]] SolveState solveState(ObjectId analysisId) const;
+    [[nodiscard]] const SolverConvergenceSnapshot *solverTelemetry(ObjectId analysisId) const
+    {
+        const AnalysisRecord *record = analysis(analysisId);
+        return record != nullptr ? &record->solverTelemetry : nullptr;
+    }
 
     [[nodiscard]] bool hasResults(ObjectId analysisId) const;
     // Çözüm var ama girdiler değiştiyse sonuçlar bayattır.
@@ -262,7 +269,7 @@ public:
 
     // --- kalıcılık ---
     // Tek bir analizin tam anlık görüntüsü. Undo (Delete Analysis) ve proje
-    // kaydı aynı temsili kullanır.
+    // kaydı aynı temsili kullanır. solverTelemetry özellikle bu temsile girmez.
     [[nodiscard]] QJsonObject analysisToJson(ObjectId analysisId) const;
     ObjectId restoreAnalysis(const QJsonObject &entry, int row = -1);
     [[nodiscard]] int rowOfAnalysis(ObjectId analysisId) const;
@@ -276,6 +283,7 @@ signals:
     void message(const QString &text, d26::Severity severity);
     void solverOutput(const QString &text);
     void solveStateChanged(ObjectId analysisId, d26::SolveState state);
+    void solverTelemetryChanged(ObjectId analysisId);
     void resultsChanged(ObjectId analysisId);
 
 private:

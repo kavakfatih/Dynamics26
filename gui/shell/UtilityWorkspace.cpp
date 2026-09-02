@@ -54,6 +54,7 @@ QString convergenceStateText(const SolverConvergenceState state)
     switch (state) {
     case SolverConvergenceState::Unavailable: return QStringLiteral("Unavailable");
     case SolverConvergenceState::Running:     return QStringLiteral("Running");
+    case SolverConvergenceState::Completed:   return QStringLiteral("Completed");
     case SolverConvergenceState::Converged:   return QStringLiteral("Converged");
     case SolverConvergenceState::Failed:      return QStringLiteral("Failed");
     }
@@ -229,6 +230,26 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
     convergence_->resizeRowsToContents();
 
     if (snapshot.summary.state == SolverConvergenceState::Unavailable && snapshot.entries.isEmpty()) {
+        convergenceSummary_->setText(tr("Yakınsama verisi yok."));
+        return;
+    }
+
+    // B2.4: Direct linear solve Newton iteration history üretmez. Bu nedenle
+    // nonlinear-only metrikler 0 placeholder ile gösterilmez. Session state ve
+    // execution mode gerçek capability'yi açıkça ifade eder.
+    if (snapshot.summary.executionMode == SolverExecutionMode::DirectLinear) {
+        convergenceSummary_->setText(
+            tr("Durum: %1 | Direct solve | Newton history: not applicable")
+                .arg(convergenceStateText(snapshot.summary.state)));
+        return;
+    }
+
+    // B2.1/B2.2 snapshot producer'ları executionMode alanından önce yazılmıştır.
+    // Non-empty Newton history güvenli compatibility provenance'ıdır; yeni model
+    // solve producer'ları ise executionMode'u her zaman explicit doldurur.
+    const bool nonlinearHistory = snapshot.summary.executionMode == SolverExecutionMode::NonlinearNewton
+        || (snapshot.summary.executionMode == SolverExecutionMode::Unavailable && !snapshot.entries.isEmpty());
+    if (!nonlinearHistory) {
         convergenceSummary_->setText(tr("Yakınsama verisi yok."));
         return;
     }

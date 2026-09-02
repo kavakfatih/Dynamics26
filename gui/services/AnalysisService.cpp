@@ -266,6 +266,57 @@ QStringList PreflightReport::failureMessages() const
 AnalysisService::AnalysisService(ProjectModel *project, MeshService *mesh, MaterialService *materials, QObject *parent)
     : QObject(parent), project_(project), mesh_(mesh), materials_(materials)
 {
+    // B2.4 solve-session telemetry AnalysisService'in derived state'idir.
+    // Preflight yalnız bir gate'tir; gerçek solver session Solving ile başlar.
+    // Böylece preflight failure için sahte Direct/ Newton session üretilmez.
+    connect(this, &AnalysisService::solveStateChanged, this,
+            [this](const ObjectId analysisId, const SolveState state) {
+        auto it = analyses_.find(analysisId);
+        if (it == analyses_.end()) {
+            return;
+        }
+
+        SolverConvergenceSnapshot next = it->solverTelemetry;
+        switch (state) {
+        case SolveState::Idle:
+        case SolveState::Preflight:
+        case SolveState::Ready:
+            next = {};
+            break;
+        case SolveState::Solving:
+            next = {};
+            next.summary.executionMode = SolverExecutionMode::DirectLinear;
+            next.summary.state = SolverConvergenceState::Running;
+            break;
+        case SolveState::Completed:
+            if (next.summary.executionMode != SolverExecutionMode::DirectLinear) {
+                next = {};
+                next.summary.executionMode = SolverExecutionMode::DirectLinear;
+            }
+            next.summary.state = SolverConvergenceState::Completed;
+            next.entries.clear();
+            break;
+        case SolveState::Failed:
+            // Failed sinyali Preflight failure sonrasında da gelir. Yalnız daha
+            // önce Solving ile gerçek DirectLinear session başladıysa failure
+            // telemetry'si yayınlanır; aksi halde unavailable kalır.
+            if (next.summary.executionMode == SolverExecutionMode::DirectLinear) {
+                next.summary.state = SolverConvergenceState::Failed;
+                next.entries.clear();
+            } else {
+                next = {};
+            }
+            break;
+        case SolveState::Cancelled:
+            // Mevcut eşzamanlı solver cancellation üretmiyor. İleride gerçek
+            // cancellation state contract'a eklendiğinde ayrı ifade edilecek.
+            next = {};
+            break;
+        }
+
+        it->solverTelemetry = next;
+        emit solverTelemetryChanged(analysisId);
+    });
 }
 
 bool AnalysisService::isActive(const ObjectId id) const
@@ -1046,7 +1097,8 @@ void AnalysisService::clearSolution(const ObjectId analysisId)
         return;
     }
     // Analiz, ayarlar, sınır şartları, yükler ve SONUÇ TANIMLARI korunur;
-    // yalnız hesaplanmış alan değerleri silinir.
+    // yalnız hesaplanmış alan değerleri silinir. Idle transition B2.4 derived
+    // solve-session telemetry'sini de kendi signal adapter'ı üzerinden temizler.
     record.solved = false;
     record.solveResults = {};
     record.resultDatabase.clear();
