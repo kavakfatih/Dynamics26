@@ -39,8 +39,13 @@ DetailsRow::DetailsRow(const QString &label, QWidget *value, const bool shaded, 
     layout->setSpacing(8);
 
     label_ = new ui::SecondaryLabel(label, 0.62, 0.80, this);
+    label_->setObjectName(QStringLiteral("Dynamics26DetailsRowLabel"));
     label_->setFont(ui::compactFont(this));
     label_->setFixedWidth(kLabelColumnWidth);
+    // Inspector paneli daraltıldığında uzun engineering etiketleri kesilmez.
+    // Sabit label kolonu korunur; yalnız satır gerektiği kadar düşey büyür.
+    label_->setWordWrap(true);
+    label_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     label_->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     layout->addWidget(label_);
 
@@ -84,12 +89,19 @@ DetailsSection::DetailsSection(const QString &title, const bool collapsible, con
 
     if (collapsible) {
         disclosure_ = new QToolButton(header);
+        disclosure_->setObjectName(QStringLiteral("Dynamics26DetailsSectionDisclosure"));
         disclosure_->setAutoRaise(true);
         disclosure_->setCheckable(true);
         disclosure_->setArrowType(collapsed ? Qt::RightArrow : Qt::DownArrow);
         disclosure_->setChecked(!collapsed);
         disclosure_->setFixedSize(14, 14);
-        disclosure_->setFocusPolicy(Qt::NoFocus);
+        // Advanced/Test Data gibi Inspector bölümleri yalnız pointer ile değil,
+        // Tab + Space/Enter ile de açılıp kapanabilmelidir. Native Qt focus ring
+        // sistem paletinden gelir; özel QSS/focus rengi üretilmez.
+        disclosure_->setFocusPolicy(Qt::StrongFocus);
+        disclosure_->setAccessibleName(title);
+        disclosure_->setAccessibleDescription(collapsed ? tr("Bölümü aç") : tr("Bölümü kapat"));
+        disclosure_->setToolTip(collapsed ? tr("Bölümü aç") : tr("Bölümü kapat"));
         headerLayout->addWidget(disclosure_);
     }
 
@@ -120,6 +132,8 @@ void DetailsSection::setCollapsed(const bool collapsed)
     body_->setVisible(!collapsed);
     if (disclosure_ != nullptr) {
         disclosure_->setArrowType(collapsed ? Qt::RightArrow : Qt::DownArrow);
+        disclosure_->setAccessibleDescription(collapsed ? tr("Bölümü aç") : tr("Bölümü kapat"));
+        disclosure_->setToolTip(collapsed ? tr("Bölümü aç") : tr("Bölümü kapat"));
     }
 }
 
@@ -256,6 +270,7 @@ QPushButton *DetailsPage::makeActionButton(const QString &text)
 {
     auto *button = new QPushButton(text);
     button->setMinimumHeight(24);
+    button->setFocusPolicy(Qt::StrongFocus);
     return button;
 }
 
