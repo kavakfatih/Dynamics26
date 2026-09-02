@@ -1,12 +1,13 @@
 #pragma once
 
-// Dynamics26 V1.1.0-beta.1 / B1.4 — Analysis Inspector application acceptance.
+// Dynamics26 V1.1.0-beta.1 / B1.4 + Beta.2 B2.3 — Analysis Inspector acceptance.
 //
 // Bu test fiziksel pointer UX testi değildir. Gerçek MainWindow composition
 // üzerinde AnalysisDetails -> canonical command/service -> Undo/dependency ->
 // Inspector refresh zincirini doğrular. Preflight için tek doğruluk kaynağı
 // AnalysisService::preflight() olarak kalır; Inspector ikinci readiness state'i
-// üretmez.
+// üretmez. B2.3 bölümü nonlinear controls authoring, persistence ve validation
+// contract'ını doğrular; general nonlinear model consumer desteği iddia etmez.
 
 #include "../core/DocumentCommandManager.h"
 #include "../core/ProjectModel.h"
@@ -21,17 +22,21 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QDoubleSpinBox>
 #include <QEvent>
 #include <QEventLoop>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMetaObject>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QTableWidget>
 #include <QTabWidget>
 #include <QTimer>
 #include <QUndoStack>
 
+#include <cmath>
 #include <iostream>
 #include <string>
 
@@ -57,6 +62,10 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
         QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);
         loop.exec();
         app.processEvents(QEventLoop::AllEvents, 60);
+    };
+    const auto near = [](const double actual, const double expected) {
+        const double scale = std::max(1.0, std::max(std::abs(actual), std::abs(expected)));
+        return std::abs(actual - expected) <= 1.0e-10 * scale;
     };
 
     const ServiceContext services = window.services();
@@ -91,6 +100,16 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
     auto *procedure = details->findChild<QLabel *>(QStringLiteral("analysisInspector.procedure"));
     auto *largeDeflection = details->findChild<QComboBox *>(QStringLiteral("analysisInspector.largeDeflection"));
     auto *incompressibility = details->findChild<QComboBox *>(QStringLiteral("analysisInspector.incompressibility"));
+    auto *nonlinearConsumer = details->findChild<QLabel *>(QStringLiteral("analysisInspector.nonlinearConsumer"));
+    auto *nonlinearMethod = details->findChild<QComboBox *>(QStringLiteral("analysisInspector.nonlinearMethod"));
+    auto *maximumIterations = details->findChild<QSpinBox *>(QStringLiteral("analysisInspector.maximumIterations"));
+    auto *adaptiveStepping = details->findChild<QComboBox *>(QStringLiteral("analysisInspector.adaptiveStepping"));
+    auto *lineSearch = details->findChild<QComboBox *>(QStringLiteral("analysisInspector.lineSearch"));
+    auto *initialIncrement = details->findChild<QDoubleSpinBox *>(QStringLiteral("analysisInspector.initialIncrement"));
+    auto *minimumIncrement = details->findChild<QDoubleSpinBox *>(QStringLiteral("analysisInspector.minimumIncrement"));
+    auto *maximumIncrement = details->findChild<QDoubleSpinBox *>(QStringLiteral("analysisInspector.maximumIncrement"));
+    auto *residualTolerance = details->findChild<QDoubleSpinBox *>(QStringLiteral("analysisInspector.residualTolerance"));
+    auto *displacementTolerance = details->findChild<QDoubleSpinBox *>(QStringLiteral("analysisInspector.displacementTolerance"));
     auto *activeSupports = details->findChild<QLabel *>(QStringLiteral("analysisInspector.activeSupports"));
     auto *activeLoads = details->findChild<QLabel *>(QStringLiteral("analysisInspector.activeLoads"));
     auto *meshReadiness = details->findChild<QLabel *>(QStringLiteral("analysisInspector.meshReadiness"));
@@ -101,13 +120,23 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
     auto *solve = details->findChild<QPushButton *>(QStringLiteral("analysisInspector.solve"));
 
     check(name != nullptr && procedure != nullptr && largeDeflection != nullptr
-              && incompressibility != nullptr && activeSupports != nullptr
+              && incompressibility != nullptr && nonlinearConsumer != nullptr
+              && nonlinearMethod != nullptr && maximumIterations != nullptr
+              && adaptiveStepping != nullptr && lineSearch != nullptr
+              && initialIncrement != nullptr && minimumIncrement != nullptr
+              && maximumIncrement != nullptr && residualTolerance != nullptr
+              && displacementTolerance != nullptr && activeSupports != nullptr
               && activeLoads != nullptr && meshReadiness != nullptr
               && materialReadiness != nullptr && state != nullptr && results != nullptr
               && preflight != nullptr && solve != nullptr,
-          "Analysis Inspector exposes stable definition/readiness/lifecycle/action bindings");
+          "Analysis Inspector exposes stable definition/solver-control/readiness/lifecycle/action bindings");
     if (name == nullptr || procedure == nullptr || largeDeflection == nullptr
-        || incompressibility == nullptr || activeSupports == nullptr
+        || incompressibility == nullptr || nonlinearConsumer == nullptr
+        || nonlinearMethod == nullptr || maximumIterations == nullptr
+        || adaptiveStepping == nullptr || lineSearch == nullptr
+        || initialIncrement == nullptr || minimumIncrement == nullptr
+        || maximumIncrement == nullptr || residualTolerance == nullptr
+        || displacementTolerance == nullptr || activeSupports == nullptr
         || activeLoads == nullptr || meshReadiness == nullptr
         || materialReadiness == nullptr || state == nullptr || results == nullptr
         || preflight == nullptr || solve == nullptr) {
@@ -122,6 +151,11 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
               && meshReadiness->text().contains(QStringLiteral("Not generated"), Qt::CaseInsensitive)
               && materialReadiness->text().contains(QStringLiteral("Ready"), Qt::CaseInsensitive),
           "fresh Analysis Inspector reads identity/procedure/default consumers/readiness from authoritative services");
+    check(!nonlinearMethod->isEnabled() && !maximumIterations->isEnabled()
+              && nonlinearConsumer->text().contains(QStringLiteral("Inactive"), Qt::CaseInsensitive)
+              && nonlinearMethod->currentIndex() == 0 && maximumIterations->value() == 25
+              && adaptiveStepping->currentIndex() == 1 && lineSearch->currentIndex() == 1,
+          "linear Static Structural Inspector shows nonlinear defaults but keeps inactive authoring controls disabled");
 
     // Inspector Run Preflight yalnız mevcut shell command registry yolunu ister.
     // Mesh henüz yokken blocking rapor beklenir; bu salt diagnostics işlemi Undo
@@ -232,6 +266,135 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
               && state->text().contains(QStringLiteral("Solved"), Qt::CaseInsensitive)
               && !state->text().contains(QStringLiteral("Out of Date"), Qt::CaseInsensitive),
           "Undo exact solver input restores current solution lifecycle and Inspector state");
+
+    // ------------------------------------------------------------------
+    // B2.3 — Solver Controls Authoring
+    // ------------------------------------------------------------------
+    check(static_cast<int>(NonlinearMethodIntent::FullNewton) == 1
+              && static_cast<int>(NonlinearMethodIntent::ModifiedNewton) == 2,
+          "Nonlinear method intent IDs match authoritative Fortran solver constants 1/2");
+
+    const ObjectId nonlinearId = services.analysis->createAnalysis(AnalysisType::NonlinearStatic);
+    check(nonlinearId != InvalidObjectId,
+          "B2.3 fixture creates a real Nonlinear Static analysis object");
+    window.documentCommands()->resetHistory();
+    window.selectObject(nonlinearId);
+    flushUi();
+    record = services.analysis->analysis(nonlinearId);
+    check(record != nullptr && nonlinearMethod->isEnabled() && maximumIterations->isEnabled()
+              && adaptiveStepping->isEnabled() && lineSearch->isEnabled()
+              && initialIncrement->isEnabled() && minimumIncrement->isEnabled()
+              && maximumIncrement->isEnabled() && residualTolerance->isEnabled()
+              && displacementTolerance->isEnabled()
+              && nonlinearConsumer->text().contains(QStringLiteral("Unavailable"), Qt::CaseInsensitive),
+          "Nonlinear Static Inspector enables authoring controls but explicitly marks model consumer unavailable");
+    if (record == nullptr) {
+        return failures + 1;
+    }
+
+    check(record->nonlinearControls.method == NonlinearMethodIntent::FullNewton
+              && record->nonlinearControls.maximumIterations == 25
+              && record->nonlinearControls.adaptiveStepping
+              && near(record->nonlinearControls.initialLoadIncrement, 0.25)
+              && near(record->nonlinearControls.minimumLoadIncrement, 1.0e-4)
+              && near(record->nonlinearControls.maximumLoadIncrement, 0.50)
+              && record->nonlinearControls.lineSearch
+              && near(record->nonlinearControls.residualRelativeTolerance, 1.0e-8)
+              && near(record->nonlinearControls.displacementRelativeTolerance, 1.0e-8),
+          "Nonlinear Static starts from core-aligned persistent control defaults");
+
+    const int methodUndoIndex = stack->index();
+    nonlinearMethod->setCurrentIndex(1);
+    flushUi();
+    record = services.analysis->analysis(nonlinearId);
+    check(record != nullptr && stack->index() == methodUndoIndex + 1
+              && record->nonlinearControls.method == NonlinearMethodIntent::ModifiedNewton,
+          "Newton Method widget creates exactly one canonical document transaction");
+    stack->undo();
+    flushUi();
+    record = services.analysis->analysis(nonlinearId);
+    check(record != nullptr && record->nonlinearControls.method == NonlinearMethodIntent::FullNewton
+              && nonlinearMethod->currentIndex() == 0,
+          "Undo restores authoritative Newton method intent and Inspector binding");
+
+    // Custom state bütün B2.3 alanlarını gerçek widget command yollarından geçirir.
+    window.documentCommands()->resetHistory();
+    nonlinearMethod->setCurrentIndex(1);
+    maximumIterations->setValue(37);
+    QMetaObject::invokeMethod(maximumIterations, "editingFinished", Qt::DirectConnection);
+    adaptiveStepping->setCurrentIndex(0);
+    lineSearch->setCurrentIndex(0);
+    initialIncrement->setValue(0.20);
+    QMetaObject::invokeMethod(initialIncrement, "editingFinished", Qt::DirectConnection);
+    minimumIncrement->setValue(0.01);
+    QMetaObject::invokeMethod(minimumIncrement, "editingFinished", Qt::DirectConnection);
+    maximumIncrement->setValue(0.40);
+    QMetaObject::invokeMethod(maximumIncrement, "editingFinished", Qt::DirectConnection);
+    residualTolerance->setValue(1.0e-7);
+    QMetaObject::invokeMethod(residualTolerance, "editingFinished", Qt::DirectConnection);
+    displacementTolerance->setValue(1.0e-6);
+    QMetaObject::invokeMethod(displacementTolerance, "editingFinished", Qt::DirectConnection);
+    flushUi();
+
+    record = services.analysis->analysis(nonlinearId);
+    NonlinearSolverControls authored;
+    authored.method = NonlinearMethodIntent::ModifiedNewton;
+    authored.maximumIterations = 37;
+    authored.adaptiveStepping = false;
+    authored.initialLoadIncrement = 0.20;
+    authored.minimumLoadIncrement = 0.01;
+    authored.maximumLoadIncrement = 0.40;
+    authored.lineSearch = false;
+    authored.residualRelativeTolerance = 1.0e-7;
+    authored.displacementRelativeTolerance = 1.0e-6;
+    check(record != nullptr && record->nonlinearControls == authored && stack->count() == 9,
+          "Basic and Advanced nonlinear widgets author the exact typed control snapshot through document commands");
+
+    const QJsonObject persisted = services.analysis->analysisToJson(nonlinearId);
+    const QJsonObject controlsJson = persisted.value(QStringLiteral("nonlinear_solver_controls")).toObject();
+    check(!controlsJson.isEmpty()
+              && controlsJson.value(QStringLiteral("method")).toInt() == 2
+              && controlsJson.value(QStringLiteral("maximum_iterations")).toInt() == 37,
+          "Analysis persistence stores typed nonlinear controls with core-aligned method identity");
+
+    const int nonlinearRow = services.analysis->rowOfAnalysis(nonlinearId);
+    check(services.analysis->removeAnalysis(nonlinearId),
+          "B2.3 persistence fixture removes authored analysis before exact restore");
+    const ObjectId restoredId = services.analysis->restoreAnalysis(persisted, nonlinearRow);
+    record = services.analysis->analysis(restoredId);
+    check(restoredId == nonlinearId && record != nullptr && record->nonlinearControls == authored,
+          "Analysis persistence round-trip restores every nonlinear solver control exactly");
+
+    QJsonObject legacyEntry = persisted;
+    legacyEntry.remove(QStringLiteral("nonlinear_solver_controls"));
+    check(services.analysis->removeAnalysis(restoredId),
+          "B2.3 backward-compatibility fixture removes restored analysis");
+    const ObjectId legacyRestoredId = services.analysis->restoreAnalysis(legacyEntry, nonlinearRow);
+    record = services.analysis->analysis(legacyRestoredId);
+    const NonlinearSolverControls defaults;
+    check(legacyRestoredId == nonlinearId && record != nullptr && record->nonlinearControls == defaults,
+          "Older analysis JSON without nonlinear_solver_controls migrates to safe core-aligned defaults");
+
+    // Preflight validation, malformed persistent authoring state'i solver'a
+    // ulaşmadan yakalamalı. Consumer zaten unsupported olduğundan bu kontrol
+    // capability iddiası değildir; yalnız authoring contract validation'dır.
+    NonlinearSolverControls invalid = defaults;
+    invalid.initialLoadIncrement = 0.20;
+    invalid.minimumLoadIncrement = 0.30;
+    services.analysis->setNonlinearSolverControls(legacyRestoredId, invalid);
+    const PreflightReport invalidReport = services.analysis->preflight(legacyRestoredId);
+    bool foundControlFailure = false;
+    const AnalysisRecord *invalidRecord = services.analysis->analysis(legacyRestoredId);
+    for (const PreflightCheck &entry : invalidReport.checks) {
+        if (entry.status == PreflightCheck::Status::Failed
+            && entry.label == QStringLiteral("Nonlinear Solver Controls")
+            && invalidRecord != nullptr && entry.subject == invalidRecord->settingsNode) {
+            foundControlFailure = true;
+            break;
+        }
+    }
+    check(foundControlFailure,
+          "Preflight blocks invalid nonlinear control ranges at the authoritative Analysis Settings subject");
 
     // Sonraki acceptance paketleri başlangıç varsayımlarını açıkça alsın.
     window.newProjectWithoutPrompt();

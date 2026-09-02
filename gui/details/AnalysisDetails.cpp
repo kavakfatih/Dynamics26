@@ -9,11 +9,13 @@
 #include "../shell/Dynamics26MainWindow.h"
 
 #include <QComboBox>
+#include <QDoubleSpinBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLayoutItem>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -39,9 +41,32 @@ AnalysisDetails::AnalysisDetails(const ServiceContext &services, QWidget *parent
     incompressibility_->setObjectName(QStringLiteral("analysisInspector.incompressibility"));
     formulation->addRow(tr("Incompressibility"), incompressibility_);
 
+    // B2.3 Basic solver controls. Widget'lar state sahibi değildir; her edit
+    // AnalysisRecord::nonlinearControls authoritative snapshot'ına canonical
+    // document command üzerinden gider.
     auto *solverSection = addSection(tr("Solver"));
     solver_ = solverSection->addValueRow(tr("Solver"), tr("Automatic"));
     solver_->setObjectName(QStringLiteral("analysisInspector.solver"));
+    nonlinearConsumer_ = solverSection->addValueRow(tr("Nonlinear Consumer"));
+    nonlinearConsumer_->setObjectName(QStringLiteral("analysisInspector.nonlinearConsumer"));
+
+    nonlinearMethod_ = makeCombo({tr("Full Newton-Raphson"), tr("Modified Newton")});
+    nonlinearMethod_->setObjectName(QStringLiteral("analysisInspector.nonlinearMethod"));
+    solverSection->addRow(tr("Newton Method"), nonlinearMethod_);
+
+    maximumIterations_ = makeIntField(1, 10000);
+    maximumIterations_->setObjectName(QStringLiteral("analysisInspector.maximumIterations"));
+    solverSection->addRow(tr("Max Iterations"), maximumIterations_);
+
+    adaptiveStepping_ = makeCombo({tr("Off"), tr("On")});
+    adaptiveStepping_->setObjectName(QStringLiteral("analysisInspector.adaptiveStepping"));
+    solverSection->addRow(tr("Adaptive Stepping"), adaptiveStepping_);
+
+    lineSearch_ = makeCombo({tr("Off"), tr("On")});
+    lineSearch_->setObjectName(QStringLiteral("analysisInspector.lineSearch"));
+    solverSection->addRow(tr("Line Search"), lineSearch_);
+    solverSection->addNote(tr("Nonlinear controls kalıcı Analysis Settings state'idir. Yalnız Nonlinear Static "
+                              "authoring bağlamında düzenlenir; general model nonlinear solver consumer henüz bağlı değildir."));
 
     auto *readiness = addSection(tr("Model Readiness"));
     activeSupports_ = readiness->addValueRow(tr("Supports"));
@@ -78,7 +103,36 @@ AnalysisDetails::AnalysisDetails(const ServiceContext &services, QWidget *parent
     actionsLayout->addWidget(solve_);
     statusSection->addFullWidth(actions);
 
+    // Basic/Advanced ayrımı yalnız presentation'dır; aynı authoritative controls
+    // snapshot'ı düzenlenir. Increment alanlarında core validation sınırlarından
+    // daha dar sahte bir mühendislik aralığı koymamak için 1e-12..1 kullanılır.
     auto *advanced = addSection(tr("Advanced Solver Settings"), true, true);
+    initialIncrement_ = makeDoubleField(1.0e-12, 1.0, 12, QString());
+    initialIncrement_->setObjectName(QStringLiteral("analysisInspector.initialIncrement"));
+    initialIncrement_->setSingleStep(0.01);
+    advanced->addRow(tr("Initial Increment"), initialIncrement_);
+
+    minimumIncrement_ = makeDoubleField(1.0e-12, 1.0, 12, QString());
+    minimumIncrement_->setObjectName(QStringLiteral("analysisInspector.minimumIncrement"));
+    minimumIncrement_->setSingleStep(0.0001);
+    advanced->addRow(tr("Minimum Increment"), minimumIncrement_);
+
+    maximumIncrement_ = makeDoubleField(1.0e-12, 1.0, 12, QString());
+    maximumIncrement_->setObjectName(QStringLiteral("analysisInspector.maximumIncrement"));
+    maximumIncrement_->setSingleStep(0.01);
+    advanced->addRow(tr("Maximum Increment"), maximumIncrement_);
+
+    residualTolerance_ = makeDoubleField(0.0, 1.0, 12, QString());
+    residualTolerance_->setObjectName(QStringLiteral("analysisInspector.residualTolerance"));
+    residualTolerance_->setSingleStep(1.0e-8);
+    advanced->addRow(tr("Residual Rel. Tolerance"), residualTolerance_);
+
+    displacementTolerance_ = makeDoubleField(0.0, 1.0, 12, QString());
+    displacementTolerance_->setObjectName(QStringLiteral("analysisInspector.displacementTolerance"));
+    displacementTolerance_->setSingleStep(1.0e-8);
+    advanced->addRow(tr("Displacement Rel. Tolerance"), displacementTolerance_);
+
+    advanced->addSeparator();
     resolvedFormulation_ = advanced->addValueRow(tr("Resolved Formulation"));
     resolvedFormulation_->setObjectName(QStringLiteral("analysisInspector.resolvedFormulation"));
     elementTechnology_ = advanced->addValueRow(tr("Element Technology"));
@@ -87,10 +141,10 @@ AnalysisDetails::AnalysisDetails(const ServiceContext &services, QWidget *parent
     linearSolver_->setObjectName(QStringLiteral("analysisInspector.linearSolver"));
     dofLimit_ = advanced->addValueRow(tr("Practical DOF Limit"));
     dofLimit_->setObjectName(QStringLiteral("analysisInspector.dofLimit"));
-    newtonMethod_ = advanced->addValueRow(tr("Newton Method"));
+    newtonMethod_ = advanced->addValueRow(tr("Effective Newton Method"));
     newtonMethod_->setObjectName(QStringLiteral("analysisInspector.newtonMethod"));
-    advanced->addNote(tr("Bu bölüm kullanıcı niyetinin hangi solver implementasyonuna çözüldüğünü gösterir. "
-                         "Değerler otomatik türetilir; doğrudan düzenlenmez."));
+    advanced->addNote(tr("Resolved/effective değerler implementasyon gerçeğini gösterir. Authoring intent ile "
+                         "solver consumer desteği aynı şey değildir."));
 
     addStretch();
 
@@ -171,6 +225,111 @@ AnalysisDetails::AnalysisDetails(const ServiceContext &services, QWidget *parent
             new commands::SetLargeDeflectionCommand(services_, analysisId, record->largeDeflection, index == 1));
         emit modelEdited();
     });
+
+    connect(nonlinearMethod_, &QComboBox::currentIndexChanged, this, [this](const int index) {
+        if (updating_) {
+            return;
+        }
+        const ObjectId analysisId = services_.analysis->owningAnalysis(objectId_);
+        const AnalysisRecord *record = services_.analysis->analysis(analysisId);
+        if (record == nullptr) {
+            return;
+        }
+        NonlinearSolverControls after = record->nonlinearControls;
+        after.method = index == 1 ? NonlinearMethodIntent::ModifiedNewton : NonlinearMethodIntent::FullNewton;
+        commitNonlinearControls(after, tr("Change Newton Method"));
+    });
+    connect(maximumIterations_, &QSpinBox::editingFinished, this, [this] {
+        if (updating_) {
+            return;
+        }
+        const ObjectId analysisId = services_.analysis->owningAnalysis(objectId_);
+        const AnalysisRecord *record = services_.analysis->analysis(analysisId);
+        if (record == nullptr) {
+            return;
+        }
+        NonlinearSolverControls after = record->nonlinearControls;
+        after.maximumIterations = maximumIterations_->value();
+        commitNonlinearControls(after, tr("Change Maximum Newton Iterations"));
+    });
+    connect(adaptiveStepping_, &QComboBox::currentIndexChanged, this, [this](const int index) {
+        if (updating_) {
+            return;
+        }
+        const ObjectId analysisId = services_.analysis->owningAnalysis(objectId_);
+        const AnalysisRecord *record = services_.analysis->analysis(analysisId);
+        if (record == nullptr) {
+            return;
+        }
+        NonlinearSolverControls after = record->nonlinearControls;
+        after.adaptiveStepping = index == 1;
+        commitNonlinearControls(after, tr("Change Adaptive Stepping"));
+    });
+    connect(lineSearch_, &QComboBox::currentIndexChanged, this, [this](const int index) {
+        if (updating_) {
+            return;
+        }
+        const ObjectId analysisId = services_.analysis->owningAnalysis(objectId_);
+        const AnalysisRecord *record = services_.analysis->analysis(analysisId);
+        if (record == nullptr) {
+            return;
+        }
+        NonlinearSolverControls after = record->nonlinearControls;
+        after.lineSearch = index == 1;
+        commitNonlinearControls(after, tr("Change Line Search"));
+    });
+
+    const auto connectDoubleControl = [this](QDoubleSpinBox *field, const QString &text,
+                                             const auto assignValue) {
+        connect(field, &QDoubleSpinBox::editingFinished, this, [this, field, text, assignValue] {
+            if (updating_) {
+                return;
+            }
+            const ObjectId analysisId = services_.analysis->owningAnalysis(objectId_);
+            const AnalysisRecord *record = services_.analysis->analysis(analysisId);
+            if (record == nullptr) {
+                return;
+            }
+            NonlinearSolverControls after = record->nonlinearControls;
+            assignValue(after, field->value());
+            commitNonlinearControls(after, text);
+        });
+    };
+    connectDoubleControl(initialIncrement_, tr("Change Initial Load Increment"),
+                         [](NonlinearSolverControls &controls, const double value) {
+                             controls.initialLoadIncrement = value;
+                         });
+    connectDoubleControl(minimumIncrement_, tr("Change Minimum Load Increment"),
+                         [](NonlinearSolverControls &controls, const double value) {
+                             controls.minimumLoadIncrement = value;
+                         });
+    connectDoubleControl(maximumIncrement_, tr("Change Maximum Load Increment"),
+                         [](NonlinearSolverControls &controls, const double value) {
+                             controls.maximumLoadIncrement = value;
+                         });
+    connectDoubleControl(residualTolerance_, tr("Change Residual Convergence Tolerance"),
+                         [](NonlinearSolverControls &controls, const double value) {
+                             controls.residualRelativeTolerance = value;
+                         });
+    connectDoubleControl(displacementTolerance_, tr("Change Displacement Convergence Tolerance"),
+                         [](NonlinearSolverControls &controls, const double value) {
+                             controls.displacementRelativeTolerance = value;
+                         });
+}
+
+void AnalysisDetails::commitNonlinearControls(const NonlinearSolverControls &after, const QString &text)
+{
+    if (updating_ || services_.analysis == nullptr || services_.commands == nullptr) {
+        return;
+    }
+    const ObjectId analysisId = services_.analysis->owningAnalysis(objectId_);
+    const AnalysisRecord *record = services_.analysis->analysis(analysisId);
+    if (record == nullptr || record->nonlinearControls == after) {
+        return;
+    }
+    services_.commands->push(new commands::SetNonlinearSolverControlsCommand(
+        services_, analysisId, record->nonlinearControls, after, text));
+    emit modelEdited();
 }
 
 void AnalysisDetails::refresh()
@@ -190,6 +349,43 @@ void AnalysisDetails::refresh()
     analysisType_->setText(displayName(record->type));
     largeDeflection_->setCurrentIndex(record->largeDeflection ? 1 : 0);
     incompressibility_->setCurrentIndex(static_cast<int>(record->incompressibility));
+
+    const bool nonlinearAuthoring = record->type == AnalysisType::NonlinearStatic;
+    const NonlinearSolverControls &controls = record->nonlinearControls;
+    nonlinearMethod_->setCurrentIndex(controls.method == NonlinearMethodIntent::ModifiedNewton ? 1 : 0);
+    maximumIterations_->setValue(controls.maximumIterations);
+    adaptiveStepping_->setCurrentIndex(controls.adaptiveStepping ? 1 : 0);
+    lineSearch_->setCurrentIndex(controls.lineSearch ? 1 : 0);
+    initialIncrement_->setValue(controls.initialLoadIncrement);
+    minimumIncrement_->setValue(controls.minimumLoadIncrement);
+    maximumIncrement_->setValue(controls.maximumLoadIncrement);
+    residualTolerance_->setValue(controls.residualRelativeTolerance);
+    displacementTolerance_->setValue(controls.displacementRelativeTolerance);
+
+    nonlinearMethod_->setEnabled(nonlinearAuthoring);
+    maximumIterations_->setEnabled(nonlinearAuthoring);
+    adaptiveStepping_->setEnabled(nonlinearAuthoring);
+    lineSearch_->setEnabled(nonlinearAuthoring);
+    initialIncrement_->setEnabled(nonlinearAuthoring);
+    minimumIncrement_->setEnabled(nonlinearAuthoring);
+    maximumIncrement_->setEnabled(nonlinearAuthoring);
+    residualTolerance_->setEnabled(nonlinearAuthoring);
+    displacementTolerance_->setEnabled(nonlinearAuthoring);
+
+    QString nonlinearControlError;
+    const bool controlsValid = controls.isValid(&nonlinearControlError);
+    if (nonlinearAuthoring) {
+        nonlinearConsumer_->setText(tr("Unavailable — general nonlinear model consumer not connected"));
+        nonlinearConsumer_->setToolTip(controlsValid
+                                           ? tr("Controls are persistent authoring intent; solver consumption is deferred.")
+                                           : nonlinearControlError);
+    } else if (record->largeDeflection) {
+        nonlinearConsumer_->setText(tr("Unavailable — Large Deflection model path not connected"));
+        nonlinearConsumer_->setToolTip(tr("Large Deflection remains a separate unsupported model-solve path."));
+    } else {
+        nonlinearConsumer_->setText(tr("Inactive — current model solve is linear"));
+        nonlinearConsumer_->setToolTip(tr("Nonlinear controls are stored but are not consumed by the current linear solve."));
+    }
 
     int activeSupportCount = 0;
     for (const ObjectId id : record->supports) {
@@ -465,9 +661,11 @@ void AnalysisDetails::refresh()
     elementTechnology_->setText(services_.analysis->resolvedElementTechnology(analysisId));
     linearSolver_->setText(services_.analysis->resolvedLinearSolver());
     dofLimit_->setText(QStringLiteral("%1 DOF").arg(AnalysisService::maximumDofThreshold()));
-    newtonMethod_->setText(record->type == AnalysisType::StaticStructural && !record->largeDeflection
-                               ? tr("— (lineer analiz)")
-                               : tr("Full Newton-Raphson"));
+    if (nonlinearAuthoring) {
+        newtonMethod_->setText(tr("— (consumer not connected)"));
+    } else {
+        newtonMethod_->setText(tr("— (inactive)"));
+    }
     updating_ = false;
 }
 

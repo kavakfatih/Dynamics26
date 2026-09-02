@@ -3,11 +3,14 @@
 #include "DetailsPage.h"
 
 #include "../core/ServiceContext.h"
+#include "../services/AnalysisService.h"
 
 class QComboBox;
+class QDoubleSpinBox;
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QSpinBox;
 class QVBoxLayout;
 
 namespace d26 {
@@ -16,6 +19,9 @@ namespace d26 {
 //
 // Beta.1 B1.4: Inspector authoritative AnalysisService/ProjectModel state'ini
 // görünür ve düzenlenebilir yapar; ikinci bir preflight/lifecycle state tutmaz.
+// Beta.2 B2.3: nonlinear solver controls kalıcı authoring state olarak burada
+// düzenlenir; general model nonlinear consumer henüz bağlı değilse bu durum
+// açıkça gösterilir ve Preflight blocking kalır.
 // §11 gereği kullanıcı niyeti (Incompressibility: Automatic) ile solver
 // implementasyonu (mixed u-p / HEX8-P0) ayrılır.
 //
@@ -35,6 +41,8 @@ public:
     void refresh() override;
 
 private:
+    void commitNonlinearControls(const NonlinearSolverControls &after, const QString &text);
+
     ServiceContext services_;
     bool updating_{false};
 
@@ -43,6 +51,20 @@ private:
     QComboBox *largeDeflection_{nullptr};
     QComboBox *incompressibility_{nullptr};
     QLabel *solver_{nullptr};
+
+    // B2.3 Basic nonlinear authoring controls.
+    QLabel *nonlinearConsumer_{nullptr};
+    QComboBox *nonlinearMethod_{nullptr};
+    QSpinBox *maximumIterations_{nullptr};
+    QComboBox *adaptiveStepping_{nullptr};
+    QComboBox *lineSearch_{nullptr};
+
+    // B2.3 Advanced nonlinear authoring controls.
+    QDoubleSpinBox *initialIncrement_{nullptr};
+    QDoubleSpinBox *minimumIncrement_{nullptr};
+    QDoubleSpinBox *maximumIncrement_{nullptr};
+    QDoubleSpinBox *residualTolerance_{nullptr};
+    QDoubleSpinBox *displacementTolerance_{nullptr};
 
     QLabel *activeSupports_{nullptr};
     QLabel *activeLoads_{nullptr};

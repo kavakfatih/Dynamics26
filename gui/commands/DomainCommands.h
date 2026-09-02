@@ -33,7 +33,8 @@ enum CommandId {
     IdSetMeshDefinition,
     IdSetForce,
     IdSetSupport,
-    IdSetMaterial
+    IdSetMaterial,
+    IdSetNonlinearSolverControls
 };
 
 class DomainCommand : public QUndoCommand
@@ -205,6 +206,51 @@ private:
     ObjectId object_;
     bool before_;
     bool after_;
+};
+
+// Nonlinear solver ayarlarının tek authoritative snapshot komutu. Komut generic
+// bir "set property" değildir: tüm nonlinear control contract'ını taşır ve Undo
+// metni hangi engineering ayarının değiştiğini açıkça söyler. Aynı alanın hızlı
+// spinbox düzenlemeleri 700 ms penceresinde tek Undo adımında birleşebilir.
+class SetNonlinearSolverControlsCommand final : public DomainCommand
+{
+public:
+    SetNonlinearSolverControlsCommand(const ServiceContext &services, ObjectId analysisId,
+                                      NonlinearSolverControls before, NonlinearSolverControls after,
+                                      const QString &text)
+        : DomainCommand(services, text), object_(analysisId), before_(before), after_(after)
+    {
+    }
+
+    void redo() override
+    {
+        services_.analysis->setNonlinearSolverControls(object_, after_);
+        stampNow();
+    }
+
+    void undo() override
+    {
+        services_.analysis->setNonlinearSolverControls(object_, before_);
+    }
+
+    [[nodiscard]] int id() const override { return IdSetNonlinearSolverControls; }
+
+    bool mergeWith(const QUndoCommand *other) override
+    {
+        const auto *command = dynamic_cast<const SetNonlinearSolverControlsCommand *>(other);
+        if (command == nullptr || command->object_ != object_ || command->text() != text()
+            || !withinMergeWindow(command)) {
+            return false;
+        }
+        after_ = command->after_;
+        timestampMs_ = command->timestampMs_;
+        return true;
+    }
+
+private:
+    ObjectId object_;
+    NonlinearSolverControls before_;
+    NonlinearSolverControls after_;
 };
 
 // --- sınır şartları / yükler --------------------------------------------------

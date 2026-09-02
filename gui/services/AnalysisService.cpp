@@ -158,6 +158,76 @@ ResultDefinition ResultDefinition::fromJson(const QJsonObject &object)
     return definition;
 }
 
+QJsonObject NonlinearSolverControls::toJson() const
+{
+    QJsonObject object;
+    object[QStringLiteral("method")] = static_cast<int>(method);
+    object[QStringLiteral("maximum_iterations")] = maximumIterations;
+    object[QStringLiteral("adaptive_stepping")] = adaptiveStepping;
+    object[QStringLiteral("initial_load_increment")] = initialLoadIncrement;
+    object[QStringLiteral("minimum_load_increment")] = minimumLoadIncrement;
+    object[QStringLiteral("maximum_load_increment")] = maximumLoadIncrement;
+    object[QStringLiteral("line_search")] = lineSearch;
+    object[QStringLiteral("residual_relative_tolerance")] = residualRelativeTolerance;
+    object[QStringLiteral("displacement_relative_tolerance")] = displacementRelativeTolerance;
+    return object;
+}
+
+NonlinearSolverControls NonlinearSolverControls::fromJson(const QJsonObject &object)
+{
+    NonlinearSolverControls controls;
+    if (object.isEmpty()) {
+        return controls;
+    }
+    controls.method = static_cast<NonlinearMethodIntent>(object.value(QStringLiteral("method")).toInt(0));
+    controls.maximumIterations = object.value(QStringLiteral("maximum_iterations")).toInt(25);
+    controls.adaptiveStepping = object.value(QStringLiteral("adaptive_stepping")).toBool(true);
+    controls.initialLoadIncrement = object.value(QStringLiteral("initial_load_increment")).toDouble(0.25);
+    controls.minimumLoadIncrement = object.value(QStringLiteral("minimum_load_increment")).toDouble(1.0e-4);
+    controls.maximumLoadIncrement = object.value(QStringLiteral("maximum_load_increment")).toDouble(0.50);
+    controls.lineSearch = object.value(QStringLiteral("line_search")).toBool(true);
+    controls.residualRelativeTolerance =
+        object.value(QStringLiteral("residual_relative_tolerance")).toDouble(1.0e-8);
+    controls.displacementRelativeTolerance =
+        object.value(QStringLiteral("displacement_relative_tolerance")).toDouble(1.0e-8);
+    return controls;
+}
+
+bool NonlinearSolverControls::isValid(QString *error) const
+{
+    const auto fail = [error](const QString &text) {
+        if (error != nullptr) {
+            *error = text;
+        }
+        return false;
+    };
+    if (method != NonlinearMethodIntent::FullNewton && method != NonlinearMethodIntent::ModifiedNewton) {
+        return fail(QStringLiteral("Nonlinear method intent geçersiz."));
+    }
+    if (maximumIterations < 1) {
+        return fail(QStringLiteral("Maximum Newton iterations pozitif olmalı."));
+    }
+    if (!std::isfinite(initialLoadIncrement) || !std::isfinite(minimumLoadIncrement)
+        || !std::isfinite(maximumLoadIncrement) || initialLoadIncrement <= 0.0 || initialLoadIncrement > 1.0) {
+        return fail(QStringLiteral("Initial load increment için 0 < Δλ ≤ 1 olmalı."));
+    }
+    if (minimumLoadIncrement <= 0.0 || maximumLoadIncrement <= 0.0
+        || minimumLoadIncrement > maximumLoadIncrement) {
+        return fail(QStringLiteral("Minimum/maximum load increment aralığı geçersiz."));
+    }
+    if (initialLoadIncrement < minimumLoadIncrement || initialLoadIncrement > maximumLoadIncrement) {
+        return fail(QStringLiteral("Initial load increment minimum/maximum sınırları içinde olmalı."));
+    }
+    if (!std::isfinite(residualRelativeTolerance) || !std::isfinite(displacementRelativeTolerance)
+        || residualRelativeTolerance < 0.0 || displacementRelativeTolerance < 0.0) {
+        return fail(QStringLiteral("Relative convergence toleransları negatif veya sonlu olmayan değer alamaz."));
+    }
+    if (error != nullptr) {
+        error->clear();
+    }
+    return true;
+}
+
 bool PreflightReport::passed() const
 {
     return std::none_of(checks.begin(), checks.end(),
@@ -262,7 +332,9 @@ QByteArray AnalysisService::solverInputSignature(const ObjectId analysisId) cons
     }
     signature[QStringLiteral("boundary")] = boundary;
 
-    // 4) Çözülen formülasyon ve analiz ayarları
+    // 4) Çözülen formülasyon ve solver'ın BUGÜN gerçekten tükettiği analiz ayarları.
+    // B2.3 nonlinear controls persistent authoring state'tir; general nonlinear
+    // model consumer bağlanana kadar bu lineer imzaya dahil edilmez.
     signature[QStringLiteral("formulation")] = static_cast<int>(resolvedFormulation(analysisId));
     signature[QStringLiteral("large_deflection")] = record->largeDeflection;
     signature[QStringLiteral("analysis_type")] = static_cast<int>(record->type);
@@ -406,6 +478,18 @@ void AnalysisService::setLargeDeflection(const ObjectId analysisId, const bool e
     }
     analyses_[analysisId].largeDeflection = enabled;
     touchDefinition(analysisId);
+    emit changed();
+}
+
+void AnalysisService::setNonlinearSolverControls(const ObjectId analysisId,
+                                                 const NonlinearSolverControls &controls)
+{
+    if (!analyses_.contains(analysisId) || analyses_[analysisId].nonlinearControls == controls) {
+        return;
+    }
+    analyses_[analysisId].nonlinearControls = controls;
+    // Persistent authoring mutation'dır; ancak B2.3'te general model solver bu
+    // controls'u tüketmediği için mevcut lineer solution signature değişmez.
     emit changed();
 }
 
@@ -640,6 +724,26 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
             analysisId);
     } else {
         add(PreflightCheck::Status::Passed, tr("Analiz Türü"), displayName(record->type), analysisId);
+    }
+
+    // B2.3 nonlinear controls authoritative model state'tir. Geçersiz persisted
+    // değerler solver'a ulaşmadan burada bloklanır. Geçerli control state ise
+    // consumer desteği anlamına gelmez; Nonlinear Static Analysis Type check'i
+    // general model solve'u ayrıca blocking tutar.
+    if (record->type == AnalysisType::NonlinearStatic) {
+        QString controlError;
+        if (!record->nonlinearControls.isValid(&controlError)) {
+            add(PreflightCheck::Status::Failed, tr("Nonlinear Solver Controls"), controlError,
+                record->settingsNode);
+        } else {
+            const QString method = record->nonlinearControls.method == NonlinearMethodIntent::FullNewton
+                ? tr("Full Newton") : tr("Modified Newton");
+            add(PreflightCheck::Status::Passed, tr("Nonlinear Solver Controls"),
+                tr("%1 • max %2 iteration • authoring state geçerli; model consumer henüz bağlı değil.")
+                    .arg(method)
+                    .arg(record->nonlinearControls.maximumIterations),
+                record->settingsNode);
+        }
     }
 
     // 2) Geometri
@@ -1245,6 +1349,7 @@ QJsonObject AnalysisService::analysisToJson(const ObjectId analysisId) const
     entry[QStringLiteral("analysis_type")] = static_cast<int>(record->type);
     entry[QStringLiteral("large_deflection")] = record->largeDeflection;
     entry[QStringLiteral("incompressibility")] = static_cast<int>(record->incompressibility);
+    entry[QStringLiteral("nonlinear_solver_controls")] = record->nonlinearControls.toJson();
     entry[QStringLiteral("suppressed")] = project_->isSuppressed(analysisId);
     entry[QStringLiteral("settings_object_id")] = static_cast<qint64>(record->settingsNode);
     entry[QStringLiteral("solution_object_id")] = static_cast<qint64>(record->solutionNode);
@@ -1297,6 +1402,8 @@ ObjectId AnalysisService::restoreAnalysis(const QJsonObject &entry, const int ro
     record.largeDeflection = entry.value(QStringLiteral("large_deflection")).toBool(false);
     record.incompressibility = static_cast<IncompressibilityIntent>(
         std::clamp(entry.value(QStringLiteral("incompressibility")).toInt(0), 0, 2));
+    record.nonlinearControls = NonlinearSolverControls::fromJson(
+        entry.value(QStringLiteral("nonlinear_solver_controls")).toObject());
     project_->setSuppressed(created, entry.value(QStringLiteral("suppressed")).toBool(false));
 
     // Sıralı tek liste: kaydedilen ağaç sırası birebir yeniden kurulur.

@@ -93,6 +93,39 @@ struct ResultDefinition {
     static ResultDefinition fromJson(const QJsonObject &object);
 };
 
+// Beta.2 B2.3 persistent nonlinear solver authoring contract.
+//
+// Bu yapı solver'ın ikinci bir çalışma durumu değildir. Analysis Settings altında
+// kullanıcının kalıcı mühendislik niyetidir; Undo/Redo ve proje persistence'a
+// girer. General model nonlinear consumer henüz bağlı olmadığından bu alanlar
+// mevcut lineer solver input signature'ına özellikle dahil edilmez.
+//
+// Integer kimlikler fem_nonlinear_solver.f90 ile bilinçli olarak aynıdır:
+// NONLINEAR_FULL_NEWTON=1, NONLINEAR_MODIFIED_NEWTON=2. Böylece gelecekteki
+// consumer bridge'de sessiz 0/1 -> 1/2 semantik kayması oluşmaz.
+enum class NonlinearMethodIntent {
+    FullNewton = 1,
+    ModifiedNewton = 2
+};
+
+struct NonlinearSolverControls {
+    NonlinearMethodIntent method{NonlinearMethodIntent::FullNewton};
+    int maximumIterations{25};
+    bool adaptiveStepping{true};
+    double initialLoadIncrement{0.25};
+    double minimumLoadIncrement{1.0e-4};
+    double maximumLoadIncrement{0.50};
+    bool lineSearch{true};
+    double residualRelativeTolerance{1.0e-8};
+    double displacementRelativeTolerance{1.0e-8};
+
+    [[nodiscard]] QJsonObject toJson() const;
+    static NonlinearSolverControls fromJson(const QJsonObject &object);
+    [[nodiscard]] bool isValid(QString *error = nullptr) const;
+
+    friend bool operator==(const NonlinearSolverControls &, const NonlinearSolverControls &) = default;
+};
+
 struct SolveResults {
     bool valid{false};
     double maxDisplacementMm{0.0};
@@ -135,6 +168,7 @@ struct AnalysisRecord {
     AnalysisType type{AnalysisType::StaticStructural};
     IncompressibilityIntent incompressibility{IncompressibilityIntent::Automatic};
     bool largeDeflection{false};
+    NonlinearSolverControls nonlinearControls;
     ObjectId settingsNode{InvalidObjectId};
     ObjectId solutionNode{InvalidObjectId};
     QVector<ObjectId> supports;
@@ -181,6 +215,7 @@ public:
 
     void setIncompressibility(ObjectId analysisId, IncompressibilityIntent intent);
     void setLargeDeflection(ObjectId analysisId, bool enabled);
+    void setNonlinearSolverControls(ObjectId analysisId, const NonlinearSolverControls &controls);
     void renameObject(ObjectId id, const QString &name);
 
     // Boundary consumer resolver. Geometry Selection veya persistent Named
@@ -246,8 +281,9 @@ signals:
 private:
     // Solver'ın GERÇEKTEN tükettiği girdilerin imzası: mesh üretimi ve ölçüleri,
     // atanmış malzemenin elastik parametreleri, AKTİF sınır şartı/yük kapsam ve
-    // değerleri, çözülen formülasyon. Ad değişikliği gibi solver'ı etkilemeyen
-    // düzenlemeler imzayı değiştirmez, dolayısıyla sonuçları bayatlatmaz.
+    // değerleri, çözülen formülasyon. Ad değişikliği ve henüz consumer'a bağlı
+    // olmayan nonlinear authoring controls gibi solver'ı etkilemeyen düzenlemeler
+    // imzayı değiştirmez, dolayısıyla mevcut lineer sonuçları sahte bayatlatmaz.
     [[nodiscard]] QByteArray solverInputSignature(ObjectId analysisId) const;
     [[nodiscard]] BoundaryScopeResolution resolveBoundaryScope(BoundaryScopingMethod method,
                                                                 BoxFace geometryScope,
