@@ -194,10 +194,12 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
           "Analysis display-name edit does not invalidate solved engineering input");
     stack->undo();
     flushUi();
-    check(services.project->object(analysisId)->name == originalName
-              && name->text() == originalName
-              && !services.analysis->solutionIsOutOfDate(analysisId),
-          "Undo restores exact Analysis name without invalidating current solution");
+    check(services.project->object(analysisId)->name == originalName,
+          "Undo restores exact authoritative Analysis name in ProjectModel");
+    check(name->text() == originalName,
+          "Undo refreshes the Analysis name widget from authoritative ProjectModel state");
+    check(!services.analysis->solutionIsOutOfDate(analysisId),
+          "Undo Analysis display-name edit preserves current solved engineering signature");
 
     // Large Deflection solver input'tur. Widget canonical command ile tek Undo
     // transaction üretmeli; solved signature değiştiğinde lifecycle Out-of-Date
