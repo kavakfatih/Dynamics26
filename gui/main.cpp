@@ -18,6 +18,7 @@
 #include "shell/CommandRegistry.h"
 #include "shell/Dynamics26MainWindow.h"
 #include "shell/SelectionCoordinator.h"
+#include "support/AnalysisInspectorAcceptance.h"
 #include "support/BoundaryConsumerAcceptance.h"
 #include "support/ContactInspectorAcceptance.h"
 #include "support/ContactPersistenceAcceptance.h"
@@ -186,9 +187,9 @@ int main(int argc, char *argv[])
         std::cout << std::unitbuf;
 
         // Aynı gerçek application composition üzerinde sırasıyla transient/
-        // persistent selection, Material/Mesh Inspector, boundary consumers,
-        // Preflight, integrated workflow ve Contact acceptance zinciri yürütülür.
-        // Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
+        // persistent selection, Material/Mesh/Analysis Inspector, boundary
+        // consumers, Preflight, integrated workflow ve Contact acceptance zinciri
+        // yürütülür. Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
             return selectionStatus;
@@ -200,6 +201,10 @@ int main(int argc, char *argv[])
         const int meshInspectorStatus = d26::runMeshInspectorAcceptanceTest(app, window);
         if (meshInspectorStatus != 0) {
             return meshInspectorStatus;
+        }
+        const int analysisInspectorStatus = d26::runAnalysisInspectorAcceptanceTest(app, window);
+        if (analysisInspectorStatus != 0) {
+            return analysisInspectorStatus;
         }
         const int boundaryStatus = d26::runBoundaryConsumerAcceptanceTest(app, window);
         if (boundaryStatus != 0) {

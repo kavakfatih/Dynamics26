@@ -12,6 +12,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLayoutItem>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -24,16 +25,33 @@ AnalysisDetails::AnalysisDetails(const ServiceContext &services, QWidget *parent
     : DetailsPage(parent), services_(services)
 {
     auto *definition = addSection(tr("Definition"));
+    name_ = new QLineEdit(this);
+    name_->setObjectName(QStringLiteral("analysisInspector.name"));
+    definition->addRow(tr("Name"), name_);
     analysisType_ = definition->addValueRow(tr("Analysis Type"));
+    analysisType_->setObjectName(QStringLiteral("analysisInspector.procedure"));
     largeDeflection_ = makeCombo({tr("Off"), tr("On")});
+    largeDeflection_->setObjectName(QStringLiteral("analysisInspector.largeDeflection"));
     definition->addRow(tr("Large Deflection"), largeDeflection_);
 
     auto *formulation = addSection(tr("Formulation"));
     incompressibility_ = makeCombo({tr("Automatic"), tr("Compressible"), tr("Nearly Incompressible")});
+    incompressibility_->setObjectName(QStringLiteral("analysisInspector.incompressibility"));
     formulation->addRow(tr("Incompressibility"), incompressibility_);
 
     auto *solverSection = addSection(tr("Solver"));
     solver_ = solverSection->addValueRow(tr("Solver"), tr("Automatic"));
+    solver_->setObjectName(QStringLiteral("analysisInspector.solver"));
+
+    auto *readiness = addSection(tr("Model Readiness"));
+    activeSupports_ = readiness->addValueRow(tr("Supports"));
+    activeSupports_->setObjectName(QStringLiteral("analysisInspector.activeSupports"));
+    activeLoads_ = readiness->addValueRow(tr("Loads"));
+    activeLoads_->setObjectName(QStringLiteral("analysisInspector.activeLoads"));
+    meshReadiness_ = readiness->addValueRow(tr("Mesh"));
+    meshReadiness_->setObjectName(QStringLiteral("analysisInspector.meshReadiness"));
+    materialReadiness_ = readiness->addValueRow(tr("Material"));
+    materialReadiness_->setObjectName(QStringLiteral("analysisInspector.materialReadiness"));
 
     validation_ = addSection(tr("Validation"));
     validationBody_ = new QWidget(this);
@@ -44,21 +62,72 @@ AnalysisDetails::AnalysisDetails(const ServiceContext &services, QWidget *parent
 
     auto *statusSection = addSection(tr("Status"));
     status_ = statusSection->addValueRow(tr("State"));
+    status_->setObjectName(QStringLiteral("analysisInspector.state"));
+    resultAvailability_ = statusSection->addValueRow(tr("Results"));
+    resultAvailability_->setObjectName(QStringLiteral("analysisInspector.results"));
+
+    auto *actions = new QWidget(this);
+    auto *actionsLayout = new QHBoxLayout(actions);
+    actionsLayout->setContentsMargins(0, 0, 0, 0);
+    actionsLayout->setSpacing(6);
+    preflight_ = makeActionButton(tr("Run Preflight"));
+    preflight_->setObjectName(QStringLiteral("analysisInspector.preflight"));
     solve_ = makeActionButton(tr("Solve"));
-    statusSection->addFullWidth(solve_);
+    solve_->setObjectName(QStringLiteral("analysisInspector.solve"));
+    actionsLayout->addWidget(preflight_);
+    actionsLayout->addWidget(solve_);
+    statusSection->addFullWidth(actions);
 
     auto *advanced = addSection(tr("Advanced Solver Settings"), true, true);
     resolvedFormulation_ = advanced->addValueRow(tr("Resolved Formulation"));
+    resolvedFormulation_->setObjectName(QStringLiteral("analysisInspector.resolvedFormulation"));
     elementTechnology_ = advanced->addValueRow(tr("Element Technology"));
+    elementTechnology_->setObjectName(QStringLiteral("analysisInspector.elementTechnology"));
     linearSolver_ = advanced->addValueRow(tr("Linear Solver"));
+    linearSolver_->setObjectName(QStringLiteral("analysisInspector.linearSolver"));
     dofLimit_ = advanced->addValueRow(tr("Practical DOF Limit"));
+    dofLimit_->setObjectName(QStringLiteral("analysisInspector.dofLimit"));
     newtonMethod_ = advanced->addValueRow(tr("Newton Method"));
+    newtonMethod_->setObjectName(QStringLiteral("analysisInspector.newtonMethod"));
     advanced->addNote(tr("Bu bölüm kullanıcı niyetinin hangi solver implementasyonuna çözüldüğünü gösterir. "
                          "Değerler otomatik türetilir; doğrudan düzenlenmez."));
 
     addStretch();
 
-    connect(solve_, &QPushButton::clicked, this, [this] { emit requestCommand(QStringLiteral("analysis.solve")); });
+    connect(preflight_, &QPushButton::clicked, this,
+            [this] { emit requestCommand(QStringLiteral("analysis.preflight")); });
+    connect(solve_, &QPushButton::clicked, this,
+            [this] { emit requestCommand(QStringLiteral("analysis.solve")); });
+
+    connect(name_, &QLineEdit::editingFinished, this, [this] {
+        if (updating_ || services_.project == nullptr || services_.analysis == nullptr
+            || services_.commands == nullptr) {
+            return;
+        }
+        const ObjectId analysisId = services_.analysis->owningAnalysis(objectId_);
+        const ProjectObject *object = services_.project->object(analysisId);
+        if (object == nullptr) {
+            return;
+        }
+        const QString requested = name_->text().trimmed();
+        if (requested.isEmpty()) {
+            updating_ = true;
+            name_->setText(object->name);
+            updating_ = false;
+            return;
+        }
+        if (requested == object->name) {
+            if (name_->text() != requested) {
+                updating_ = true;
+                name_->setText(requested);
+                updating_ = false;
+            }
+            return;
+        }
+        services_.commands->push(new commands::RenameObjectCommand(services_, analysisId, requested));
+        emit modelEdited();
+    });
+
     connect(incompressibility_, &QComboBox::currentIndexChanged, this, [this](const int index) {
         if (updating_) {
             return;
@@ -99,9 +168,52 @@ void AnalysisDetails::refresh()
         return;
     }
     updating_ = true;
+
+    if (services_.project != nullptr) {
+        if (const ProjectObject *object = services_.project->object(analysisId)) {
+            name_->setText(object->name);
+        }
+    }
     analysisType_->setText(displayName(record->type));
     largeDeflection_->setCurrentIndex(record->largeDeflection ? 1 : 0);
     incompressibility_->setCurrentIndex(static_cast<int>(record->incompressibility));
+
+    int activeSupportCount = 0;
+    for (const ObjectId id : record->supports) {
+        if (services_.project != nullptr && services_.project->object(id) != nullptr
+            && !services_.project->isSuppressed(id)) {
+            ++activeSupportCount;
+        }
+    }
+    int activeLoadCount = 0;
+    for (const ObjectId id : record->loads) {
+        if (services_.project != nullptr && services_.project->object(id) != nullptr
+            && !services_.project->isSuppressed(id)) {
+            ++activeLoadCount;
+        }
+    }
+    activeSupports_->setText(tr("%1 active · %2 total")
+                                 .arg(activeSupportCount)
+                                 .arg(record->supports.size()));
+    activeLoads_->setText(tr("%1 active · %2 total")
+                              .arg(activeLoadCount)
+                              .arg(record->loads.size()));
+
+    if (services_.mesh == nullptr || !services_.mesh->hasMesh()) {
+        meshReadiness_->setText(tr("Not generated"));
+    } else if (services_.mesh->isOutOfDate()) {
+        meshReadiness_->setText(tr("Out of Date · generation %1")
+                                    .arg(services_.mesh->generation()));
+    } else {
+        meshReadiness_->setText(tr("Ready · generation %1")
+                                    .arg(services_.mesh->generation()));
+    }
+
+    const MaterialDefinition *assignedMaterial = services_.materials != nullptr
+        ? services_.materials->assigned() : nullptr;
+    materialReadiness_->setText(assignedMaterial != nullptr
+                                    ? tr("Ready · %1").arg(assignedMaterial->name)
+                                    : tr("Missing assignment"));
 
     // --- preflight (§24/§25) ---
     const PreflightReport report = services_.analysis->preflight(analysisId);
@@ -116,7 +228,7 @@ void AnalysisDetails::refresh()
     // Yeni bir validation state'i veya paralel kural seti oluşturulmaz. İlk
     // actionable konu önce Failed, sonra Warning sırasıyla seçilir; navigation
     // document mutation değildir ve canonical MainWindow::selectObject yoluna gider.
-    const bool materialMissing = services_.materials == nullptr || services_.materials->assigned() == nullptr;
+    const bool materialMissing = assignedMaterial == nullptr;
     int blockingCount = 0;
     int warningCount = 0;
     ObjectId firstBlockingSubject = InvalidObjectId;
@@ -131,9 +243,6 @@ void AnalysisDetails::refresh()
                     && services_.project->object(check.subject) != nullptr) {
                     firstBlockingSubject = check.subject;
                 } else if (materialMissing && services_.project != nullptr) {
-                    // Güncel Preflight kontratında subject taşımayan ilk model
-                    // blocker malzeme atamasıdır. Otomatik kart/assignment kararı
-                    // vermek yerine kullanıcı Materials authoring bağlamına gider.
                     firstBlockingSubject = services_.project->materialsNode();
                 }
             }
@@ -211,12 +320,6 @@ void AnalysisDetails::refresh()
         linePalette.setColor(QPalette::Text, ui::statusColor(tone));
         line->setPalette(linePalette);
 
-        // Alpha.4 Integrated Modeling Workflow foundation:
-        // PreflightCheck zaten authoritative subject ObjectId taşıyor. Validation
-        // mantığını veya engineering state'i kopyalamadan, yalnız Failed/Warning
-        // satırını canonical MainWindow::selectObject() navigation yoluna bağlarız.
-        // Böylece "Mesh güncel değil" veya "scope stale" gibi bir diagnostic
-        // doğrudan ilgili Navigator/Details nesnesine götürür; Undo geçmişi değişmez.
         const bool actionable = check.status != PreflightCheck::Status::Passed
             && check.subject != InvalidObjectId
             && services_.project != nullptr
@@ -242,11 +345,6 @@ void AnalysisDetails::refresh()
                 }
             });
 
-            // Quick-fix yalnız subject engineering type kesin olarak Mesh ise
-            // sunulur. Diagnostic label metnine bakılmaz; böylece çeviri/metin
-            // değişikliği command routing'i bozmaz. Generate Mesh mevcut shell
-            // komutuna gider: timing, selection, dependency refresh ve derived
-            // mesh lifecycle tek canonical uygulama yolunda kalır.
             if (services_.project->typeOf(check.subject) == ObjectType::Mesh) {
                 auto *fix = new QToolButton(row);
                 fix->setText(tr("Mesh Üret"));
@@ -265,27 +363,8 @@ void AnalysisDetails::refresh()
         }
     }
 
-    // Eksik malzeme ataması bir otomatik-create/assign kararı değildir. Solver
-    // modeline hangi malzemenin atanacağı kullanıcı mühendislik kararıdır; bu
-    // nedenle Alpha.4 yalnız Materials authoring bağlamına güvenli navigasyon sunar.
-    // Mesnet/yük eksikleri ise yeni nesne authoring'i olduğu için mevcut undoable
-    // Insert komutlarıyla düzeltilebilir.
-    bool hasActiveSupport = false;
-    for (const ObjectId id : record->supports) {
-        if (services_.project != nullptr && services_.project->object(id) != nullptr
-            && !services_.project->isSuppressed(id)) {
-            hasActiveSupport = true;
-            break;
-        }
-    }
-    bool hasActiveLoad = false;
-    for (const ObjectId id : record->loads) {
-        if (services_.project != nullptr && services_.project->object(id) != nullptr
-            && !services_.project->isSuppressed(id)) {
-            hasActiveLoad = true;
-            break;
-        }
-    }
+    const bool hasActiveSupport = activeSupportCount > 0;
+    const bool hasActiveLoad = activeLoadCount > 0;
     if (materialMissing || !hasActiveSupport || !hasActiveLoad) {
         auto *quickFixRow = new QWidget(validationBody_);
         auto *quickFixLayout = new QHBoxLayout(quickFixRow);
@@ -337,7 +416,14 @@ void AnalysisDetails::refresh()
     }
 
     const bool canSolve = report.passed();
-    if (record->solved && services_.analysis->solutionIsOutOfDate(analysisId)) {
+    const bool outOfDate = record->solved && services_.analysis->solutionIsOutOfDate(analysisId);
+    if (record->solveState == SolveState::Solving) {
+        status_->setText(tr("Solving"));
+    } else if (record->solveState == SolveState::Failed) {
+        status_->setText(tr("Solve Failed"));
+    } else if (record->solveState == SolveState::Cancelled) {
+        status_->setText(tr("Cancelled"));
+    } else if (outOfDate) {
         status_->setText(tr("Solved — Out of Date"));
     } else if (record->solved) {
         status_->setText(tr("Solved"));
@@ -346,8 +432,20 @@ void AnalysisDetails::refresh()
     } else {
         status_->setText(tr("Not Ready"));
     }
-    solve_->setEnabled(canSolve);
+    solve_->setEnabled(canSolve && record->solveState != SolveState::Solving);
     solve_->setToolTip(canSolve ? QString() : report.firstFailure());
+
+    const int resultDefinitionCount = record->results.size();
+    if (services_.analysis->hasResults(analysisId)) {
+        resultAvailability_->setText(outOfDate
+                                         ? tr("Calculated — Out of Date · %1 definitions")
+                                               .arg(resultDefinitionCount)
+                                         : tr("Calculated · %1 definitions")
+                                               .arg(resultDefinitionCount));
+    } else {
+        resultAvailability_->setText(tr("Defined · %1 · not solved")
+                                         .arg(resultDefinitionCount));
+    }
 
     const bool mixed = services_.analysis->resolvedFormulation(analysisId) == ResolvedFormulation::MixedUP;
     resolvedFormulation_->setText(mixed ? tr("Mixed displacement–pressure (u–p)") : tr("Displacement-based (u)"));
