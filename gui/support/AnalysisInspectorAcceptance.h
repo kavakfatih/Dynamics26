@@ -286,8 +286,8 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
               && initialIncrement->isEnabled() && minimumIncrement->isEnabled()
               && maximumIncrement->isEnabled() && residualTolerance->isEnabled()
               && displacementTolerance->isEnabled()
-              && nonlinearConsumer->text().contains(QStringLiteral("Unavailable"), Qt::CaseInsensitive),
-          "Nonlinear Static Inspector enables authoring controls but explicitly marks model consumer unavailable");
+              && nonlinearConsumer->text().contains(QStringLiteral("Ready"), Qt::CaseInsensitive),
+          "Nonlinear Static Inspector exposes controls consumed by the ready product solver");
     if (record == nullptr) {
         return failures + 1;
     }

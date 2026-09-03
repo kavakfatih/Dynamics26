@@ -55,6 +55,34 @@ int main()
               && resolution.matrix.definiteness == MatrixDefiniteness::SpdExpected,
           "displacement-only baseline exposes symmetric/SPD-expected metadata");
 
+    input = supportedNonlinearInput();
+    input.materialAssigned = false;
+    resolution = AnalysisCapabilityResolver::resolve(input);
+    check(!resolution.solveReady()
+              && resolution.decision(CapabilityAxis::MaterialModel)->state == CapabilityState::Invalid,
+          "missing nonlinear material assignment is explicitly Invalid");
+
+    input = supportedNonlinearInput();
+    input.activeFixedSupportCount = 0;
+    resolution = AnalysisCapabilityResolver::resolve(input);
+    check(!resolution.solveReady()
+              && resolution.decision(CapabilityAxis::BoundaryCondition)->state == CapabilityState::Invalid,
+          "missing nonlinear Fixed Support is explicitly Invalid");
+
+    input = supportedNonlinearInput();
+    input.activeTotalForceCount = 0;
+    resolution = AnalysisCapabilityResolver::resolve(input);
+    check(!resolution.solveReady()
+              && resolution.decision(CapabilityAxis::LoadType)->state == CapabilityState::Invalid,
+          "missing nonlinear Total Force is explicitly Invalid");
+
+    input = supportedNonlinearInput();
+    input.largeDeformation = false;
+    resolution = AnalysisCapabilityResolver::resolve(input);
+    check(!resolution.solveReady()
+              && resolution.decision(CapabilityAxis::Kinematics)->state == CapabilityState::Invalid,
+          "nonlinear product solve requires Large Deformation explicitly");
+
     input.materialModel = MaterialModel::NeoHookean;
     resolution = AnalysisCapabilityResolver::resolve(input);
     check(!resolution.solveReady()

@@ -68,6 +68,8 @@ jobs:
             "gui/services/NamedSelectionService.h"
             "gui/services/MaterialService.cpp"
             "gui/services/AnalysisService.cpp"
+            "gui/services/NonlinearHex8SolverBridge.cpp"
+            "gui/services/NonlinearHex8SolverBridge.h"
             "include/femcae/meshing/SurfaceLoadAssembler.h"
             "src/meshing/SurfaceLoadAssembler.cpp"
             "include/femcae/application/AnalysisSnapshot.h"
@@ -82,6 +84,7 @@ jobs:
             "gui/shell/Dynamics26MainWindow.cpp"
             "gui/support/SelectionAcceptanceTest.h"
             "gui/support/BoundarySelectionAuthoringAcceptance.h"
+            "gui/support/NonlinearProductWorkflowAcceptance.h"
             "gui/support/SolverWorkspaceAccessibilityAcceptance.h"
             "gui/viewport/ViewportInputRouter.cpp"
             "gui/viewport/ViewportCameraController.cpp"
@@ -108,6 +111,7 @@ jobs:
             "tests/meshing/unit_beta3_surface_load.cpp"
             "tests/application/unit_beta3_analysis_snapshot.cpp"
             "tests/c_api/test_beta3_nonlinear_api.c"
+            "tests/c_api/test_beta3_nonlinear_refinement.cpp"
           )
           for source in "${required_sources[@]}"; do
             test -f "$source"
@@ -229,6 +233,7 @@ jobs:
           cmake --build build-selfhosted-gui-fast --parallel --target unit_beta3_surface_load
           cmake --build build-selfhosted-gui-fast --parallel --target unit_beta3_analysis_snapshot
           cmake --build build-selfhosted-gui-fast --parallel --target c_api_beta3_nonlinear
+          cmake --build build-selfhosted-gui-fast --parallel --target c_api_beta3_nonlinear_refinement
 
       - name: Project migration gate
         run: ctest --test-dir build-selfhosted-gui-fast -L migration --output-on-failure
@@ -243,7 +248,7 @@ jobs:
         run: ctest --test-dir build-selfhosted-gui-fast -R '^unit_beta3_analysis_snapshot$' --output-on-failure
 
       - name: General nonlinear HEX8 product ABI gate
-        run: ctest --test-dir build-selfhosted-gui-fast -R '^c_api_beta3_nonlinear$' --output-on-failure
+        run: ctest --test-dir build-selfhosted-gui-fast -R '^c_api_beta3_nonlinear(_refinement)?$' --output-on-failure
 
       - name: Selection state and VTK picker gate
         run: ctest --test-dir build-selfhosted-gui-fast -L selection --output-on-failure

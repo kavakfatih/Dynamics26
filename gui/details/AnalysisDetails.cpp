@@ -65,8 +65,8 @@ AnalysisDetails::AnalysisDetails(const ServiceContext &services, QWidget *parent
     lineSearch_ = makeCombo({tr("Off"), tr("On")});
     lineSearch_->setObjectName(QStringLiteral("analysisInspector.lineSearch"));
     solverSection->addRow(tr("Line Search"), lineSearch_);
-    solverSection->addNote(tr("Nonlinear controls kalıcı Analysis Settings state'idir. Yalnız Nonlinear Static "
-                              "authoring bağlamında düzenlenir; general model nonlinear solver consumer henüz bağlı değildir."));
+    solverSection->addNote(tr("Nonlinear controls kalıcı Analysis Settings state'idir. Nonlinear Static "
+                              "çözümünde immutable snapshot üzerinden general Newton consumer tarafından tüketilir."));
 
     auto *readiness = addSection(tr("Model Readiness"));
     activeSupports_ = readiness->addValueRow(tr("Supports"));
@@ -375,16 +375,18 @@ void AnalysisDetails::refresh()
     QString nonlinearControlError;
     const bool controlsValid = controls.isValid(&nonlinearControlError);
     if (nonlinearAuthoring) {
-        nonlinearConsumer_->setText(tr("Unavailable — general nonlinear model consumer not connected"));
+        nonlinearConsumer_->setText(controlsValid
+                                         ? tr("Ready — general Total-Lagrangian HEX8 / StVK")
+                                         : tr("Invalid — nonlinear controls"));
         nonlinearConsumer_->setToolTip(controlsValid
-                                           ? tr("Controls are persistent authoring intent; solver consumption is deferred.")
+                                           ? tr("Controls are consumed by the general nonlinear product solver.")
                                            : nonlinearControlError);
     } else if (record->largeDeflection) {
         nonlinearConsumer_->setText(tr("Unavailable — Large Deflection model path not connected"));
         nonlinearConsumer_->setToolTip(tr("Large Deflection remains a separate unsupported model-solve path."));
     } else {
         nonlinearConsumer_->setText(tr("Inactive — current model solve is linear"));
-        nonlinearConsumer_->setToolTip(tr("Nonlinear controls are stored but are not consumed by the current linear solve."));
+        nonlinearConsumer_->setToolTip(tr("Nonlinear controls are not consumed by the current linear solve."));
     }
 
     int activeSupportCount = 0;

@@ -49,6 +49,8 @@ set(FEMCAE_GUI_SOURCES
     services/AnalysisService.cpp
     services/AnalysisBoundaryScope.cpp
     services/AnalysisService.h
+    services/NonlinearHex8SolverBridge.cpp
+    services/NonlinearHex8SolverBridge.h
 
     viewport/RenderRoles.cpp
     viewport/RenderRoles.h

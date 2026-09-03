@@ -39,6 +39,7 @@ on:
       - "gui/shell/SelectionCoordinator.h"
       - "gui/support/BoundaryConsumerAcceptance.h"
       - "gui/support/BoundarySelectionAuthoringAcceptance.h"
+      - "gui/support/NonlinearProductWorkflowAcceptance.h"
       - "gui/support/SelectionAcceptanceTest.h"
       - "gui/viewport/GeometrySelectionScene.h"
       - "gui/viewport/GeometryTopologyScene.h"
@@ -96,6 +97,7 @@ jobs:
           test -f gui/services/NamedSelectionService.h
           test -f gui/support/BoundaryConsumerAcceptance.h
           test -f gui/support/BoundarySelectionAuthoringAcceptance.h
+          test -f gui/support/NonlinearProductWorkflowAcceptance.h
           test -f gui/viewport/GeometrySelectionScene.h
           test -f gui/viewport/MeshSelectionScene.h
           test -f gui/viewport/ViewportMeshSelectionBridge.cpp
@@ -171,7 +173,10 @@ jobs:
           app="build-topology-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
           test -x "$app"
           test -s "$DYNAMICS26_STEP_FIXTURE"
-          "$app" --import-step "$DYNAMICS26_STEP_FIXTURE" --selection-selftest
+          output="$($app --import-step "$DYNAMICS26_STEP_FIXTURE" --selection-selftest 2>&1)"
+          printf '%s\n' "$output"
+          grep -q "B3.7 nonlinear product workflow acceptance PASS" <<< "$output"
+          grep -q "cad_face_authoring=yes" <<< "$output"
 
       - name: Native arm64 GUI composition gate
         shell: bash

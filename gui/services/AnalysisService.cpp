@@ -1,5 +1,6 @@
 #include "AnalysisService.h"
 #include "ContactService.h"
+#include "NonlinearHex8SolverBridge.h"
 
 #include <femcae/application/SolverInputBuilder.h>
 #include <femcae/femcae.h>
@@ -15,6 +16,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 using namespace femcae::meshing;
 using namespace femcae::application;
@@ -329,17 +331,23 @@ AnalysisService::AnalysisService(ProjectModel *project, MeshService *mesh, Mater
             next = {};
             break;
         case SolveState::Solving:
+        {
+            const SolverExecutionMode requestedMode = next.summary.executionMode;
             next = {};
-            next.summary.executionMode = SolverExecutionMode::DirectLinear;
+            next.summary.executionMode = requestedMode == SolverExecutionMode::Unavailable
+                ? SolverExecutionMode::DirectLinear : requestedMode;
             next.summary.state = SolverConvergenceState::Running;
             break;
+        }
         case SolveState::Completed:
-            if (next.summary.executionMode != SolverExecutionMode::DirectLinear) {
+            if (next.summary.executionMode == SolverExecutionMode::NonlinearNewton) {
+                next.summary.state = SolverConvergenceState::Converged;
+            } else {
                 next = {};
                 next.summary.executionMode = SolverExecutionMode::DirectLinear;
+                next.summary.state = SolverConvergenceState::Completed;
+                next.entries.clear();
             }
-            next.summary.state = SolverConvergenceState::Completed;
-            next.entries.clear();
             break;
         case SolveState::Failed:
             // Failed sinyali Preflight failure sonrasında da gelir. Yalnız daha
@@ -348,6 +356,8 @@ AnalysisService::AnalysisService(ProjectModel *project, MeshService *mesh, Mater
             if (next.summary.executionMode == SolverExecutionMode::DirectLinear) {
                 next.summary.state = SolverConvergenceState::Failed;
                 next.entries.clear();
+            } else if (next.summary.executionMode == SolverExecutionMode::NonlinearNewton) {
+                next.summary.state = SolverConvergenceState::Failed;
             } else {
                 next = {};
             }
@@ -902,10 +912,11 @@ AnalysisCapabilityResolution AnalysisService::resolveCapabilities(const ObjectId
         input.nonlinearAlgorithm = NonlinearAlgorithmCapability::NotApplicable;
     }
 
-    // B3.0 truthful baseline: nonlinear authoring/verification vardır fakat
-    // arbitrary supplied model consumer henüz B3.4/B3.5 ile bağlanmamıştır.
-    input.nonlinearProductConsumerAvailable = false;
-    input.nonlinearFinalResultsAvailable = false;
+    // B3.5 product bridge caller-supplied immutable HEX8 snapshot'i additive
+    // general nonlinear ABI'ye tasir; B3.4 final-state recovery uc zorunlu
+    // result field'ini de ayni converged state'ten uretir.
+    input.nonlinearProductConsumerAvailable = true;
+    input.nonlinearFinalResultsAvailable = true;
 
     for (const ObjectId id : record->results) {
         if (isActive(id)) {
@@ -1448,6 +1459,10 @@ bool AnalysisService::solve(const ObjectId analysisId)
     const AnalysisSnapshot &snapshot = *snapshotBuild.snapshot;
     const Hex8SolverInput &input = *inputBuild.input;
 
+    record.solverTelemetry = {};
+    record.solverTelemetry.summary.executionMode =
+        snapshot.analysisKind() == SnapshotAnalysisKind::NonlinearStatic
+        ? SolverExecutionMode::NonlinearNewton : SolverExecutionMode::DirectLinear;
     record.solveState = SolveState::Solving;
     emit solveStateChanged(analysisId, SolveState::Solving);
 
@@ -1480,6 +1495,9 @@ bool AnalysisService::solve(const ObjectId analysisId)
     QElapsedTimer timer;
     timer.start();
     int status = 10;
+    int nonlinearStepAttempts = 0;
+    int nonlinearHistoryRequired = 0;
+    bool nonlinearHistoryTruncated = false;
     if (snapshot.analysisKind() == SnapshotAnalysisKind::LinearStatic) {
         status = fem_solve_linear_hex8_mesh(
             static_cast<int>(input.nodeIds.size()), input.nodeIds.data(), input.coordinatesXYZ.data(),
@@ -1491,10 +1509,16 @@ bool AnalysisService::solve(const ObjectId analysisId)
             input.loadComponents.data(), input.loadValues.data(),
             displacements.data(), reactions.data(), vonMises.data());
     } else {
-        // B3.0 capability contract bu consumer bağlanana kadar NonlinearStatic'i
-        // SetupOnly tutar. Bu guard sessiz DirectLinear fallback'i imkânsız kılar.
-        fail(tr("Nonlinear snapshot DirectLinear consumer'a yönlendirilemez."));
-        return false;
+        NonlinearHex8SolveOutput nonlinear = NonlinearHex8SolverBridge::solve(input);
+        status = nonlinear.status;
+        nonlinearStepAttempts = nonlinear.stepAttempts;
+        nonlinearHistoryRequired = nonlinear.historyRequiredCount;
+        nonlinearHistoryTruncated = nonlinear.historyTruncated;
+        displacements = std::move(nonlinear.displacementsXYZ);
+        reactions = std::move(nonlinear.reactionsXYZ);
+        vonMises = std::move(nonlinear.elementEquivalentCauchy);
+        record.solverTelemetry = std::move(nonlinear.telemetry);
+        emit solverTelemetryChanged(analysisId);
     }
     const double elapsed = static_cast<double>(timer.nsecsElapsed()) * 1.0e-9;
 
@@ -1503,7 +1527,9 @@ bool AnalysisService::solve(const ObjectId analysisId)
         record.solveResults = {};
         record.resultDatabase.clear();
         refreshResultNodes(analysisId);
-        fail(tr("Fortran lineer çözüm başarısız (status %1).").arg(status));
+        fail(snapshot.analysisKind() == SnapshotAnalysisKind::NonlinearStatic
+                 ? tr("Fortran nonlinear çözüm başarısız (status %1).").arg(status)
+                 : tr("Fortran lineer çözüm başarısız (status %1).").arg(status));
         return false;
     }
 
@@ -1572,6 +1598,15 @@ bool AnalysisService::solve(const ObjectId analysisId)
                           .arg(results.reactionXN, 0, 'g', 6)
                           .arg(results.reactionYN, 0, 'g', 6)
                           .arg(results.reactionZN, 0, 'g', 6));
+    if (snapshot.analysisKind() == SnapshotAnalysisKind::NonlinearStatic) {
+        emit solverOutput(tr("  Stress measure : final Cauchy von Mises • 8-GP element mean"));
+        emit solverOutput(tr("  Newton         : %1 attempt • %2 history row")
+                              .arg(nonlinearStepAttempts)
+                              .arg(nonlinearHistoryRequired));
+        if (nonlinearHistoryTruncated) {
+            emit solverOutput(tr("  Telemetry      : history buffer truncated explicitly"));
+        }
+    }
     emit message(tr("Çözüm tamamlandı: max |u| = %1 mm, max von Mises = %2 MPa")
                      .arg(results.maxDisplacementMm, 0, 'g', 6)
                      .arg(results.maxVonMisesMPa, 0, 'g', 6),

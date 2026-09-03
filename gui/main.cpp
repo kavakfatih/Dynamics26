@@ -31,6 +31,7 @@
 #include "support/IntegratedWorkflowAcceptance.h"
 #include "support/MaterialInspectorAcceptance.h"
 #include "support/MeshInspectorAcceptance.h"
+#include "support/NonlinearProductWorkflowAcceptance.h"
 #include "support/NonlinearVerificationCommand.h"
 #include "support/PreflightAcceptance.h"
 #include "support/ScreenshotDriver.h"
@@ -289,6 +290,11 @@ int main(int argc, char *argv[])
         const int preflightStatus = d26::runPreflightAcceptanceTest(app, window);
         if (preflightStatus != 0) {
             return preflightStatus;
+        }
+        const int nonlinearProductStatus =
+            d26::runNonlinearProductWorkflowAcceptanceTest(app, window);
+        if (nonlinearProductStatus != 0) {
+            return nonlinearProductStatus;
         }
         const int integratedStatus = d26::runIntegratedWorkflowAcceptanceTest(app, window);
         if (integratedStatus != 0) {

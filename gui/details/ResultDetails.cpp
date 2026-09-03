@@ -37,6 +37,8 @@ ResultDetails::ResultDetails(const ServiceContext &services, QWidget *parent)
     actions->addFullWidth(vtk);
 
     auto *advanced = addSection(tr("Advanced"), true, true);
+    measure_ = advanced->addValueRow(tr("Result Definition"));
+    measure_->setObjectName(QStringLiteral("resultInspector.measure"));
     solveTime_ = advanced->addValueRow(tr("Solve Wall Clock"));
     probe_ = advanced->addValueRow(tr("Corner Probe"));
 
@@ -69,6 +71,17 @@ void ResultDetails::refresh()
     const bool stale = record != nullptr && services_.analysis->solutionIsOutOfDate(analysisId);
     const bool suppressed = services_.project->isSuppressed(objectId_);
     const QString dash = tr("—");
+    if (field_ == ResultField::EquivalentStress) {
+        measure_->setText(record != nullptr && record->type == AnalysisType::NonlinearStatic
+                              ? tr("Final Cauchy von Mises · 8-GP element mean")
+                              : tr("Small-strain Cauchy von Mises · element mean"));
+    } else if (field_ == ResultField::ReactionForce) {
+        measure_->setText(record != nullptr && record->type == AnalysisType::NonlinearStatic
+                              ? tr("Constrained DOF equilibrium · R = f_int − λf_ext")
+                              : tr("Constrained DOF equilibrium · R = K u − f"));
+    } else {
+        measure_->setText(tr("Final nodal displacement magnitude"));
+    }
     if (!solved) {
         // Sonuç TANIMI vardır fakat hesaplanmış DEĞER yoktur. Sahte sayı
         // gösterilmez; durum açıkça yazılır.

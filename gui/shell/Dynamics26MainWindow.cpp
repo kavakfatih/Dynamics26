@@ -1724,7 +1724,10 @@ void Dynamics26MainWindow::solveActiveAnalysis()
     const AnalysisRecord *record = analysis_->analysis(analysisId);
     if (ok && record != nullptr) {
         const SolveResults &results = record->solveResults;
-        utility_->appendTiming(tr("Static Structural çözümü"), results.wallClockSeconds);
+        utility_->appendTiming(record->type == AnalysisType::NonlinearStatic
+                                   ? tr("Nonlinear Static çözümü")
+                                   : tr("Static Structural çözümü"),
+                               results.wallClockSeconds);
         utility_->setResultRows({
             {tr("Maximum Total Deformation"), QStringLiteral("%1 mm").arg(results.maxDisplacementMm, 0, 'g', 8)},
             {tr("Maximum Equivalent Stress"), QStringLiteral("%1 MPa").arg(results.maxVonMisesMPa, 0, 'g', 8)},
@@ -1737,7 +1740,14 @@ void Dynamics26MainWindow::solveActiveAnalysis()
             {tr("Degrees of Freedom"), QString::number(results.dofCount)},
         });
         navigator_->expandAll();
-        const ObjectId deformation = firstObjectOfType(ObjectType::TotalDeformation);
+        ObjectId deformation = InvalidObjectId;
+        for (const ObjectId resultId : record->results) {
+            if (project_->typeOf(resultId) == ObjectType::TotalDeformation
+                && !project_->isEffectivelySuppressed(resultId)) {
+                deformation = resultId;
+                break;
+            }
+        }
         if (deformation != InvalidObjectId) {
             selectObject(deformation);
         }

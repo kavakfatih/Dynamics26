@@ -111,6 +111,11 @@ add_test(NAME c_api_beta3_nonlinear COMMAND c_api_beta3_nonlinear)
 set_tests_properties(c_api_beta3_nonlinear PROPERTIES
     LABELS "api;nonlinear;beta3;equilibrium;telemetry")
 
+add_femcae_prepost_integration_test(
+    c_api_beta3_nonlinear_refinement
+    c_api/test_beta3_nonlinear_refinement.cpp
+    "api;nonlinear;beta3;equilibrium;refinement;meshing")
+
 add_test(NAME cli_smoke COMMAND femcae_cli)
 set_tests_properties(cli_smoke PROPERTIES
     LABELS "smoke"
