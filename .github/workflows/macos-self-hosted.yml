@@ -73,6 +73,7 @@ jobs:
             "gui/shell/SelectionCoordinator.h"
             "gui/shell/Dynamics26MainWindow.cpp"
             "gui/support/SelectionAcceptanceTest.h"
+            "gui/support/BoundarySelectionAuthoringAcceptance.h"
             "gui/support/SolverWorkspaceAccessibilityAcceptance.h"
             "gui/viewport/ViewportInputRouter.cpp"
             "gui/viewport/ViewportCameraController.cpp"

@@ -35,6 +35,24 @@ namespace d26 {
 
 class EngineeringStatusBar;
 
+enum class BoundaryFromSelectionKind {
+    FixedSupport = 0,
+    TotalForce
+};
+
+struct BoundaryFromSelectionCreateResult {
+    ObjectId namedSelectionId{InvalidObjectId};
+    ObjectId boundaryConditionId{InvalidObjectId};
+    ScopeReferenceBuildError buildError{ScopeReferenceBuildError::None};
+
+    [[nodiscard]] bool success() const noexcept
+    {
+        return buildError == ScopeReferenceBuildError::None
+            && namedSelectionId != InvalidObjectId
+            && boundaryConditionId != InvalidObjectId;
+    }
+};
+
 class SelectionCoordinator final : public QObject
 {
 public:
@@ -42,6 +60,12 @@ public:
 
     [[nodiscard]] SelectionManager *selectionManager() const noexcept { return selection_; }
     [[nodiscard]] ScopeReferenceBuildResult currentGeometryScope() const;
+
+    // Seçili gerçek CAD Face setini önce persistent Named Selection'a, sonra
+    // BC/Load içindeki yalnız ObjectId referansına dönüştüren canonical hızlı
+    // authoring yolu. İki document command tek Undo macro'sunda tutulur.
+    [[nodiscard]] BoundaryFromSelectionCreateResult
+        createBoundaryConditionFromCurrentFaceSelection(BoundaryFromSelectionKind kind);
 
     // UI persistent engineering scope istediğinde SelectionManager/VTK internals
     // görmez. Aynı tek converter zinciri Geometry için CAD revision+persistentKey,

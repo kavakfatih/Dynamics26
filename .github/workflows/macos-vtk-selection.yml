@@ -38,6 +38,7 @@ on:
       - "gui/shell/SelectionCoordinator.cpp"
       - "gui/shell/SelectionCoordinator.h"
       - "gui/support/BoundaryConsumerAcceptance.h"
+      - "gui/support/BoundarySelectionAuthoringAcceptance.h"
       - "gui/support/SelectionAcceptanceTest.h"
       - "gui/viewport/GeometrySelectionScene.h"
       - "gui/viewport/GeometryTopologyScene.h"
@@ -94,6 +95,7 @@ jobs:
           test -f gui/services/NamedSelectionService.cpp
           test -f gui/services/NamedSelectionService.h
           test -f gui/support/BoundaryConsumerAcceptance.h
+          test -f gui/support/BoundarySelectionAuthoringAcceptance.h
           test -f gui/viewport/GeometrySelectionScene.h
           test -f gui/viewport/MeshSelectionScene.h
           test -f gui/viewport/ViewportMeshSelectionBridge.cpp

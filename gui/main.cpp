@@ -20,6 +20,7 @@
 #include "shell/SelectionCoordinator.h"
 #include "support/AnalysisInspectorAcceptance.h"
 #include "support/BoundaryConsumerAcceptance.h"
+#include "support/BoundarySelectionAuthoringAcceptance.h"
 #include "support/ContactInspectorAcceptance.h"
 #include "support/ContactPersistenceAcceptance.h"
 #include "support/ContactPreflightAcceptance.h"
@@ -279,6 +280,11 @@ int main(int argc, char *argv[])
         const int boundaryStatus = d26::runBoundaryConsumerAcceptanceTest(app, window);
         if (boundaryStatus != 0) {
             return boundaryStatus;
+        }
+        const int boundarySelectionStatus =
+            d26::runBoundarySelectionAuthoringAcceptanceTest(app, window);
+        if (boundarySelectionStatus != 0) {
+            return boundarySelectionStatus;
         }
         const int preflightStatus = d26::runPreflightAcceptanceTest(app, window);
         if (preflightStatus != 0) {
