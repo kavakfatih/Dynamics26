@@ -227,6 +227,7 @@ add_library(femcae_core STATIC
     src/contact/fem_contact_assembly.f90
     src/post/fem_linear_results.f90
     src/post/fem_mixed_results.f90
+    src/post/fem_nonlinear_results.f90
     ${FEMCAE_ASSEMBLY_SOURCES}
     ${FEMCAE_SOLVER_SOURCES}
     src/analysis/fem_linear_static_analysis.f90
@@ -258,6 +259,7 @@ endif()
 add_library(femcae_api SHARED
     src/api/fem_c_api.f90
     src/api/fem_nonlinear_diagnostics_api.f90
+    src/api/fem_nonlinear_product_api.f90
 )
 target_link_libraries(femcae_api PRIVATE femcae_core)
 set_target_properties(femcae_api PROPERTIES

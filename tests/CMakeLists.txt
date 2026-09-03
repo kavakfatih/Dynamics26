@@ -104,6 +104,13 @@ target_link_libraries(c_api_smoke PRIVATE femcae_api)
 add_test(NAME c_api_smoke COMMAND c_api_smoke)
 set_tests_properties(c_api_smoke PROPERTIES LABELS "api;smoke")
 
+add_executable(c_api_beta3_nonlinear c_api/test_beta3_nonlinear_api.c)
+target_link_libraries(c_api_beta3_nonlinear PRIVATE femcae_api)
+femcae_enable_warnings(c_api_beta3_nonlinear)
+add_test(NAME c_api_beta3_nonlinear COMMAND c_api_beta3_nonlinear)
+set_tests_properties(c_api_beta3_nonlinear PROPERTIES
+    LABELS "api;nonlinear;beta3;equilibrium;telemetry")
+
 add_test(NAME cli_smoke COMMAND femcae_cli)
 set_tests_properties(cli_smoke PROPERTIES
     LABELS "smoke"

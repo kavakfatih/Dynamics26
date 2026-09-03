@@ -74,6 +74,8 @@ jobs:
             "include/femcae/application/SolverInputBuilder.h"
             "src/application/AnalysisSnapshot.cpp"
             "src/application/SolverInputBuilder.cpp"
+            "src/post/fem_nonlinear_results.f90"
+            "src/api/fem_nonlinear_product_api.f90"
             "gui/shell/CommandRegistry.cpp"
             "gui/shell/SelectionCoordinator.cpp"
             "gui/shell/SelectionCoordinator.h"
@@ -105,6 +107,7 @@ jobs:
             "tests/gui/test_analysis_capability.cpp"
             "tests/meshing/unit_beta3_surface_load.cpp"
             "tests/application/unit_beta3_analysis_snapshot.cpp"
+            "tests/c_api/test_beta3_nonlinear_api.c"
           )
           for source in "${required_sources[@]}"; do
             test -f "$source"
@@ -225,6 +228,7 @@ jobs:
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_analysis_capability_test
           cmake --build build-selfhosted-gui-fast --parallel --target unit_beta3_surface_load
           cmake --build build-selfhosted-gui-fast --parallel --target unit_beta3_analysis_snapshot
+          cmake --build build-selfhosted-gui-fast --parallel --target c_api_beta3_nonlinear
 
       - name: Project migration gate
         run: ctest --test-dir build-selfhosted-gui-fast -L migration --output-on-failure
@@ -237,6 +241,9 @@ jobs:
 
       - name: Immutable AnalysisSnapshot and SolverInputBuilder gate
         run: ctest --test-dir build-selfhosted-gui-fast -R '^unit_beta3_analysis_snapshot$' --output-on-failure
+
+      - name: General nonlinear HEX8 product ABI gate
+        run: ctest --test-dir build-selfhosted-gui-fast -R '^c_api_beta3_nonlinear$' --output-on-failure
 
       - name: Selection state and VTK picker gate
         run: ctest --test-dir build-selfhosted-gui-fast -L selection --output-on-failure
