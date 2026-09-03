@@ -233,15 +233,27 @@ int main(int argc, char *argv[])
         std::cout << std::unitbuf;
 
         // Aynı gerçek application composition üzerinde sırasıyla transient/
-        // persistent selection, Material/Mesh/Analysis Inspector, shared Inspector
-        // UX, Solver Workspace accessibility, Solver Workspace, boundary consumers,
-        // Preflight, integrated workflow ve Contact acceptance zinciri yürütülür.
+        // persistent selection, CAD Face authoring/nonlinear product, Inspector,
+        // Solver Workspace, boundary consumer, Preflight, integrated workflow ve
+        // Contact acceptance zinciri yürütülür. Gerçek --import-step topology'sini
+        // kullanan B3.1/B3.7 paketleri, fixture kurmak için New Project yapan
+        // Inspector paketlerinden önce çalışmalıdır.
         // Inspector/solver-workspace acceptance'ları yalnız görünür/current
         // application state'i düzenler; hidden widget state'i veya ikinci engineering
         // state kullanılmaz. Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
             return selectionStatus;
+        }
+        const int boundarySelectionStatus =
+            d26::runBoundarySelectionAuthoringAcceptanceTest(app, window);
+        if (boundarySelectionStatus != 0) {
+            return boundarySelectionStatus;
+        }
+        const int nonlinearProductStatus =
+            d26::runNonlinearProductWorkflowAcceptanceTest(app, window);
+        if (nonlinearProductStatus != 0) {
+            return nonlinearProductStatus;
         }
         const int materialInspectorStatus = d26::runMaterialInspectorAcceptanceTest(app, window);
         if (materialInspectorStatus != 0) {
@@ -282,19 +294,9 @@ int main(int argc, char *argv[])
         if (boundaryStatus != 0) {
             return boundaryStatus;
         }
-        const int boundarySelectionStatus =
-            d26::runBoundarySelectionAuthoringAcceptanceTest(app, window);
-        if (boundarySelectionStatus != 0) {
-            return boundarySelectionStatus;
-        }
         const int preflightStatus = d26::runPreflightAcceptanceTest(app, window);
         if (preflightStatus != 0) {
             return preflightStatus;
-        }
-        const int nonlinearProductStatus =
-            d26::runNonlinearProductWorkflowAcceptanceTest(app, window);
-        if (nonlinearProductStatus != 0) {
-            return nonlinearProductStatus;
         }
         const int integratedStatus = d26::runIntegratedWorkflowAcceptanceTest(app, window);
         if (integratedStatus != 0) {

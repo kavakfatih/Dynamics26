@@ -255,6 +255,66 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
     check(ready.solveReady() && services.analysis->preflight(analysisId).passed(),
           "authoritative capability resolution and Preflight pass the supported nonlinear subset");
 
+    // Gercek Newton failure/cutback yolu derived solve state'i degistirebilir,
+    // fakat persistent document input'u veya Undo index'ini degistiremez. Tek
+    // correction/attempt fixture'i her increment'i reddeder ve mevcut solver'in
+    // checkpoint/revert + cutback altyapisini product bridge uzerinden calistirir.
+    const LoadDefinition *nominalForcePointer = services.analysis->load(forceId);
+    record = services.analysis->analysis(analysisId);
+    if (nominalForcePointer != nullptr && record != nullptr) {
+        const LoadDefinition nominalForce = *nominalForcePointer;
+        LoadDefinition failureForce = nominalForce;
+        failureForce.fxN = 1.0e7;
+        failureForce.fyN = 0.0;
+        failureForce.fzN = 0.0;
+        const NonlinearSolverControls nominalControls = record->nonlinearControls;
+        NonlinearSolverControls failureControls = nominalControls;
+        failureControls.maximumIterations = 1;
+        failureControls.adaptiveStepping = true;
+        failureControls.initialLoadIncrement = 0.25;
+        failureControls.minimumLoadIncrement = 0.01;
+        failureControls.maximumLoadIncrement = 0.25;
+        commands->push(new commands::SetForceCommand(
+            services, forceId, nominalForce, failureForce));
+        commands->push(new commands::SetNonlinearSolverControlsCommand(
+            services, analysisId, nominalControls, failureControls,
+            QStringLiteral("Set nonlinear cutback fixture")));
+        flushUi();
+
+        const QJsonObject failureDocument = services.analysis->analysisToJson(analysisId);
+        const int undoBeforeFailure = undo->index();
+        check(services.analysis->preflight(analysisId).passed()
+                  && !services.analysis->solve(analysisId),
+              "valid product model reaches deterministic Newton cutback/failure instead of fallback");
+        flushUi();
+        const SolverConvergenceSnapshot *failedTelemetry =
+            services.analysis->solverTelemetry(analysisId);
+        check(failedTelemetry != nullptr
+                  && failedTelemetry->summary.executionMode == SolverExecutionMode::NonlinearNewton
+                  && failedTelemetry->summary.state == SolverConvergenceState::Failed
+                  && failedTelemetry->summary.cutbackCount > 0
+                  && !failedTelemetry->entries.isEmpty(),
+              "failed product solve exposes real cutback telemetry and retained iteration history");
+        check(services.analysis->analysisToJson(analysisId) == failureDocument
+                  && undo->index() == undoBeforeFailure,
+              "Newton failure/cutback leaves persistent document and Undo state unchanged");
+
+        undo->undo();
+        undo->undo();
+        flushUi();
+        const LoadDefinition *restoredForce = services.analysis->load(forceId);
+        record = services.analysis->analysis(analysisId);
+        check(restoredForce != nullptr && record != nullptr
+                  && std::abs(restoredForce->fxN - nominalForce.fxN) <= 1.0e-12
+                  && std::abs(restoredForce->fyN - nominalForce.fyN) <= 1.0e-12
+                  && std::abs(restoredForce->fzN - nominalForce.fzN) <= 1.0e-12
+                  && record->nonlinearControls == nominalControls
+                  && services.analysis->preflight(analysisId).passed(),
+              "Undo restores the nominal nonlinear controls/load and Solve-ready state");
+    } else {
+        check(false, "cutback fixture resolves the authored Force and nonlinear Analysis");
+    }
+
     const QJsonObject authoredAnalysis = services.analysis->analysisToJson(analysisId);
     const MeshService::Definition authoredMeshDefinition = services.mesh->definition();
     QVector<ObjectId> authoredResultIds;
