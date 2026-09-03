@@ -6,6 +6,7 @@
 #include <QCoreApplication>
 
 #include <femcae/meshing/StructuredHexMesher.h>
+#include <femcae/meshing/SurfaceLoadAssembler.h>
 
 #include <algorithm>
 #include <iostream>
@@ -254,14 +255,12 @@ void boundaryNodeUnionTests()
               mesh, QVector<femcae::geometry::GeometryEntityId>{femcae::geometry::InvalidGeometryId}).empty(),
           "invalid CAD identity cannot leak into boundary node union");
 
-    // Force consumer contract: F_total is distributed ONCE over the union. If
-    // each Face received F_total separately, the summed load would be multiplied
-    // by face count. This check locks the intended total-load arithmetic.
-    constexpr double totalForce = 1200.0;
-    const double nodalForce = totalForce / static_cast<double>(unionNodes.size());
-    const double recoveredTotal = nodalForce * static_cast<double>(unionNodes.size());
-    check(std::abs(recoveredTotal - totalForce) < 1.0e-12,
-          "total Force distributed once over multi-Face union preserves requested resultant");
+    // Force consumer artık node-count paylaşımı yapmaz. Aynı CAD Face scope'u
+    // gerçek QUAD4 facet'lerde consistent reference-surface integration'a gider.
+    const auto assembled = femcae::meshing::assembleUniformTotalForce(
+        mesh, {xMin, yMin}, {1200.0, 0.0, 0.0});
+    check(assembled.success() && std::abs(assembled.resultant().x - 1200.0) < 1.0e-12,
+          "multi-Face scope consistent integration preserves one requested Total Force resultant");
 }
 
 } // namespace

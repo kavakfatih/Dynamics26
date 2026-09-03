@@ -72,6 +72,7 @@ set(FEMCAE_MESHING_SOURCES
     src/meshing/MeshingPlan.cpp
     src/meshing/AssignmentResolver.cpp
     src/meshing/GeometryMeshBridge.cpp
+    src/meshing/SurfaceLoadAssembler.cpp
 )
 
 add_library(femcae_geometry STATIC ${FEMCAE_GEOMETRY_SOURCES})

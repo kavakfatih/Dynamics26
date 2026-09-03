@@ -68,6 +68,8 @@ jobs:
             "gui/services/NamedSelectionService.h"
             "gui/services/MaterialService.cpp"
             "gui/services/AnalysisService.cpp"
+            "include/femcae/meshing/SurfaceLoadAssembler.h"
+            "src/meshing/SurfaceLoadAssembler.cpp"
             "gui/shell/CommandRegistry.cpp"
             "gui/shell/SelectionCoordinator.cpp"
             "gui/shell/SelectionCoordinator.h"
@@ -97,6 +99,7 @@ jobs:
             "tests/gui/test_mesh_selection.cpp"
             "tests/gui/test_mesh_viewport_selection.cpp"
             "tests/gui/test_analysis_capability.cpp"
+            "tests/meshing/unit_beta3_surface_load.cpp"
           )
           for source in "${required_sources[@]}"; do
             test -f "$source"
@@ -215,12 +218,16 @@ jobs:
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_selection_manager_test
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_viewport_navigation_test
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_analysis_capability_test
+          cmake --build build-selfhosted-gui-fast --parallel --target unit_beta3_surface_load
 
       - name: Project migration gate
         run: ctest --test-dir build-selfhosted-gui-fast -L migration --output-on-failure
 
       - name: Typed capability resolver gate
         run: ctest --test-dir build-selfhosted-gui-fast -R '^gui.analysis_capability$' --output-on-failure
+
+      - name: Consistent Total Force surface integration gate
+        run: ctest --test-dir build-selfhosted-gui-fast -R '^unit_beta3_surface_load$' --output-on-failure
 
       - name: Selection state and VTK picker gate
         run: ctest --test-dir build-selfhosted-gui-fast -L selection --output-on-failure

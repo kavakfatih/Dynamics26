@@ -198,6 +198,7 @@ add_femcae_meshing_test(unit_v130_external_mesh meshing/unit_v130_external_mesh.
 add_femcae_meshing_test(unit_v130_assignments_results meshing/unit_v130_assignments_results.cpp "unit;prepost;assignment;probe;export")
 add_femcae_meshing_test(unit_v130_sizing_assignments meshing/unit_v130_sizing_assignments.cpp "unit;meshing;sizing;refinement;assignment;provenance")
 add_femcae_meshing_test(unit_v130_geometry_bridge meshing/unit_v130_geometry_bridge.cpp "unit;meshing;geometry;provenance")
+add_femcae_meshing_test(unit_beta3_surface_load meshing/unit_beta3_surface_load.cpp "unit;meshing;surface-load;beta3")
 add_femcae_prepost_integration_test(ver_v130_001 meshing/ver_v130_001_mesh_to_solve.cpp "verification;meshing;prepost;integration;linear")
 if(FEMCAE_OCCT_FOUND)
     add_femcae_meshing_test(ver_v130_002 meshing/ver_v130_002_occt_step_box_meshing.cpp "verification;cad;step;occt;meshing;provenance")

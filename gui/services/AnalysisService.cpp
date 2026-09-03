@@ -3,6 +3,7 @@
 
 #include <femcae/femcae.h>
 #include <femcae/meshing/AssignmentResolver.h>
+#include <femcae/meshing/SurfaceLoadAssembler.h>
 
 #include <QElapsedTimer>
 #include <QJsonArray>
@@ -10,6 +11,7 @@
 #include <QJsonValue>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -74,6 +76,17 @@ ObjectId exactObjectIdOrInvalid(const QJsonValue &value)
     ObjectId result = InvalidObjectId;
     (void)parseExactObjectId(value, &result);
     return result;
+}
+
+SurfaceLoadAssemblyResult assembleTotalForce(
+    const SimulationMesh &mesh,
+    const BoundaryScopeResolution &scope,
+    const LoadDefinition &load)
+{
+    const std::vector<GeometryEntityId> faceIds(
+        scope.geometryFaceIds.cbegin(), scope.geometryFaceIds.cend());
+    return assembleUniformTotalForce(
+        mesh, faceIds, {load.fxN, load.fyN, load.fzN});
 }
 
 } // namespace
@@ -990,6 +1003,23 @@ PreflightReport AnalysisService::preflight(
                         ? tr("%1 → %2 • %3 node").arg(definition->name, scope.label).arg(nodeCount)
                         : tr("%1 → %2").arg(definition->name, scope.label),
                     id);
+                if (meshReadyForScope) {
+                    const SurfaceLoadAssemblyResult assembled = assembleTotalForce(
+                        mesh_->mesh(), scope, *definition);
+                    if (!assembled.success()) {
+                        add(PreflightCheck::Status::Failed, tr("Yük Yüzey İntegrasyonu"),
+                            tr("%1 — %2")
+                                .arg(definition->name,
+                                     QString::fromLatin1(surfaceLoadAssemblyErrorMessage(assembled.error))),
+                            id);
+                    } else {
+                        add(PreflightCheck::Status::Passed, tr("Yük Yüzey İntegrasyonu"),
+                            tr("%1 • A_ref = %2 m² • QUAD4 2×2 Gauss")
+                                .arg(definition->name)
+                                .arg(assembled.referenceArea, 0, 'g', 8),
+                            id);
+                    }
+                }
             }
         }
     }
@@ -1274,9 +1304,11 @@ bool AnalysisService::solve(const ObjectId analysisId)
                               .arg(nodes.size()));
     }
 
-    // Her Force nesnesinin vectorValue değeri TOPLAM kuvvettir. Named Selection
-    // birden çok Face içerirse node'lar önce tek union'a indirgenir; total force
-    // yüz başına tekrarlanmaz, union node sayısına yalnız BİR KEZ bölünür.
+    // Her Force nesnesinin vectorValue değeri seçili TÜM surface scope için tek
+    // TOPLAM kuvvettir. Reference alan bütün gerçek FEM boundary facet'lerinde
+    // bir kez hesaplanır; t_ref=F_total/A_ref her QUAD4'e 2x2 Gauss ile
+    // consistent biçimde entegre edilir. Viewport glyph/node sayısı fizik
+    // assembly'sine hiçbir zaman girmez.
     for (const ObjectId loadId : record.loads) {
         if (!isActive(loadId)) {
             emit solverOutput(tr("  Yük           : %1 — BASTIRILDI, atlandı")
@@ -1288,29 +1320,35 @@ bool AnalysisService::solve(const ObjectId analysisId)
             continue;
         }
         const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
-        const auto nodes = resolvedBoundaryNodeIds(scope);
-        if (!scope.valid || nodes.empty()) {
+        if (!scope.valid) {
             fail(tr("Yük kapsamı solver node'larına çözülemedi: %1")
                      .arg(scope.error.isEmpty() ? definition->name : scope.error));
             return false;
         }
-        const double share = 1.0 / static_cast<double>(nodes.size());
-        for (const auto nodeId : nodes) {
+        const SurfaceLoadAssemblyResult assembled = assembleTotalForce(mesh, scope, *definition);
+        if (!assembled.success()) {
+            fail(tr("Total Force surface integration başarısız: %1 — %2")
+                     .arg(definition->name,
+                          QString::fromLatin1(surfaceLoadAssemblyErrorMessage(assembled.error))));
+            return false;
+        }
+        for (const NodalVectorLoad &nodalLoad : assembled.nodalLoads) {
+            const std::array<double, 3> components{
+                nodalLoad.value.x, nodalLoad.value.y, nodalLoad.value.z};
             for (int component = 0; component < 3; ++component) {
-                const double totalComponent = component == 0 ? definition->fxN
-                    : (component == 1 ? definition->fyN : definition->fzN);
-                const double value = totalComponent * share;
+                const double value = components[static_cast<std::size_t>(component)];
                 if (std::abs(value) < 1.0e-30) {
                     continue;
                 }
-                loadNodes.push_back(static_cast<long long>(nodeId));
+                loadNodes.push_back(static_cast<long long>(nodalLoad.nodeId));
                 loadComponents.push_back(component + 1);
                 loadValues.push_back(value);
             }
         }
-        emit solverOutput(tr("  Yük           : %1 → %2 • %3 node, |F| = %4 N")
+        emit solverOutput(tr("  Yük           : %1 → %2 • %3 node, A_ref=%4 m², |F|=%5 N")
                               .arg(definition->name, scope.label)
-                              .arg(nodes.size())
+                              .arg(assembled.nodalLoads.size())
+                              .arg(assembled.referenceArea, 0, 'g', 8)
                               .arg(definition->magnitudeN(), 0, 'g', 6));
     }
 
