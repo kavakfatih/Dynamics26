@@ -56,6 +56,12 @@ public:
     void setSource(MeshSource source);
     // CAD tarafından sürülüyorsa ölçüler kullanıcı tarafından düzenlenemez.
     [[nodiscard]] bool dimensionsAreDerived() const;
+    // Capability resolver için source truth. `hasImportedGeometry()` gerçek CAD
+    // document state'ini, `hasBoxCompatibleGeometry()` ise StructuredHexMesher'a
+    // geçerli boxDescriptor sağlanabildiğini bildirir. Bounding-box yaklaşımı
+    // keyfi CAD desteği olarak yorumlanamaz.
+    [[nodiscard]] bool hasImportedGeometry() const;
+    [[nodiscard]] bool hasBoxCompatibleGeometry() const noexcept { return geometryBoxAvailable_; }
 
     bool generate();
     // Üretilmiş mesh verisini siler, TANIMI korur (Clear Generated Mesh).

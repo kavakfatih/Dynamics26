@@ -17,6 +17,7 @@
 
 #include "../core/ProjectModel.h"
 #include "../core/ProjectTypes.h"
+#include "../core/AnalysisCapability.h"
 #include "../core/ScopeReferenceBuilder.h"
 #include "../core/SolverTelemetry.h"
 #include "MaterialService.h"
@@ -249,6 +250,7 @@ public:
     [[nodiscard]] QString resolvedLinearSolver() const;
 
     // --- yaşam döngüsü ---
+    [[nodiscard]] AnalysisCapabilityResolution resolveCapabilities(ObjectId analysisId) const;
     [[nodiscard]] PreflightReport preflight(ObjectId analysisId) const;
     bool solve(ObjectId analysisId);
     void clearSolution(ObjectId analysisId);
@@ -287,6 +289,8 @@ signals:
     void resultsChanged(ObjectId analysisId);
 
 private:
+    [[nodiscard]] PreflightReport preflight(
+        ObjectId analysisId, const AnalysisCapabilityResolution &capabilities) const;
     // Solver'ın GERÇEKTEN tükettiği girdilerin imzası: mesh üretimi ve ölçüleri,
     // atanmış malzemenin elastik parametreleri, AKTİF sınır şartı/yük kapsam ve
     // değerleri, çözülen formülasyon. Ad değişikliği ve henüz consumer'a bağlı

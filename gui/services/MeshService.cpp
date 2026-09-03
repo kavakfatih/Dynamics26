@@ -123,6 +123,11 @@ bool MeshService::dimensionsAreDerived() const
     return definition_.source == MeshSource::GeometryBoundingBox && geometryBoxAvailable_;
 }
 
+bool MeshService::hasImportedGeometry() const
+{
+    return geometry_ != nullptr && geometry_->summary().hasGeometry;
+}
+
 int MeshService::predictedNodeCount() const
 {
     return (definition_.nx + 1) * (definition_.ny + 1) * (definition_.nz + 1);

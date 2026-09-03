@@ -11,6 +11,8 @@ set(FEMCAE_GUI_SOURCES
 
     core/ProjectTypes.cpp
     core/ProjectTypes.h
+    core/AnalysisCapability.cpp
+    core/AnalysisCapability.h
     core/ProjectModel.cpp
     core/ProjectModel.h
     core/ProjectTreeModel.cpp
@@ -263,6 +265,21 @@ if(APPLE)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(femcae_analysis_capability_test
+        core/ProjectTypes.cpp
+        core/ProjectTypes.h
+        core/AnalysisCapability.cpp
+        core/AnalysisCapability.h
+        "${PROJECT_SOURCE_DIR}/tests/gui/test_analysis_capability.cpp"
+    )
+    target_include_directories(femcae_analysis_capability_test PRIVATE
+        "${PROJECT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(femcae_analysis_capability_test PRIVATE Qt6::Core)
+    add_test(NAME gui.analysis_capability COMMAND femcae_analysis_capability_test)
+    set_tests_properties(gui.analysis_capability PROPERTIES LABELS "gui;capability;preflight;beta3")
+
     add_executable(femcae_project_migration_test
         ProjectFileMigrator.cpp
         ProjectFileMigrator.h

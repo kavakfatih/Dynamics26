@@ -754,7 +754,129 @@ QString AnalysisService::resolvedLinearSolver() const
 
 // --- preflight ---------------------------------------------------------------
 
+AnalysisCapabilityResolution AnalysisService::resolveCapabilities(const ObjectId analysisId) const
+{
+    AnalysisCapabilityInput input;
+    input.analysisSubject = analysisId;
+    input.geometrySubject = project_ != nullptr ? project_->geometryNode() : InvalidObjectId;
+    input.meshSubject = project_ != nullptr ? project_->meshNode() : InvalidObjectId;
+    input.materialSubject = project_ != nullptr ? project_->materialsNode() : InvalidObjectId;
+
+    const AnalysisRecord *record = analysis(analysisId);
+    input.analysisPresent = record != nullptr;
+    if (record == nullptr) {
+        return AnalysisCapabilityResolver::resolve(input);
+    }
+
+    input.analysisType = record->type;
+    input.settingsSubject = record->settingsNode;
+    input.solutionSubject = record->solutionNode;
+
+    if (mesh_->hasImportedGeometry()) {
+        input.geometry = mesh_->hasBoxCompatibleGeometry()
+            ? GeometryCapability::BoxCompatibleCad
+            : GeometryCapability::UnsupportedCad;
+    } else {
+        input.geometry = GeometryCapability::ParametricBox;
+    }
+
+    input.meshPresent = mesh_->hasMesh();
+    input.meshStale = mesh_->isOutOfDate();
+    input.allElementsHex8 = input.meshPresent
+        && std::all_of(mesh_->mesh().elements.cbegin(), mesh_->mesh().elements.cend(),
+                       [](const MeshElement &element) { return element.topology == MeshTopology::Hex8; });
+
+    const MaterialDefinition *material = materials_->assigned();
+    input.materialAssigned = material != nullptr;
+    input.materialModel = material != nullptr ? material->model : MaterialModel::LinearElastic;
+    if (materials_->assignedMaterialId() != InvalidObjectId) {
+        input.materialSubject = materials_->assignedMaterialId();
+    }
+
+    input.largeDeformation = record->largeDeflection;
+    input.formulation = resolvedFormulation(analysisId);
+
+    for (const ObjectId id : record->supports) {
+        if (isActive(id)) {
+            ++input.activeFixedSupportCount;
+            if (input.boundarySubject == InvalidObjectId) {
+                input.boundarySubject = id;
+            }
+        }
+    }
+    if (input.boundarySubject == InvalidObjectId) {
+        input.boundarySubject = analysisId;
+    }
+
+    for (const ObjectId id : record->loads) {
+        if (isActive(id)) {
+            ++input.activeTotalForceCount;
+            if (input.loadSubject == InvalidObjectId) {
+                input.loadSubject = id;
+            }
+        }
+    }
+    if (input.loadSubject == InvalidObjectId) {
+        input.loadSubject = analysisId;
+    }
+
+    // B3.0 resolver, mevcut Total Force consumer'ının varlığını typed biçimde
+    // kaydeder. B3.2 bu consumer'ın içini consistent QUAD4 surface integration
+    // ile değiştirecek; capability/Preflight API'si değişmeyecektir.
+    input.totalForceConsumerAvailable = true;
+
+    if (project_ != nullptr) {
+        for (const ObjectId id : project_->childrenOf(project_->connectionsNode())) {
+            if (project_->typeOf(id) == ObjectType::ContactRegion && isActive(id)) {
+                ++input.activeContactCount;
+                if (input.contactSubject == InvalidObjectId) {
+                    input.contactSubject = id;
+                }
+            }
+        }
+    }
+    if (input.contactSubject == InvalidObjectId && project_ != nullptr) {
+        input.contactSubject = project_->connectionsNode();
+    }
+
+    input.linearBackend = LinearBackendCapability::DenseReference;
+    input.dofCount = mesh_->dofCount();
+    input.maximumDenseDofCount = maximumDofThreshold();
+
+    if (record->type == AnalysisType::NonlinearStatic) {
+        input.nonlinearAlgorithm = record->nonlinearControls.method == NonlinearMethodIntent::FullNewton
+            ? NonlinearAlgorithmCapability::FullNewton
+            : (record->nonlinearControls.method == NonlinearMethodIntent::ModifiedNewton
+                   ? NonlinearAlgorithmCapability::ModifiedNewton
+                   : NonlinearAlgorithmCapability::Unsupported);
+        input.nonlinearControlsValid = record->nonlinearControls.isValid(&input.nonlinearControlsError);
+    } else {
+        input.nonlinearAlgorithm = NonlinearAlgorithmCapability::NotApplicable;
+    }
+
+    // B3.0 truthful baseline: nonlinear authoring/verification vardır fakat
+    // arbitrary supplied model consumer henüz B3.4/B3.5 ile bağlanmamıştır.
+    input.nonlinearProductConsumerAvailable = false;
+    input.nonlinearFinalResultsAvailable = false;
+
+    for (const ObjectId id : record->results) {
+        if (isActive(id)) {
+            if (const ResultDefinition *definition = resultDefinition(id)) {
+                input.requestedResults.push_back(RequestedResultCapability{definition->kind, id});
+            }
+        }
+    }
+
+    return AnalysisCapabilityResolver::resolve(input);
+}
+
 PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
+{
+    return preflight(analysisId, resolveCapabilities(analysisId));
+}
+
+PreflightReport AnalysisService::preflight(
+    const ObjectId analysisId, const AnalysisCapabilityResolution &capabilities) const
 {
     PreflightReport report;
     const auto add = [&report](const PreflightCheck::Status status, const QString &label, const QString &detail,
@@ -764,67 +886,31 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
 
     const AnalysisRecord *record = analysis(analysisId);
     if (record == nullptr) {
-        add(PreflightCheck::Status::Failed, tr("Analiz"), tr("Analiz nesnesi bulunamadı."));
+        if (const CapabilityDecision *failure = capabilities.firstBlocking()) {
+            add(PreflightCheck::Status::Failed, failure->label,
+                QStringLiteral("%1 — %2").arg(capabilityStateName(failure->state), failure->detail),
+                failure->subject);
+        } else {
+            add(PreflightCheck::Status::Failed, tr("Analiz"), tr("Analiz nesnesi bulunamadı."));
+        }
         return report;
     }
 
-    // 1) Analiz türü
-    if (record->type != AnalysisType::StaticStructural) {
-        add(PreflightCheck::Status::Failed, tr("Analiz Türü"),
-            tr("%1 için model tabanlı GUI çözüm akışı henüz etkin değil.").arg(displayName(record->type)),
-            analysisId);
-    } else {
-        add(PreflightCheck::Status::Passed, tr("Analiz Türü"), displayName(record->type), analysisId);
+    // Capability/applicability kararları tek typed resolver'dan gelir. Preflight
+    // bu kararları kullanıcıya/navigasyona çeviren authoritative engineering
+    // raporudur; Solve aynı resolution instance'ını tüketir.
+    for (const CapabilityDecision &decision : capabilities.decisions) {
+        const PreflightCheck::Status status = decision.ready()
+            ? PreflightCheck::Status::Passed
+            : PreflightCheck::Status::Failed;
+        const QString detail = decision.ready()
+            ? decision.detail
+            : QStringLiteral("%1 — %2").arg(capabilityStateName(decision.state), decision.detail);
+        add(status, decision.label, detail, decision.subject);
     }
 
-    // B2.3 nonlinear controls authoritative model state'tir. Geçersiz persisted
-    // değerler solver'a ulaşmadan burada bloklanır. Geçerli control state ise
-    // consumer desteği anlamına gelmez; Nonlinear Static Analysis Type check'i
-    // general model solve'u ayrıca blocking tutar.
-    if (record->type == AnalysisType::NonlinearStatic) {
-        QString controlError;
-        if (!record->nonlinearControls.isValid(&controlError)) {
-            add(PreflightCheck::Status::Failed, tr("Nonlinear Solver Controls"), controlError,
-                record->settingsNode);
-        } else {
-            const QString method = record->nonlinearControls.method == NonlinearMethodIntent::FullNewton
-                ? tr("Full Newton") : tr("Modified Newton");
-            add(PreflightCheck::Status::Passed, tr("Nonlinear Solver Controls"),
-                tr("%1 • max %2 iteration • authoring state geçerli; model consumer henüz bağlı değil.")
-                    .arg(method)
-                    .arg(record->nonlinearControls.maximumIterations),
-                record->settingsNode);
-        }
-    }
-
-    // 2) Geometri
-    add(PreflightCheck::Status::Passed, tr("Geometri"),
-        mesh_->dimensionsAreDerived() ? tr("CAD gövdesi") : tr("Parametrik kutu gövdesi"));
-
-    // 3) Malzeme ataması
-    const MaterialDefinition *material = materials_->assigned();
-    if (material == nullptr) {
-        add(PreflightCheck::Status::Failed, tr("Malzeme"), tr("Modele malzeme atanmadı."));
-    } else if (!material->supportsLinearStaticSolve()) {
-        add(PreflightCheck::Status::Failed, tr("Malzeme"),
-            tr("Atanan malzeme «%1». Static Structural çözüm yolu lineer izotropik malzeme gerektirir.")
-                .arg(displayName(material->model)),
-            materials_->assignedMaterialId());
-    } else {
-        add(PreflightCheck::Status::Passed, tr("Malzeme"), material->name, materials_->assignedMaterialId());
-    }
-
-    // 4) Mesh var mı / güncel mi / bozuk eleman
-    if (!mesh_->hasMesh()) {
-        add(PreflightCheck::Status::Failed, tr("Mesh"), tr("Mesh üretilmedi. Önce Generate Mesh çalıştırın."),
-            project_->meshNode());
-    } else if (mesh_->isOutOfDate()) {
-        add(PreflightCheck::Status::Failed, tr("Mesh"), tr("Mesh güncel değil. Yeniden üretin."),
-            project_->meshNode());
-    } else {
-        add(PreflightCheck::Status::Passed, tr("Mesh"),
-            tr("%1 HEX8 • %2 DOF").arg(mesh_->elementCount()).arg(mesh_->dofCount()), project_->meshNode());
-    }
+    // Mesh quality bir feature-applicability kararı değil, current mesh'in
+    // numerical engineering doğrulamasıdır; authoritative preflight'ta kalır.
     if (mesh_->hasMesh()) {
         const auto quality = mesh_->quality();
         if (quality.invertedElementCount > 0) {
@@ -845,12 +931,10 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
     // ulaşamaz. Mesh güncelse current CAD Face scope'un gerçek node union'ı da
     // boş olamaz.
     const bool meshReadyForScope = mesh_->hasMesh() && !mesh_->isOutOfDate();
-    int activeSupports = 0;
     for (const ObjectId id : record->supports) {
         if (!isActive(id)) {
             continue;
         }
-        ++activeSupports;
         const SupportDefinition *definition = support(id);
         if (definition == nullptr) {
             add(PreflightCheck::Status::Failed, tr("Sınır Şartı Kapsamı"),
@@ -909,22 +993,8 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
             }
         }
     }
-    if (activeSupports == 0) {
-        add(PreflightCheck::Status::Failed, tr("Sınır Şartı"),
-            record->supports.isEmpty() ? tr("En az bir sınır şartı tanımlanmalı.")
-                                       : tr("Tüm sınır şartları bastırılmış."),
-            analysisId);
-    } else {
-        add(PreflightCheck::Status::Passed, tr("Sınır Şartı"), tr("%n aktif", "", activeSupports), analysisId);
-    }
-    if (activeLoads == 0) {
-        add(PreflightCheck::Status::Failed, tr("Yük"),
-            record->loads.isEmpty() ? tr("En az bir yük tanımlanmalı.") : tr("Tüm yükler bastırılmış."), analysisId);
-    } else if (totalLoad <= 0.0) {
+    if (activeLoads > 0 && totalLoad <= 0.0) {
         add(PreflightCheck::Status::Warning, tr("Yük"), tr("Toplam yük büyüklüğü sıfır."), analysisId);
-    } else {
-        add(PreflightCheck::Status::Passed, tr("Yük"),
-            tr("%1 aktif • Σ|F| = %2 N").arg(activeLoads).arg(totalLoad, 0, 'g', 6), analysisId);
     }
 
     // 6) Project-level Connections altındaki aktif ContactRegion nesneleri bu
@@ -971,41 +1041,15 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
 
         add(PreflightCheck::Status::Passed, tr("Contact Kapsamı"),
             tr("%1 — Source/Target surface kapsamı geçerli.").arg(definition->name), contactId);
-        add(PreflightCheck::Status::Failed, tr("Contact Çözücü Desteği"),
-            tr("%1 — Bonded Contact tanımı geçerli; model-tabanlı Static Structural solver Contact consumer "
-               "henüz etkin değil.")
-                .arg(definition->name),
-            contactId);
     }
 
-    // 7) Çözülen formülasyon destekleniyor mu
-    if (resolvedFormulation(analysisId) == ResolvedFormulation::MixedUP) {
-        add(PreflightCheck::Status::Failed, tr("Formülasyon"),
-            tr("Seçilen sıkışmazlık davranışı mixed u-p'ye çözülüyor; bu formülasyon keyfi mesh için "
-               "henüz model çözümüne bağlı değildir."),
-            record->settingsNode);
-    } else {
-        add(PreflightCheck::Status::Passed, tr("Formülasyon"), tr("Displacement-based (u)"), record->settingsNode);
-    }
-    if (record->largeDeflection) {
-        add(PreflightCheck::Status::Failed, tr("Large Deflection"),
-            tr("Geometrik nonlineer çözüm akışı GUI'de henüz etkin değil."), record->settingsNode);
-    }
-
-    // 8) Çözücü kapasitesi
-    if (mesh_->hasMesh()) {
+    // Dense-reference warning bir capability failure değildir; hard limit typed
+    // resolver tarafından bloklanır, soft limit kullanıcıya warning olarak kalır.
+    if (mesh_->hasMesh() && mesh_->dofCount() <= maximumDofThreshold()) {
         const int dof = mesh_->dofCount();
-        if (dof > maximumDofThreshold()) {
-            add(PreflightCheck::Status::Failed, tr("Çözücü"),
-                tr("%1 DOF, doğrudan yoğun referans çözücünün pratik sınırını (%2 DOF) aşıyor.")
-                    .arg(dof)
-                    .arg(maximumDofThreshold()),
-                project_->meshNode());
-        } else if (dof > warningDofThreshold()) {
+        if (dof > warningDofThreshold()) {
             add(PreflightCheck::Status::Warning, tr("Çözücü"),
                 tr("%1 DOF — yoğun çözücüde çözüm süresi uzayabilir.").arg(dof), project_->meshNode());
-        } else {
-            add(PreflightCheck::Status::Passed, tr("Çözücü"), resolvedLinearSolver());
         }
     }
 
@@ -1019,9 +1063,6 @@ PreflightReport AnalysisService::preflight(const ObjectId analysisId) const
     if (activeResults == 0) {
         add(PreflightCheck::Status::Warning, tr("Sonuç Tanımı"),
             tr("Aktif sonuç tanımı yok; çözüm çalışır fakat gösterilecek sonuç olmaz."),
-            record->solutionNode);
-    } else {
-        add(PreflightCheck::Status::Passed, tr("Sonuç Tanımı"), tr("%n tanım", "", activeResults),
             record->solutionNode);
     }
 
@@ -1123,7 +1164,8 @@ bool AnalysisService::solve(const ObjectId analysisId)
     // Solve doğrudan solver'ı çağırmaz: önce preflight (§24).
     record.solveState = SolveState::Preflight;
     emit solveStateChanged(analysisId, SolveState::Preflight);
-    const PreflightReport report = preflight(analysisId);
+    const AnalysisCapabilityResolution capabilities = resolveCapabilities(analysisId);
+    const PreflightReport report = preflight(analysisId, capabilities);
     emit solverOutput(tr("──────────────────────────────────────────────"));
     emit solverOutput(tr("PRE-FLIGHT"));
     for (const auto &check : report.checks) {

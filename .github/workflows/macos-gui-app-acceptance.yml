@@ -34,6 +34,7 @@ name: macOS GUI application acceptance
       - "gui/support/ContactInspectorAcceptance.h"
       - "gui/core/ScopeSelectionBridge.h"
       - "gui/core/ScopeReferenceBuilder.h"
+      - "gui/core/AnalysisCapability.*"
       - "gui/core/SelectionManager.*"
       - "gui/services/NamedSelectionService.*"
       - "gui/services/ContactService.*"
@@ -55,6 +56,7 @@ name: macOS GUI application acceptance
       - "tests/gui/test_named_selection.cpp"
       - "tests/gui/test_contact_service.cpp"
       - "tests/gui/test_contact_commands.cpp"
+      - "tests/gui/test_analysis_capability.cpp"
   workflow_dispatch:
 
 permissions:
@@ -112,6 +114,11 @@ jobs:
         run: |
           set -euxo pipefail
           cmake --build "$BUILD_DIR" --parallel --target femcae_gui
+          cmake --build "$BUILD_DIR" --parallel --target femcae_analysis_capability_test
+
+      - name: Run typed capability resolver gate
+        shell: bash
+        run: ctest --test-dir "$BUILD_DIR" -R '^gui.analysis_capability$' --output-on-failure
 
       - name: Run integrated application acceptance
         shell: bash

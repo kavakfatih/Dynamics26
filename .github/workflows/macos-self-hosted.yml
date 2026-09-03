@@ -59,6 +59,8 @@ jobs:
             "gui/core/SelectionPolicy.h"
             "gui/core/SelectionTypes.h"
             "gui/core/ScopeReferenceBuilder.h"
+            "gui/core/AnalysisCapability.cpp"
+            "gui/core/AnalysisCapability.h"
             "gui/commands/DomainCommands.cpp"
             "gui/services/GeometryService.cpp"
             "gui/services/MeshService.cpp"
@@ -93,6 +95,7 @@ jobs:
             "tests/gui/test_geometry_window_selection.cpp"
             "tests/gui/test_mesh_selection.cpp"
             "tests/gui/test_mesh_viewport_selection.cpp"
+            "tests/gui/test_analysis_capability.cpp"
           )
           for source in "${required_sources[@]}"; do
             test -f "$source"
@@ -105,6 +108,7 @@ jobs:
           grep -q 'ScopeReferenceBuilder.h' gui/CMakeLists.txt
           grep -q 'NamedSelectionService.cpp' gui/CMakeLists.txt
           grep -q 'femcae_selection_manager_test' gui/CMakeLists.txt
+          grep -q 'femcae_analysis_capability_test' gui/CMakeLists.txt
           grep -q 'femcae_scope_reference_test' gui/CMakeLists.txt
           grep -q 'femcae_named_selection_test' gui/CMakeLists.txt
           grep -q 'femcae_viewport_selection_test' gui/CMakeLists.txt
@@ -209,9 +213,13 @@ jobs:
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_project_migration_test
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_selection_manager_test
           cmake --build build-selfhosted-gui-fast --parallel --target femcae_viewport_navigation_test
+          cmake --build build-selfhosted-gui-fast --parallel --target femcae_analysis_capability_test
 
       - name: Project migration gate
         run: ctest --test-dir build-selfhosted-gui-fast -L migration --output-on-failure
+
+      - name: Typed capability resolver gate
+        run: ctest --test-dir build-selfhosted-gui-fast -R '^gui.analysis_capability$' --output-on-failure
 
       - name: Selection state and VTK picker gate
         run: ctest --test-dir build-selfhosted-gui-fast -L selection --output-on-failure
