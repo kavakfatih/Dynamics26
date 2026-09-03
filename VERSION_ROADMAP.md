@@ -1,16 +1,16 @@
 # Dynamics26 — Aktif Sürüm Yol Haritası
 
-**Plan revizyonu:** 2026-09  
+**Plan revizyonu:** 2026-09-03  
 **Platform:** macOS / Apple Silicon (`arm64`)  
 **Ana dal:** `main`  
 **Engineering core baseline:** `V1.0.2`  
 **GUI baseline:** `V1.1.0-beta.2`
 
-Bu belge Beta.2 sonrasında Dynamics26'ın aktif ürün önceliklerini yeniden sıralar. V0.x–V1.0.2 ve Alpha/Beta tarihçesi Git history, CHANGELOG ve milestone belgelerinde korunur.
+Bu roadmap Beta.2 sonrasında Dynamics26 için **kritik yolu** tanımlar. Hedef önce dürüst ve kullanılabilir bir nonlinear analysis vertical slice, sonra geometry-aware meshing/scalability, ardından extension SDK ve rubber mechanics'tir.
 
-## 1. Yeni ana hedef
+# 1. Ürün hedefi ve capability envelope
 
-En yakın hedef, kullanıcının nonlinear analiz için gerekli setup'ı yapabildiği, çözümü çalıştırabildiği ve sonucu inceleyebildiği minimum ama gerçek bir CAE workflow'udur.
+İlk product workflow:
 
 ```text
 Geometry
@@ -19,305 +19,570 @@ Geometry
 → Mesh
 → Analysis
 → Supports / Loads
-→ Preflight
+→ Preflight / Capability Check
 → Nonlinear Solve
 → Convergence
 → Results
 ```
 
-Bu dikey tamamlandıktan sonra mesh, materials, constitutive models ve nonlinear solver fiziği/matematiği derinleştirilir.
+Ancak bugünkü repository gerçeğinde keyfi STEP geometry için genel volume mesher yoktur. `MeshService` structured HEX8 box baseline kullanır. Bu nedenle iki durum ayrı tutulur:
 
-## 2. V1.1.0 kalan sıra — usable nonlinear workflow
+- **Setup-ready:** engineering objects ve scopes tanımlanabilir.
+- **Solve-ready:** geometry + mesh + element + material + load + solver combination product consumer tarafından doğrulanmıştır.
+
+Beta.3'te unsupported combination hiçbir zaman sessizce başka geometri/formulation/solver'a çevrilmez.
+
+# 2. V1.1.0 — Supported Nonlinear Workflow Vertical Slice
 
 | Milestone | Hedef | Release koşulu |
 |---|---|---|
-| **V1.1.0-beta.2** | Solver Workspace / typed telemetry / diagnostics | **Tamamlandı — automated closeout; USER VALIDATED ayrı** |
-| **V1.1.0-beta.3** | **Minimum Usable Nonlinear Analysis Workflow** | Setup → solve → results dikeyi gerçek product consumer ile çalışmalı |
-| **V1.1.0-rc.1** | Workflow hardening / macOS UX / persistence / error recovery | native Light/Dark + keyboard/mouse + full regression |
-| **V1.1.0** | İlk kullanılabilir nonlinear CAE application baseline | USER workflow dokümante, unsupported capability dürüst, release gates green |
+| **V1.1.0-beta.2** | Solver Workspace / typed telemetry / diagnostics | Tamamlandı — automated closeout; USER VALIDATED ayrı |
+| **V1.1.0-beta.3** | **Supported Nonlinear Workflow Vertical Slice** | desteklenen subset'te setup → nonlinear solve → results gerçek product consumer ile çalışmalı |
+| **V1.1.0-rc.1** | hardening / persistence / native UX / failure recovery | all V1.1 gates + physical Mac acceptance |
+| **V1.1.0** | ilk kullanılabilir nonlinear CAE baseline | capability matrix + user workflow + release evidence tamam |
 
-### Beta.3 work packages
+## B3.0 — Capability Matrix + Preflight Contract
 
-#### B3.1 — Selection / Scope Productivity
+Bu work package Beta.3'ün başlangıç gate'idir.
+
+Capability descriptor aşağıdaki eksenleri ayırmalıdır:
+
+```text
+Geometry source
+Mesh topology
+Element formulation
+Material model
+Kinematics
+Compressibility
+Load / BC type
+Contact
+Linear backend
+Nonlinear algorithm
+Result fields
+```
+
+İlk solve-ready subset:
+
+- parametric box veya `boxDescriptor` ile doğrulanmış box-compatible CAD,
+- structured HEX8,
+- total-Lagrangian/geometric-nonlinear için doğrulanmış mevcut element path,
+- Linear Elastic / StVK-type nonlinear verification material path,
+- Fixed Support,
+- Total Force reference-area traction,
+- Full / Modified Newton,
+- adaptive load stepping,
+- line search,
+- displacement/stress/reaction results.
+
+`Pressure`, hyperelastic, mixed `u-p`, Contact veya arbitrary STEP volume solve ancak kendi product consumer gate'i tamamlanırsa enabled olur.
+
+UI status önerisi:
+
+```text
+Ready
+Setup only
+Unavailable for current formulation
+Stale
+Invalid
+```
+
+## B3.1 — Selection / Scope Productivity
 
 - Geometry Body / Face / Edge / Vertex selection,
 - FEM Node / Element / Facet selection,
-- current selection → Named Selection,
+- click/Shift/Command multi-selection,
+- rectangle selection,
+- context-aware filters,
+- current selection → persistent scope,
+- Named Selection create/edit,
 - scope edit/apply/cancel,
-- hide/show/isolate minimum workflow,
+- hide/show/isolate,
 - stale geometry/mesh scope diagnostics,
-- scope-aware contextual toolbar.
+- Navigator/Inspector/Viewport synchronization.
 
-#### B3.2 — Supports / Loads
+### Fast authoring
 
-- seçili yüzeyden `Fixed Support` oluşturma,
-- seçili yüzeyden `Force` oluşturma,
-- `Pressure` oluşturma,
-- Geometry Selection / Named Selection scoping,
-- global/local coordinate system hazırlığı,
-- Total Force ile traction/pressure ayrımı,
-- selected-face highlight,
-- support glyph,
-- viewport load arrows.
+```text
+select Face(s)
+→ Fixed Support / Force
+→ persistent scope created/assigned in one Undo transaction
+→ created analysis object selected
+```
 
-Load glyph sayısı solver nodal force sayısı değildir. Gerçek yük, element-face quadrature ile consistent load vector olarak oluşturulur.
+Kullanıcı manuel Named Selection oluşturmaya zorlanmamalıdır. Mevcut auto-Named-Selection implementation hızlı baseline olarak kullanılabilir; uzun vadede BC/load-owned persistent geometry scope ancak **tek canonical scope resolver'ı bozmadan** tasarlanır.
 
-#### B3.3 — Material / Mesh Minimum Setup
+## B3.2 — Supports / Loads + Surface Integration
+
+### Fixed Support
+
+- Face scope,
+- all displacement DOFs fixed baseline,
+- selected-surface highlight,
+- area-aware readable support glyph,
+- mesh regeneration re-resolution/stale check.
+
+### Total Force
+
+Semantik:
+
+```text
+F_total = entire selected-scope resultant
+A_ref   = Σ reference surface areas
+t_ref   = F_total / A_ref
+```
+
+Her boundary facet için:
+
+```text
+f_e = ∫Γe Nᵀ t_ref dΓ
+```
+
+Acceptance:
+
+- arrow count solver load değerini değiştirmez,
+- `Σ f_node` resultant'ı `F_total` ile numerical tolerance içinde eşleşir,
+- nodal equivalent forces'in moment resultant'ı surface traction momentiyle uyuşur,
+- mesh refinement toplam resultant'ı değiştirmez,
+- nonuniform facet boyutlarında `F/node_count` yaklaşımı kullanılmaz.
+
+### Pressure
+
+- ayrı load type,
+- sign convention ve surface normal açık,
+- reference pressure baseline ayrı capability,
+- current/deformed-area follower pressure daha sonra,
+- unsupported follower behavior UI'de enabled görünmez.
+
+### Coordinate systems
+
+Beta.3 Global coordinate system kullanabilir; local/cylindrical frame için veri modeli V1.2 öncesi tanımlanır.
+
+## B3.3 — Material + Mesh Readiness
+
+### Material minimum
 
 - body → material assignment,
-- minimum material card validation,
-- Linear Elastic production path,
-- mevcut hyperelastic model kartlarının capability durumunu açık gösterme,
-- mesh generate,
-- global sizing,
-- element/node count,
-- minimum Jacobian/quality diagnostics,
+- Linear Elastic `E`, `ν`, density,
+- unit validation,
+- missing/duplicate assignment diagnostics,
+- capability badge for constitutive model.
+
+### Mesh minimum
+
+Mevcut gerçek capability:
+
+- structured HEX8,
+- parametric box,
+- gerçek CAD ancak box-compatible ise geometry provenance,
+- boundary Facet provenance,
+- node/element/facet count,
+- scaled Jacobian quality,
 - stale mesh lifecycle.
 
-#### B3.4 — General Nonlinear Product Solve Consumer
+Beta.3 Preflight, arbitrary CAD'in structured-box mesher ile çözülemeyeceğini açıkça bildirmelidir; bounding-box approximation solve değildir.
 
-Mevcut verification solver ile product model consumer birbirine karıştırılmaz.
+## B3.4 — Immutable Solver Input + General Nonlinear C ABI
 
-Beta.3'te desteklenen model subset'i açıkça tanımlanarak:
+Required chain:
 
-- nonlinear analysis intent,
-- geometric nonlinearity / large deformation,
-- Full / Modified Newton,
-- maximum iterations,
+```text
+Document State
+→ Capability/Preflight
+→ Immutable AnalysisSnapshot
+→ SolverInputBuilder
+→ versioned additive C ABI
+→ Fortran model_t construction
+→ solve_nonlinear_static()
+→ SolverSessionTelemetry
+→ ResultSet
+```
+
+### Snapshot minimum
+
+- nodes + coordinates,
+- element IDs + connectivity,
+- formulation IDs,
+- material assignments + material parameters,
+- constraints,
+- assembled equivalent surface loads,
+- nonlinear controls,
+- requested result fields,
+- capability/API version stamp.
+
+### C ABI direction
+
+Demo-specific long argument lists büyütülmez. Yeni product API versioned/POD descriptors veya açık array+count contracts kullanmalıdır.
+
+Kurallar:
+
+- Fortran derived types public ABI değildir,
+- all physical solver input SI units,
+- caller-provided capacities/counts açık,
+- errors typed/status-code based,
+- no hidden demo geometry,
+- no DirectLinear fallback,
+- result/history memory ownership explicit.
+
+### Nonlinear controls
+
+- Full Newton default,
+- Modified Newton optional,
+- max iterations,
+- initial/min/max `Δλ`,
 - adaptive stepping,
-- initial/min/max increment,
+- cutback/growth,
 - line search,
-- residual/displacement tolerances,
-- product model → C ABI → Fortran nonlinear solver bridge,
-- rollback/cutback failure handling,
-- typed telemetry
+- residual relative tolerance,
+- displacement relative tolerance.
 
-bağlanır.
+Arc-length/Riks ve quasi-Newton/BFGS Beta.3 kapsamı değildir.
 
-`Nonlinear` seçilmiş bir analysis sessizce `DirectLinear` çözücüye düşemez. Consumer uygun değilse Solve `Unavailable` / Preflight error vermelidir.
+## B3.5 — Linear Backend Suitability Gate
 
-#### B3.5 — Results MVP
+Core'da mevcut backend'ler:
 
-Minimum sonuç nesneleri:
+- dense reference,
+- sparse CG,
+- Apple Accelerate sparse direct adapter.
+
+Beta.3 tiny model baseline dense reference kullanabilir ancak DOF size guard ve açık backend telemetry olmalıdır.
+
+V1.1 içinde şu metadata hazırlanır:
+
+```text
+Matrix symmetry
+Definiteness expectation
+Indefinite / saddle-point requirement
+Unsymmetric tangent requirement
+Backend compatibility
+```
+
+CG yalnız SPD-compatible sistemlerde seçilebilir. Gelecekte mixed `u-p` veya friction/contact için indefinite/unsymmetric system gereksinimi solver capability gate'inden geçmeden product support ilan edilmez.
+
+## B3.6 — Convergence + ResultSet MVP
+
+### Telemetry
+
+- attempt,
+- accepted step,
+- iteration,
+- load factor `λ`,
+- load increment `Δλ`,
+- absolute/relative residual,
+- displacement increment/relative displacement,
+- line-search alpha,
+- cutback reason,
+- minimum `J` if available,
+- backend/factorization information where available.
+
+### Result architecture
+
+Target model:
+
+```text
+SolveDataset
+└─ ResultSet(step, substep, loadFactor, converged)
+   ├─ nodal displacement
+   ├─ nodal reaction
+   ├─ element / integration-point stress
+   └─ derived fields
+```
+
+Beta.3 Results MVP:
 
 - Total Deformation,
 - Directional Deformation,
-- von Mises Stress,
-- principal stress hazırlığı,
-- reaction force,
+- Equivalent Stress,
+- Reaction Force,
 - deformed + undeformed overlay,
-- deformation scale,
+- scale factor,
 - min/max,
-- point/face probe,
-- converged load step/substep seçimi,
-- result scope.
+- probe,
+- final accepted increment at minimum.
 
-#### B3.6 — Product Acceptance
+Integration-point, element-averaged ve nodal-averaged stress aynı field gibi sunulmaz.
 
-- save/reopen,
-- Undo/Redo state sınırları,
-- derived solver/result state sınırları,
-- Light/Dark,
-- keyboard reachability,
-- mouse/trackpad selection,
-- failure recovery,
-- representative nonlinear benchmark model.
+## B3.7 — Vertical-Slice Acceptance
 
-## 3. V1.2.0 — Nonlinear Engineering Core Hardening
+Deterministic first benchmark:
 
-V1.1 kullanılabilir dikeyi kurar; V1.2 fiziği ve numeriği sertleştirir.
+- box/cantilever geometry,
+- structured HEX8,
+- Linear Elastic/StVK-like finite-strain product path,
+- Fixed Support on one face,
+- distributed Total Force on opposite face,
+- geometric nonlinearity,
+- multiple load increments,
+- convergence history,
+- displacement/stress/reaction ResultSet.
 
-### Mesh
+Numerical gates:
 
-- geometry-aware volume meshing roadmap,
-- TET/HEX strategy research,
-- Jacobian determinant,
-- aspect ratio,
-- skew/distortion,
-- element orientation,
-- integration-point quality,
-- face provenance,
-- nonlinear distortion monitoring,
-- mesh convergence framework.
+- completed load factor = target,
+- configured convergence criteria satisfied,
+- applied-force/reaction equilibrium within benchmark tolerance,
+- surface-load resultant conservation,
+- no hidden solver fallback,
+- no NaN/Inf,
+- no negative/inverted `J` accepted silently,
+- save/reopen engineering setup reproducible,
+- Undo/Redo setup mutations canonical,
+- derived results/telemetry not document Undo state.
 
-### Materials / Material Models
+USER VALIDATED additionally tests real pointer/trackpad/keyboard/Light/Dark workflow.
 
-- typed material-property schema,
-- SI unit authority,
-- model registry,
-- parameter validation,
-- model-specific required test data,
-- constitutive state/history ownership,
-- material-point verification harness,
-- consistent tangent finite-difference check.
+# 3. V1.2.0 — Geometry-Aware Meshing + Scalable Nonlinear Foundation
 
-Öncelikli modeller:
+V1.2 begins with the blocker that currently prevents real arbitrary-part workflows.
 
-1. Linear Elastic,
-2. Neo-Hookean,
-3. Mooney-Rivlin 2 parameter,
-4. Yeoh,
-5. Ogden 1–3 term.
+## M1 — Meshing Engine Decision Gate
 
-### Nonlinear solver / Newton-Raphson
+Compare:
 
-Ana denklem:
+- mature external mesher adapter,
+- targeted in-house methods only where strategically justified.
 
-```text
-R(u, λ) = F_ext(u, λ) - F_int(u) = 0
-```
+Netgen is a primary candidate because it supports automatic 3D tetra meshing, geometry-kernel STEP/IGES paths, mesh optimization/refinement, macOS and LGPL-2.1. Adoption is conditional.
 
-Newton increment'i consistent işaret convention ile:
+Required evaluation:
 
-```text
-K_T Δu = R
-u_(i+1) = u_i + α Δu
-```
+- license/linking/distribution review,
+- Apple Silicon build reproducibility,
+- OCCT/B-Rep handoff without display tessellation dependency,
+- CAD Face persistent key → surface element provenance,
+- deterministic IDs or stable remap strategy,
+- local size / curvature / narrow-region controls,
+- mesh quality extraction,
+- failure diagnostics,
+- performance/memory,
+- test corpus on representative automotive/rubber geometries.
 
-Sertleştirilecek alanlar:
+## M2 — Arbitrary B-Rep Volume Meshing
 
-- tangent matrix derivation,
-- geometric tangent,
-- material tangent,
-- Full Newton,
-- Modified Newton,
-- line search,
-- automatic increment growth/cutback,
-- force residual,
-- displacement increment norm,
-- energy norm research,
-- convergence scaling,
-- divergence/stagnation detection,
-- rollback,
-- checkpoint/restart,
-- deterministic telemetry.
+- surface triangulation owned by mesher pipeline, not display mesh,
+- tetra volume mesh baseline,
+- boundary facet provenance,
+- local/global sizing,
+- curvature refinement,
+- sliver/quality controls,
+- regenerate/stale lifecycle,
+- Named Selection remapping via CAD authority.
 
-Her özellik önce independent theory + benchmark ile doğrulanır.
+TET4 availability does **not** automatically mean nonlinear/rubber qualification. TET4/TET10/HEX strategies receive separate element and locking/convergence gates.
 
-## 4. V1.3.0 — Extension / Plugin Architecture & SDK
+## M3 — Element/Formulation Qualification
 
-Amaç monolitik büyümeyi engellemektir.
+- TET4/TET10,
+- HEX8/higher-order roadmap,
+- integration rules,
+- geometric stiffness,
+- finite-strain tangent,
+- distortion/inversion monitoring,
+- patch tests,
+- bending/shear/volumetric locking checks,
+- mesh convergence.
 
-Extension sınıfları:
+## M4 — Scalable Linear Solve Layer
 
-- `WorkflowExtension`,
-- `MaterialModelExtension`,
-- `SolverBackendExtension`,
-- `MeshExtension`,
-- `GeometryImporterExtension`,
-- `ResultExtension`,
-- `ExporterExtension`.
+- matrix-property metadata,
+- sparse direct/iterative benchmark,
+- backend suitability rules,
+- factorization reuse where mathematically valid,
+- nonlinear tangent refactorization telemetry,
+- DOF/memory guardrails.
 
-Temel kurallar:
+# 4. V1.3.0 — Extension / Plugin Architecture & SDK
 
+## Extension-ready contracts start before V1.3
+
+V1.1/V1.2 internal architecture should already expose typed descriptors:
+
+- `CapabilityDescriptor`,
+- `MaterialModelDescriptor`,
+- `ElementFormulationDescriptor`,
+- `SolverBackendDescriptor`,
+- `MeshProviderDescriptor`,
+- `ResultDescriptor`,
+- versioned Solver/Input DTO.
+
+This avoids rebuilding core boundaries when dynamic plugins arrive.
+
+## V1.3 plugin classes
+
+- Workflow / UI,
+- Geometry Importer,
+- Mesh Provider,
+- Material Model,
+- Solver Backend,
+- Result Evaluator,
+- Exporter / Report.
+
+Rules:
+
+- C++ extension host,
 - versioned manifest,
-- API/ABI compatibility number,
-- capability declaration,
-- explicit lifecycle/ownership,
-- no direct GUI → Fortran internals access,
-- no plugin → mutable document internals bypass,
-- document mutations canonical commands üzerinden,
-- solver/material extension'ları stable adapter/C ABI üzerinden,
-- extension failure ana uygulamayı mümkün olduğunca izole etmelidir.
+- host API min/max compatibility,
+- declared capabilities/dependencies,
+- platform/architecture declaration,
+- plugin cannot bypass command/document mutation boundary,
+- plugin cannot depend on compiler-specific Fortran module ABI,
+- material plugin must explicitly declare kinematics, stress measure, tangent measure and state ownership,
+- extension conformance tests required.
 
-İlham kaynakları: ANSYS ACT extension modeli, COMSOL add-in/method modeli, Marc user subroutines ve Code_Aster MFront/UMAT coupling. Bunların kaynak kodu kopyalanmaz.
+Initial dynamic plugins are trusted/in-process. Stronger isolation or out-of-process execution is a later security/reliability enhancement.
 
-## 5. V1.4.0 — Rubber Mechanics Foundation
+# 5. V1.4.0 — Rubber / Elastomer Mechanics Foundation
 
-Ana hedef kauçuk/parça analizidir.
+Rubber roadmap is a coupled stack, not a model-name checklist.
 
-### Constitutive
+## R1 — Material-Point Framework
 
-- Neo-Hookean,
-- Mooney-Rivlin,
-- Yeoh,
-- Ogden,
-- volumetric response,
-- nearly incompressible/incompressible options,
-- parameter fitting.
+- deformation gradient `F`,
+- `J = det(F)`,
+- objective stress measure contract,
+- energy/stress/tangent consistency,
+- state variables,
+- finite-difference tangent verification,
+- SI units.
 
-### Element/formulation research
+## R2 — Hyperelastic Models
 
-Aşağıdakiler karşılaştırmalı araştırılır; sonuç kanıta göre seçilir:
+Order:
+
+1. Neo-Hookean,
+2. Mooney-Rivlin 2P,
+3. Yeoh,
+4. Ogden 1–3 term.
+
+Each:
+
+```text
+W
+→ stress
+→ consistent tangent
+→ compressible/isochoric-volumetric split
+→ material-point tests
+→ single-element tests
+→ component benchmark
+```
+
+## R3 — Experimental Fitting
+
+- uniaxial,
+- planar/pure shear,
+- biaxial,
+- volumetric/compression,
+- engineering/true measure conversion,
+- least-squares objective,
+- weighting,
+- parameter bounds,
+- stability checks,
+- extrapolation warning,
+- confidence/fit-quality report.
+
+## R4 — Nearly Incompressible / Incompressible Formulations
+
+Research candidates:
 
 - mixed `u-p`,
-- Herrmann formulation,
+- Herrmann,
 - selective/B-bar,
 - F-bar,
 - reduced integration + stabilization.
 
-Tek bir formulation önceden dogma olarak seçilmez.
+Gate metrics:
 
-### Test-data workflow
+- volumetric locking,
+- pressure oscillation,
+- patch tests,
+- bending/shear response,
+- distortion sensitivity,
+- contact compatibility,
+- tangent consistency,
+- linear-system definiteness/symmetry,
+- computational cost.
 
-- uniaxial tension,
-- planar/pure shear,
-- biaxial tension,
-- volumetric/compression data,
-- least-squares fitting,
-- weighting/scaling,
-- stability checks,
-- extrapolation warning,
-- test vs material-point overlay.
+`ν≈0.5` displacement-only penalty behavior tek başına “incompressible support” değildir.
 
-## 6. V1.5.0 — Advanced Elastomer / Contact
-
-- deformable ↔ deformable contact,
-- finite sliding,
-- robust friction,
-- contact pressure/opening/slip results,
-- viscoelasticity,
-- Prony-series research,
-- Mullins effect / cyclic softening,
-- temperature dependence,
-- frequency dependence,
-- preload + nonlinear response,
-- rubber component benchmark library.
-
-## 7. V1.6+ — Advanced CAE growth
-
-Sonraki sürümler ihtiyaca ve verification maturity'ye göre:
-
-- advanced meshing/adaptivity,
-- shells/higher-order elements,
-- plasticity/damage,
-- large-scale sparse solving,
-- advanced postprocessing,
-- dynamics/harmonic/transient,
-- production SDK ecosystem,
-- full CAE qualification
-
-başlıklarına genişler.
-
-## 8. Research Gate — zorunlu
-
-Her önemli work package için koddan önce kısa bir research record hazırlanır:
+## R5 — Rubber Verification Pyramid
 
 ```text
-Problem / User Need
-Reference Products
-ANSYS observation
-Marc observation
-COMSOL observation
-Code_Aster/open-source observation
-Physics / equations
-License/source boundary
-Dynamics26 Adopt / Adapt / Reject
-Verification plan
+Analytical material point
+→ finite-difference tangent
+→ single-element deformation modes
+→ patch / locking tests
+→ mesh refinement
+→ published benchmark
+→ ANSYS / Marc / COMSOL cross-code comparison
+→ physical component test correlation
 ```
 
-Araştırmasız büyük solver/material/mesh özelliği implementation'a alınmaz.
+Cross-code equality tek başına proof değildir.
 
-## 9. Capability gate
+# 6. V1.5.0 — Contact / Time Dependence / Advanced Elastomer
 
-Bir feature yalnız aşağıdaki zincirle ilerler:
+- deformable-deformable finite sliding,
+- penalty + augmented-Lagrangian qualification,
+- friction/stick-slip,
+- contact pressure/opening/slip results,
+- viscoelasticity / Prony,
+- Mullins/cyclic softening,
+- temperature dependence,
+- frequency dependence,
+- preload/history,
+- engine mount / crank pulley / torsion annulus benchmark library.
+
+# 7. V1.6+ — Advanced CAE
+
+- arc-length/path following,
+- advanced adaptivity/remeshing,
+- shells/higher-order elements,
+- plasticity/damage,
+- dynamics/harmonic/transient,
+- large-scale sparse/HPC,
+- production extension ecosystem,
+- qualification/correlation suites.
+
+# 8. Mandatory Research Gate
+
+Every major work package gets a record under `docs/research/`:
 
 ```text
-CODE EXISTS
+Problem / user need
+Theory / equations
+Reference-product semantics
+ANSYS official observation
+Marc official observation
+COMSOL official observation
+Code_Aster / FEBio / open-source architecture observation
+Current Dynamics26 source reality
+License/source boundary
+Adopt / Adapt / Reject
+Capability contract
+Architecture impact
+Verification cases
+Acceptance thresholds
+```
+
+Source authority tiers:
+
+1. theory/papers/standards/analytical reference,
+2. official vendor documentation,
+3. open-source docs/source for architecture and independent test ideas,
+4. forums only for troubleshooting clues.
+
+# 9. Capability + Release Gate
+
+A capability advances only through:
+
+```text
+RESEARCHED
+→ CONTRACT DEFINED
+→ CODE EXISTS
 → TEST EXISTS
 → TEST PASSED
 → FEATURE WORKS
 → USER VALIDATED
 ```
 
-Verification-only consumer, general product capability olarak pazarlanmaz.
+`FEATURE WORKS` applies only to the documented capability envelope. Verification-only consumers never become general product capability by implication.
