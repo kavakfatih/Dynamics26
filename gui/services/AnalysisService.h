@@ -31,6 +31,7 @@
 
 #include <femcae/meshing/Assignments.h>
 #include <femcae/meshing/ResultDatabase.h>
+#include <femcae/application/AnalysisSnapshot.h>
 
 #include <vector>
 
@@ -99,8 +100,8 @@ struct ResultDefinition {
 //
 // Bu yapı solver'ın ikinci bir çalışma durumu değildir. Analysis Settings altında
 // kullanıcının kalıcı mühendislik niyetidir; Undo/Redo ve proje persistence'a
-// girer. General model nonlinear consumer henüz bağlı olmadığından bu alanlar
-// mevcut lineer solver input signature'ına özellikle dahil edilmez.
+// girer. Yalnız Nonlinear Static AnalysisSnapshot ve input signature tarafından
+// tüketilir; lineer çözümün girdisini veya bayatlık durumunu değiştirmez.
 //
 // Integer kimlikler fem_nonlinear_solver.f90 ile bilinçli olarak aynıdır:
 // NONLINEAR_FULL_NEWTON=1, NONLINEAR_MODIFIED_NEWTON=2. Böylece gelecekteki
@@ -291,11 +292,19 @@ signals:
 private:
     [[nodiscard]] PreflightReport preflight(
         ObjectId analysisId, const AnalysisCapabilityResolution &capabilities) const;
+    // Preflight capability kararını yeniden yorumlamadan, current document
+    // state'i owning/value-semantic solver snapshot'ına dondurur. Bu çağrıdan
+    // sonra C ABI consumer canlı GUI/service nesnesi okumaz.
+    [[nodiscard]] femcae::application::AnalysisSnapshotBuildResult buildAnalysisSnapshot(
+        ObjectId analysisId,
+        const AnalysisCapabilityResolution &capabilities,
+        QStringList *assemblyLog = nullptr) const;
     // Solver'ın GERÇEKTEN tükettiği girdilerin imzası: mesh üretimi ve ölçüleri,
     // atanmış malzemenin elastik parametreleri, AKTİF sınır şartı/yük kapsam ve
     // değerleri, çözülen formülasyon. Ad değişikliği ve henüz consumer'a bağlı
-    // olmayan nonlinear authoring controls gibi solver'ı etkilemeyen düzenlemeler
-    // imzayı değiştirmez, dolayısıyla mevcut lineer sonuçları sahte bayatlatmaz.
+    // olmayan düzenlemeler imzayı değiştirmez. Nonlinear controls yalnız gerçek
+    // NonlinearStatic snapshot consumer'ı için imzaya girer; lineer sonuçları
+    // sahte bayatlatmaz.
     [[nodiscard]] QByteArray solverInputSignature(ObjectId analysisId) const;
     [[nodiscard]] BoundaryScopeResolution resolveBoundaryScope(BoundaryScopingMethod method,
                                                                 BoxFace geometryScope,

@@ -1,6 +1,7 @@
 #include "AnalysisService.h"
 #include "ContactService.h"
 
+#include <femcae/application/SolverInputBuilder.h>
 #include <femcae/femcae.h>
 #include <femcae/meshing/AssignmentResolver.h>
 #include <femcae/meshing/SurfaceLoadAssembler.h>
@@ -16,6 +17,7 @@
 #include <limits>
 
 using namespace femcae::meshing;
+using namespace femcae::application;
 using femcae::geometry::GeometryEntityId;
 using femcae::geometry::InvalidGeometryId;
 
@@ -87,6 +89,36 @@ SurfaceLoadAssemblyResult assembleTotalForce(
         scope.geometryFaceIds.cbegin(), scope.geometryFaceIds.cend());
     return assembleUniformTotalForce(
         mesh, faceIds, {load.fxN, load.fyN, load.fzN});
+}
+
+SnapshotResultField snapshotResultField(const ResultDefinitionKind kind)
+{
+    switch (kind) {
+    case ResultDefinitionKind::TotalDeformation: return SnapshotResultField::TotalDeformation;
+    case ResultDefinitionKind::EquivalentStress: return SnapshotResultField::EquivalentStress;
+    case ResultDefinitionKind::ReactionForce: return SnapshotResultField::ReactionForce;
+    }
+    return SnapshotResultField::TotalDeformation;
+}
+
+SnapshotMatrixSymmetry snapshotMatrixSymmetry(const MatrixSymmetry symmetry)
+{
+    switch (symmetry) {
+    case MatrixSymmetry::Symmetric: return SnapshotMatrixSymmetry::Symmetric;
+    case MatrixSymmetry::Unsymmetric: return SnapshotMatrixSymmetry::Unsymmetric;
+    case MatrixSymmetry::Unknown: return SnapshotMatrixSymmetry::Unknown;
+    }
+    return SnapshotMatrixSymmetry::Unknown;
+}
+
+SnapshotMatrixDefiniteness snapshotMatrixDefiniteness(const MatrixDefiniteness definiteness)
+{
+    switch (definiteness) {
+    case MatrixDefiniteness::SpdExpected: return SnapshotMatrixDefiniteness::SpdExpected;
+    case MatrixDefiniteness::Indefinite: return SnapshotMatrixDefiniteness::Indefinite;
+    case MatrixDefiniteness::Unknown: return SnapshotMatrixDefiniteness::Unknown;
+    }
+    return SnapshotMatrixDefiniteness::Unknown;
 }
 
 } // namespace
@@ -396,12 +428,15 @@ QByteArray AnalysisService::solverInputSignature(const ObjectId analysisId) cons
     }
     signature[QStringLiteral("boundary")] = boundary;
 
-    // 4) Çözülen formülasyon ve solver'ın BUGÜN gerçekten tükettiği analiz ayarları.
-    // B2.3 nonlinear controls persistent authoring state'tir; general nonlinear
-    // model consumer bağlanana kadar bu lineer imzaya dahil edilmez.
+    // 4) Çözülen formülasyon ve consumer'ın gerçekten tükettiği analiz ayarları.
+    // Nonlinear controls yalnız NonlinearStatic snapshot girdisidir; lineer
+    // sonuçları ilgisiz authoring değişiklikleriyle bayatlatmaz.
     signature[QStringLiteral("formulation")] = static_cast<int>(resolvedFormulation(analysisId));
     signature[QStringLiteral("large_deflection")] = record->largeDeflection;
     signature[QStringLiteral("analysis_type")] = static_cast<int>(record->type);
+    if (record->type == AnalysisType::NonlinearStatic) {
+        signature[QStringLiteral("nonlinear_solver_controls")] = record->nonlinearControls.toJson();
+    }
 
     return QJsonDocument(signature).toJson(QJsonDocument::Compact);
 }
@@ -1182,6 +1217,176 @@ void AnalysisService::clearSolution(const ObjectId analysisId)
     emit changed();
 }
 
+AnalysisSnapshotBuildResult AnalysisService::buildAnalysisSnapshot(
+    const ObjectId analysisId,
+    const AnalysisCapabilityResolution &capabilities,
+    QStringList *assemblyLog) const
+{
+    const auto fail = [](const AnalysisSnapshotError error, const QString &detail) {
+        AnalysisSnapshotBuildResult result;
+        result.error = error;
+        result.detail = detail.toUtf8().toStdString();
+        return result;
+    };
+
+    const AnalysisRecord *record = analysis(analysisId);
+    if (record == nullptr) {
+        return fail(AnalysisSnapshotError::InvalidKinematics, tr("Analiz nesnesi bulunamadı."));
+    }
+    const MaterialDefinition *material = materials_->assigned();
+    if (material == nullptr) {
+        return fail(AnalysisSnapshotError::InvalidMaterial, tr("Atanmış malzeme bulunamadı."));
+    }
+
+    AnalysisSnapshotDraft draft;
+    switch (record->type) {
+    case AnalysisType::StaticStructural:
+        draft.analysisKind = SnapshotAnalysisKind::LinearStatic;
+        break;
+    case AnalysisType::NonlinearStatic:
+        draft.analysisKind = SnapshotAnalysisKind::NonlinearStatic;
+        break;
+    case AnalysisType::Modal:
+        return fail(AnalysisSnapshotError::InvalidKinematics,
+                    tr("Modal analysis için static HEX8 snapshot oluşturulamaz."));
+    }
+    draft.largeDeformation = record->largeDeflection;
+
+    const SimulationMesh &mesh = mesh_->mesh();
+    draft.nodes.reserve(mesh.nodes.size());
+    for (const MeshNode &node : mesh.nodes) {
+        draft.nodes.push_back(SnapshotNode{
+            static_cast<std::int64_t>(node.id), node.x});
+    }
+
+    // Current product modeli tek atanmış material taşır; snapshot içindeki 1
+    // solver-local assignment ID'sidir, persistent ObjectId değildir.
+    constexpr std::int64_t solverMaterialId = 1;
+    draft.material = SnapshotMaterial{
+        solverMaterialId,
+        material->name.toUtf8().toStdString(),
+        SnapshotMaterialModel::LinearElastic,
+        material->youngGPa * 1.0e9,
+        material->poisson};
+    const SnapshotHex8Formulation formulation = record->type == AnalysisType::NonlinearStatic
+        ? SnapshotHex8Formulation::TotalLagrangianDisplacement
+        : SnapshotHex8Formulation::SmallStrainDisplacement;
+    draft.elements.reserve(mesh.elements.size());
+    for (const MeshElement &element : mesh.elements) {
+        SnapshotHex8Element snapshotElement;
+        snapshotElement.id = static_cast<std::int64_t>(element.id);
+        snapshotElement.materialId = solverMaterialId;
+        snapshotElement.formulation = formulation;
+        for (std::size_t a = 0; a < snapshotElement.nodeIds.size(); ++a) {
+            snapshotElement.nodeIds[a] = static_cast<std::int64_t>(element.nodeIds[a]);
+        }
+        draft.elements.push_back(snapshotElement);
+    }
+
+    // Scope resolution ve surface integration document tarafında bir kez
+    // tamamlanır. Snapshot sonrasında solver yalnız node/component/value görür.
+    for (const ObjectId supportId : record->supports) {
+        if (!isActive(supportId)) {
+            if (assemblyLog != nullptr) {
+                assemblyLog->push_back(tr("  Sınır şartı   : %1 — BASTIRILDI, atlandı")
+                    .arg(support(supportId) != nullptr ? support(supportId)->name : QString()));
+            }
+            continue;
+        }
+        const SupportDefinition *definition = support(supportId);
+        if (definition == nullptr) {
+            return fail(AnalysisSnapshotError::InvalidConstraint,
+                        tr("Sınır şartı tanımı bulunamadı."));
+        }
+        const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
+        const auto nodes = resolvedBoundaryNodeIds(scope);
+        if (!scope.valid || nodes.empty()) {
+            return fail(AnalysisSnapshotError::InvalidConstraint,
+                        tr("Sınır şartı kapsamı solver node'larına çözülemedi: %1")
+                            .arg(scope.error.isEmpty() ? definition->name : scope.error));
+        }
+        for (const MeshEntityId nodeId : nodes) {
+            if (definition->fixX) draft.constraints.push_back({nodeId, 1, 0.0});
+            if (definition->fixY) draft.constraints.push_back({nodeId, 2, 0.0});
+            if (definition->fixZ) draft.constraints.push_back({nodeId, 3, 0.0});
+        }
+        if (assemblyLog != nullptr) {
+            assemblyLog->push_back(tr("  Sınır şartı   : %1 → %2 • %3 node")
+                .arg(definition->name, scope.label).arg(nodes.size()));
+        }
+    }
+
+    for (const ObjectId loadId : record->loads) {
+        if (!isActive(loadId)) {
+            if (assemblyLog != nullptr) {
+                assemblyLog->push_back(tr("  Yük           : %1 — BASTIRILDI, atlandı")
+                    .arg(load(loadId) != nullptr ? load(loadId)->name : QString()));
+            }
+            continue;
+        }
+        const LoadDefinition *definition = load(loadId);
+        if (definition == nullptr) {
+            return fail(AnalysisSnapshotError::InvalidLoad, tr("Yük tanımı bulunamadı."));
+        }
+        const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
+        if (!scope.valid) {
+            return fail(AnalysisSnapshotError::InvalidLoad,
+                        tr("Yük kapsamı solver node'larına çözülemedi: %1")
+                            .arg(scope.error.isEmpty() ? definition->name : scope.error));
+        }
+        const SurfaceLoadAssemblyResult assembled = assembleTotalForce(mesh, scope, *definition);
+        if (!assembled.success()) {
+            return fail(AnalysisSnapshotError::InvalidLoad,
+                        tr("Total Force surface integration başarısız: %1 — %2")
+                            .arg(definition->name,
+                                 QString::fromLatin1(surfaceLoadAssemblyErrorMessage(assembled.error))));
+        }
+        for (const NodalVectorLoad &nodalLoad : assembled.nodalLoads) {
+            const std::array<double, 3> components{
+                nodalLoad.value.x, nodalLoad.value.y, nodalLoad.value.z};
+            for (int component = 0; component < 3; ++component) {
+                const double value = components[static_cast<std::size_t>(component)];
+                if (std::abs(value) > 1.0e-30) {
+                    draft.nodalLoads.push_back({nodalLoad.nodeId, component + 1, value});
+                }
+            }
+        }
+        if (assemblyLog != nullptr) {
+            assemblyLog->push_back(
+                tr("  Yük           : %1 → %2 • %3 node, A_ref=%4 m², |F|=%5 N")
+                    .arg(definition->name, scope.label)
+                    .arg(assembled.nodalLoads.size())
+                    .arg(assembled.referenceArea, 0, 'g', 8)
+                    .arg(definition->magnitudeN(), 0, 'g', 6));
+        }
+    }
+
+    const NonlinearSolverControls &controls = record->nonlinearControls;
+    draft.nonlinearControls.method = controls.method == NonlinearMethodIntent::ModifiedNewton
+        ? SnapshotNonlinearMethod::ModifiedNewton : SnapshotNonlinearMethod::FullNewton;
+    draft.nonlinearControls.maximumIterations = controls.maximumIterations;
+    draft.nonlinearControls.adaptiveStepping = controls.adaptiveStepping;
+    draft.nonlinearControls.initialLoadIncrement = controls.initialLoadIncrement;
+    draft.nonlinearControls.minimumLoadIncrement = controls.minimumLoadIncrement;
+    draft.nonlinearControls.maximumLoadIncrement = controls.maximumLoadIncrement;
+    draft.nonlinearControls.lineSearch = controls.lineSearch;
+    draft.nonlinearControls.residualRelativeTolerance = controls.residualRelativeTolerance;
+    draft.nonlinearControls.displacementRelativeTolerance = controls.displacementRelativeTolerance;
+    draft.linearSystem = {
+        SnapshotLinearBackend::DenseReference,
+        snapshotMatrixSymmetry(capabilities.matrix.symmetry),
+        snapshotMatrixDefiniteness(capabilities.matrix.definiteness)};
+
+    for (const ObjectId resultId : record->results) {
+        if (isActive(resultId)) {
+            if (const ResultDefinition *definition = resultDefinition(resultId)) {
+                draft.requestedResults.push_back(snapshotResultField(definition->kind));
+            }
+        }
+    }
+    return AnalysisSnapshotBuilder::build(std::move(draft));
+}
+
 // --- çözüm -------------------------------------------------------------------
 
 bool AnalysisService::solve(const ObjectId analysisId)
@@ -1214,52 +1419,6 @@ bool AnalysisService::solve(const ObjectId analysisId)
     }
     emit solverOutput(tr("Ready to Solve"));
 
-    record.solveState = SolveState::Solving;
-    emit solveStateChanged(analysisId, SolveState::Solving);
-
-    const MaterialDefinition *material = materials_->assigned();
-    const SimulationMesh &mesh = mesh_->mesh();
-
-    emit solverOutput(tr("Static Structural çözümü başlatıldı"));
-    emit solverOutput(tr("  Mesh          : %1 node, %2 HEX8, %3 DOF")
-                          .arg(mesh.nodes.size())
-                          .arg(mesh.elements.size())
-                          .arg(mesh_->dofCount()));
-    emit solverOutput(tr("  Malzeme       : %1  E=%2 GPa  ν=%3")
-                          .arg(material->name)
-                          .arg(material->youngGPa)
-                          .arg(material->poisson));
-    emit solverOutput(tr("  Formülasyon   : %1").arg(resolvedElementTechnology(analysisId)));
-    emit solverOutput(tr("  Lineer çözücü : %1").arg(resolvedLinearSolver()));
-
-    std::vector<long long> nodeIds;
-    std::vector<double> coordinates;
-    nodeIds.reserve(mesh.nodes.size());
-    coordinates.reserve(3 * mesh.nodes.size());
-    for (const auto &node : mesh.nodes) {
-        nodeIds.push_back(node.id);
-        coordinates.push_back(node.x.x);
-        coordinates.push_back(node.x.y);
-        coordinates.push_back(node.x.z);
-    }
-    std::vector<long long> elementIds;
-    std::vector<long long> connectivity;
-    elementIds.reserve(mesh.elements.size());
-    connectivity.reserve(8 * mesh.elements.size());
-    for (const auto &element : mesh.elements) {
-        elementIds.push_back(element.id);
-        for (const auto id : element.nodeIds) {
-            connectivity.push_back(id);
-        }
-    }
-
-    std::vector<long long> constraintNodes;
-    std::vector<int> constraintComponents;
-    std::vector<double> constraintValues;
-    std::vector<long long> loadNodes;
-    std::vector<int> loadComponents;
-    std::vector<double> loadValues;
-
     const auto fail = [&](const QString &text) {
         emit solverOutput(QStringLiteral("  ") + text);
         emit message(text, Severity::Error);
@@ -1268,113 +1427,75 @@ bool AnalysisService::solve(const ObjectId analysisId)
         emit changed();
     };
 
-    // Sınır şartları persistent engineering scope resolver üzerinden current
-    // FEM node union'ına çözülür. Display tessellation ID'leri bu zincire girmez.
-    for (const ObjectId supportId : record.supports) {
-        if (!isActive(supportId)) {
-            emit solverOutput(tr("  Sınır şartı   : %1 — BASTIRILDI, atlandı")
-                                  .arg(support(supportId) != nullptr ? support(supportId)->name : QString()));
-            continue;
-        }
-        const SupportDefinition *definition = support(supportId);
-        if (definition == nullptr) {
-            continue;
-        }
-        const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
-        const auto nodes = resolvedBoundaryNodeIds(scope);
-        if (!scope.valid || nodes.empty()) {
-            fail(tr("Sınır şartı kapsamı solver node'larına çözülemedi: %1")
-                     .arg(scope.error.isEmpty() ? definition->name : scope.error));
-            return false;
-        }
-        for (const auto nodeId : nodes) {
-            for (int component = 0; component < 3; ++component) {
-                const bool constrained = component == 0 ? definition->fixX
-                    : (component == 1 ? definition->fixY : definition->fixZ);
-                if (!constrained) {
-                    continue;
-                }
-                constraintNodes.push_back(static_cast<long long>(nodeId));
-                constraintComponents.push_back(component + 1);
-                constraintValues.push_back(0.0);
-            }
-        }
-        emit solverOutput(tr("  Sınır şartı   : %1 → %2 • %3 node")
-                              .arg(definition->name, scope.label)
-                              .arg(nodes.size()));
-    }
-
-    // Her Force nesnesinin vectorValue değeri seçili TÜM surface scope için tek
-    // TOPLAM kuvvettir. Reference alan bütün gerçek FEM boundary facet'lerinde
-    // bir kez hesaplanır; t_ref=F_total/A_ref her QUAD4'e 2x2 Gauss ile
-    // consistent biçimde entegre edilir. Viewport glyph/node sayısı fizik
-    // assembly'sine hiçbir zaman girmez.
-    for (const ObjectId loadId : record.loads) {
-        if (!isActive(loadId)) {
-            emit solverOutput(tr("  Yük           : %1 — BASTIRILDI, atlandı")
-                                  .arg(load(loadId) != nullptr ? load(loadId)->name : QString()));
-            continue;
-        }
-        const LoadDefinition *definition = load(loadId);
-        if (definition == nullptr) {
-            continue;
-        }
-        const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
-        if (!scope.valid) {
-            fail(tr("Yük kapsamı solver node'larına çözülemedi: %1")
-                     .arg(scope.error.isEmpty() ? definition->name : scope.error));
-            return false;
-        }
-        const SurfaceLoadAssemblyResult assembled = assembleTotalForce(mesh, scope, *definition);
-        if (!assembled.success()) {
-            fail(tr("Total Force surface integration başarısız: %1 — %2")
-                     .arg(definition->name,
-                          QString::fromLatin1(surfaceLoadAssemblyErrorMessage(assembled.error))));
-            return false;
-        }
-        for (const NodalVectorLoad &nodalLoad : assembled.nodalLoads) {
-            const std::array<double, 3> components{
-                nodalLoad.value.x, nodalLoad.value.y, nodalLoad.value.z};
-            for (int component = 0; component < 3; ++component) {
-                const double value = components[static_cast<std::size_t>(component)];
-                if (std::abs(value) < 1.0e-30) {
-                    continue;
-                }
-                loadNodes.push_back(static_cast<long long>(nodalLoad.nodeId));
-                loadComponents.push_back(component + 1);
-                loadValues.push_back(value);
-            }
-        }
-        emit solverOutput(tr("  Yük           : %1 → %2 • %3 node, A_ref=%4 m², |F|=%5 N")
-                              .arg(definition->name, scope.label)
-                              .arg(assembled.nodalLoads.size())
-                              .arg(assembled.referenceArea, 0, 'g', 8)
-                              .arg(definition->magnitudeN(), 0, 'g', 6));
-    }
-
-    if (constraintNodes.empty()) {
-        fail(tr("Sınır şartı mesh düğümlerine çözülemedi; model serbest cisim durumunda."));
+    // Canlı document state burada tek kez dondurulur. Bundan sonraki input
+    // flattening, C ABI çağrısı ve result mapping yalnız snapshot storage'ını
+    // okur; GUI/service pointer'ları solver consumer'a taşınmaz.
+    const QByteArray solvedInputSignature = solverInputSignature(analysisId);
+    QStringList assemblyLog;
+    AnalysisSnapshotBuildResult snapshotBuild =
+        buildAnalysisSnapshot(analysisId, capabilities, &assemblyLog);
+    if (!snapshotBuild.success()) {
+        fail(tr("Immutable AnalysisSnapshot oluşturulamadı: %1")
+                 .arg(QString::fromStdString(snapshotBuild.detail)));
         return false;
     }
-    if (loadNodes.empty()) {
-        fail(tr("Yük mesh düğümlerine çözülemedi."));
+    SolverInputBuildResult inputBuild = SolverInputBuilder::buildHex8(*snapshotBuild.snapshot);
+    if (!inputBuild.success()) {
+        fail(tr("SolverInputBuilder başarısız: %1")
+                 .arg(QString::fromStdString(inputBuild.detail)));
         return false;
     }
+    const AnalysisSnapshot &snapshot = *snapshotBuild.snapshot;
+    const Hex8SolverInput &input = *inputBuild.input;
 
-    std::vector<double> displacements(3 * mesh.nodes.size(), 0.0);
-    std::vector<double> reactions(3 * mesh.nodes.size(), 0.0);
-    std::vector<double> vonMises(mesh.elements.size(), 0.0);
+    record.solveState = SolveState::Solving;
+    emit solveStateChanged(analysisId, SolveState::Solving);
+
+    emit solverOutput(snapshot.analysisKind() == SnapshotAnalysisKind::LinearStatic
+                          ? tr("Static Structural çözümü başlatıldı")
+                          : tr("Nonlinear Static çözümü başlatıldı"));
+    emit solverOutput(tr("  Mesh          : %1 node, %2 HEX8, %3 DOF")
+                          .arg(snapshot.nodes().size())
+                          .arg(snapshot.elements().size())
+                          .arg(3 * snapshot.nodes().size()));
+    emit solverOutput(tr("  Malzeme       : %1  E=%2 GPa  ν=%3")
+                          .arg(QString::fromStdString(snapshot.material().name))
+                          .arg(snapshot.material().youngModulusPa * 1.0e-9)
+                          .arg(snapshot.material().poissonRatio));
+    emit solverOutput(tr("  Formülasyon   : %1")
+                          .arg(input.formulation == SnapshotHex8Formulation::TotalLagrangianDisplacement
+                                   ? tr("Total-Lagrangian HEX8 / StVK reference")
+                                   : tr("Small-strain HEX8")));
+    emit solverOutput(tr("  Lineer çözücü : Direct — dense reference"));
+    emit solverOutput(tr("  Snapshot      : API v%1 / schema v%2 • immutable owning input")
+                          .arg(snapshot.apiVersion()).arg(snapshot.schemaVersion()));
+    for (const QString &line : assemblyLog) {
+        emit solverOutput(line);
+    }
+
+    std::vector<double> displacements(3 * snapshot.nodes().size(), 0.0);
+    std::vector<double> reactions(3 * snapshot.nodes().size(), 0.0);
+    std::vector<double> vonMises(snapshot.elements().size(), 0.0);
 
     QElapsedTimer timer;
     timer.start();
-    const int status = fem_solve_linear_hex8_mesh(
-        static_cast<int>(mesh.nodes.size()), nodeIds.data(), coordinates.data(),
-        static_cast<int>(mesh.elements.size()), elementIds.data(), connectivity.data(),
-        material->youngGPa * 1.0e9, material->poisson,
-        static_cast<int>(constraintNodes.size()), constraintNodes.data(), constraintComponents.data(),
-        constraintValues.data(),
-        static_cast<int>(loadNodes.size()), loadNodes.data(), loadComponents.data(), loadValues.data(),
-        displacements.data(), reactions.data(), vonMises.data());
+    int status = 10;
+    if (snapshot.analysisKind() == SnapshotAnalysisKind::LinearStatic) {
+        status = fem_solve_linear_hex8_mesh(
+            static_cast<int>(input.nodeIds.size()), input.nodeIds.data(), input.coordinatesXYZ.data(),
+            static_cast<int>(input.elementIds.size()), input.elementIds.data(), input.connectivity8.data(),
+            input.youngModulusPa, input.poissonRatio,
+            static_cast<int>(input.constraintNodeIds.size()), input.constraintNodeIds.data(),
+            input.constraintComponents.data(), input.constraintValues.data(),
+            static_cast<int>(input.loadNodeIds.size()), input.loadNodeIds.data(),
+            input.loadComponents.data(), input.loadValues.data(),
+            displacements.data(), reactions.data(), vonMises.data());
+    } else {
+        // B3.0 capability contract bu consumer bağlanana kadar NonlinearStatic'i
+        // SetupOnly tutar. Bu guard sessiz DirectLinear fallback'i imkânsız kılar.
+        fail(tr("Nonlinear snapshot DirectLinear consumer'a yönlendirilemez."));
+        return false;
+    }
     const double elapsed = static_cast<double>(timer.nsecsElapsed()) * 1.0e-9;
 
     if (status != 0) {
@@ -1393,27 +1514,44 @@ bool AnalysisService::solve(const ObjectId analysisId)
 
     SolveResults results;
     results.valid = true;
-    results.nodeCount = static_cast<int>(mesh.nodes.size());
-    results.elementCount = static_cast<int>(mesh.elements.size());
+    results.nodeCount = static_cast<int>(snapshot.nodes().size());
+    results.elementCount = static_cast<int>(snapshot.elements().size());
     results.dofCount = 3 * results.nodeCount;
     results.wallClockSeconds = elapsed;
     results.minVonMisesMPa = std::numeric_limits<double>::max();
 
-    for (std::size_t i = 0; i < mesh.nodes.size(); ++i) {
+    femcae::geometry::Vec3 probePoint = snapshot.nodes().front().coordinatesSI;
+    for (const SnapshotNode &node : snapshot.nodes()) {
+        probePoint.x = std::max(probePoint.x, node.coordinatesSI.x);
+        probePoint.y = std::max(probePoint.y, node.coordinatesSI.y);
+        probePoint.z = std::max(probePoint.z, node.coordinatesSI.z);
+    }
+    double bestProbeDistanceSquared = std::numeric_limits<double>::infinity();
+    for (std::size_t i = 0; i < snapshot.nodes().size(); ++i) {
         const femcae::geometry::Vec3 u{displacements[3 * i], displacements[3 * i + 1], displacements[3 * i + 2]};
-        displacementField.values[mesh.nodes[i].id] = u;
+        const SnapshotNode &node = snapshot.nodes()[i];
+        displacementField.values[node.id] = u;
         results.maxDisplacementMm = std::max(results.maxDisplacementMm,
                                              std::sqrt(u.x * u.x + u.y * u.y + u.z * u.z) * 1.0e3);
         results.reactionXN += reactions[3 * i];
         results.reactionYN += reactions[3 * i + 1];
         results.reactionZN += reactions[3 * i + 2];
+        const double dx = node.coordinatesSI.x - probePoint.x;
+        const double dy = node.coordinatesSI.y - probePoint.y;
+        const double dz = node.coordinatesSI.z - probePoint.z;
+        const double distanceSquared = dx * dx + dy * dy + dz * dz;
+        if (distanceSquared < bestProbeDistanceSquared) {
+            bestProbeDistanceSquared = distanceSquared;
+            results.probeNodeId = static_cast<qint64>(node.id);
+            results.probeUxMm = u.x * 1.0e3;
+        }
     }
-    for (std::size_t i = 0; i < mesh.elements.size(); ++i) {
-        stressField.values[mesh.elements[i].id] = vonMises[i];
+    for (std::size_t i = 0; i < snapshot.elements().size(); ++i) {
+        stressField.values[snapshot.elements()[i].id] = vonMises[i];
         results.maxVonMisesMPa = std::max(results.maxVonMisesMPa, vonMises[i] / 1.0e6);
         results.minVonMisesMPa = std::min(results.minVonMisesMPa, vonMises[i] / 1.0e6);
     }
-    if (mesh.elements.empty()) {
+    if (snapshot.elements().empty()) {
         results.minVonMisesMPa = 0.0;
     }
 
@@ -1421,19 +1559,11 @@ bool AnalysisService::solve(const ObjectId analysisId)
     record.resultDatabase.setDisplacement(std::move(displacementField));
     record.resultDatabase.setElementScalar(std::move(stressField));
 
-    const auto probe = record.resultDatabase.probeNearestNode(
-        mesh, {mesh_->definition().lengthMm * 1.0e-3, mesh_->definition().widthMm * 1.0e-3,
-               mesh_->definition().heightMm * 1.0e-3});
-    if (probe.has_value()) {
-        results.probeNodeId = static_cast<qint64>(probe->nodeId);
-        results.probeUxMm = probe->vectorValue.x * 1.0e3;
-    }
-
     record.solveResults = results;
     record.solved = true;
     record.solveState = SolveState::Completed;
     // Bayatlık imzası: bu girdilerden herhangi biri değişirse sonuç OutOfDate olur.
-    record.solvedSignature = solverInputSignature(analysisId);
+    record.solvedSignature = solvedInputSignature;
 
     emit solverOutput(tr("  Çözüm tamamlandı — %1 s").arg(elapsed, 0, 'f', 3));
     emit solverOutput(tr("  max |u|        = %1 mm").arg(results.maxDisplacementMm, 0, 'g', 8));

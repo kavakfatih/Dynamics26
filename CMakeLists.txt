@@ -75,6 +75,11 @@ set(FEMCAE_MESHING_SOURCES
     src/meshing/SurfaceLoadAssembler.cpp
 )
 
+set(FEMCAE_APPLICATION_SOURCES
+    src/application/AnalysisSnapshot.cpp
+    src/application/SolverInputBuilder.cpp
+)
+
 add_library(femcae_geometry STATIC ${FEMCAE_GEOMETRY_SOURCES})
 target_include_directories(femcae_geometry PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -101,6 +106,15 @@ target_include_directories(femcae_meshing PUBLIC
 target_compile_features(femcae_meshing PUBLIC cxx_std_20)
 target_link_libraries(femcae_meshing PUBLIC femcae_geometry)
 femcae_enable_warnings(femcae_meshing)
+
+add_library(femcae_application STATIC ${FEMCAE_APPLICATION_SOURCES})
+target_include_directories(femcae_application PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+target_compile_features(femcae_application PUBLIC cxx_std_20)
+target_link_libraries(femcae_application PUBLIC femcae_meshing)
+femcae_enable_warnings(femcae_application)
 
 set(FEMCAE_FOUNDATION_SOURCES
     src/foundation/fem_kinds.f90
@@ -272,7 +286,7 @@ if(FEMCAE_BUILD_TESTING AND BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 
-install(TARGETS femcae_api femcae_cli femcae_geometry femcae_meshing
+install(TARGETS femcae_api femcae_cli femcae_geometry femcae_meshing femcae_application
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

@@ -127,6 +127,7 @@ target_link_libraries(femcae_gui PRIVATE
     femcae_api
     femcae_geometry
     femcae_meshing
+    femcae_application
 )
 target_include_directories(femcae_gui PRIVATE
     "${PROJECT_SOURCE_DIR}/include"
