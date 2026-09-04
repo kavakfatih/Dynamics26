@@ -13,6 +13,8 @@ namespace d26 {
 // değildir; snapshot kopyası yalnız transient presentation state'idir.
 class ConvergencePlotWidget final : public QWidget
 {
+    Q_OBJECT
+
 public:
     enum class Metric { RelativeResidual, RelativeDisplacementCorrection };
 
