@@ -113,9 +113,17 @@ jobs:
           set -euxo pipefail
           app="build-ui-audit/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
           out="$RUNNER_TEMP/dynamics26-ui-audit"
+          # Self-hosted runner jobs share the interactive login session. A
+          # previously interrupted capture must not leave an application process
+          # that blocks the next exact-HEAD visual audit.
+          pkill -x FEMCAE 2>/dev/null || true
+          trap 'pkill -x FEMCAE 2>/dev/null || true' EXIT
+          sleep 2
           rm -rf "$out"
           mkdir -p "$out/light" "$out/dark"
           "$app" --capture "$out/light" --capture-appearance light
+          pkill -x FEMCAE 2>/dev/null || true
+          sleep 1
           "$app" --capture "$out/dark" --capture-appearance dark
           echo "UI_AUDIT_DIR=$out" >> "$GITHUB_ENV"
 
