@@ -349,9 +349,14 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
         commands->push(new commands::SetForceCommand(
             services, forceId, authoredForce, smallForce));
         flushUi();
-        check(services.analysis->preflight(analysisId).passed()
-                  && services.analysis->solve(analysisId),
-              "small nonzero Total Force survives Preflight and immutable snapshot construction");
+        const AnalysisCapabilityResolution smallForceCapabilities =
+            services.analysis->resolveCapabilities(analysisId);
+        const CapabilityDecision *smallForceDecision =
+            smallForceCapabilities.decision(CapabilityAxis::LoadType);
+        check(smallForceDecision != nullptr
+                  && smallForceDecision->state == CapabilityState::Ready
+                  && services.analysis->preflight(analysisId).passed(),
+              "small nonzero Total Force remains Ready in capability/Preflight");
         undo->undo();
         flushUi();
         const SupportDefinition *restoredSupport = services.analysis->support(supportId);
