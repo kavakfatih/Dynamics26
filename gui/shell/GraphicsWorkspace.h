@@ -33,6 +33,9 @@ public:
     void setContextLabel(const QString &text);
     void setSelectionLabel(const QString &text);
     [[nodiscard]] SelectionFilter selectionFilter() const noexcept { return filter_; }
+    // UI/acceptance katmanı bir filter isteğinin provenance nedeniyle gerçekten
+    // kullanılabilir olup olmadığını yan etkisiz sorgulayabilir.
+    [[nodiscard]] bool filterAvailable(SelectionFilter filter) const noexcept;
     void setSelectionFilter(SelectionFilter filter);
 
     // Filter grubu yalnız aktif selection domainini gösterir. Nullopt Geometry
@@ -60,7 +63,6 @@ signals:
     void selectionFilterChanged(SelectionFilter filter);
 
 private:
-    [[nodiscard]] bool filterAvailable(SelectionFilter filter) const noexcept;
     void syncFilterChecks();
     void syncFilterVisibility();
 

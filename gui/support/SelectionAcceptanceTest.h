@@ -80,7 +80,6 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
     // gri display üçgeni değildir. Gerçek analytic Face/Edge/Vertex provenance
     // yayınlamalı ve aynı UI consumer üzerinden Named Selection üretmelidir.
     window.selectObject(project->geometryNode());
-    window.syncAll();
     flushUi();
     auto *geometryBridge = window.findChild<ViewportSelectionBridge *>();
     check(geometryBridge != nullptr && geometryBridge->hasFaceProvenance()
