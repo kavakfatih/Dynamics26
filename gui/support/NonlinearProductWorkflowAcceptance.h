@@ -305,27 +305,36 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
         const CapabilityDecision *oneDofDecision =
             oneDofCapabilities.decision(CapabilityAxis::BoundaryCondition);
         const PreflightReport oneDofPreflight = services.analysis->preflight(analysisId);
-        const bool oneDofWarnsRigidMotion = std::any_of(
+        const bool oneDofFailsStability = std::any_of(
             oneDofPreflight.checks.cbegin(), oneDofPreflight.checks.cend(),
             [supportId](const PreflightCheck &item) {
-                return item.status == PreflightCheck::Status::Warning
-                    && item.label == QStringLiteral("Potential rigid-body motion")
+                return item.status == PreflightCheck::Status::Failed
+                    && item.label == QStringLiteral("Structural Stability")
+                    && item.detail.contains(QStringLiteral("Rigid-body restraint rank: 3 / 6"))
+                    && item.detail.contains(QStringLiteral("Free rigid-body modes: 3"))
                     && item.subject == supportId;
             });
         check(oneDofDecision != nullptr && oneDofDecision->state == CapabilityState::Ready
-                  && oneDofPreflight.passed() && oneDofWarnsRigidMotion,
-              "one-DOF support remains valid but warns about potential rigid-body motion");
+                  && !oneDofPreflight.passed() && oneDofFailsStability,
+              "directional support remains applicable but component rank blocks unstable solve");
+        const QJsonObject unstableDocument = services.analysis->analysisToJson(analysisId);
+        const int undoBeforeUnstableSolve = undo->index();
+        check(!services.analysis->solve(analysisId)
+                  && services.analysis->analysisToJson(analysisId) == unstableDocument
+                  && undo->index() == undoBeforeUnstableSolve,
+              "component stability failure blocks Solve without changing document or Undo state");
         undo->undo();
         flushUi();
         const PreflightReport fullSupportPreflight = services.analysis->preflight(analysisId);
-        const bool fullSupportWarnsRigidMotion = std::any_of(
+        const bool fullSupportPassesStability = std::any_of(
             fullSupportPreflight.checks.cbegin(), fullSupportPreflight.checks.cend(),
             [](const PreflightCheck &item) {
-                return item.status == PreflightCheck::Status::Warning
-                    && item.label == QStringLiteral("Potential rigid-body motion");
+                return item.status == PreflightCheck::Status::Passed
+                    && item.label == QStringLiteral("Structural Stability")
+                    && item.detail.contains(QStringLiteral("Rigid-body restraint rank: 6 / 6"));
             });
-        check(fullSupportPreflight.passed() && !fullSupportWarnsRigidMotion,
-              "all-DOF Fixed Support restores fixed behavior without the directional warning");
+        check(fullSupportPreflight.passed() && fullSupportPassesStability,
+              "all-DOF Fixed Support restores rank 6/6 structural stability");
 
         LoadDefinition zeroForce = authoredForce;
         zeroForce.fxN = 0.0;

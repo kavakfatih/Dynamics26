@@ -3,6 +3,7 @@
 #include "NonlinearHex8SolverBridge.h"
 
 #include <femcae/application/SolverInputBuilder.h>
+#include <femcae/application/StructuralStability.h>
 #include <femcae/femcae.h>
 #include <femcae/meshing/AssignmentResolver.h>
 #include <femcae/meshing/SurfaceLoadAssembler.h>
@@ -1009,51 +1010,94 @@ PreflightReport AnalysisService::preflight(
     // ulaşamaz. Mesh güncelse current CAD Face scope'un gerçek node union'ı da
     // boş olamaz.
     const bool meshReadyForScope = mesh_->hasMesh() && !mesh_->isOutOfDate();
-    ObjectId partialSupportSubject = InvalidObjectId;
+    std::vector<StructuralConstraintDof> structuralConstraints;
+    QHash<MeshEntityId, ObjectId> structuralConstraintSubjects;
+    bool structuralStabilityInputsValid = meshReadyForScope;
     for (const ObjectId id : record->supports) {
         if (!isActive(id)) {
             continue;
         }
         const SupportDefinition *definition = support(id);
         if (definition == nullptr) {
+            structuralStabilityInputsValid = false;
             add(PreflightCheck::Status::Failed, tr("Sınır Şartı Kapsamı"),
                 tr("Sınır şartı tanımı bulunamadı."), id);
             continue;
         }
-        const bool constrainsAnyComponent = definition->fixX || definition->fixY || definition->fixZ;
-        const bool constrainsAllComponents = definition->fixX && definition->fixY && definition->fixZ;
-        if (constrainsAnyComponent && !constrainsAllComponents
-            && partialSupportSubject == InvalidObjectId) {
-            partialSupportSubject = id;
-        }
         if (definition->scopingMethod == BoundaryScopingMethod::NamedSelection || meshReadyForScope) {
             const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
             if (!scope.valid) {
+                structuralStabilityInputsValid = false;
                 add(PreflightCheck::Status::Failed, tr("Sınır Şartı Kapsamı"),
                     tr("%1 — %2").arg(definition->name, scope.error), id);
-            } else if (meshReadyForScope && resolvedBoundaryNodeIds(scope).empty()) {
-                add(PreflightCheck::Status::Failed, tr("Sınır Şartı Kapsamı"),
-                    tr("%1 — scope current FEM Mesh üzerinde node üretmiyor.").arg(definition->name), id);
             } else {
-                const int nodeCount = meshReadyForScope
-                    ? static_cast<int>(resolvedBoundaryNodeIds(scope).size()) : 0;
+                const auto nodeIds = meshReadyForScope
+                    ? resolvedBoundaryNodeIds(scope) : std::vector<MeshEntityId>{};
+                if (meshReadyForScope && nodeIds.empty()) {
+                    structuralStabilityInputsValid = false;
+                    add(PreflightCheck::Status::Failed, tr("Sınır Şartı Kapsamı"),
+                        tr("%1 — scope current FEM Mesh üzerinde node üretmiyor.").arg(definition->name), id);
+                    continue;
+                }
+                const int nodeCount = static_cast<int>(nodeIds.size());
                 add(PreflightCheck::Status::Passed, tr("Sınır Şartı Kapsamı"),
                     meshReadyForScope
                         ? tr("%1 → %2 • %3 node").arg(definition->name, scope.label).arg(nodeCount)
                         : tr("%1 → %2").arg(definition->name, scope.label),
                     id);
+                for (const MeshEntityId nodeId : nodeIds) {
+                    if (!structuralConstraintSubjects.contains(nodeId)) {
+                        structuralConstraintSubjects.insert(nodeId, id);
+                    }
+                    if (definition->fixX) structuralConstraints.push_back({nodeId, 1});
+                    if (definition->fixY) structuralConstraints.push_back({nodeId, 2});
+                    if (definition->fixZ) structuralConstraints.push_back({nodeId, 3});
+                }
             }
         }
     }
-    if (partialSupportSubject != InvalidObjectId) {
-        // Bir veya birkaç directional support birlikte tüm rijit-cisim
-        // modlarını bastırabilir; ancak Beta.3 henüz global constraint-rank
-        // ispatı yapmıyor. Bu nedenle action geçerlidir, model kararlılığı için
-        // doğrulanmamış bir "Stable" iddiası yerine açık warning üretilir.
-        add(PreflightCheck::Status::Warning, tr("Potential rigid-body motion"),
-            tr("Directional support kullanılıyor; 3B modelde tüm rijit-cisim modlarının "
-               "bastırıldığını doğrulayın."),
-            partialSupportSubject);
+
+    // RC1.1: her disconnected HEX8 component kendi altı rigid-body mode'una
+    // sahiptir. Support türüne bakarak heuristic hüküm vermek yerine current
+    // resolved node/component constraints ile normalize edilmiş B_rb rank'i
+    // hesaplanır. Bu preflight yalnız Detect -> Explain -> Navigate yapar;
+    // modele weak spring veya automatic constraint eklemez.
+    if (structuralStabilityInputsValid && !structuralConstraints.empty()) {
+        const StructuralStabilityResult stability =
+            StructuralStabilityDiagnostic::evaluate(mesh_->mesh(), structuralConstraints);
+        if (!stability.success()) {
+            add(PreflightCheck::Status::Failed, tr("Structural Stability"),
+                tr("Rigid-body restraint diagnostic çalıştırılamadı: %1")
+                    .arg(QString::fromStdString(stability.detail)),
+                project_->meshNode());
+        } else {
+            for (const StructuralComponentStability &component : stability.components) {
+                ObjectId subject = project_->meshNode();
+                for (const MeshEntityId nodeId : component.nodeIds) {
+                    const auto supportSubject = structuralConstraintSubjects.constFind(nodeId);
+                    if (supportSubject != structuralConstraintSubjects.constEnd()) {
+                        subject = supportSubject.value();
+                        break;
+                    }
+                }
+                if (component.stable()) {
+                    add(PreflightCheck::Status::Passed, tr("Structural Stability"),
+                        tr("Component %1 • Rigid-body restraint rank: 6 / 6 • "
+                           "all infinitesimal rigid-body modes restrained.")
+                            .arg(static_cast<qulonglong>(component.index)),
+                        subject);
+                } else {
+                    add(PreflightCheck::Status::Failed, tr("Structural Stability"),
+                        tr("Component %1 • Rigid-body restraint rank: %2 / 6 • "
+                           "Free rigid-body modes: %3. The current constraints do not "
+                           "suppress all rigid-body motions of this disconnected component.")
+                            .arg(static_cast<qulonglong>(component.index))
+                            .arg(component.restraintRank)
+                            .arg(component.freeRigidBodyModeCount),
+                        subject);
+                }
+            }
+        }
     }
 
     for (const ObjectId id : record->loads) {

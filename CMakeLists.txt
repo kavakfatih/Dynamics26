@@ -78,6 +78,7 @@ set(FEMCAE_MESHING_SOURCES
 set(FEMCAE_APPLICATION_SOURCES
     src/application/AnalysisSnapshot.cpp
     src/application/SolverInputBuilder.cpp
+    src/application/StructuralStability.cpp
 )
 
 add_library(femcae_geometry STATIC ${FEMCAE_GEOMETRY_SOURCES})
