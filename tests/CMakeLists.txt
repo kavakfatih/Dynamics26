@@ -111,6 +111,15 @@ add_test(NAME c_api_beta3_nonlinear COMMAND c_api_beta3_nonlinear)
 set_tests_properties(c_api_beta3_nonlinear PROPERTIES
     LABELS "api;nonlinear;beta3;equilibrium;telemetry")
 
+add_executable(c_api_rc1_nonlinear_termination
+    c_api/test_rc1_nonlinear_termination_api.c)
+target_link_libraries(c_api_rc1_nonlinear_termination PRIVATE femcae_api)
+femcae_enable_warnings(c_api_rc1_nonlinear_termination)
+add_test(NAME c_api_rc1_nonlinear_termination
+    COMMAND c_api_rc1_nonlinear_termination)
+set_tests_properties(c_api_rc1_nonlinear_termination PROPERTIES
+    LABELS "api;nonlinear;rc1;termination;failure")
+
 add_femcae_prepost_integration_test(
     c_api_beta3_nonlinear_refinement
     c_api/test_beta3_nonlinear_refinement.cpp

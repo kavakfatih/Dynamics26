@@ -407,10 +407,17 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
     }
 
     convergenceSummary_->setText(
-        tr("Durum: %1 | λ = %2 | Kabul edilen adım = %3 | Newton iterasyonu = %4 | Cutback = %5 | Final residual norm = %6")
+        tr("Durum: %1 | Reason: %2 | λ = %3 | Son denenen λ = %4 | Son Δλ = %5 | "
+           "Kabul edilen adım = %6 | Attempt = %7 | Newton iterasyonu = %8 | "
+           "Cutback = %9 | Final residual norm = %10")
             .arg(convergenceStateText(snapshot.summary.state))
+            .arg(QString::fromLatin1(
+                nonlinearTerminationReasonName(snapshot.summary.terminationReason)))
             .arg(snapshot.summary.completedLoadFactor, 0, 'g', 8)
+            .arg(snapshot.summary.lastAttemptedLoadFactor, 0, 'g', 8)
+            .arg(snapshot.summary.lastLoadIncrement, 0, 'g', 8)
             .arg(snapshot.summary.acceptedSteps)
+            .arg(snapshot.summary.stepAttempts)
             .arg(snapshot.summary.totalIterations)
             .arg(snapshot.summary.cutbackCount)
             .arg(snapshot.summary.finalResidualNorm, 0, 'g', 8));

@@ -22,6 +22,9 @@ module fem_nonlinear_assembly
     use fem_linear_assembly, only : assemble_matrix_by_equation, assemble_vector_by_equation
     use fem_total_lagrangian_hex8, only : total_lagrangian_hex8_result_t, evaluate_total_lagrangian_hex8
     use fem_mixed_up_hex8, only : mixed_up_hex8_result_t, evaluate_mixed_up_hex8
+    use fem_nonlinear_contracts, only : NONLINEAR_PHASE_NONE, &
+        NONLINEAR_PHASE_ELEMENT_KINEMATICS, NONLINEAR_REASON_NONE, &
+        NONLINEAR_REASON_UNKNOWN_NUMERICAL_FAILURE
     use fem_status, only : status_t, FEM_STATUS_INVALID_ARGUMENT, FEM_STATUS_SIZE_MISMATCH, &
                            FEM_STATUS_NOT_INITIALIZED
     implicit none
@@ -45,6 +48,8 @@ module fem_nonlinear_assembly
         real(rk) :: maximum_penetration = 0.0_rk
         real(rk) :: total_contact_normal_force = 0.0_rk
         real(rk) :: total_contact_tangential_force = 0.0_rk
+        integer :: termination_phase = NONLINEAR_PHASE_NONE
+        integer :: termination_reason = NONLINEAR_REASON_NONE
     contains
         procedure :: clear => nonlinear_system_clear
     end type nonlinear_system_t
@@ -69,6 +74,8 @@ contains
         this%active_contact_count=0;this%stick_contact_count=0;this%slip_contact_count=0
         this%maximum_penetration=0.0_rk;this%total_contact_normal_force=0.0_rk
         this%total_contact_tangential_force=0.0_rk
+        this%termination_phase=NONLINEAR_PHASE_NONE
+        this%termination_reason=NONLINEAR_REASON_NONE
     end subroutine nonlinear_system_clear
 
     subroutine evaluate_nonlinear_system(model,active_displacement,system,status,load_factor)
@@ -179,7 +186,14 @@ contains
                     call evaluate_total_lagrangian_hex8(reference_coords,local_u, &
                         model%materials%materials(material_pos),element_result,status)
                 end if
-                if(.not.status%is_ok())return
+                if(.not.status%is_ok())then
+                    system%termination_phase=NONLINEAR_PHASE_ELEMENT_KINEMATICS
+                    system%termination_reason=element_result%termination_reason
+                    if(system%termination_reason==NONLINEAR_REASON_NONE)then
+                        system%termination_reason=NONLINEAR_REASON_UNKNOWN_NUMERICAL_FAILURE
+                    end if
+                    return
+                end if
                 call assemble_matrix_by_equation(system%tangent,maps(e)%equation_ids,element_result%tangent,status)
                 if(.not.status%is_ok())return
                 call assemble_vector_by_equation(system%internal_force,maps(e)%equation_ids,element_result%internal_force,status)

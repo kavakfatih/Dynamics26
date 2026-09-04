@@ -37,6 +37,87 @@ enum class SolverConvergenceState {
     Failed
 };
 
+// RC.1: Fortran core ve public C ABI ile ayni explicit integer degerlerini
+// tasiyan typed termination contract. User-facing hata siniflandirmasi raw
+// status message parsing'ine dayanmaz.
+enum class NonlinearTerminationPhase {
+    None = 0,
+    InputValidation = 1,
+    LoadStepping = 2,
+    NewtonIteration = 3,
+    LineSearch = 4,
+    LinearSolve = 5,
+    ElementKinematics = 6,
+    ResultRecovery = 7,
+    Cancellation = 8
+};
+
+enum class NonlinearTerminationReason {
+    None = 0,
+    Converged = 1,
+    InvalidInput = 2,
+    NoActiveEquation = 3,
+    MaximumStepAttemptsReached = 4,
+    MinimumIncrementReached = 5,
+    NewtonIterationLimit = 6,
+    LineSearchFailure = 7,
+    LinearSolverFailure = 8,
+    SingularOrIllConditionedTangent = 9,
+    InvalidReferenceJacobian = 10,
+    InvalidDeformationJacobian = 11,
+    ResultRecoveryFailure = 12,
+    Cancelled = 13,
+    UnknownNumericalFailure = 14
+};
+
+[[nodiscard]] inline const char *nonlinearTerminationPhaseName(
+    const NonlinearTerminationPhase phase) noexcept
+{
+    switch (phase) {
+    case NonlinearTerminationPhase::None: return "None";
+    case NonlinearTerminationPhase::InputValidation: return "Input Validation";
+    case NonlinearTerminationPhase::LoadStepping: return "Load Stepping";
+    case NonlinearTerminationPhase::NewtonIteration: return "Newton Iteration";
+    case NonlinearTerminationPhase::LineSearch: return "Line Search";
+    case NonlinearTerminationPhase::LinearSolve: return "Linear Solve";
+    case NonlinearTerminationPhase::ElementKinematics: return "Element Kinematics";
+    case NonlinearTerminationPhase::ResultRecovery: return "Result Recovery";
+    case NonlinearTerminationPhase::Cancellation: return "Cancellation";
+    }
+    return "None";
+}
+
+[[nodiscard]] inline const char *nonlinearTerminationReasonName(
+    const NonlinearTerminationReason reason) noexcept
+{
+    switch (reason) {
+    case NonlinearTerminationReason::None: return "None";
+    case NonlinearTerminationReason::Converged: return "Converged";
+    case NonlinearTerminationReason::InvalidInput: return "Invalid Input";
+    case NonlinearTerminationReason::NoActiveEquation: return "No Active Equation";
+    case NonlinearTerminationReason::MaximumStepAttemptsReached:
+        return "Maximum Step Attempts Reached";
+    case NonlinearTerminationReason::MinimumIncrementReached:
+        return "Minimum Load Increment Reached";
+    case NonlinearTerminationReason::NewtonIterationLimit:
+        return "Newton Iteration Limit";
+    case NonlinearTerminationReason::LineSearchFailure: return "Line Search Failure";
+    case NonlinearTerminationReason::LinearSolverFailure: return "Linear Solver Failure";
+    case NonlinearTerminationReason::SingularOrIllConditionedTangent:
+        return "Singular or Ill-Conditioned Tangent";
+    case NonlinearTerminationReason::InvalidReferenceJacobian:
+        return "Invalid Reference Jacobian";
+    case NonlinearTerminationReason::InvalidDeformationJacobian:
+        return "Invalid Deformation Jacobian";
+    case NonlinearTerminationReason::ResultRecoveryFailure:
+        return "Result Recovery Failure";
+    case NonlinearTerminationReason::Cancelled: return "Cancelled";
+    case NonlinearTerminationReason::UnknownNumericalFailure:
+        return "Unknown Numerical Failure";
+    }
+    return "Unknown Numerical Failure";
+}
+
 enum class SolverAdaptiveEvent {
     Unavailable = 0,
     None,
@@ -94,8 +175,14 @@ struct SolverConvergenceSummary {
     double completedLoadFactor{0.0};
     double finalResidualNorm{0.0};
     int acceptedSteps{0};
+    int stepAttempts{0};
     int totalIterations{0};
     int cutbackCount{0};
+    int coarseStatus{0};
+    double lastAttemptedLoadFactor{0.0};
+    double lastLoadIncrement{0.0};
+    NonlinearTerminationPhase terminationPhase{NonlinearTerminationPhase::None};
+    NonlinearTerminationReason terminationReason{NonlinearTerminationReason::None};
 
     std::optional<double> minimumJacobian;
     SolverMetricAvailability pressureMetrics{SolverMetricAvailability::Unavailable};

@@ -19,15 +19,21 @@ module fem_nonlinear_product_api
         NONLINEAR_FULL_NEWTON, NONLINEAR_MODIFIED_NEWTON
     use fem_nonlinear_results, only : nonlinear_final_results_t, &
         recover_nonlinear_final_results
+    use fem_nonlinear_contracts, only : NONLINEAR_PHASE_NONE, &
+        NONLINEAR_PHASE_INPUT_VALIDATION, NONLINEAR_PHASE_RESULT_RECOVERY, &
+        NONLINEAR_REASON_CONVERGED, NONLINEAR_REASON_INVALID_INPUT, &
+        NONLINEAR_REASON_RESULT_RECOVERY_FAILURE
     use fem_status, only : status_t, FEM_STATUS_INVALID_ARGUMENT, &
         FEM_STATUS_NUMERICAL_FAILURE
     implicit none
     private
 
-    integer(c_int), parameter :: PRODUCT_API_VERSION = 1_c_int
+    integer(c_int), parameter :: PRODUCT_API_VERSION_V1 = 1_c_int
+    integer(c_int), parameter :: PRODUCT_API_VERSION_V2 = 2_c_int
     integer(c_int), parameter :: PRODUCT_DENSE_REFERENCE = 1_c_int
 
     public :: fem_solve_nonlinear_static_hex8_v1
+    public :: fem_solve_nonlinear_static_hex8_v2
 
 contains
 
@@ -98,6 +104,115 @@ contains
         real(c_double), intent(out) :: history_displacement_increment_norm(*)
         real(c_double), intent(out) :: history_relative_displacement(*)
         real(c_double), intent(out) :: history_alpha(*), history_minimum_j(*)
+        real(c_double) :: ignored_last_attempted_load_factor
+        real(c_double) :: ignored_last_load_increment
+        integer(c_int) :: ignored_termination_phase, ignored_termination_reason
+
+        if (api_version /= PRODUCT_API_VERSION_V1) then
+            call initialize_scalar_outputs(converged, completed_load_factor, &
+                final_residual_norm, minimum_j, accepted_steps, step_attempts, &
+                total_iterations, cutbacks, history_count, history_required_count)
+            fem_solve_nonlinear_static_hex8_v1 = FEM_STATUS_INVALID_ARGUMENT
+            return
+        end if
+
+        ! V1 ABI sembolü ve argüman sırası değişmez. Bütün model kurma ve çözüm
+        ! tek V2 implementation'ında kalır; böylece iki solver davranışı oluşmaz.
+        fem_solve_nonlinear_static_hex8_v1 = fem_solve_nonlinear_static_hex8_v2( &
+            PRODUCT_API_VERSION_V2, node_count, node_ids, coordinates_xyz, &
+            element_count, element_ids, connectivity8, young_modulus, poisson_ratio, &
+            constraint_count, constraint_node_ids, constraint_components, &
+            constraint_values, load_count, load_node_ids, load_components, load_values, &
+            method, max_iterations, max_step_attempts, adaptive_stepping, &
+            initial_increment, minimum_increment, maximum_increment, cutback_factor, &
+            growth_factor, target_iterations, line_search_enabled, &
+            line_search_max_iterations, line_search_reduction, line_search_min_alpha, &
+            use_residual_criterion, use_displacement_criterion, &
+            residual_relative_tolerance, residual_absolute_tolerance, &
+            displacement_relative_tolerance, linear_backend, displacements_xyz, &
+            reactions_xyz, element_equivalent_cauchy, converged, &
+            completed_load_factor, final_residual_norm, minimum_j, accepted_steps, &
+            step_attempts, total_iterations, cutbacks, history_capacity, history_count, &
+            history_required_count, history_attempt, history_accepted_step_before, &
+            history_iteration, history_load_factor, history_load_increment, &
+            history_residual_norm, history_relative_residual, &
+            history_displacement_increment_norm, history_relative_displacement, &
+            history_alpha, history_minimum_j, history_converged, &
+            ignored_last_attempted_load_factor, ignored_last_load_increment, &
+            ignored_termination_phase, ignored_termination_reason)
+    end function fem_solve_nonlinear_static_hex8_v1
+
+    integer(c_int) function fem_solve_nonlinear_static_hex8_v2( &
+        api_version, node_count, node_ids, coordinates_xyz, element_count, &
+        element_ids, connectivity8, young_modulus, poisson_ratio, &
+        constraint_count, constraint_node_ids, constraint_components, &
+        constraint_values, load_count, load_node_ids, load_components, load_values, &
+        method, max_iterations, max_step_attempts, adaptive_stepping, &
+        initial_increment, minimum_increment, maximum_increment, cutback_factor, &
+        growth_factor, target_iterations, line_search_enabled, &
+        line_search_max_iterations, line_search_reduction, line_search_min_alpha, &
+        use_residual_criterion, use_displacement_criterion, &
+        residual_relative_tolerance, residual_absolute_tolerance, &
+        displacement_relative_tolerance, linear_backend, displacements_xyz, &
+        reactions_xyz, element_equivalent_cauchy, converged, &
+        completed_load_factor, final_residual_norm, minimum_j, accepted_steps, &
+        step_attempts, total_iterations, cutbacks, history_capacity, history_count, &
+        history_required_count, history_attempt, history_accepted_step_before, &
+        history_iteration, history_load_factor, history_load_increment, &
+        history_residual_norm, history_relative_residual, &
+        history_displacement_increment_norm, history_relative_displacement, &
+        history_alpha, history_minimum_j, history_converged, &
+        last_attempted_load_factor, last_load_increment, termination_phase, &
+        termination_reason) bind(C, name="fem_solve_nonlinear_static_hex8_v2")
+
+        integer(c_int), value, intent(in) :: api_version
+        integer(c_int), value, intent(in) :: node_count, element_count
+        integer(c_int64_t), intent(in) :: node_ids(*), element_ids(*)
+        integer(c_int64_t), intent(in) :: connectivity8(*)
+        real(c_double), intent(in) :: coordinates_xyz(*)
+        real(c_double), value, intent(in) :: young_modulus, poisson_ratio
+        integer(c_int), value, intent(in) :: constraint_count, load_count
+        integer(c_int64_t), intent(in) :: constraint_node_ids(*), load_node_ids(*)
+        integer(c_int), intent(in) :: constraint_components(*), load_components(*)
+        real(c_double), intent(in) :: constraint_values(*), load_values(*)
+        integer(c_int), value, intent(in) :: method, max_iterations
+        integer(c_int), value, intent(in) :: max_step_attempts, adaptive_stepping
+        real(c_double), value, intent(in) :: initial_increment, minimum_increment
+        real(c_double), value, intent(in) :: maximum_increment, cutback_factor
+        real(c_double), value, intent(in) :: growth_factor
+        integer(c_int), value, intent(in) :: target_iterations
+        integer(c_int), value, intent(in) :: line_search_enabled
+        integer(c_int), value, intent(in) :: line_search_max_iterations
+        real(c_double), value, intent(in) :: line_search_reduction
+        real(c_double), value, intent(in) :: line_search_min_alpha
+        integer(c_int), value, intent(in) :: use_residual_criterion
+        integer(c_int), value, intent(in) :: use_displacement_criterion
+        real(c_double), value, intent(in) :: residual_relative_tolerance
+        real(c_double), value, intent(in) :: residual_absolute_tolerance
+        real(c_double), value, intent(in) :: displacement_relative_tolerance
+        integer(c_int), value, intent(in) :: linear_backend
+        real(c_double), intent(out) :: displacements_xyz(*), reactions_xyz(*)
+        real(c_double), intent(out) :: element_equivalent_cauchy(*)
+        integer(c_int), intent(out) :: converged
+        real(c_double), intent(out) :: completed_load_factor
+        real(c_double), intent(out) :: final_residual_norm, minimum_j
+        integer(c_int), intent(out) :: accepted_steps, step_attempts
+        integer(c_int), intent(out) :: total_iterations, cutbacks
+        integer(c_int), value, intent(in) :: history_capacity
+        integer(c_int), intent(out) :: history_count, history_required_count
+        integer(c_int), intent(out) :: history_attempt(*)
+        integer(c_int), intent(out) :: history_accepted_step_before(*)
+        integer(c_int), intent(out) :: history_iteration(*), history_converged(*)
+        real(c_double), intent(out) :: history_load_factor(*)
+        real(c_double), intent(out) :: history_load_increment(*)
+        real(c_double), intent(out) :: history_residual_norm(*)
+        real(c_double), intent(out) :: history_relative_residual(*)
+        real(c_double), intent(out) :: history_displacement_increment_norm(*)
+        real(c_double), intent(out) :: history_relative_displacement(*)
+        real(c_double), intent(out) :: history_alpha(*), history_minimum_j(*)
+        real(c_double), intent(out) :: last_attempted_load_factor
+        real(c_double), intent(out) :: last_load_increment
+        integer(c_int), intent(out) :: termination_phase, termination_reason
 
         type(model_t) :: model
         type(linear_elastic_material_t) :: material
@@ -114,9 +229,13 @@ contains
         call initialize_scalar_outputs(converged, completed_load_factor, &
             final_residual_norm, minimum_j, accepted_steps, step_attempts, &
             total_iterations, cutbacks, history_count, history_required_count)
-        fem_solve_nonlinear_static_hex8_v1 = FEM_STATUS_INVALID_ARGUMENT
+        last_attempted_load_factor = 0.0_c_double
+        last_load_increment = 0.0_c_double
+        termination_phase = int(NONLINEAR_PHASE_INPUT_VALIDATION,c_int)
+        termination_reason = int(NONLINEAR_REASON_INVALID_INPUT,c_int)
+        fem_solve_nonlinear_static_hex8_v2 = FEM_STATUS_INVALID_ARGUMENT
 
-        if (api_version /= PRODUCT_API_VERSION .or. node_count < 8_c_int .or. &
+        if (api_version /= PRODUCT_API_VERSION_V2 .or. node_count < 8_c_int .or. &
             element_count < 1_c_int .or. constraint_count < 1_c_int .or. &
             load_count < 1_c_int .or. history_capacity < 0_c_int) return
         if (young_modulus <= 0.0_c_double .or. poisson_ratio <= -1.0_c_double .or. &
@@ -252,6 +371,10 @@ contains
             history_residual_norm, history_relative_residual, &
             history_displacement_increment_norm, history_relative_displacement, &
             history_alpha, history_minimum_j, history_converged)
+        last_attempted_load_factor = real(solve_result%last_attempted_load_factor,c_double)
+        last_load_increment = real(solve_result%last_load_increment,c_double)
+        termination_phase = int(solve_result%termination_phase,c_int)
+        termination_reason = int(solve_result%termination_reason,c_int)
         if (.not. status%is_ok()) goto 990
         if (.not. solve_result%converged .or. &
             abs(solve_result%completed_load_factor-1.0_rk) > 1.0e-10_rk) then
@@ -262,7 +385,11 @@ contains
 
         call recover_nonlinear_final_results(model, solve_result%active_displacement, &
             solve_result%completed_load_factor, final_results, status)
-        if (.not. status%is_ok()) goto 990
+        if (.not. status%is_ok()) then
+            termination_phase = int(NONLINEAR_PHASE_RESULT_RECOVERY,c_int)
+            termination_reason = int(NONLINEAR_REASON_RESULT_RECOVERY_FAILURE,c_int)
+            goto 990
+        end if
         do i = 1, int(node_count)
             do component = 1, 3
                 displacements_xyz(3*i-3+component) = &
@@ -276,16 +403,18 @@ contains
                 real(final_results%element_equivalent_cauchy(e),c_double)
         end do
 
-        fem_solve_nonlinear_static_hex8_v1 = 0_c_int
+        termination_phase = int(NONLINEAR_PHASE_NONE,c_int)
+        termination_reason = int(NONLINEAR_REASON_CONVERGED,c_int)
+        fem_solve_nonlinear_static_hex8_v2 = 0_c_int
         return
 
 990     continue
         if (status%code /= 0) then
-            fem_solve_nonlinear_static_hex8_v1 = int(status%code,c_int)
+            fem_solve_nonlinear_static_hex8_v2 = int(status%code,c_int)
         else
-            fem_solve_nonlinear_static_hex8_v1 = FEM_STATUS_INVALID_ARGUMENT
+            fem_solve_nonlinear_static_hex8_v2 = FEM_STATUS_INVALID_ARGUMENT
         end if
-    end function fem_solve_nonlinear_static_hex8_v1
+    end function fem_solve_nonlinear_static_hex8_v2
 
     pure logical function binary_flag(value)
         integer(c_int), intent(in) :: value

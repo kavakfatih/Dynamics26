@@ -209,6 +209,7 @@ add_library(femcae_core STATIC
     ${FEMCAE_MATH_SOURCES}
     ${FEMCAE_MATERIAL_SOURCES}
     ${FEMCAE_SECTION_SOURCES}
+    src/nonlinear/fem_nonlinear_contracts.f90
     src/model/fem_topology.f90
     ${FEMCAE_ELEMENT_SOURCES}
     src/model/fem_sets.f90

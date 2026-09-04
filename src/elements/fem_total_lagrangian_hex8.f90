@@ -18,7 +18,11 @@ module fem_total_lagrangian_hex8
     use fem_hyperelastic_material, only : hyperelastic_material_t
     use fem_constitutive_interface, only : constitutive_response_t, evaluate_hyperelastic_material_point
     use fem_tensor_notation, only : stress_tensor_to_voigt, strain_tensor_to_voigt
-    use fem_status, only : status_t, FEM_STATUS_SIZE_MISMATCH
+    use fem_nonlinear_contracts, only : NONLINEAR_REASON_NONE, &
+        NONLINEAR_REASON_INVALID_REFERENCE_JACOBIAN, &
+        NONLINEAR_REASON_INVALID_DEFORMATION_JACOBIAN
+    use fem_status, only : status_t, FEM_STATUS_SIZE_MISMATCH, &
+        FEM_STATUS_NUMERICAL_FAILURE
     implicit none
     private
 
@@ -34,6 +38,7 @@ module fem_total_lagrangian_hex8
         real(rk), allocatable :: cauchy(:, :)
         real(rk), allocatable :: deformation_gradient(:, :, :)
         real(rk), allocatable :: j(:)
+        integer :: termination_reason = NONLINEAR_REASON_NONE
     end type total_lagrangian_hex8_result_t
 
     public :: evaluate_total_lagrangian_hex8
@@ -76,14 +81,29 @@ contains
         do p = 1, rule%point_count
             call evaluate_geometry_point(TOPOLOGY_HEX8, reference_coords, rule%points(:,p), &
                                          rule%weights(p), gp, status)
-            if (.not. status%is_ok()) return
+            if (.not. status%is_ok()) then
+                if (status%code == FEM_STATUS_NUMERICAL_FAILURE) then
+                    result%termination_reason = NONLINEAR_REASON_INVALID_REFERENCE_JACOBIAN
+                end if
+                return
+            end if
             call deformation_gradient_from_coordinates(current, gp%dshape_dphysical, f, j, status)
-            if (.not. status%is_ok()) return
+            if (.not. status%is_ok()) then
+                if (status%code == FEM_STATUS_NUMERICAL_FAILURE) then
+                    result%termination_reason = NONLINEAR_REASON_INVALID_DEFORMATION_JACOBIAN
+                end if
+                return
+            end if
             call green_lagrange_strain(f, e)
             call stvk_response(material, e, s, cmat, status)
             if (.not. status%is_ok()) return
             call second_pk_to_cauchy(f, s, sigma, status)
-            if (.not. status%is_ok()) return
+            if (.not. status%is_ok()) then
+                if (status%code == FEM_STATUS_NUMERICAL_FAILURE) then
+                    result%termination_reason = NONLINEAR_REASON_INVALID_DEFORMATION_JACOBIAN
+                end if
+                return
+            end if
             call build_green_lagrange_b_matrix(f, gp%dshape_dphysical, b, status)
             if (.not. status%is_ok()) return
             call build_geometric_stiffness_block(s, gp%dshape_dphysical, kg, status)
@@ -134,16 +154,31 @@ contains
         do p = 1, rule%point_count
             call evaluate_geometry_point(TOPOLOGY_HEX8, reference_coords, rule%points(:,p), &
                                          rule%weights(p), gp, status)
-            if (.not. status%is_ok()) return
+            if (.not. status%is_ok()) then
+                if (status%code == FEM_STATUS_NUMERICAL_FAILURE) then
+                    result%termination_reason = NONLINEAR_REASON_INVALID_REFERENCE_JACOBIAN
+                end if
+                return
+            end if
             call deformation_gradient_from_coordinates(current, gp%dshape_dphysical, f, j, status)
-            if (.not. status%is_ok()) return
+            if (.not. status%is_ok()) then
+                if (status%code == FEM_STATUS_NUMERICAL_FAILURE) then
+                    result%termination_reason = NONLINEAR_REASON_INVALID_DEFORMATION_JACOBIAN
+                end if
+                return
+            end if
             call green_lagrange_strain(f, e)
             call evaluate_hyperelastic_material_point(material, f, constitutive, status)
             if (.not. status%is_ok()) return
             s = constitutive%stress
             cmat = constitutive%tangent
             call second_pk_to_cauchy(f, s, sigma, status)
-            if (.not. status%is_ok()) return
+            if (.not. status%is_ok()) then
+                if (status%code == FEM_STATUS_NUMERICAL_FAILURE) then
+                    result%termination_reason = NONLINEAR_REASON_INVALID_DEFORMATION_JACOBIAN
+                end if
+                return
+            end if
             call build_green_lagrange_b_matrix(f, gp%dshape_dphysical, b, status)
             if (.not. status%is_ok()) return
             call build_geometric_stiffness_block(s, gp%dshape_dphysical, kg, status)

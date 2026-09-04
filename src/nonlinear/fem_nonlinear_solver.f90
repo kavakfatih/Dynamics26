@@ -17,6 +17,20 @@ module fem_nonlinear_solver
     use fem_linear_solver, only : linear_solver_options_t, linear_solver_statistics_t, &
         LINEAR_SOLVER_DENSE_REFERENCE, LINEAR_SOLVER_SPARSE_CG, solve_linear_system
     use fem_sparse_matrix, only : csr_matrix_t
+    use fem_nonlinear_contracts, only : NONLINEAR_PHASE_NONE, &
+        NONLINEAR_PHASE_INPUT_VALIDATION, NONLINEAR_PHASE_LOAD_STEPPING, &
+        NONLINEAR_PHASE_NEWTON_ITERATION, NONLINEAR_PHASE_LINE_SEARCH, &
+        NONLINEAR_PHASE_LINEAR_SOLVE, NONLINEAR_REASON_NONE, &
+        NONLINEAR_REASON_CONVERGED, NONLINEAR_REASON_INVALID_INPUT, &
+        NONLINEAR_REASON_NO_ACTIVE_EQUATION, &
+        NONLINEAR_REASON_MAXIMUM_STEP_ATTEMPTS_REACHED, &
+        NONLINEAR_REASON_MINIMUM_INCREMENT_REACHED, &
+        NONLINEAR_REASON_NEWTON_ITERATION_LIMIT, &
+        NONLINEAR_REASON_LINE_SEARCH_FAILURE, &
+        NONLINEAR_REASON_LINEAR_SOLVER_FAILURE, &
+        NONLINEAR_REASON_SINGULAR_OR_ILL_CONDITIONED_TANGENT, &
+        NONLINEAR_REASON_INVALID_REFERENCE_JACOBIAN, &
+        NONLINEAR_REASON_UNKNOWN_NUMERICAL_FAILURE
     use fem_status, only : status_t, FEM_STATUS_INVALID_ARGUMENT, FEM_STATUS_NUMERICAL_FAILURE
     implicit none
     private
@@ -85,6 +99,10 @@ module fem_nonlinear_solver
         integer :: step_attempts = 0
         integer :: total_iterations = 0
         integer :: cutback_count = 0
+        integer :: termination_phase = NONLINEAR_PHASE_NONE
+        integer :: termination_reason = NONLINEAR_REASON_NONE
+        real(rk) :: last_attempted_load_factor = 0.0_rk
+        real(rk) :: last_load_increment = 0.0_rk
         real(rk) :: final_residual_norm = huge(1.0_rk)
         real(rk) :: minimum_j = huge(1.0_rk)
         integer :: final_active_contact_count = 0
@@ -186,6 +204,10 @@ contains
         this%step_attempts = 0
         this%total_iterations = 0
         this%cutback_count = 0
+        this%termination_phase = NONLINEAR_PHASE_NONE
+        this%termination_reason = NONLINEAR_REASON_NONE
+        this%last_attempted_load_factor = 0.0_rk
+        this%last_load_increment = 0.0_rk
         this%final_residual_norm = huge(1.0_rk)
         this%minimum_j = huge(1.0_rk)
         this%final_active_contact_count=0;this%final_stick_contact_count=0;this%final_slip_contact_count=0
@@ -207,6 +229,8 @@ contains
 
         call status%clear()
         call result%clear()
+        result%termination_phase = NONLINEAR_PHASE_INPUT_VALIDATION
+        result%termination_reason = NONLINEAR_REASON_INVALID_INPUT
         call options%validate(status)
         if (.not. status%is_ok()) return
         call model%renumber(status)
@@ -233,6 +257,7 @@ contains
             end if
         end if
         if (model%numbering%active_equation_count <= 0_index_kind) then
+            result%termination_reason = NONLINEAR_REASON_NO_ACTIVE_EQUATION
             call status%set_error(FEM_STATUS_INVALID_ARGUMENT, "Nonlinear analiz icin en az bir aktif equation gerekli."); return
         end if
 
@@ -261,20 +286,29 @@ contains
             increment = min(increment, 1.0_rk-current_load)
         end if
 
+        result%termination_phase = NONLINEAR_PHASE_NONE
+        result%termination_reason = NONLINEAR_REASON_NONE
+
         do while (current_load < 1.0_rk - 100.0_rk*epsilon(1.0_rk))
             if (result%step_attempts >= options%max_step_attempts) then
                 result%active_displacement = state%committed
+                result%termination_phase = NONLINEAR_PHASE_LOAD_STEPPING
+                result%termination_reason = NONLINEAR_REASON_MAXIMUM_STEP_ATTEMPTS_REACHED
                 call status%set_error(FEM_STATUS_NUMERICAL_FAILURE, "Nonlinear step-attempt limiti asildi.")
                 return
             end if
             result%step_attempts = result%step_attempts + 1
             target_load = min(1.0_rk, current_load + increment)
+            result%last_attempted_load_factor = target_load
+            result%last_load_increment = increment
             call state%begin_trial(status)
             if (.not. status%is_ok()) return
 
             call solve_single_load_step(model, state, target_load, increment, options, result, &
                                         step_converged, corrections_used, status)
             if (.not. status%is_ok() .and. status%code /= FEM_STATUS_NUMERICAL_FAILURE) return
+            if (.not. status%is_ok() .and. &
+                result%termination_reason == NONLINEAR_REASON_INVALID_REFERENCE_JACOBIAN) return
 
             if (step_converged) then
                 call status%clear()
@@ -286,6 +320,8 @@ contains
                 result%accepted_steps = result%accepted_steps + 1
                 result%completed_load_factor = current_load
                 result%active_displacement = state%committed
+                result%termination_phase = NONLINEAR_PHASE_NONE
+                result%termination_reason = NONLINEAR_REASON_NONE
                 if (options%adaptive_stepping .and. current_load < 1.0_rk) then
                     if (corrections_used <= options%target_iterations) then
                         increment = min(options%maximum_load_increment, increment*options%growth_factor)
@@ -300,11 +336,18 @@ contains
                 if (.not. status%is_ok()) return
                 call model%contacts%revert(status)
                 if(.not.status%is_ok())return
+                if (.not. options%adaptive_stepping) then
+                    call status%set_error(FEM_STATUS_NUMERICAL_FAILURE, &
+                        "Nonlinear load step converge olmadi ve automatic stepping kapali.")
+                    return
+                end if
                 result%cutback_count = result%cutback_count + 1
                 result%active_displacement = state%committed
                 increment = increment*options%cutback_factor
                 call status%clear()
                 if (increment < options%minimum_load_increment*(1.0_rk-100.0_rk*epsilon(1.0_rk))) then
+                    result%termination_phase = NONLINEAR_PHASE_LOAD_STEPPING
+                    result%termination_reason = NONLINEAR_REASON_MINIMUM_INCREMENT_REACHED
                     call status%set_error(FEM_STATUS_NUMERICAL_FAILURE, &
                         "Nonlinear increment minimum load increment altina dustu; son converged state korunuyor.")
                     return
@@ -315,6 +358,8 @@ contains
         result%converged = .true.
         result%completed_load_factor = 1.0_rk
         result%active_displacement = state%committed
+        result%termination_phase = NONLINEAR_PHASE_NONE
+        result%termination_reason = NONLINEAR_REASON_CONVERGED
         call status%clear()
     end subroutine solve_nonlinear_static
 
@@ -343,6 +388,8 @@ contains
         call status%clear()
         converged = .false.
         corrections_used = 0
+        result%termination_phase = NONLINEAR_PHASE_NONE
+        result%termination_reason = NONLINEAR_REASON_NONE
         allocate(previous_correction(size(state%trial)))
         previous_correction = 0.0_rk
         residual_scale = 0.0_rk
@@ -351,7 +398,17 @@ contains
 
         do iteration = 1, options%max_iterations + 1
             call evaluate_nonlinear_system(model, state%trial, system, status, load_factor)
-            if (.not. status%is_ok()) return
+            if (.not. status%is_ok()) then
+                result%termination_phase = system%termination_phase
+                result%termination_reason = system%termination_reason
+                if (result%termination_phase == NONLINEAR_PHASE_NONE) then
+                    result%termination_phase = NONLINEAR_PHASE_NEWTON_ITERATION
+                end if
+                if (result%termination_reason == NONLINEAR_REASON_NONE) then
+                    result%termination_reason = NONLINEAR_REASON_UNKNOWN_NUMERICAL_FAILURE
+                end if
+                return
+            end if
             result%minimum_j = min(result%minimum_j, system%minimum_j)
             result%final_active_contact_count=system%active_contact_count
             result%final_stick_contact_count=system%stick_contact_count
@@ -410,6 +467,8 @@ contains
                 return
             end if
             if (iteration > options%max_iterations) then
+                result%termination_phase = NONLINEAR_PHASE_NEWTON_ITERATION
+                result%termination_reason = NONLINEAR_REASON_NEWTON_ITERATION_LIMIT
                 call status%set_error(FEM_STATUS_NUMERICAL_FAILURE, "Load step nonlinear iteration limitinde converge olmadi.")
                 return
             end if
@@ -420,13 +479,26 @@ contains
             else
                 call solve_linear_system(system%tangent, system%residual, correction, options%linear, linear_statistics, status)
             end if
-            if (.not. status%is_ok()) return
+            if (.not. status%is_ok()) then
+                result%termination_phase = NONLINEAR_PHASE_LINEAR_SOLVE
+                if (options%linear%backend == LINEAR_SOLVER_DENSE_REFERENCE .and. &
+                    status%code == FEM_STATUS_NUMERICAL_FAILURE) then
+                    result%termination_reason = NONLINEAR_REASON_SINGULAR_OR_ILL_CONDITIONED_TANGENT
+                else
+                    result%termination_reason = NONLINEAR_REASON_LINEAR_SOLVER_FAILURE
+                end if
+                return
+            end if
             result%total_iterations = result%total_iterations + 1
 
             if (options%line_search) then
                 call perform_line_search(model, state%trial, correction, load_factor, system%residual, options, &
                                          alpha, accepted_trial, accepted_system, status)
-                if (.not. status%is_ok()) return
+                if (.not. status%is_ok()) then
+                    result%termination_phase = NONLINEAR_PHASE_LINE_SEARCH
+                    result%termination_reason = NONLINEAR_REASON_LINE_SEARCH_FAILURE
+                    return
+                end if
                 call state%set_trial(accepted_trial, status)
                 if (.not. status%is_ok()) return
             else

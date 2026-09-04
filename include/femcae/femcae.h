@@ -251,10 +251,44 @@ int fem_solve_linear_hex8_mesh(int node_count,
  * backend only; unsupported backend IDs are rejected without fallback. */
 enum {
     FEM_NONLINEAR_STATIC_HEX8_API_VERSION = 1,
+    FEM_NONLINEAR_STATIC_HEX8_API_VERSION_V2 = 2,
     FEM_NONLINEAR_METHOD_FULL_NEWTON = 1,
     FEM_NONLINEAR_METHOD_MODIFIED_NEWTON = 2,
     FEM_LINEAR_BACKEND_DENSE_REFERENCE = 1
 };
+
+/* RC.1 typed nonlinear termination contract. Values are part of the public
+ * ABI and must remain stable. A singular/ill-conditioned tangent is a linear
+ * solver observation; it is intentionally not classified as rigid-body motion. */
+typedef enum fem_nonlinear_termination_phase {
+    FEM_NONLINEAR_PHASE_NONE = 0,
+    FEM_NONLINEAR_PHASE_INPUT_VALIDATION = 1,
+    FEM_NONLINEAR_PHASE_LOAD_STEPPING = 2,
+    FEM_NONLINEAR_PHASE_NEWTON_ITERATION = 3,
+    FEM_NONLINEAR_PHASE_LINE_SEARCH = 4,
+    FEM_NONLINEAR_PHASE_LINEAR_SOLVE = 5,
+    FEM_NONLINEAR_PHASE_ELEMENT_KINEMATICS = 6,
+    FEM_NONLINEAR_PHASE_RESULT_RECOVERY = 7,
+    FEM_NONLINEAR_PHASE_CANCELLATION = 8
+} fem_nonlinear_termination_phase;
+
+typedef enum fem_nonlinear_termination_reason {
+    FEM_NONLINEAR_REASON_NONE = 0,
+    FEM_NONLINEAR_REASON_CONVERGED = 1,
+    FEM_NONLINEAR_REASON_INVALID_INPUT = 2,
+    FEM_NONLINEAR_REASON_NO_ACTIVE_EQUATION = 3,
+    FEM_NONLINEAR_REASON_MAXIMUM_STEP_ATTEMPTS_REACHED = 4,
+    FEM_NONLINEAR_REASON_MINIMUM_INCREMENT_REACHED = 5,
+    FEM_NONLINEAR_REASON_NEWTON_ITERATION_LIMIT = 6,
+    FEM_NONLINEAR_REASON_LINE_SEARCH_FAILURE = 7,
+    FEM_NONLINEAR_REASON_LINEAR_SOLVER_FAILURE = 8,
+    FEM_NONLINEAR_REASON_SINGULAR_OR_ILL_CONDITIONED_TANGENT = 9,
+    FEM_NONLINEAR_REASON_INVALID_REFERENCE_JACOBIAN = 10,
+    FEM_NONLINEAR_REASON_INVALID_DEFORMATION_JACOBIAN = 11,
+    FEM_NONLINEAR_REASON_RESULT_RECOVERY_FAILURE = 12,
+    FEM_NONLINEAR_REASON_CANCELLED = 13,
+    FEM_NONLINEAR_REASON_UNKNOWN_NUMERICAL_FAILURE = 14
+} fem_nonlinear_termination_reason;
 
 int fem_solve_nonlinear_static_hex8_v1(
     int api_version,
@@ -320,6 +354,77 @@ int fem_solve_nonlinear_static_hex8_v1(
     double *history_alpha,
     double *history_minimum_j,
     int *history_converged);
+
+/* RC.1 additive API. The V1 solve contract and ownership rules are unchanged;
+ * V2 adds typed termination and the last attempted load state. */
+int fem_solve_nonlinear_static_hex8_v2(
+    int api_version,
+    int node_count,
+    const long long *node_ids,
+    const double *coordinates_xyz,
+    int element_count,
+    const long long *element_ids,
+    const long long *connectivity8,
+    double young_modulus,
+    double poisson_ratio,
+    int constraint_count,
+    const long long *constraint_node_ids,
+    const int *constraint_components,
+    const double *constraint_values,
+    int load_count,
+    const long long *load_node_ids,
+    const int *load_components,
+    const double *load_values,
+    int method,
+    int max_iterations,
+    int max_step_attempts,
+    int adaptive_stepping,
+    double initial_increment,
+    double minimum_increment,
+    double maximum_increment,
+    double cutback_factor,
+    double growth_factor,
+    int target_iterations,
+    int line_search_enabled,
+    int line_search_max_iterations,
+    double line_search_reduction,
+    double line_search_min_alpha,
+    int use_residual_criterion,
+    int use_displacement_criterion,
+    double residual_relative_tolerance,
+    double residual_absolute_tolerance,
+    double displacement_relative_tolerance,
+    int linear_backend,
+    double *displacements_xyz,
+    double *reactions_xyz,
+    double *element_equivalent_cauchy,
+    int *converged,
+    double *completed_load_factor,
+    double *final_residual_norm,
+    double *minimum_j,
+    int *accepted_steps,
+    int *step_attempts,
+    int *total_iterations,
+    int *cutbacks,
+    int history_capacity,
+    int *history_count,
+    int *history_required_count,
+    int *history_attempt,
+    int *history_accepted_step_before,
+    int *history_iteration,
+    double *history_load_factor,
+    double *history_load_increment,
+    double *history_residual_norm,
+    double *history_relative_residual,
+    double *history_displacement_increment_norm,
+    double *history_relative_displacement,
+    double *history_alpha,
+    double *history_minimum_j,
+    int *history_converged,
+    double *last_attempted_load_factor,
+    double *last_load_increment,
+    int *termination_phase,
+    int *termination_reason);
 
 #ifdef __cplusplus
 }

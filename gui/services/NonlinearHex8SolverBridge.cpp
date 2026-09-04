@@ -9,6 +9,57 @@
 #include <vector>
 
 namespace d26 {
+namespace {
+
+NonlinearTerminationPhase terminationPhaseFromAbi(const int value)
+{
+    switch (value) {
+    case FEM_NONLINEAR_PHASE_NONE: return NonlinearTerminationPhase::None;
+    case FEM_NONLINEAR_PHASE_INPUT_VALIDATION: return NonlinearTerminationPhase::InputValidation;
+    case FEM_NONLINEAR_PHASE_LOAD_STEPPING: return NonlinearTerminationPhase::LoadStepping;
+    case FEM_NONLINEAR_PHASE_NEWTON_ITERATION: return NonlinearTerminationPhase::NewtonIteration;
+    case FEM_NONLINEAR_PHASE_LINE_SEARCH: return NonlinearTerminationPhase::LineSearch;
+    case FEM_NONLINEAR_PHASE_LINEAR_SOLVE: return NonlinearTerminationPhase::LinearSolve;
+    case FEM_NONLINEAR_PHASE_ELEMENT_KINEMATICS: return NonlinearTerminationPhase::ElementKinematics;
+    case FEM_NONLINEAR_PHASE_RESULT_RECOVERY: return NonlinearTerminationPhase::ResultRecovery;
+    case FEM_NONLINEAR_PHASE_CANCELLATION: return NonlinearTerminationPhase::Cancellation;
+    }
+    return NonlinearTerminationPhase::None;
+}
+
+NonlinearTerminationReason terminationReasonFromAbi(const int value)
+{
+    switch (value) {
+    case FEM_NONLINEAR_REASON_NONE: return NonlinearTerminationReason::None;
+    case FEM_NONLINEAR_REASON_CONVERGED: return NonlinearTerminationReason::Converged;
+    case FEM_NONLINEAR_REASON_INVALID_INPUT: return NonlinearTerminationReason::InvalidInput;
+    case FEM_NONLINEAR_REASON_NO_ACTIVE_EQUATION: return NonlinearTerminationReason::NoActiveEquation;
+    case FEM_NONLINEAR_REASON_MAXIMUM_STEP_ATTEMPTS_REACHED:
+        return NonlinearTerminationReason::MaximumStepAttemptsReached;
+    case FEM_NONLINEAR_REASON_MINIMUM_INCREMENT_REACHED:
+        return NonlinearTerminationReason::MinimumIncrementReached;
+    case FEM_NONLINEAR_REASON_NEWTON_ITERATION_LIMIT:
+        return NonlinearTerminationReason::NewtonIterationLimit;
+    case FEM_NONLINEAR_REASON_LINE_SEARCH_FAILURE:
+        return NonlinearTerminationReason::LineSearchFailure;
+    case FEM_NONLINEAR_REASON_LINEAR_SOLVER_FAILURE:
+        return NonlinearTerminationReason::LinearSolverFailure;
+    case FEM_NONLINEAR_REASON_SINGULAR_OR_ILL_CONDITIONED_TANGENT:
+        return NonlinearTerminationReason::SingularOrIllConditionedTangent;
+    case FEM_NONLINEAR_REASON_INVALID_REFERENCE_JACOBIAN:
+        return NonlinearTerminationReason::InvalidReferenceJacobian;
+    case FEM_NONLINEAR_REASON_INVALID_DEFORMATION_JACOBIAN:
+        return NonlinearTerminationReason::InvalidDeformationJacobian;
+    case FEM_NONLINEAR_REASON_RESULT_RECOVERY_FAILURE:
+        return NonlinearTerminationReason::ResultRecoveryFailure;
+    case FEM_NONLINEAR_REASON_CANCELLED: return NonlinearTerminationReason::Cancelled;
+    case FEM_NONLINEAR_REASON_UNKNOWN_NUMERICAL_FAILURE:
+        return NonlinearTerminationReason::UnknownNumericalFailure;
+    }
+    return NonlinearTerminationReason::UnknownNumericalFailure;
+}
+
+} // namespace
 
 NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
     const femcae::application::Hex8SolverInput &input)
@@ -18,6 +69,9 @@ NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
     NonlinearHex8SolveOutput output;
     output.telemetry.summary.executionMode = SolverExecutionMode::NonlinearNewton;
     output.telemetry.summary.state = SolverConvergenceState::Failed;
+    output.telemetry.summary.coarseStatus = output.status;
+    output.telemetry.summary.terminationPhase = NonlinearTerminationPhase::InputValidation;
+    output.telemetry.summary.terminationReason = NonlinearTerminationReason::InvalidInput;
 
     const bool constraintShapeValid = input.constraintNodeIds.size() == input.constraintComponents.size()
         && input.constraintNodeIds.size() == input.constraintValues.size();
@@ -81,9 +135,13 @@ NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
     int cutbacks = 0;
     int historyCount = 0;
     int historyRequiredCount = 0;
+    double lastAttemptedLoadFactor = 0.0;
+    double lastLoadIncrement = 0.0;
+    int terminationPhase = FEM_NONLINEAR_PHASE_INPUT_VALIDATION;
+    int terminationReason = FEM_NONLINEAR_REASON_INVALID_INPUT;
 
-    output.status = fem_solve_nonlinear_static_hex8_v1(
-        FEM_NONLINEAR_STATIC_HEX8_API_VERSION,
+    output.status = fem_solve_nonlinear_static_hex8_v2(
+        FEM_NONLINEAR_STATIC_HEX8_API_VERSION_V2,
         static_cast<int>(input.nodeIds.size()), input.nodeIds.data(),
         input.coordinatesXYZ.data(),
         static_cast<int>(input.elementIds.size()), input.elementIds.data(),
@@ -112,7 +170,9 @@ NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
         iterations.data(), loadFactors.data(), loadIncrements.data(),
         residualNorms.data(), relativeResiduals.data(),
         displacementIncrementNorms.data(), relativeDisplacements.data(),
-        alphas.data(), minimumJacobians.data(), converged.data());
+        alphas.data(), minimumJacobians.data(), converged.data(),
+        &lastAttemptedLoadFactor, &lastLoadIncrement, &terminationPhase,
+        &terminationReason);
 
     output.converged = convergedFlag != 0;
     output.stepAttempts = stepAttempts;
@@ -124,8 +184,14 @@ NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
     summary.completedLoadFactor = completedLoadFactor;
     summary.finalResidualNorm = finalResidualNorm;
     summary.acceptedSteps = acceptedSteps;
+    summary.stepAttempts = stepAttempts;
     summary.totalIterations = totalIterations;
     summary.cutbackCount = cutbacks;
+    summary.coarseStatus = output.status;
+    summary.lastAttemptedLoadFactor = lastAttemptedLoadFactor;
+    summary.lastLoadIncrement = lastLoadIncrement;
+    summary.terminationPhase = terminationPhaseFromAbi(terminationPhase);
+    summary.terminationReason = terminationReasonFromAbi(terminationReason);
     if (std::isfinite(minimumJacobian)
         && std::abs(minimumJacobian) < std::numeric_limits<double>::max()) {
         summary.minimumJacobian = minimumJacobian;

@@ -1603,9 +1603,33 @@ bool AnalysisService::solve(const ObjectId analysisId)
         record.solveResults = {};
         record.resultDatabase.clear();
         refreshResultNodes(analysisId);
-        fail(snapshot.analysisKind() == SnapshotAnalysisKind::NonlinearStatic
-                 ? tr("Fortran nonlinear çözüm başarısız (status %1).").arg(status)
-                 : tr("Fortran lineer çözüm başarısız (status %1).").arg(status));
+        if (snapshot.analysisKind() == SnapshotAnalysisKind::NonlinearStatic) {
+            const SolverConvergenceSummary &summary = record.solverTelemetry.summary;
+            const QString reason = QString::fromLatin1(
+                nonlinearTerminationReasonName(summary.terminationReason));
+            emit solverOutput(tr("Solution Failed"));
+            emit solverOutput(tr("  Reason                    : %1").arg(reason));
+            emit solverOutput(tr("  Last Converged Load Factor: %1")
+                                  .arg(summary.completedLoadFactor, 0, 'g', 8));
+            emit solverOutput(tr("  Last Attempted Load Factor: %1")
+                                  .arg(summary.lastAttemptedLoadFactor, 0, 'g', 8));
+            emit solverOutput(tr("  Last Load Increment       : %1")
+                                  .arg(summary.lastLoadIncrement, 0, 'g', 8));
+            emit solverOutput(tr("  Newton Iterations         : %1")
+                                  .arg(summary.totalIterations));
+            emit solverOutput(tr("  Cutbacks                  : %1")
+                                  .arg(summary.cutbackCount));
+            emit solverOutput(tr("  Relative/absolute residual: %1")
+                                  .arg(summary.finalResidualNorm, 0, 'g', 8));
+            emit solverOutput(tr("Technical Details"));
+            emit solverOutput(tr("  Phase: %1 | coarse status: %2")
+                                  .arg(QString::fromLatin1(
+                                      nonlinearTerminationPhaseName(summary.terminationPhase)))
+                                  .arg(status));
+            fail(tr("Nonlinear çözüm başarısız: %1.").arg(reason));
+        } else {
+            fail(tr("Fortran lineer çözüm başarısız (status %1).").arg(status));
+        }
         return false;
     }
 

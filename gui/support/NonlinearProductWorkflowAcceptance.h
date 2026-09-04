@@ -443,8 +443,16 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
                   && failedTelemetry->summary.executionMode == SolverExecutionMode::NonlinearNewton
                   && failedTelemetry->summary.state == SolverConvergenceState::Failed
                   && failedTelemetry->summary.cutbackCount > 0
+                  && failedTelemetry->summary.terminationPhase
+                      == NonlinearTerminationPhase::LoadStepping
+                  && failedTelemetry->summary.terminationReason
+                      == NonlinearTerminationReason::MinimumIncrementReached
+                  && failedTelemetry->summary.lastAttemptedLoadFactor
+                      > failedTelemetry->summary.completedLoadFactor
+                  && failedTelemetry->summary.lastLoadIncrement > 0.0
                   && !failedTelemetry->entries.isEmpty(),
-              "failed product solve exposes real cutback telemetry and retained iteration history");
+              "failed product solve exposes typed minimum-increment termination, "
+              "last attempted load state and retained iteration history");
         check(services.analysis->analysisToJson(analysisId) == failureDocument
                   && undo->index() == undoBeforeFailure,
               "Newton failure/cutback leaves persistent document and Undo state unchanged");
