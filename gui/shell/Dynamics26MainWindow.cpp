@@ -854,11 +854,11 @@ void Dynamics26MainWindow::handleResultPick(const double worldX, const double wo
 
     ResultDetails *page = details_->resultPage();
     const ObjectId analysisId = analysis_->owningAnalysis(selected_);
-    const ResultDatabase *database = analysis_->resultDatabase(analysisId);
+    const femcae::meshing::ResultDatabase *database = analysis_->resultDatabase(analysisId);
     if (page == nullptr || database == nullptr || !mesh_->hasMesh()) {
         return;
     }
-    if (boundaryFacetId == static_cast<qint64>(InvalidMeshId)) {
+    if (boundaryFacetId == static_cast<qint64>(femcae::meshing::InvalidMeshId)) {
         page->clearProbe();
         return;
     }
@@ -879,7 +879,7 @@ void Dynamics26MainWindow::handleResultPick(const double worldX, const double wo
     }
 
     const auto probe = database->probeBoundaryFacet(
-        mesh_->mesh(), static_cast<MeshEntityId>(boundaryFacetId), "von_mises");
+        mesh_->mesh(), static_cast<femcae::meshing::MeshEntityId>(boundaryFacetId), "von_mises");
     if (!probe.has_value()) {
         page->clearProbe();
         return;

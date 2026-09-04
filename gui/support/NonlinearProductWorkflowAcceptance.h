@@ -730,7 +730,7 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
               && recovery != nullptr && recovery->text() == QStringLiteral("Arithmetic Mean"),
           "Equivalent Stress Details exposes Cauchy, element, 8-GP and recovery semantics separately");
 
-    const SimulationMesh &probeMesh = services.mesh->mesh();
+    const femcae::meshing::SimulationMesh &probeMesh = services.mesh->mesh();
     check(!probeMesh.nodes.empty() && !probeMesh.boundaryFacets.empty(),
           "RC1.5 result probe acceptance has real FEM node and boundary-facet provenance");
     const auto facetProbe = database != nullptr && !probeMesh.boundaryFacets.empty()
@@ -752,7 +752,7 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
         && !probeMesh.nodes.empty() && !probeMesh.boundaryFacets.empty()) {
         window.selectObject(nonlinearDeformationId);
         flushUi();
-        const MeshNode &pickedNode = probeMesh.nodes.back();
+        const femcae::meshing::MeshNode &pickedNode = probeMesh.nodes.back();
         window.graphics()->viewport()->resultPicked(
             pickedNode.x.x, pickedNode.x.y, pickedNode.x.z,
             static_cast<qint64>(probeMesh.boundaryFacets.front().id));

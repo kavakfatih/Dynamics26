@@ -1236,7 +1236,7 @@ void ViewportWidget::handlePick(const int x, const int y)
     impl_->picker->PickFromListOn();
     if (impl_->picker->Pick(x, y, 0, impl_->renderer) == 0) {
         if (impl_->resultScene) {
-            emit resultPicked(0.0, 0.0, 0.0, static_cast<qint64>(InvalidMeshId));
+            emit resultPicked(0.0, 0.0, 0.0, static_cast<qint64>(femcae::meshing::InvalidMeshId));
         } else if (!impl_->geometryScene.empty()) {
             emit topologyPicked(0, 0);
         } else {
@@ -1252,7 +1252,7 @@ void ViewportWidget::handlePick(const int x, const int y)
         const MeshEntityId facetId =
             cellId < static_cast<vtkIdType>(impl_->resultFacetIds.size())
             ? impl_->resultFacetIds[static_cast<std::size_t>(cellId)]
-            : InvalidMeshId;
+            : femcae::meshing::InvalidMeshId;
         double world[3] = {0.0, 0.0, 0.0};
         impl_->picker->GetPickPosition(world);
         emit resultPicked(world[0], world[1], world[2], static_cast<qint64>(facetId));
