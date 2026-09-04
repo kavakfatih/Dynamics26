@@ -482,14 +482,19 @@ private:
         } else if (!other.entities.isEmpty()) {
             domain = other.entities.front().domain;
             kind = other.entities.front().kind;
-        } else if (services_.mesh != nullptr
-                   && !services_.mesh->selectionGeometryDocument().entitiesOfKind(
-                           femcae::geometry::GeometryEntityKind::Body).empty()) {
+        } else if (services_.geometry != nullptr && services_.geometry->summary().hasGeometry) {
             domain = SelectionDomain::Geometry;
             kind = SelectionKind::Face;
         } else if (services_.mesh != nullptr && services_.mesh->hasMesh()) {
             domain = SelectionDomain::Mesh;
             kind = SelectionKind::Facet;
+        } else if (services_.mesh != nullptr
+                   && !services_.mesh->selectionGeometryDocument().entitiesOfKind(
+                           femcae::geometry::GeometryEntityKind::Body).empty()) {
+            // Mesh yokken parametrik analytic Face authoring yine mümkündür.
+            // Mesh varsa mevcut Contact Mesh/Facet fallback sözleşmesi korunur.
+            domain = SelectionDomain::Geometry;
+            kind = SelectionKind::Face;
         } else {
             return false;
         }
