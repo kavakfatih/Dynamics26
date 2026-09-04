@@ -81,11 +81,11 @@ public:
         const QVector<SelectionItem> &items = selection_->items();
         switch (items.front().domain) {
         case SelectionDomain::Geometry:
-            if (services_.geometry == nullptr) {
+            if (services_.mesh == nullptr) {
                 result.error = ScopeReferenceBuildError::UnsupportedDomain;
                 return result;
             }
-            return buildGeometryScopeReference(items, services_.geometry->document());
+            return buildGeometryScopeReference(items, services_.mesh->selectionGeometryDocument());
         case SelectionDomain::Mesh:
             if (services_.mesh == nullptr) {
                 result.error = ScopeReferenceBuildError::UnsupportedDomain;
@@ -184,7 +184,9 @@ public:
             return false;
         }
         if (first.domain == SelectionDomain::Geometry) {
-            if (services_.geometry == nullptr || !services_.geometry->summary().hasGeometry) {
+            if (services_.mesh == nullptr
+                || services_.mesh->selectionGeometryDocument().entitiesOfKind(
+                       femcae::geometry::GeometryEntityKind::Body).empty()) {
                 return false;
             }
         } else if (first.domain == SelectionDomain::Mesh) {
@@ -252,7 +254,8 @@ public:
 
         ScopeSelectionItemsResult preload;
         if (editDomain_ == SelectionDomain::Geometry) {
-            preload = selectionItemsForGeometryScope(definition->scope, services_.geometry->document());
+            preload = selectionItemsForGeometryScope(
+                definition->scope, services_.mesh->selectionGeometryDocument());
         } else {
             preload = selectionItemsForMeshScope(definition->scope,
                                                  services_.mesh->mesh(), services_.mesh->generation());
@@ -397,10 +400,10 @@ private:
             return;
         }
 
-        if (editDomain_ == SelectionDomain::Geometry && services_.geometry != nullptr) {
+        if (editDomain_ == SelectionDomain::Geometry && services_.mesh != nullptr) {
             viewport->setContext(ViewportContext::Geometry);
             graphics_->setContextLabel(tr("Geometry — Edit Named Selection"));
-            const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
+            const auto surfaces = services_.mesh->displaySelectionTopologyScene(tessellationDeflection_);
             if (!surfaces.isEmpty()) {
                 viewport->showGeometry(surfaces);
             }
@@ -479,7 +482,9 @@ private:
         } else if (!other.entities.isEmpty()) {
             domain = other.entities.front().domain;
             kind = other.entities.front().kind;
-        } else if (services_.geometry != nullptr && services_.geometry->summary().hasGeometry) {
+        } else if (services_.mesh != nullptr
+                   && !services_.mesh->selectionGeometryDocument().entitiesOfKind(
+                           femcae::geometry::GeometryEntityKind::Body).empty()) {
             domain = SelectionDomain::Geometry;
             kind = SelectionKind::Face;
         } else if (services_.mesh != nullptr && services_.mesh->hasMesh()) {
@@ -494,7 +499,9 @@ private:
             return false;
         }
         if (domain == SelectionDomain::Geometry
-            && (services_.geometry == nullptr || !services_.geometry->summary().hasGeometry)) {
+            && (services_.mesh == nullptr
+                || services_.mesh->selectionGeometryDocument().entitiesOfKind(
+                       femcae::geometry::GeometryEntityKind::Body).empty())) {
             return false;
         }
         if (domain == SelectionDomain::Mesh
@@ -567,7 +574,8 @@ private:
 
         ScopeSelectionItemsResult preload;
         if (domain == SelectionDomain::Geometry) {
-            preload = selectionItemsForGeometryScope(selected, services_.geometry->document());
+            preload = selectionItemsForGeometryScope(
+                selected, services_.mesh->selectionGeometryDocument());
         } else {
             preload = selectionItemsForMeshScope(selected, services_.mesh->mesh(), services_.mesh->generation());
         }
@@ -591,10 +599,10 @@ private:
             return;
         }
         const QString side = editingContactSource_ ? tr("Source") : tr("Target");
-        if (editDomain_ == SelectionDomain::Geometry && services_.geometry != nullptr) {
+        if (editDomain_ == SelectionDomain::Geometry && services_.mesh != nullptr) {
             viewport->setContext(ViewportContext::Geometry);
             graphics_->setContextLabel(tr("Geometry — Edit Contact %1").arg(side));
-            const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
+            const auto surfaces = services_.mesh->displaySelectionTopologyScene(tessellationDeflection_);
             if (!surfaces.isEmpty()) {
                 viewport->showGeometry(surfaces);
             }

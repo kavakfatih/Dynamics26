@@ -152,6 +152,50 @@ void serviceContractTests()
     d26::MeshService mesh(&geometry);
     d26::NamedSelectionService service(&project, &geometry, &mesh);
 
+    const auto &parametricDocument = mesh.selectionGeometryDocument();
+    const auto parametricBodies = parametricDocument.entitiesOfKind(
+        femcae::geometry::GeometryEntityKind::Body);
+    const auto parametricFaces = parametricDocument.entitiesOfKind(
+        femcae::geometry::GeometryEntityKind::Face);
+    check(parametricBodies.size() == 1 && parametricFaces.size() == 6
+              && parametricDocument.entitiesOfKind(
+                     femcae::geometry::GeometryEntityKind::Edge).size() == 12
+              && parametricDocument.entitiesOfKind(
+                     femcae::geometry::GeometryEntityKind::Vertex).size() == 8,
+          "Parametric Box publishes stable Body/Face/Edge/Vertex selection topology");
+    const auto parametricSurfaces = mesh.displaySelectionTopologyScene();
+    const auto parametricEdges = mesh.displaySelectionEdgeScene();
+    const auto parametricVertices = mesh.displaySelectionVertexScene();
+    check(parametricSurfaces.size() == 1 && parametricSurfaces.front().hasConsistentProvenance()
+              && parametricSurfaces.front().display.triangles.size() == 12
+              && parametricEdges.size() == 1 && parametricEdges.front().hasConsistentProvenance()
+              && parametricEdges.front().lines.size() == 12
+              && parametricVertices.size() == 1
+              && parametricVertices.front().hasConsistentProvenance()
+              && parametricVertices.front().points.size() == 8,
+          "Parametric Box display primitives preserve analytic topology provenance");
+
+    d26::SelectionItem parametricFace;
+    parametricFace.domain = d26::SelectionDomain::Geometry;
+    parametricFace.kind = d26::SelectionKind::Face;
+    parametricFace.geometryEntityId = parametricFaces.front();
+    parametricFace.parentGeometryId = parametricBodies.front();
+    parametricFace.sourceRevision = parametricDocument.revision();
+    const auto parametricNamed = service.createFromSelection(
+        {parametricFace}, QStringLiteral("Parametric Face"));
+    check(parametricNamed.success()
+              && service.validate(parametricNamed.id) == d26::ScopeReferenceValidationError::None,
+          "Parametric Box Face creates a valid persistent Named Selection");
+    const quint64 parametricRevision = parametricDocument.revision();
+    mesh.setDimensions(110.0, 20.0, 20.0);
+    check(mesh.selectionGeometryDocument().revision() != parametricRevision
+              && service.validate(parametricNamed.id)
+                     == d26::ScopeReferenceValidationError::StaleGeometryRevision,
+          "Parametric dimension change marks stored Face scope stale without silent rebind");
+    check(service.remove(parametricNamed.id),
+          "Parametric topology regression fixture is removed before general service checks");
+    mesh.setDimensions(100.0, 20.0, 20.0);
+
     mesh.setDivisions(1, 1, 1);
     check(mesh.generate(), "baseline FEM mesh can be generated for Named Selection tests");
     check(mesh.generation() != 0 && !mesh.mesh().nodes.empty() && !mesh.mesh().elements.empty(),

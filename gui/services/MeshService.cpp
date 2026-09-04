@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <exception>
+#include <string>
 
 using namespace femcae::meshing;
 using femcae::geometry::GeometryEntityId;
@@ -13,17 +14,6 @@ using femcae::geometry::InvalidGeometryId;
 
 namespace d26 {
 namespace {
-
-// Geometri içe aktarılmadığında kullanılan parametrik kutunun sentetik
-// provenance kimlikleri. Gerçek CAD içe aktarıldığında bunların yerine
-// STEP'ten gelen gerçek yüz kimlikleri geçer.
-constexpr GeometryEntityId kSyntheticBody = 100;
-constexpr GeometryEntityId kSyntheticXMin = 101;
-constexpr GeometryEntityId kSyntheticXMax = 102;
-constexpr GeometryEntityId kSyntheticYMin = 103;
-constexpr GeometryEntityId kSyntheticYMax = 104;
-constexpr GeometryEntityId kSyntheticZMin = 105;
-constexpr GeometryEntityId kSyntheticZMax = 106;
 
 // STEP/OCCT model birimi milimetredir; solver SI (m) bekler (ADR-0014:
 // birim dönüşümü GUI'nin sorumluluğundadır).
@@ -51,7 +41,38 @@ MeshService::MeshService(GeometryService *geometry, QObject *parent)
         syncFromGeometry();
         emit changed();
     });
+    rebuildParametricTopology();
     syncFromGeometry();
+}
+
+void MeshService::rebuildParametricTopology()
+{
+    using femcae::geometry::GeometryEntityKind;
+    parametricGeometry_.clear();
+    const GeometryEntityId body = parametricGeometry_.addEntity(
+        GeometryEntityKind::Body, InvalidGeometryId, "Parametric Box", "parametric-box/body");
+    const auto face = [this, body](const char *name, const char *key) {
+        return parametricGeometry_.addEntity(GeometryEntityKind::Face, body, name, key);
+    };
+    parametricBoundary_ = {
+        body,
+        face("X-Min Face", "parametric-box/face/x-min"),
+        face("X-Max Face", "parametric-box/face/x-max"),
+        face("Y-Min Face", "parametric-box/face/y-min"),
+        face("Y-Max Face", "parametric-box/face/y-max"),
+        face("Z-Min Face", "parametric-box/face/z-min"),
+        face("Z-Max Face", "parametric-box/face/z-max")};
+
+    for (std::size_t i = 0; i < parametricEdgeIds_.size(); ++i) {
+        parametricEdgeIds_[i] = parametricGeometry_.addEntity(
+            GeometryEntityKind::Edge, body, "Box Edge " + std::to_string(i + 1),
+            "parametric-box/edge/" + std::to_string(i));
+    }
+    for (std::size_t i = 0; i < parametricVertexIds_.size(); ++i) {
+        parametricVertexIds_[i] = parametricGeometry_.addEntity(
+            GeometryEntityKind::Vertex, body, "Box Vertex " + std::to_string(i + 1),
+            "parametric-box/vertex/" + std::to_string(i));
+    }
 }
 
 void MeshService::syncFromGeometry()
@@ -85,9 +106,18 @@ void MeshService::setDimensions(const double lengthMm, const double widthMm, con
     if (dimensionsAreDerived()) {
         return;
     }
-    definition_.lengthMm = std::max(1.0e-3, lengthMm);
-    definition_.widthMm = std::max(1.0e-3, widthMm);
-    definition_.heightMm = std::max(1.0e-3, heightMm);
+    const double nextLength = std::max(1.0e-3, lengthMm);
+    const double nextWidth = std::max(1.0e-3, widthMm);
+    const double nextHeight = std::max(1.0e-3, heightMm);
+    if (qFuzzyCompare(definition_.lengthMm, nextLength)
+        && qFuzzyCompare(definition_.widthMm, nextWidth)
+        && qFuzzyCompare(definition_.heightMm, nextHeight)) {
+        return;
+    }
+    definition_.lengthMm = nextLength;
+    definition_.widthMm = nextWidth;
+    definition_.heightMm = nextHeight;
+    rebuildParametricTopology();
     ++settingsRevision_;
     emit changed();
 }
@@ -128,6 +158,77 @@ bool MeshService::hasImportedGeometry() const
     return geometry_ != nullptr && geometry_->summary().hasGeometry;
 }
 
+const femcae::geometry::GeometryDocument &MeshService::selectionGeometryDocument() const
+{
+    return hasImportedGeometry() ? geometry_->document() : parametricGeometry_;
+}
+
+QVector<femcae::geometry::TopologyTessellation>
+MeshService::displaySelectionTopologyScene(const double linearDeflection) const
+{
+    if (hasImportedGeometry()) {
+        return geometry_->displayTopologyScene(linearDeflection);
+    }
+
+    femcae::geometry::TopologyTessellation result;
+    result.display.sourceGeometryId = parametricBoundary_.body;
+    result.display.sourceRevision = parametricGeometry_.revision();
+    const double x = definition_.lengthMm * kMillimetreToMetre;
+    const double y = definition_.widthMm * kMillimetreToMetre;
+    const double z = definition_.heightMm * kMillimetreToMetre;
+    result.display.points = {{0, 0, 0}, {x, 0, 0}, {x, y, 0}, {0, y, 0},
+                             {0, 0, z}, {x, 0, z}, {x, y, z}, {0, y, z}};
+    result.display.triangles = {{{0, 3, 2}}, {{0, 2, 1}}, {{4, 5, 6}}, {{4, 6, 7}},
+                                {{0, 1, 5}}, {{0, 5, 4}}, {{1, 2, 6}}, {{1, 6, 5}},
+                                {{2, 3, 7}}, {{2, 7, 6}}, {{3, 0, 4}}, {{3, 4, 7}}};
+    result.triangleFaceIds = {parametricBoundary_.zMin, parametricBoundary_.zMin,
+                              parametricBoundary_.zMax, parametricBoundary_.zMax,
+                              parametricBoundary_.yMin, parametricBoundary_.yMin,
+                              parametricBoundary_.xMax, parametricBoundary_.xMax,
+                              parametricBoundary_.yMax, parametricBoundary_.yMax,
+                              parametricBoundary_.xMin, parametricBoundary_.xMin};
+    return {result};
+}
+
+QVector<femcae::geometry::EdgeDisplayTessellation>
+MeshService::displaySelectionEdgeScene(const double linearDeflection) const
+{
+    if (hasImportedGeometry()) {
+        return geometry_->displayEdgeScene(linearDeflection);
+    }
+    Q_UNUSED(linearDeflection)
+    femcae::geometry::EdgeDisplayTessellation result;
+    result.sourceGeometryId = parametricBoundary_.body;
+    result.sourceRevision = parametricGeometry_.revision();
+    const double x = definition_.lengthMm * kMillimetreToMetre;
+    const double y = definition_.widthMm * kMillimetreToMetre;
+    const double z = definition_.heightMm * kMillimetreToMetre;
+    result.points = {{0, 0, 0}, {x, 0, 0}, {x, y, 0}, {0, y, 0},
+                     {0, 0, z}, {x, 0, z}, {x, y, z}, {0, y, z}};
+    result.lines = {{{0, 1}}, {{1, 2}}, {{2, 3}}, {{3, 0}},
+                    {{4, 5}}, {{5, 6}}, {{6, 7}}, {{7, 4}},
+                    {{0, 4}}, {{1, 5}}, {{2, 6}}, {{3, 7}}};
+    result.lineEdgeIds.assign(parametricEdgeIds_.begin(), parametricEdgeIds_.end());
+    return {result};
+}
+
+QVector<femcae::geometry::VertexDisplayPoints> MeshService::displaySelectionVertexScene() const
+{
+    if (hasImportedGeometry()) {
+        return geometry_->displayVertexScene();
+    }
+    femcae::geometry::VertexDisplayPoints result;
+    result.sourceGeometryId = parametricBoundary_.body;
+    result.sourceRevision = parametricGeometry_.revision();
+    const double x = definition_.lengthMm * kMillimetreToMetre;
+    const double y = definition_.widthMm * kMillimetreToMetre;
+    const double z = definition_.heightMm * kMillimetreToMetre;
+    result.points = {{0, 0, 0}, {x, 0, 0}, {x, y, 0}, {0, y, 0},
+                     {0, 0, z}, {x, 0, z}, {x, y, z}, {0, y, z}};
+    result.pointVertexIds.assign(parametricVertexIds_.begin(), parametricVertexIds_.end());
+    return {result};
+}
+
 int MeshService::predictedNodeCount() const
 {
     return (definition_.nx + 1) * (definition_.ny + 1) * (definition_.nz + 1);
@@ -140,8 +241,7 @@ int MeshService::predictedElementCount() const
 
 bool MeshService::generate()
 {
-    BoxBoundaryGeometry boundary{kSyntheticBody, kSyntheticXMin, kSyntheticXMax,
-                                 kSyntheticYMin, kSyntheticYMax, kSyntheticZMin, kSyntheticZMax};
+    BoxBoundaryGeometry boundary = parametricBoundary_;
     AxisAlignedBox box{{0.0, 0.0, 0.0},
                        {definition_.lengthMm * kMillimetreToMetre,
                         definition_.widthMm * kMillimetreToMetre,
@@ -224,6 +324,7 @@ void MeshService::reset()
     hasGeneratedDefinition_ = false;
     ++generation_;
     definition_ = Definition{};
+    rebuildParametricTopology();
     ++settingsRevision_;
     syncFromGeometry();
     emit changed();
@@ -302,6 +403,7 @@ void MeshService::loadProjectJson(const QJsonObject &object)
     definition_.source = object.value(QStringLiteral("source_is_geometry")).toBool(false)
         ? MeshSource::GeometryBoundingBox
         : MeshSource::ParametricBox;
+    rebuildParametricTopology();
     ++settingsRevision_;
     syncFromGeometry();
     emit changed();

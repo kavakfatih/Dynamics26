@@ -229,11 +229,11 @@ NamedSelectionService::createFromSelection(const QVector<SelectionItem> &items,
     ScopeReferenceBuildResult build;
     switch (items.front().domain) {
     case SelectionDomain::Geometry:
-        if (geometry_ == nullptr) {
+        if (mesh_ == nullptr) {
             result.buildError = ScopeReferenceBuildError::UnsupportedDomain;
             return result;
         }
-        build = buildGeometryScopeReference(items, geometry_->document());
+        build = buildGeometryScopeReference(items, mesh_->selectionGeometryDocument());
         break;
     case SelectionDomain::Mesh:
         if (mesh_ == nullptr) {
@@ -559,9 +559,9 @@ bool NamedSelectionService::fromJson(const QJsonObject &object, QString *errorMe
         // revision guard current oturuma taşınır. Stable identity doğrulanamazsa
         // saved revision korunur ve normal validation stale/error durumunu gösterir.
         // Mesh scope için böyle bir rebind YOKTUR: generation persistent değildir.
-        if (scope.entities.front().domain == SelectionDomain::Geometry && geometry_ != nullptr) {
+        if (scope.entities.front().domain == SelectionDomain::Geometry && mesh_ != nullptr) {
             ScopeReference rebound = scope;
-            if (rebindLoadedGeometryScopeReference(rebound, geometry_->document())) {
+            if (rebindLoadedGeometryScopeReference(rebound, mesh_->selectionGeometryDocument())) {
                 scope = rebound;
             }
         }
@@ -628,8 +628,8 @@ NamedSelectionService::validateScope(const ScopeReference &scope) const
 
     const SelectionDomain domain = scope.entities.front().domain;
     if (domain == SelectionDomain::Geometry) {
-        return geometry_ != nullptr
-            ? validateGeometryScopeReference(scope, geometry_->document())
+        return mesh_ != nullptr
+            ? validateGeometryScopeReference(scope, mesh_->selectionGeometryDocument())
             : ScopeReferenceValidationError::UnsupportedDomain;
     }
     if (domain == SelectionDomain::Mesh) {

@@ -332,12 +332,12 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
 
 ScopeReferenceBuildResult SelectionCoordinator::currentGeometryScope() const
 {
-    if (selection_ == nullptr || services_.geometry == nullptr) {
+    if (selection_ == nullptr || services_.mesh == nullptr) {
         ScopeReferenceBuildResult result;
         result.error = ScopeReferenceBuildError::EmptySelection;
         return result;
     }
-    return buildGeometryScopeReference(selection_->items(), services_.geometry->document());
+    return buildGeometryScopeReference(selection_->items(), services_.mesh->selectionGeometryDocument());
 }
 
 BoundaryFromSelectionCreateResult
@@ -467,11 +467,11 @@ void SelectionCoordinator::refreshSelectionScene()
                 if (!persistentFilter.has_value()) {
                     persistentDefinition = nullptr;
                 } else if (first.domain == SelectionDomain::Geometry
-                           && services_.geometry->summary().hasGeometry) {
+                           && services_.mesh != nullptr) {
                     viewport->setContext(ViewportContext::Geometry);
                     graphics_->setContextLabel(tr("Geometry — Named Selection"));
                     persistentScopeView = selectionItemsForGeometryScope(
-                        persistentDefinition->scope, services_.geometry->document());
+                        persistentDefinition->scope, services_.mesh->selectionGeometryDocument());
                 } else if (first.domain == SelectionDomain::Mesh && services_.mesh->hasMesh()) {
                     viewport->setContext(ViewportContext::Mesh);
                     graphics_->setContextLabel(tr("Mesh — Named Selection"));
@@ -503,6 +503,9 @@ void SelectionCoordinator::refreshSelectionScene()
 
     const ViewportContext context = viewport->context();
     const GeometrySummary summary = services_.geometry->summary();
+    const auto &selectionDocument = services_.mesh->selectionGeometryDocument();
+    const qsizetype selectionBodyCount = static_cast<qsizetype>(
+        selectionDocument.entitiesOfKind(femcae::geometry::GeometryEntityKind::Body).size());
 
     if (context == ViewportContext::Geometry) {
         meshBridge_->setInputEnabled(false);
@@ -510,7 +513,7 @@ void SelectionCoordinator::refreshSelectionScene()
         graphics_->setSelectionFilterDomain(SelectionDomain::Geometry);
         graphics_->setMeshSelectionAvailable(false, false, false);
 
-        if (!summary.hasGeometry) {
+        if (selectionBodyCount == 0) {
             bridge_->clearScene();
             graphics_->setTopologySelectionAvailable(false, false, false);
             graphics_->setSelectionFilter(SelectionFilter::Body);
@@ -521,10 +524,10 @@ void SelectionCoordinator::refreshSelectionScene()
             return;
         }
 
-        const auto surfaces = services_.geometry->displayTopologyScene(tessellationDeflection_);
-        const auto edges = services_.geometry->displayEdgeScene(tessellationDeflection_);
-        const auto vertices = services_.geometry->displayVertexScene();
-        const qsizetype expected = static_cast<qsizetype>(summary.bodyCount);
+        const auto surfaces = services_.mesh->displaySelectionTopologyScene(tessellationDeflection_);
+        const auto edges = services_.mesh->displaySelectionEdgeScene(tessellationDeflection_);
+        const auto vertices = services_.mesh->displaySelectionVertexScene();
+        const qsizetype expected = selectionBodyCount;
         if (surfaces.size() != expected || edges.size() != expected || vertices.size() != expected
             || !bridge_->setScene(surfaces, edges, vertices)) {
             bridge_->clearScene();
@@ -546,7 +549,7 @@ void SelectionCoordinator::refreshSelectionScene()
             graphics_->setSelectionFilter(SelectionFilter::Body);
         }
         configurePolicy(graphics_->selectionFilter());
-        (void)selection_->invalidateGeometryRevision(summary.revision);
+        (void)selection_->invalidateGeometryRevision(selectionDocument.revision());
         bridge_->setSelection(persistentDefinition != nullptr
                                   ? (persistentScopeView.success()
                                          ? persistentScopeView.items
@@ -659,8 +662,8 @@ void SelectionCoordinator::handleNavigatorSelection(const ObjectId id)
     refreshSelectionScene();
 
     const ProjectObject *object = services_.project->object(id);
-    if (object == nullptr || object->type != ObjectType::Body || object->tag <= 0
-        || !services_.geometry->summary().hasGeometry || selection_ == nullptr) {
+    if (object == nullptr || object->type != ObjectType::Body || selection_ == nullptr
+        || services_.mesh == nullptr) {
         return;
     }
 
@@ -669,8 +672,15 @@ void SelectionCoordinator::handleNavigatorSelection(const ObjectId id)
     SelectionItem item;
     item.domain = SelectionDomain::Geometry;
     item.kind = SelectionKind::Body;
-    item.geometryEntityId = static_cast<GeometryEntityId>(object->tag);
-    item.sourceRevision = services_.geometry->summary().revision;
+    const auto &document = services_.mesh->selectionGeometryDocument();
+    const auto bodies = document.entitiesOfKind(femcae::geometry::GeometryEntityKind::Body);
+    item.geometryEntityId = object->tag > 0
+        ? static_cast<GeometryEntityId>(object->tag)
+        : (bodies.size() == 1 ? bodies.front() : InvalidGeometryId);
+    if (document.find(item.geometryEntityId) == nullptr) {
+        return;
+    }
+    item.sourceRevision = document.revision();
     (void)selection_->apply(item, SelectionOperation::Replace);
 }
 
@@ -678,7 +688,7 @@ std::optional<SelectionItem> SelectionCoordinator::selectionItemForHit(const Sel
                                                                        const quint64 bodyId,
                                                                        const quint64 geometryId) const
 {
-    if (graphics_ == nullptr || services_.geometry == nullptr || bodyId == 0 || geometryId == 0
+    if (graphics_ == nullptr || services_.mesh == nullptr || bodyId == 0 || geometryId == 0
         || kind != selectionKindForFilter(graphics_->selectionFilter())
         || selectionDomainForFilter(graphics_->selectionFilter()) != SelectionDomain::Geometry) {
         return std::nullopt;
@@ -687,7 +697,8 @@ std::optional<SelectionItem> SelectionCoordinator::selectionItemForHit(const Sel
     SelectionItem item;
     item.domain = SelectionDomain::Geometry;
     item.kind = kind;
-    item.sourceRevision = services_.geometry->summary().revision;
+    const auto &document = services_.mesh->selectionGeometryDocument();
+    item.sourceRevision = document.revision();
     if (kind == SelectionKind::Body) {
         if (geometryId != bodyId) {
             return std::nullopt;
@@ -699,7 +710,7 @@ std::optional<SelectionItem> SelectionCoordinator::selectionItemForHit(const Sel
     }
 
     const auto expectedKind = geometryEntityKindForSelectionKind(kind);
-    const auto *entity = services_.geometry->document().find(item.geometryEntityId);
+    const auto *entity = document.find(item.geometryEntityId);
     if (!expectedKind.has_value() || entity == nullptr || entity->kind != *expectedKind) {
         return std::nullopt;
     }
@@ -1036,25 +1047,40 @@ bool SelectionCoordinator::syncNavigatorToObject(const ObjectId objectId)
 
 ObjectId SelectionCoordinator::bodyObjectForGeometryId(const GeometryEntityId bodyId) const
 {
-    if (services_.project == nullptr) {
+    if (services_.project == nullptr || services_.mesh == nullptr) {
         return InvalidObjectId;
     }
+    ObjectId soleParametricBodyObject = InvalidObjectId;
     for (const ObjectId id : services_.project->childrenOf(services_.project->geometryNode())) {
         const ProjectObject *object = services_.project->object(id);
-        if (object != nullptr && object->type == ObjectType::Body
-            && object->tag > 0 && static_cast<GeometryEntityId>(object->tag) == bodyId) {
-            return id;
+        if (object != nullptr && object->type == ObjectType::Body) {
+            if (object->tag > 0 && static_cast<GeometryEntityId>(object->tag) == bodyId) {
+                return id;
+            }
+            if (!services_.mesh->hasImportedGeometry()) {
+                if (soleParametricBodyObject != InvalidObjectId) {
+                    soleParametricBodyObject = InvalidObjectId;
+                    break;
+                }
+                soleParametricBodyObject = id;
+            }
         }
     }
-    return InvalidObjectId;
+    if (soleParametricBodyObject == InvalidObjectId) {
+        return InvalidObjectId;
+    }
+    const auto bodies = services_.mesh->selectionGeometryDocument().entitiesOfKind(
+        femcae::geometry::GeometryEntityKind::Body);
+    return bodies.size() == 1 && bodies.front() == bodyId
+        ? soleParametricBodyObject : InvalidObjectId;
 }
 
 QString SelectionCoordinator::geometryEntityName(const GeometryEntityId id) const
 {
-    if (services_.geometry == nullptr || id == InvalidGeometryId) {
+    if (services_.mesh == nullptr || id == InvalidGeometryId) {
         return {};
     }
-    const auto *entity = services_.geometry->document().find(id);
+    const auto *entity = services_.mesh->selectionGeometryDocument().find(id);
     if (entity == nullptr || entity->name.empty()) {
         return {};
     }

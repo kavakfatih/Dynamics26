@@ -19,6 +19,8 @@
 #include <femcae/meshing/MeshTypes.h>
 #include <femcae/meshing/StructuredHexMesher.h>
 
+#include <array>
+
 namespace d26 {
 
 // Sınır koşullarının kapsamlandığı adlandırılmış kutu yüzü.
@@ -62,6 +64,18 @@ public:
     // keyfi CAD desteği olarak yorumlanamaz.
     [[nodiscard]] bool hasImportedGeometry() const;
     [[nodiscard]] bool hasBoxCompatibleGeometry() const noexcept { return geometryBoxAvailable_; }
+
+    // Parametrik kutu da viewport/persistent-scope açısından gerçek bir
+    // analytic topology kaynağıdır. Display üçgenleri veya FEM facet ID'leri
+    // topology kimliği yerine kullanılmaz; bu document kararlı Body/Face/Edge/
+    // Vertex persistentKey'leri ve ayrı bir revision guard taşır.
+    [[nodiscard]] const femcae::geometry::GeometryDocument &selectionGeometryDocument() const;
+    [[nodiscard]] QVector<femcae::geometry::TopologyTessellation>
+        displaySelectionTopologyScene(double linearDeflection = 0.15) const;
+    [[nodiscard]] QVector<femcae::geometry::EdgeDisplayTessellation>
+        displaySelectionEdgeScene(double linearDeflection = 0.15) const;
+    [[nodiscard]] QVector<femcae::geometry::VertexDisplayPoints>
+        displaySelectionVertexScene() const;
 
     bool generate();
     // Üretilmiş mesh verisini siler, TANIMI korur (Clear Generated Mesh).
@@ -107,6 +121,7 @@ signals:
 
 private:
     void syncFromGeometry();
+    void rebuildParametricTopology();
 
     GeometryService *geometry_;
     Definition definition_;
@@ -122,6 +137,10 @@ private:
     Definition generatedDefinition_{};
     bool hasGeneratedDefinition_{false};
     bool geometryBoxAvailable_{false};
+    femcae::geometry::GeometryDocument parametricGeometry_{"dynamics26-parametric-box"};
+    femcae::meshing::BoxBoundaryGeometry parametricBoundary_{};
+    std::array<femcae::geometry::GeometryEntityId, 12> parametricEdgeIds_{};
+    std::array<femcae::geometry::GeometryEntityId, 8> parametricVertexIds_{};
 };
 
 } // namespace d26

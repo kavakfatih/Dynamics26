@@ -19,6 +19,7 @@
 #include "../shell/Dynamics26MainWindow.h"
 #include "../shell/ProjectNavigator.h"
 #include "../shell/SelectionCoordinator.h"
+#include "../viewport/ViewportSelectionBridge.h"
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -73,6 +74,48 @@ inline int runSelectionAcceptanceTest(QApplication &app, Dynamics26MainWindow &w
         || details == nullptr || graphics == nullptr || undo == nullptr || services.geometry == nullptr
         || services.mesh == nullptr || services.namedSelections == nullptr) {
         return 1;
+    }
+
+    // Fiziksel Beta.3 regresyonu: New Project içindeki Parametric Box yalnız
+    // gri display üçgeni değildir. Gerçek analytic Face/Edge/Vertex provenance
+    // yayınlamalı ve aynı UI consumer üzerinden Named Selection üretmelidir.
+    window.selectObject(project->geometryNode());
+    window.syncAll();
+    flushUi();
+    auto *geometryBridge = window.findChild<ViewportSelectionBridge *>();
+    check(geometryBridge != nullptr && geometryBridge->hasFaceProvenance()
+              && geometryBridge->hasEdgeProvenance() && geometryBridge->hasVertexProvenance(),
+          "Parametric Box viewport publishes complete analytic topology provenance");
+    check(graphics->filterAvailable(SelectionFilter::Face)
+              && graphics->filterAvailable(SelectionFilter::Edge)
+              && graphics->filterAvailable(SelectionFilter::Vertex),
+          "Parametric Box keeps Face/Edge/Vertex selection toolbar actions enabled");
+
+    const auto &parametricDocument = services.mesh->selectionGeometryDocument();
+    const auto parametricBodies = parametricDocument.entitiesOfKind(
+        femcae::geometry::GeometryEntityKind::Body);
+    const auto parametricFaces = parametricDocument.entitiesOfKind(
+        femcae::geometry::GeometryEntityKind::Face);
+    if (geometryBridge != nullptr && parametricBodies.size() == 1 && parametricFaces.size() == 6) {
+        graphics->setSelectionFilter(SelectionFilter::Face);
+        emit geometryBridge->selectionRequested(
+            SelectionKind::Face, parametricBodies.front(), parametricFaces.front(),
+            SelectionOperation::Replace);
+        flushUi();
+        const NamedSelectionCreateResult created =
+            coordinator->createNamedSelectionFromCurrentSelection(QStringLiteral("Parametric Face Scope"));
+        check(created.success()
+                  && services.namedSelections->validate(created.id)
+                         == ScopeReferenceValidationError::None,
+              "real Parametric Box Face selection creates a persistent Named Selection");
+        if (created.success()) {
+            undo->undo();
+            flushUi();
+            check(services.namedSelections->byId(created.id) == nullptr,
+                  "one Undo removes the Parametric Face Named Selection transaction");
+        }
+    } else {
+        check(false, "Parametric Box exposes one Body and six Face engineering identities");
     }
 
     constexpr qint64 geometryBodyId = 910001;
