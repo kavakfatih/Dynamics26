@@ -1636,28 +1636,39 @@ bool AnalysisService::solve(const ObjectId analysisId)
     NodeVectorField displacementField;
     displacementField.name = "displacement";
     displacementField.metadata = {
-        "Displacement",
-        "Final displacement vector; contour measure = |u|",
+        ResultPhysicalQuantity::Displacement,
+        ResultMeasure::Magnitude,
         ResultAssociation::Node,
-        "Nodal displacement DOFs",
-        "Direct nodal solution; magnitude derived for contour",
-        "m",
-        "mm"
-    };
-
+        ResultSourceLocation::MeshNode,
+        ResultRecoveryMethod::Direct,
+        ResultUnit::Meter,
+        ResultUnit::Millimeter,
+        ResultConfiguration::FinalConverged,
+        0};
+    NodeVectorField reactionField;
+    reactionField.name = "reaction_force";
+    reactionField.metadata = {
+        ResultPhysicalQuantity::ReactionForce,
+        ResultMeasure::Vector,
+        ResultAssociation::Node,
+        ResultSourceLocation::ConstrainedDegreesOfFreedom,
+        ResultRecoveryMethod::EquilibriumRecovery,
+        ResultUnit::Newton,
+        ResultUnit::Newton,
+        ResultConfiguration::FinalConverged,
+        0};
     ElementScalarField stressField;
     stressField.name = "von_mises";
     stressField.metadata = {
-        "Stress",
-        snapshot.analysisKind() == SnapshotAnalysisKind::NonlinearStatic
-            ? "Final Cauchy von Mises"
-            : "Small-strain Cauchy von Mises",
+        ResultPhysicalQuantity::Stress,
+        ResultMeasure::CauchyVonMises,
         ResultAssociation::Element,
-        "8 HEX8 Gauss integration points",
-        "Arithmetic mean of 8 integration-point von Mises values",
-        "Pa",
-        "MPa"
-    };
+        ResultSourceLocation::IntegrationPoints,
+        ResultRecoveryMethod::ArithmeticMean,
+        ResultUnit::Pascal,
+        ResultUnit::MegaPascal,
+        ResultConfiguration::FinalConverged,
+        8};
 
     SolveResults results;
     results.valid = true;
@@ -1678,6 +1689,8 @@ bool AnalysisService::solve(const ObjectId analysisId)
         const femcae::geometry::Vec3 u{displacements[3 * i], displacements[3 * i + 1], displacements[3 * i + 2]};
         const SnapshotNode &node = snapshot.nodes()[i];
         displacementField.values[node.id] = u;
+        reactionField.values[node.id] = {
+            reactions[3 * i], reactions[3 * i + 1], reactions[3 * i + 2]};
         results.maxDisplacementMm = std::max(results.maxDisplacementMm,
                                              std::sqrt(u.x * u.x + u.y * u.y + u.z * u.z) * 1.0e3);
         results.reactionXN += reactions[3 * i];
@@ -1704,6 +1717,7 @@ bool AnalysisService::solve(const ObjectId analysisId)
 
     record.resultDatabase.clear();
     record.resultDatabase.setDisplacement(std::move(displacementField));
+    record.resultDatabase.setReaction(std::move(reactionField));
     record.resultDatabase.setElementScalar(std::move(stressField));
 
     record.solveResults = results;

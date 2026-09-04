@@ -5,6 +5,7 @@
 #include <fstream>
 #include <limits>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace femcae::meshing {
 namespace {
@@ -12,16 +13,47 @@ double dot(const geometry::Vec3&a,const geometry::Vec3&b){return a.x*b.x+a.y*b.y
 geometry::Vec3 sub(const geometry::Vec3&a,const geometry::Vec3&b){return {a.x-b.x,a.y-b.y,a.z-b.z};}
 double norm(const geometry::Vec3&a){return std::sqrt(dot(a,a));}
 }
-void ResultDatabase::clear(){displacement_.reset();elementScalars_.clear();}
+void ResultDatabase::clear(){displacement_.reset();reaction_.reset();elementScalars_.clear();}
 void ResultDatabase::setDisplacement(NodeVectorField field){displacement_=std::move(field);}
+void ResultDatabase::setReaction(NodeVectorField field){reaction_=std::move(field);}
 void ResultDatabase::setElementScalar(ElementScalarField field){for(auto& f:elementScalars_)if(f.name==field.name){f=std::move(field);return;}elementScalars_.push_back(std::move(field));}
 const NodeVectorField* ResultDatabase::displacement() const noexcept{return displacement_?&*displacement_:nullptr;}
+const NodeVectorField* ResultDatabase::reaction() const noexcept{return reaction_?&*reaction_:nullptr;}
 const ElementScalarField* ResultDatabase::elementScalar(const std::string_view name) const noexcept{for(const auto& f:elementScalars_)if(f.name==name)return &f;return nullptr;}
 std::optional<ProbeResult> ResultDatabase::probeNearestNode(const SimulationMesh& mesh,const geometry::Vec3& point) const{
     if(!displacement_||mesh.nodes.empty())return std::nullopt;
     ProbeResult best; best.distance=std::numeric_limits<double>::infinity();
     for(const auto& n:mesh.nodes){const double d=norm(sub(n.x,point));const auto it=displacement_->values.find(n.id);if(it==displacement_->values.end())continue;if(d<best.distance){best={n.id,n.x,it->second,d};}}
     return best.nodeId==InvalidMeshId?std::nullopt:std::optional<ProbeResult>(best);
+}
+std::optional<ElementProbeResult> ResultDatabase::probeBoundaryFacet(
+    const SimulationMesh& mesh,const MeshEntityId facetId,const std::string_view fieldName) const{
+    const auto* field=elementScalar(fieldName);if(field==nullptr)return std::nullopt;
+    const auto facet=std::find_if(mesh.boundaryFacets.begin(),mesh.boundaryFacets.end(),
+                                 [facetId](const MeshFacet& candidate){return candidate.id==facetId;});
+    if(facet==mesh.boundaryFacets.end())return std::nullopt;
+    const auto value=field->values.find(facet->ownerElementId);
+    if(value==field->values.end())return std::nullopt;
+    return ElementProbeResult{facet->id,facet->ownerElementId,value->second};
+}
+std::optional<VectorResultant> ResultDatabase::reactionResultant(
+    const SimulationMesh& mesh,const std::vector<MeshEntityId>& nodeIds) const{
+    if(!reaction_||nodeIds.empty())return std::nullopt;
+    std::unordered_set<MeshEntityId> visited;
+    VectorResultant resultant;
+    for(const MeshEntityId nodeId:nodeIds){
+        if(!visited.insert(nodeId).second)continue;
+        const auto* node=mesh.findNode(nodeId);if(node==nullptr)continue;
+        const auto value=reaction_->values.find(nodeId);
+        if(value==reaction_->values.end())continue;
+        resultant.value.x+=value->second.x;resultant.value.y+=value->second.y;resultant.value.z+=value->second.z;
+        resultant.centroid.x+=node->x.x;resultant.centroid.y+=node->x.y;resultant.centroid.z+=node->x.z;
+        ++resultant.nodeCount;
+    }
+    if(resultant.nodeCount==0)return std::nullopt;
+    const double count=static_cast<double>(resultant.nodeCount);
+    resultant.centroid.x/=count;resultant.centroid.y/=count;resultant.centroid.z/=count;
+    return resultant;
 }
 std::vector<MeshEntityId> ResultDatabase::cutElements(const SimulationMesh& mesh,const PlaneCut& plane) const{
     std::vector<MeshEntityId> out; const double nn=norm(plane.normal); if(nn<=0.0)throw std::invalid_argument("Section cut plane normal sifir olamaz.");

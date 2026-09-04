@@ -9,20 +9,110 @@
 namespace d26 {
 namespace {
 
-QString associationText(const femcae::meshing::ResultAssociation association)
+using femcae::meshing::ResultAssociation;
+using femcae::meshing::ResultConfiguration;
+using femcae::meshing::ResultFieldMetadata;
+using femcae::meshing::ResultMeasure;
+using femcae::meshing::ResultPhysicalQuantity;
+using femcae::meshing::ResultRecoveryMethod;
+using femcae::meshing::ResultSourceLocation;
+using femcae::meshing::ResultUnit;
+
+QString quantityName(const ResultPhysicalQuantity value)
 {
-    using femcae::meshing::ResultAssociation;
-    switch (association) {
-    case ResultAssociation::Node:    return QStringLiteral("Node");
-    case ResultAssociation::Element: return QStringLiteral("Element");
-    case ResultAssociation::Unknown: return QStringLiteral("Unknown");
+    switch (value) {
+    case ResultPhysicalQuantity::Displacement: return QObject::tr("Displacement");
+    case ResultPhysicalQuantity::Stress: return QObject::tr("Stress");
+    case ResultPhysicalQuantity::ReactionForce: return QObject::tr("Reaction Force");
+    case ResultPhysicalQuantity::Unknown: break;
     }
-    return QStringLiteral("Unknown");
+    return QObject::tr("Unavailable");
 }
 
-QString semanticText(const std::string &value)
+QString associationName(const ResultAssociation value)
 {
-    return value.empty() ? QStringLiteral("—") : QString::fromStdString(value);
+    switch (value) {
+    case ResultAssociation::Node: return QObject::tr("Node");
+    case ResultAssociation::Element: return QObject::tr("Element");
+    case ResultAssociation::Unknown: break;
+    }
+    return QObject::tr("Unavailable");
+}
+
+QString sourceLocationName(const ResultFieldMetadata &metadata)
+{
+    switch (metadata.sourceLocation) {
+    case ResultSourceLocation::MeshNode: return QObject::tr("Mesh Nodes");
+    case ResultSourceLocation::IntegrationPoints:
+        return QObject::tr("%1 Integration Points").arg(metadata.integrationPointCount);
+    case ResultSourceLocation::ConstrainedDegreesOfFreedom:
+        return QObject::tr("Constrained DOFs");
+    case ResultSourceLocation::Unknown: break;
+    }
+    return QObject::tr("Unavailable");
+}
+
+QString recoveryName(const ResultRecoveryMethod value)
+{
+    switch (value) {
+    case ResultRecoveryMethod::Direct: return QObject::tr("Direct Field Value");
+    case ResultRecoveryMethod::ArithmeticMean: return QObject::tr("Arithmetic Mean");
+    case ResultRecoveryMethod::EquilibriumRecovery: return QObject::tr("Equilibrium Recovery");
+    case ResultRecoveryMethod::Unknown: break;
+    }
+    return QObject::tr("Unavailable");
+}
+
+QString unitName(const ResultUnit value)
+{
+    switch (value) {
+    case ResultUnit::Meter: return QStringLiteral("m");
+    case ResultUnit::Millimeter: return QStringLiteral("mm");
+    case ResultUnit::Pascal: return QStringLiteral("Pa");
+    case ResultUnit::MegaPascal: return QStringLiteral("MPa");
+    case ResultUnit::Newton: return QStringLiteral("N");
+    case ResultUnit::Unitless: break;
+    }
+    return QObject::tr("Unitless");
+}
+
+QString configurationName(const ResultConfiguration value)
+{
+    switch (value) {
+    case ResultConfiguration::Reference: return QObject::tr("Reference");
+    case ResultConfiguration::FinalConverged: return QObject::tr("Final Converged");
+    case ResultConfiguration::Unknown: break;
+    }
+    return QObject::tr("Unavailable");
+}
+
+QString measureName(const ResultMeasure value)
+{
+    switch (value) {
+    case ResultMeasure::Magnitude: return QObject::tr("Magnitude");
+    case ResultMeasure::CauchyVonMises: return QObject::tr("Cauchy von Mises");
+    case ResultMeasure::Vector: return QObject::tr("Vector");
+    case ResultMeasure::Unknown: break;
+    }
+    return QObject::tr("Unavailable");
+}
+
+const ResultFieldMetadata *metadataFor(const ResultField field,
+                                       const femcae::meshing::ResultDatabase *database)
+{
+    if (database == nullptr) {
+        return nullptr;
+    }
+    if (field == ResultField::TotalDeformation) {
+        const auto *value = database->displacement();
+        return value != nullptr ? &value->metadata : nullptr;
+    }
+    if (field == ResultField::EquivalentStress) {
+        const auto *value = database->elementScalar("von_mises");
+        return value != nullptr ? &value->metadata : nullptr;
+    }
+    const auto *value = database->reaction();
+    return value != nullptr ? &value->metadata : nullptr;
 }
 
 } // namespace
@@ -70,6 +160,8 @@ ResultDetails::ResultDetails(const ServiceContext &services, QWidget *parent)
     storageUnit_->setObjectName(QStringLiteral("resultInspector.storageUnit"));
     displayUnit_ = advanced->addValueRow(tr("Display Unit"));
     displayUnit_->setObjectName(QStringLiteral("resultInspector.displayUnit"));
+    configuration_ = advanced->addValueRow(tr("Configuration"));
+    configuration_->setObjectName(QStringLiteral("resultInspector.configuration"));
     solveTime_ = advanced->addValueRow(tr("Solve Wall Clock"));
     probe_ = advanced->addValueRow(tr("Corner Probe"));
 
@@ -102,9 +194,21 @@ void ResultDetails::refresh()
     const bool stale = record != nullptr && services_.analysis->solutionIsOutOfDate(analysisId);
     const bool suppressed = services_.project->isSuppressed(objectId_);
     const QString dash = tr("—");
+    const auto *database = solved ? services_.analysis->resultDatabase(analysisId) : nullptr;
+    const ResultFieldMetadata *metadata = metadataFor(field_, database);
     for (QLabel *label : {physicalQuantity_, measure_, association_, sourceLocation_,
-                          recoveryMethod_, storageUnit_, displayUnit_}) {
+                          recoveryMethod_, storageUnit_, displayUnit_, configuration_}) {
         label->setText(dash);
+    }
+    if (metadata != nullptr) {
+        physicalQuantity_->setText(quantityName(metadata->quantity));
+        measure_->setText(measureName(metadata->measure));
+        association_->setText(associationName(metadata->association));
+        sourceLocation_->setText(sourceLocationName(*metadata));
+        recoveryMethod_->setText(recoveryName(metadata->recovery));
+        storageUnit_->setText(unitName(metadata->storageUnit));
+        displayUnit_->setText(unitName(metadata->displayUnit));
+        configuration_->setText(configurationName(metadata->configuration));
     }
     if (!solved) {
         // Sonuç TANIMI vardır fakat hesaplanmış DEĞER yoktur. Sahte sayı
@@ -119,40 +223,6 @@ void ResultDetails::refresh()
         return;
     }
     const SolveResults &results = record->solveResults;
-    const femcae::meshing::ResultDatabase *database =
-        services_.analysis->resultDatabase(analysisId);
-
-    const femcae::meshing::ResultFieldMetadata *metadata = nullptr;
-    if (field_ == ResultField::TotalDeformation && database != nullptr
-        && database->displacement() != nullptr) {
-        metadata = &database->displacement()->metadata;
-    } else if (field_ == ResultField::EquivalentStress && database != nullptr
-               && database->elementScalar("von_mises") != nullptr) {
-        metadata = &database->elementScalar("von_mises")->metadata;
-    }
-
-    if (metadata != nullptr) {
-        physicalQuantity_->setText(semanticText(metadata->physicalQuantity));
-        measure_->setText(semanticText(metadata->measure));
-        association_->setText(associationText(metadata->association));
-        sourceLocation_->setText(semanticText(metadata->sourceLocation));
-        recoveryMethod_->setText(semanticText(metadata->recoveryMethod));
-        storageUnit_->setText(semanticText(metadata->storageUnit));
-        displayUnit_->setText(semanticText(metadata->displayUnit));
-    } else if (field_ == ResultField::ReactionForce) {
-        // RC1.6 nodal reaction field'i eklenene kadar bu sonuç yalnız gerçek
-        // constrained-DOF resultant'ını taşır; stored nodal field varmış gibi
-        // sunulmaz.
-        physicalQuantity_->setText(tr("Reaction Force"));
-        measure_->setText(record->type == AnalysisType::NonlinearStatic
-                              ? tr("Constrained DOF equilibrium · R = f_int − λf_ext")
-                              : tr("Constrained DOF equilibrium · R = K u − f"));
-        association_->setText(tr("Resultant (stored nodal field unavailable)"));
-        sourceLocation_->setText(tr("Constrained displacement DOFs"));
-        recoveryMethod_->setText(tr("Vector sum of constrained DOF reactions"));
-        storageUnit_->setText(tr("N"));
-        displayUnit_->setText(tr("N"));
-    }
 
     if (field_ == ResultField::TotalDeformation) {
         maximum_->setText(QStringLiteral("%1 mm").arg(results.maxDisplacementMm, 0, 'g', 8));

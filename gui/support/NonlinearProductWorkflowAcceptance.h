@@ -32,6 +32,7 @@
 #include <cmath>
 #include <iostream>
 #include <string>
+#include <unordered_set>
 
 namespace d26 {
 
@@ -610,6 +611,8 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
         database != nullptr ? database->displacement() : nullptr;
     const femcae::meshing::ElementScalarField *stress =
         database != nullptr ? database->elementScalar("von_mises") : nullptr;
+    const femcae::meshing::NodeVectorField *reaction =
+        database != nullptr ? database->reaction() : nullptr;
     bool finiteDisplacement = displacement != nullptr
         && displacement->values.size() == services.mesh->mesh().nodes.size();
     bool nonzeroDisplacement = false;
@@ -632,28 +635,27 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
     }
     check(finiteDisplacement && nonzeroDisplacement && finiteStress,
           "final nonlinear displacement/deformed-shape and Cauchy von Mises fields are finite");
-
-    const bool displacementSemantics =
-        displacement != nullptr
-        && displacement->metadata.physicalQuantity == "Displacement"
-        && displacement->metadata.measure.find("Final displacement vector") != std::string::npos
-        && displacement->metadata.association == femcae::meshing::ResultAssociation::Node
-        && displacement->metadata.sourceLocation == "Nodal displacement DOFs"
-        && displacement->metadata.recoveryMethod.find("Direct nodal solution") != std::string::npos
-        && displacement->metadata.storageUnit == "m"
-        && displacement->metadata.displayUnit == "mm";
-    const bool stressSemantics =
-        stress != nullptr
-        && stress->metadata.physicalQuantity == "Stress"
-        && stress->metadata.measure == "Final Cauchy von Mises"
-        && stress->metadata.association == femcae::meshing::ResultAssociation::Element
-        && stress->metadata.sourceLocation == "8 HEX8 Gauss integration points"
-        && stress->metadata.recoveryMethod
-               == "Arithmetic mean of 8 integration-point von Mises values"
-        && stress->metadata.storageUnit == "Pa"
-        && stress->metadata.displayUnit == "MPa";
-    check(displacementSemantics && stressSemantics,
-          "derived result fields carry explicit quantity/measure/association/recovery/unit semantics");
+    check(displacement != nullptr
+              && displacement->metadata.quantity
+                  == femcae::meshing::ResultPhysicalQuantity::Displacement
+              && displacement->metadata.association
+                  == femcae::meshing::ResultAssociation::Node
+              && displacement->metadata.storageUnit
+                  == femcae::meshing::ResultUnit::Meter
+              && stress != nullptr
+              && stress->metadata.measure
+                  == femcae::meshing::ResultMeasure::CauchyVonMises
+              && stress->metadata.sourceLocation
+                  == femcae::meshing::ResultSourceLocation::IntegrationPoints
+              && stress->metadata.recovery
+                  == femcae::meshing::ResultRecoveryMethod::ArithmeticMean
+              && stress->metadata.integrationPointCount == 8
+              && reaction != nullptr
+              && reaction->metadata.quantity
+                  == femcae::meshing::ResultPhysicalQuantity::ReactionForce
+              && reaction->metadata.sourceLocation
+                  == femcae::meshing::ResultSourceLocation::ConstrainedDegreesOfFreedom,
+          "derived fields carry explicit quantity, association, source, recovery and unit metadata");
 
     const LoadDefinition *solvedForce = services.analysis->load(forceId);
     const SolveResults results = record != nullptr ? record->solveResults : SolveResults{};
@@ -664,6 +666,31 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
               && std::abs(results.reactionYN + solvedForce->fyN) <= reactionTolerance
               && std::abs(results.reactionZN + solvedForce->fzN) <= reactionTolerance,
           "recovered reaction resultant balances the applied Total Force");
+    std::vector<femcae::meshing::MeshEntityId> supportNodeIds;
+    std::unordered_set<femcae::meshing::MeshEntityId> uniqueSupportNodeIds;
+    if (const SupportDefinition *support = services.analysis->support(supportId)) {
+        const BoundaryScopeResolution resolved = services.analysis->resolveBoundaryScope(*support);
+        if (resolved.valid) {
+            for (const auto &facet : services.mesh->mesh().boundaryFacets) {
+                if (!resolved.geometryFaceIds.contains(facet.sourceGeometryId)) {
+                    continue;
+                }
+                for (const auto nodeId : facet.nodeIds) {
+                    if (uniqueSupportNodeIds.insert(nodeId).second) {
+                        supportNodeIds.push_back(nodeId);
+                    }
+                }
+            }
+        }
+    }
+    const auto supportReaction = database != nullptr
+        ? database->reactionResultant(services.mesh->mesh(), supportNodeIds)
+        : std::nullopt;
+    check(supportReaction.has_value()
+              && std::abs(supportReaction->value.x - results.reactionXN) <= reactionTolerance
+              && std::abs(supportReaction->value.y - results.reactionYN) <= reactionTolerance
+              && std::abs(supportReaction->value.z - results.reactionZN) <= reactionTolerance,
+          "nodal reaction field sums to the support-scoped equilibrium resultant");
     check(results.valid && std::isfinite(results.maxDisplacementMm)
               && results.maxDisplacementMm > 0.0
               && std::isfinite(results.minVonMisesMPa)
@@ -686,30 +713,20 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
         window.selectObject(nonlinearStressId);
         flushUi();
     }
-    const auto *physicalQuantity =
-        window.findChild<QLabel *>(QStringLiteral("resultInspector.physicalQuantity"));
-    const auto *measure =
-        window.findChild<QLabel *>(QStringLiteral("resultInspector.measure"));
-    const auto *association =
-        window.findChild<QLabel *>(QStringLiteral("resultInspector.association"));
-    const auto *sourceLocation =
-        window.findChild<QLabel *>(QStringLiteral("resultInspector.sourceLocation"));
-    const auto *recoveryMethod =
-        window.findChild<QLabel *>(QStringLiteral("resultInspector.recoveryMethod"));
-    const auto *storageUnit =
-        window.findChild<QLabel *>(QStringLiteral("resultInspector.storageUnit"));
-    const auto *displayUnit =
-        window.findChild<QLabel *>(QStringLiteral("resultInspector.displayUnit"));
-    check(nonlinearStressId != InvalidObjectId
-              && physicalQuantity != nullptr && physicalQuantity->text() == QStringLiteral("Stress")
-              && measure != nullptr && measure->text() == QStringLiteral("Final Cauchy von Mises")
+    const auto *measure = window.findChild<QLabel *>(QStringLiteral("resultInspector.measure"));
+    const auto *association = window.findChild<QLabel *>(
+        QStringLiteral("resultInspector.association"));
+    const auto *sourceLocation = window.findChild<QLabel *>(
+        QStringLiteral("resultInspector.sourceLocation"));
+    const auto *recovery = window.findChild<QLabel *>(
+        QStringLiteral("resultInspector.recoveryMethod"));
+    check(nonlinearStressId != InvalidObjectId && measure != nullptr
+              && measure->text().contains(QStringLiteral("Cauchy von Mises"))
               && association != nullptr && association->text() == QStringLiteral("Element")
-              && sourceLocation != nullptr && sourceLocation->text().contains(QStringLiteral("8 HEX8 Gauss"))
-              && recoveryMethod != nullptr
-              && recoveryMethod->text().contains(QStringLiteral("Arithmetic mean of 8"))
-              && storageUnit != nullptr && storageUnit->text() == QStringLiteral("Pa")
-              && displayUnit != nullptr && displayUnit->text() == QStringLiteral("MPa"),
-          "Equivalent Stress Details exposes all RC1.4 field-semantics axes explicitly");
+              && sourceLocation != nullptr
+              && sourceLocation->text().contains(QStringLiteral("8 Integration Points"))
+              && recovery != nullptr && recovery->text() == QStringLiteral("Arithmetic Mean"),
+          "Equivalent Stress Details exposes Cauchy, element, 8-GP and recovery semantics separately");
 
     // Derived fields/history are deliberately absent from project JSON. The
     // persistent authoring model can be reopened and solved again.
