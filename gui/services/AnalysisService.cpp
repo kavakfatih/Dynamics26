@@ -1635,8 +1635,29 @@ bool AnalysisService::solve(const ObjectId analysisId)
 
     NodeVectorField displacementField;
     displacementField.name = "displacement";
+    displacementField.metadata = {
+        "Displacement",
+        "Final displacement vector; contour measure = |u|",
+        ResultAssociation::Node,
+        "Nodal displacement DOFs",
+        "Direct nodal solution; magnitude derived for contour",
+        "m",
+        "mm"
+    };
+
     ElementScalarField stressField;
     stressField.name = "von_mises";
+    stressField.metadata = {
+        "Stress",
+        snapshot.analysisKind() == SnapshotAnalysisKind::NonlinearStatic
+            ? "Final Cauchy von Mises"
+            : "Small-strain Cauchy von Mises",
+        ResultAssociation::Element,
+        "8 HEX8 Gauss integration points",
+        "Arithmetic mean of 8 integration-point von Mises values",
+        "Pa",
+        "MPa"
+    };
 
     SolveResults results;
     results.valid = true;

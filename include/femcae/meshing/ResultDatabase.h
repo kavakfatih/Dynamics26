@@ -5,18 +5,39 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
 namespace femcae::meshing {
 
+// Derived result field semantics. This metadata belongs to solver/recovery output;
+// it is deliberately not part of persistent ResultDefinition / project Undo state.
+enum class ResultAssociation {
+    Unknown,
+    Node,
+    Element
+};
+
+struct ResultFieldMetadata {
+    std::string physicalQuantity;
+    std::string measure;
+    ResultAssociation association{ResultAssociation::Unknown};
+    std::string sourceLocation;
+    std::string recoveryMethod;
+    std::string storageUnit;
+    std::string displayUnit;
+};
+
 struct NodeVectorField {
     std::string name;
+    ResultFieldMetadata metadata;
     std::unordered_map<MeshEntityId, geometry::Vec3> values;
 };
 
 struct ElementScalarField {
     std::string name;
+    ResultFieldMetadata metadata;
     std::unordered_map<MeshEntityId, double> values;
 };
 

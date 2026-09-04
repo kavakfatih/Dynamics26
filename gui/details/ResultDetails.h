@@ -34,7 +34,13 @@ private:
     QLabel *unit_{nullptr};
     QLabel *deformationScale_{nullptr};
     QLabel *legend_{nullptr};
+    QLabel *physicalQuantity_{nullptr};
     QLabel *measure_{nullptr};
+    QLabel *association_{nullptr};
+    QLabel *sourceLocation_{nullptr};
+    QLabel *recoveryMethod_{nullptr};
+    QLabel *storageUnit_{nullptr};
+    QLabel *displayUnit_{nullptr};
     QLabel *solveTime_{nullptr};
     QLabel *probe_{nullptr};
     DetailsSection *reactionSection_{nullptr};

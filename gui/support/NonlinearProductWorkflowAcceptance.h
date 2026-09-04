@@ -633,6 +633,28 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
     check(finiteDisplacement && nonzeroDisplacement && finiteStress,
           "final nonlinear displacement/deformed-shape and Cauchy von Mises fields are finite");
 
+    const bool displacementSemantics =
+        displacement != nullptr
+        && displacement->metadata.physicalQuantity == "Displacement"
+        && displacement->metadata.measure.find("Final displacement vector") != std::string::npos
+        && displacement->metadata.association == femcae::meshing::ResultAssociation::Node
+        && displacement->metadata.sourceLocation == "Nodal displacement DOFs"
+        && displacement->metadata.recoveryMethod.find("Direct nodal solution") != std::string::npos
+        && displacement->metadata.storageUnit == "m"
+        && displacement->metadata.displayUnit == "mm";
+    const bool stressSemantics =
+        stress != nullptr
+        && stress->metadata.physicalQuantity == "Stress"
+        && stress->metadata.measure == "Final Cauchy von Mises"
+        && stress->metadata.association == femcae::meshing::ResultAssociation::Element
+        && stress->metadata.sourceLocation == "8 HEX8 Gauss integration points"
+        && stress->metadata.recoveryMethod
+               == "Arithmetic mean of 8 integration-point von Mises values"
+        && stress->metadata.storageUnit == "Pa"
+        && stress->metadata.displayUnit == "MPa";
+    check(displacementSemantics && stressSemantics,
+          "derived result fields carry explicit quantity/measure/association/recovery/unit semantics");
+
     const LoadDefinition *solvedForce = services.analysis->load(forceId);
     const SolveResults results = record != nullptr ? record->solveResults : SolveResults{};
     const double reactionTolerance = solvedForce != nullptr
@@ -664,11 +686,30 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
         window.selectObject(nonlinearStressId);
         flushUi();
     }
-    const auto *measure = window.findChild<QLabel *>(QStringLiteral("resultInspector.measure"));
-    check(nonlinearStressId != InvalidObjectId && measure != nullptr
-              && measure->text().contains(QStringLiteral("Cauchy von Mises"))
-              && measure->text().contains(QStringLiteral("8-GP")),
-          "Equivalent Stress Details documents the nonlinear Cauchy/8-GP result definition");
+    const auto *physicalQuantity =
+        window.findChild<QLabel *>(QStringLiteral("resultInspector.physicalQuantity"));
+    const auto *measure =
+        window.findChild<QLabel *>(QStringLiteral("resultInspector.measure"));
+    const auto *association =
+        window.findChild<QLabel *>(QStringLiteral("resultInspector.association"));
+    const auto *sourceLocation =
+        window.findChild<QLabel *>(QStringLiteral("resultInspector.sourceLocation"));
+    const auto *recoveryMethod =
+        window.findChild<QLabel *>(QStringLiteral("resultInspector.recoveryMethod"));
+    const auto *storageUnit =
+        window.findChild<QLabel *>(QStringLiteral("resultInspector.storageUnit"));
+    const auto *displayUnit =
+        window.findChild<QLabel *>(QStringLiteral("resultInspector.displayUnit"));
+    check(nonlinearStressId != InvalidObjectId
+              && physicalQuantity != nullptr && physicalQuantity->text() == QStringLiteral("Stress")
+              && measure != nullptr && measure->text() == QStringLiteral("Final Cauchy von Mises")
+              && association != nullptr && association->text() == QStringLiteral("Element")
+              && sourceLocation != nullptr && sourceLocation->text().contains(QStringLiteral("8 HEX8 Gauss"))
+              && recoveryMethod != nullptr
+              && recoveryMethod->text().contains(QStringLiteral("Arithmetic mean of 8"))
+              && storageUnit != nullptr && storageUnit->text() == QStringLiteral("Pa")
+              && displayUnit != nullptr && displayUnit->text() == QStringLiteral("MPa"),
+          "Equivalent Stress Details exposes all RC1.4 field-semantics axes explicitly");
 
     // Derived fields/history are deliberately absent from project JSON. The
     // persistent authoring model can be reopened and solved again.
