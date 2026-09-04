@@ -1,12 +1,12 @@
 # Dynamics26 — Aktif Sürüm Yol Haritası
 
-**Plan revizyonu:** 2026-09-03  
+**Plan revizyonu:** 2026-09-05  
 **Platform:** macOS / Apple Silicon (`arm64`)  
 **Ana dal:** `main`  
 **Engineering core baseline:** `V1.0.2`  
-**GUI baseline:** `V1.1.0-beta.2`
+**GUI baseline:** `V1.1.0-beta.3`
 
-Bu roadmap Beta.2 sonrasında Dynamics26 için **kritik yolu** tanımlar. Hedef önce dürüst ve kullanılabilir bir nonlinear analysis vertical slice, sonra geometry-aware meshing/scalability, ardından extension SDK ve rubber mechanics'tir.
+Bu roadmap Beta.3 sonrasında Dynamics26 için **kritik yolu** tanımlar. Aktif hedef mevcut nonlinear product vertical slice'ı RC.1 kapsamında sertleştirmek; ardından geometry-aware meshing/scalability, extension SDK ve rubber mechanics'e ilerlemektir.
 
 # 1. Ürün hedefi ve capability envelope
 
@@ -37,8 +37,8 @@ Beta.3'te unsupported combination hiçbir zaman sessizce başka geometri/formula
 | Milestone | Hedef | Release koşulu |
 |---|---|---|
 | **V1.1.0-beta.2** | Solver Workspace / typed telemetry / diagnostics | Tamamlandı — automated closeout; USER VALIDATED ayrı |
-| **V1.1.0-beta.3** | **Supported Nonlinear Workflow Vertical Slice** | desteklenen subset'te setup → nonlinear solve → results gerçek product consumer ile çalışmalı |
-| **V1.1.0-rc.1** | hardening / persistence / native UX / failure recovery | all V1.1 gates + physical Mac acceptance |
+| **V1.1.0-beta.3** | **Supported Nonlinear Workflow Vertical Slice** | Tamamlandı — exact-HEAD automated gates geçti; USER VALIDATED ayrı |
+| **V1.1.0-rc.1** | **hardening / stability / diagnostics / native UX** | Aktif — all V1.1 gates + physical Mac acceptance |
 | **V1.1.0** | ilk kullanılabilir nonlinear CAE baseline | capability matrix + user workflow + release evidence tamam |
 
 ## B3.0 — Capability Matrix + Preflight Contract

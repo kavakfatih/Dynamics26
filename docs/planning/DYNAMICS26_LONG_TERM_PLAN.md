@@ -6,7 +6,7 @@
 **Ana dal:** `main`  
 **Engineering core:** Modern Fortran  
 **Application:** C++20 / Qt 6 / VTK / OCCT  
-**Current GUI milestone:** `V1.1.0-beta.2`
+**Current GUI milestone:** `V1.1.0-beta.3`
 
 Bu planın temel ilkesi **Vertical Slice First, Physics Hardening Next, Extensibility by Contract, Rubber by Verification** yaklaşımıdır.
 

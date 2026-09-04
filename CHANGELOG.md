@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.1.0-beta.3] - 2026-09-05
+
+Supported nonlinear workflow vertical slice for the real document/application
+model. Engineering core version remains `1.0.2`; physical `USER VALIDATED`
+acceptance remains open.
+
+### Added
+- Typed capability resolution consumed by authoritative Preflight and Solve.
+- Immutable analysis snapshot and additive arbitrary-HEX8 nonlinear C ABI.
+- Consistent QUAD4 surface integration for scoped Total Force resultants.
+- General nonlinear product routing to the existing Fortran Newton solver with
+  real convergence telemetry and final displacement, stress and reactions.
+- Persistent Face → Named Selection → Fixed Support/Force authoring acceptance.
+
+### Validation
+- Exact implementation HEAD `d4786b00906dbdf54b38fe50723d6c9ac3512f3a`:
+  hosted GUI application, CAD/FEM topology selection, persistent scope,
+  trusted self-hosted native Mac and UI visual-audit workflows all
+  `completed/success`.
+- Nonlinear analysis has no `DirectLinear` fallback.
+- `USER VALIDATED`: **NOT YET RECORDED**.
+
 ## [1.1.0-alpha.3.1.1] - 2026-08-30
 
 Corrective pass over the alpha.3.1 navigation foundation; no selection,

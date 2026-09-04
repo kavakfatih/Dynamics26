@@ -141,7 +141,7 @@ jobs:
           grep -q 'ViewportSelectionBridge.cpp' gui/CMakeLists.txt
           grep -q 'ViewportMeshSelectionBridge.cpp' gui/CMakeLists.txt
           grep -q 'SelectionCoordinator.cpp' gui/CMakeLists.txt
-          grep -q 'DYNAMICS26_GUI_MILESTONE="1.1.0-beta.2"' gui/CMakeLists.txt
+          grep -q 'DYNAMICS26_GUI_MILESTONE="1.1.0-beta.3"' gui/CMakeLists.txt
 
           if [[ -e gui/Dynamics26Shell.cpp || -e gui/MainWindow.cpp ]]; then
             echo "Legacy corrective GUI shell source reintroduced." >&2
@@ -277,7 +277,7 @@ jobs:
           set -euxo pipefail
           source_app="$PWD/build-selfhosted-gui-fast/gui/FEMCAE.app"
           preview_app="$RUNNER_TEMP/Dynamics26.app"
-          archive="$RUNNER_TEMP/Dynamics26-1.1.0-beta.2-engineering-preview-macos-arm64.zip"
+          archive="$RUNNER_TEMP/Dynamics26-1.1.0-beta.3-engineering-preview-macos-arm64.zip"
           notice="$RUNNER_TEMP/Dynamics26-engineering-preview-NOT-STANDALONE.txt"
 
           test -x "$source_app/Contents/MacOS/FEMCAE"
@@ -306,10 +306,10 @@ jobs:
         if: contains(github.event.head_commit.message, '[preview]')
         uses: actions/upload-artifact@v4
         with:
-          name: Dynamics26-1.1.0-beta.2-engineering-preview-${{ github.sha }}
+          name: Dynamics26-1.1.0-beta.3-engineering-preview-${{ github.sha }}
           path: |
-            ${{ runner.temp }}/Dynamics26-1.1.0-beta.2-engineering-preview-macos-arm64.zip
-            ${{ runner.temp }}/Dynamics26-1.1.0-beta.2-engineering-preview-macos-arm64.zip.sha256
+            ${{ runner.temp }}/Dynamics26-1.1.0-beta.3-engineering-preview-macos-arm64.zip
+            ${{ runner.temp }}/Dynamics26-1.1.0-beta.3-engineering-preview-macos-arm64.zip.sha256
             ${{ runner.temp }}/Dynamics26-engineering-preview-NOT-STANDALONE.txt
           if-no-files-found: error
           retention-days: 3

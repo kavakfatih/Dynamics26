@@ -3,8 +3,8 @@
 macOS / Apple Silicon odaklı, açık kaynak, modern Fortran tabanlı nonlinear FEM/CAE platformu.
 
 > **Engineering core:** `V1.0.2`  
-> **GUI baseline:** `V1.1.0-beta.2`  
-> **Aktif ürün hedefi:** `V1.1.0-beta.3 — Supported Nonlinear Workflow Vertical Slice`
+> **GUI baseline:** `V1.1.0-beta.3`  
+> **Aktif ürün hedefi:** `V1.1.0-rc.1 — Nonlinear Workflow Hardening, Stability & Diagnostics`
 
 Dynamics26'ın kısa vadeli hedefi özellik sayısını artırmak değil; kullanıcının **desteklenen bir model kapsamı içinde** geometriyi hazırlayıp sınır şartı/yük tanımlayabildiği, nonlinear çözümü çalıştırabildiği, Newton yakınsamasını izleyebildiği ve sonuçları inceleyebildiği ilk gerçek product workflow'u tamamlamaktır.
 
@@ -32,7 +32,7 @@ Beta.3 iki şeyi özellikle ayırır:
 - **Setup-ready:** UI ve persistent engineering objects geometri/material/mesh/BC/load/analysis tanımını taşıyabilir.
 - **Solve-ready:** mevcut solver consumer'ın gerçekten desteklediği element + material + load + formulation kombinasyonu.
 
-Bugünkü repository gerçeğinde product meshing yolu `StructuredHexMesher` tabanlıdır. Keyfi STEP gövdesi için genel volume mesher henüz yoktur. Bu nedenle Beta.3 nonlinear product solve baseline'ı **parametric box veya box-compatible CAD + structured HEX8 + doğrulanmış material/formulation subset'i** ile kapatılacaktır. Keyfi STEP modeli sahte bounding-box mesh ile çözülmüş gibi gösterilmeyecektir.
+Bugünkü repository gerçeğinde product meshing yolu `StructuredHexMesher` tabanlıdır. Keyfi STEP gövdesi için genel volume mesher henüz yoktur. Beta.3 nonlinear product solve baseline'ı **parametric box veya box-compatible CAD + structured HEX8 + doğrulanmış material/formulation subset'i** ile kapatılmıştır. Keyfi STEP modeli sahte bounding-box mesh ile çözülmüş gibi gösterilmez.
 
 ## Geliştirme sırası
 
