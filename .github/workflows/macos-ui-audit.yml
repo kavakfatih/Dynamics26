@@ -104,6 +104,11 @@ jobs:
         run: |
           set -euxo pipefail
           app="build-ui-audit/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
+          # The runner keeps the interactive login session across jobs. Clean up
+          # an interrupted prior audit before starting any GUI process.
+          pkill -x FEMCAE 2>/dev/null || true
+          trap 'pkill -x FEMCAE 2>/dev/null || true' EXIT
+          sleep 2
           test -x "$app"
           "$app" --selftest
 
