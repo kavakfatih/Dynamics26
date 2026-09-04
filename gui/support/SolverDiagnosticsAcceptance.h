@@ -4,6 +4,7 @@
 #include "../core/SolverTelemetry.h"
 #include "../shell/Dynamics26MainWindow.h"
 #include "../shell/UtilityWorkspace.h"
+#include "../widgets/ConvergencePlotWidget.h"
 
 #include <femcae/femcae.h>
 
@@ -138,6 +139,8 @@ inline int runSolverDiagnosticsAcceptanceTest(QApplication &app, Dynamics26MainW
     snapshot.summary.totalIterations = totalIterations;
     snapshot.summary.cutbackCount = cutbacks;
     snapshot.summary.minimumJacobian = minimumJacobian;
+    snapshot.summary.residualRelativeTolerance = 1.0e-8;
+    snapshot.summary.displacementRelativeTolerance = 1.0e-8;
     snapshot.summary.pressureMetrics = SolverMetricAvailability::Unavailable;
     snapshot.summary.contactMetrics = SolverMetricAvailability::Unavailable;
     snapshot.entries.reserve(historyCount);
@@ -166,16 +169,28 @@ inline int runSolverDiagnosticsAcceptanceTest(QApplication &app, Dynamics26MainW
     utility->setConvergenceData(snapshot);
     app.processEvents();
 
+    auto *residualPlot = utility->findChild<ConvergencePlotWidget *>(
+        QStringLiteral("Dynamics26RelativeResidualPlot"));
+    auto *displacementPlot = utility->findChild<ConvergencePlotWidget *>(
+        QStringLiteral("Dynamics26RelativeDisplacementPlot"));
+
     check(undoStack->count() == undoCountBefore
               && undoStack->index() == undoIndexBefore
               && window.documentCommands()->isDirty() == dirtyBefore,
           "Advanced diagnostics presentation creates no document mutation");
     check(basicTable->columnCount() == 7,
           "B2.5 preserves the existing seven-column basic convergence contract");
-    check(diagnosticsTable->columnCount() == 8,
-          "Advanced diagnostics table has the expected typed metric contract");
+    check(diagnosticsTable->columnCount() == 9,
+          "RC1.3 diagnostics table adds typed adaptive-event reason without changing basic history");
     check(diagnosticsTable->rowCount() == historyCount,
           "Advanced diagnostics table renders every authoritative history row");
+    check(residualPlot != nullptr && displacementPlot != nullptr
+              && residualPlot->sampleCount() == historyCount
+              && displacementPlot->sampleCount() == historyCount
+              && residualPlot->tolerance() == snapshot.summary.residualRelativeTolerance
+              && displacementPlot->tolerance()
+                  == snapshot.summary.displacementRelativeTolerance,
+          "Both logarithmic convergence plots consume real history and solver tolerances");
 
     bool loadIncrementMatches = diagnosticsTable->rowCount() == historyCount;
     bool residualNormMatches = loadIncrementMatches;

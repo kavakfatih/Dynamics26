@@ -21,6 +21,8 @@ class QTableWidget;
 
 namespace d26 {
 
+class ConvergencePlotWidget;
+
 // UtilityWorkspace Preflight görünümü validation sahibi değildir. Bu satırlar
 // yalnız AnalysisService::preflight() çıktısının presentation DTO'sudur.
 // subject ObjectId decimal-string/Qt integer olarak exact tutulur; görünen ad
@@ -73,6 +75,8 @@ private:
     QPlainTextEdit *solverOutput_{nullptr};
     QLabel *convergenceSummary_{nullptr};
     QTableWidget *convergence_{nullptr};
+    ConvergencePlotWidget *residualPlot_{nullptr};
+    ConvergencePlotWidget *displacementPlot_{nullptr};
     // B2.5 advanced diagnostics temel convergence tablosunun 7 kolonluk B2.1
     // contract'ını bozmaz; ayrı typed presentation yüzeyidir.
     QLabel *diagnosticsSummary_{nullptr};

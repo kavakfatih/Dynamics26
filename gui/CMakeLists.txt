@@ -115,6 +115,8 @@ set(FEMCAE_GUI_SOURCES
 
     widgets/MaterialCurveWidget.cpp
     widgets/MaterialCurveWidget.h
+    widgets/ConvergencePlotWidget.cpp
+    widgets/ConvergencePlotWidget.h
 
     ProjectFileMigrator.cpp
     ProjectFileMigrator.h

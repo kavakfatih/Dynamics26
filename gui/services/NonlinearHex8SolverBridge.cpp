@@ -59,6 +59,41 @@ NonlinearTerminationReason terminationReasonFromAbi(const int value)
     return NonlinearTerminationReason::UnknownNumericalFailure;
 }
 
+SolverAdaptiveEvent adaptiveEventFromAbi(const int value)
+{
+    switch (value) {
+    case FEM_NONLINEAR_ADAPTIVE_EVENT_NONE: return SolverAdaptiveEvent::None;
+    case FEM_NONLINEAR_ADAPTIVE_EVENT_GROWTH: return SolverAdaptiveEvent::Growth;
+    case FEM_NONLINEAR_ADAPTIVE_EVENT_CUTBACK: return SolverAdaptiveEvent::Cutback;
+    case FEM_NONLINEAR_ADAPTIVE_EVENT_RETRY: return SolverAdaptiveEvent::Retry;
+    }
+    return SolverAdaptiveEvent::Unavailable;
+}
+
+SolverAdaptiveReason adaptiveReasonFromAbi(const int value)
+{
+    switch (value) {
+    case FEM_NONLINEAR_ADAPTIVE_REASON_NONE: return SolverAdaptiveReason::None;
+    case FEM_NONLINEAR_ADAPTIVE_REASON_FAST_CONVERGENCE:
+        return SolverAdaptiveReason::FastConvergence;
+    case FEM_NONLINEAR_ADAPTIVE_REASON_NEWTON_NONCONVERGENCE:
+        return SolverAdaptiveReason::NewtonNonconvergence;
+    case FEM_NONLINEAR_ADAPTIVE_REASON_ITERATION_PREDICTION:
+        return SolverAdaptiveReason::IterationPrediction;
+    case FEM_NONLINEAR_ADAPTIVE_REASON_LINEAR_SOLVER_FAILURE:
+        return SolverAdaptiveReason::LinearSolverFailure;
+    case FEM_NONLINEAR_ADAPTIVE_REASON_INVALID_JACOBIAN:
+        return SolverAdaptiveReason::InvalidJacobian;
+    case FEM_NONLINEAR_ADAPTIVE_REASON_MINIMUM_INCREMENT_LIMIT:
+        return SolverAdaptiveReason::MinimumIncrementLimit;
+    case FEM_NONLINEAR_ADAPTIVE_REASON_FUTURE_CONTACT_EVENT:
+        return SolverAdaptiveReason::FutureContactEvent;
+    case FEM_NONLINEAR_ADAPTIVE_REASON_FUTURE_MATERIAL_EVENT:
+        return SolverAdaptiveReason::FutureMaterialEvent;
+    }
+    return SolverAdaptiveReason::Unavailable;
+}
+
 } // namespace
 
 NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
@@ -116,6 +151,8 @@ NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
     std::vector<int> acceptedStepBefore(static_cast<std::size_t>(historyCapacity));
     std::vector<int> iterations(static_cast<std::size_t>(historyCapacity));
     std::vector<int> converged(static_cast<std::size_t>(historyCapacity));
+    std::vector<int> adaptiveEvents(static_cast<std::size_t>(historyCapacity));
+    std::vector<int> adaptiveReasons(static_cast<std::size_t>(historyCapacity));
     std::vector<double> loadFactors(static_cast<std::size_t>(historyCapacity));
     std::vector<double> loadIncrements(static_cast<std::size_t>(historyCapacity));
     std::vector<double> residualNorms(static_cast<std::size_t>(historyCapacity));
@@ -140,8 +177,8 @@ NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
     int terminationPhase = FEM_NONLINEAR_PHASE_INPUT_VALIDATION;
     int terminationReason = FEM_NONLINEAR_REASON_INVALID_INPUT;
 
-    output.status = fem_solve_nonlinear_static_hex8_v2(
-        FEM_NONLINEAR_STATIC_HEX8_API_VERSION_V2,
+    output.status = fem_solve_nonlinear_static_hex8_v3(
+        FEM_NONLINEAR_STATIC_HEX8_API_VERSION_V3,
         static_cast<int>(input.nodeIds.size()), input.nodeIds.data(),
         input.coordinatesXYZ.data(),
         static_cast<int>(input.elementIds.size()), input.elementIds.data(),
@@ -172,7 +209,7 @@ NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
         displacementIncrementNorms.data(), relativeDisplacements.data(),
         alphas.data(), minimumJacobians.data(), converged.data(),
         &lastAttemptedLoadFactor, &lastLoadIncrement, &terminationPhase,
-        &terminationReason);
+        &terminationReason, adaptiveEvents.data(), adaptiveReasons.data());
 
     output.converged = convergedFlag != 0;
     output.stepAttempts = stepAttempts;
@@ -192,6 +229,8 @@ NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
     summary.lastLoadIncrement = lastLoadIncrement;
     summary.terminationPhase = terminationPhaseFromAbi(terminationPhase);
     summary.terminationReason = terminationReasonFromAbi(terminationReason);
+    summary.residualRelativeTolerance = controls.residualRelativeTolerance;
+    summary.displacementRelativeTolerance = controls.displacementRelativeTolerance;
     if (std::isfinite(minimumJacobian)
         && std::abs(minimumJacobian) < std::numeric_limits<double>::max()) {
         summary.minimumJacobian = minimumJacobian;
@@ -221,6 +260,8 @@ NonlinearHex8SolveOutput NonlinearHex8SolverBridge::solve(
             entry.minimumJacobian = minimumJacobians[index];
         }
         entry.converged = converged[index] != 0;
+        entry.adaptiveEvent = adaptiveEventFromAbi(adaptiveEvents[index]);
+        entry.adaptiveReason = adaptiveReasonFromAbi(adaptiveReasons[index]);
         output.telemetry.entries.push_back(entry);
     }
     finalizeNonlinearDiagnostics(output.telemetry,

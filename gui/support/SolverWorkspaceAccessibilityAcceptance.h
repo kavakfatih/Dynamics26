@@ -51,6 +51,10 @@ inline int runSolverWorkspaceAccessibilityAcceptanceTest(QApplication &app,
         QStringLiteral("Dynamics26UtilityCoupledDiagnosticsSummary"));
     auto *coupledTable = utility->findChild<QTableWidget *>(
         QStringLiteral("Dynamics26UtilityCoupledDiagnostics"));
+    auto *residualPlot = utility->findChild<QWidget *>(
+        QStringLiteral("Dynamics26RelativeResidualPlot"));
+    auto *displacementPlot = utility->findChild<QWidget *>(
+        QStringLiteral("Dynamics26RelativeDisplacementPlot"));
 
     check(tabs != nullptr, "Utility tab container has stable objectName");
     check(summary != nullptr && table != nullptr,
@@ -59,9 +63,12 @@ inline int runSolverWorkspaceAccessibilityAcceptanceTest(QApplication &app,
           "Advanced diagnostics accessibility surfaces are addressable");
     check(coupledSummary != nullptr && coupledTable != nullptr,
           "Coupled/Contact diagnostics accessibility surfaces are addressable");
+    check(residualPlot != nullptr && displacementPlot != nullptr,
+          "Residual and displacement convergence plots are addressable");
     if (tabs == nullptr || summary == nullptr || table == nullptr
         || diagnosticsSummary == nullptr || diagnosticsTable == nullptr
-        || coupledSummary == nullptr || coupledTable == nullptr) {
+        || coupledSummary == nullptr || coupledTable == nullptr
+        || residualPlot == nullptr || displacementPlot == nullptr) {
         return 1;
     }
 
@@ -87,6 +94,11 @@ inline int runSolverWorkspaceAccessibilityAcceptanceTest(QApplication &app,
               && !coupledTable->accessibleName().isEmpty()
               && !coupledTable->accessibleDescription().isEmpty(),
           "Coupled/Contact diagnostics table is keyboard reachable and has accessibility metadata");
+    check(residualPlot->focusPolicy() == Qt::StrongFocus
+              && displacementPlot->focusPolicy() == Qt::StrongFocus
+              && !residualPlot->accessibleName().isEmpty()
+              && !displacementPlot->accessibleName().isEmpty(),
+          "Both convergence plots are keyboard reachable and named for assistive technology");
 
     check(!summary->accessibleName().isEmpty()
               && !summary->accessibleDescription().isEmpty(),

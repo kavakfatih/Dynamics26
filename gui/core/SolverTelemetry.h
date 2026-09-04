@@ -122,7 +122,21 @@ enum class SolverAdaptiveEvent {
     Unavailable = 0,
     None,
     Growth,
-    Cutback
+    Cutback,
+    Retry
+};
+
+enum class SolverAdaptiveReason {
+    Unavailable = 0,
+    None,
+    FastConvergence,
+    NewtonNonconvergence,
+    IterationPrediction,
+    LinearSolverFailure,
+    InvalidJacobian,
+    MinimumIncrementLimit,
+    FutureContactEvent,
+    FutureMaterialEvent
 };
 
 enum class SolverCriterionState {
@@ -152,6 +166,7 @@ struct SolverConvergenceEntry {
     std::optional<double> displacementIncrementNorm;
     std::optional<double> minimumJacobian;
     SolverAdaptiveEvent adaptiveEvent{SolverAdaptiveEvent::Unavailable};
+    SolverAdaptiveReason adaptiveReason{SolverAdaptiveReason::Unavailable};
     SolverCriterionState residualCriterion{SolverCriterionState::Unavailable};
     SolverCriterionState displacementCriterion{SolverCriterionState::Unavailable};
 
@@ -183,6 +198,8 @@ struct SolverConvergenceSummary {
     double lastLoadIncrement{0.0};
     NonlinearTerminationPhase terminationPhase{NonlinearTerminationPhase::None};
     NonlinearTerminationReason terminationReason{NonlinearTerminationReason::None};
+    std::optional<double> residualRelativeTolerance;
+    std::optional<double> displacementRelativeTolerance;
 
     std::optional<double> minimumJacobian;
     SolverMetricAvailability pressureMetrics{SolverMetricAvailability::Unavailable};
@@ -229,6 +246,9 @@ inline void finalizeNonlinearDiagnostics(SolverConvergenceSnapshot &snapshot,
                 : SolverCriterionState::Unsatisfied;
         }
 
+        if (entry.adaptiveEvent != SolverAdaptiveEvent::Unavailable) {
+            continue;
+        }
         if (!entry.acceptedStepBefore.has_value() || !entry.loadIncrement.has_value()) {
             entry.adaptiveEvent = SolverAdaptiveEvent::Unavailable;
             continue;

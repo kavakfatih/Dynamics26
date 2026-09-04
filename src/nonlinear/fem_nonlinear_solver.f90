@@ -30,7 +30,14 @@ module fem_nonlinear_solver
         NONLINEAR_REASON_LINEAR_SOLVER_FAILURE, &
         NONLINEAR_REASON_SINGULAR_OR_ILL_CONDITIONED_TANGENT, &
         NONLINEAR_REASON_INVALID_REFERENCE_JACOBIAN, &
-        NONLINEAR_REASON_UNKNOWN_NUMERICAL_FAILURE
+        NONLINEAR_REASON_INVALID_DEFORMATION_JACOBIAN, &
+        NONLINEAR_REASON_UNKNOWN_NUMERICAL_FAILURE, &
+        ADAPTIVE_EVENT_NONE, ADAPTIVE_EVENT_GROWTH, ADAPTIVE_EVENT_CUTBACK, &
+        ADAPTIVE_EVENT_RETRY, ADAPTIVE_REASON_NONE, &
+        ADAPTIVE_REASON_FAST_CONVERGENCE, ADAPTIVE_REASON_NEWTON_NONCONVERGENCE, &
+        ADAPTIVE_REASON_ITERATION_PREDICTION, &
+        ADAPTIVE_REASON_LINEAR_SOLVER_FAILURE, ADAPTIVE_REASON_INVALID_JACOBIAN, &
+        ADAPTIVE_REASON_MINIMUM_INCREMENT_LIMIT
     use fem_status, only : status_t, FEM_STATUS_INVALID_ARGUMENT, FEM_STATUS_NUMERICAL_FAILURE
     implicit none
     private
@@ -90,6 +97,8 @@ module fem_nonlinear_solver
         integer :: slip_contact_count = 0
         real(rk) :: maximum_penetration = 0.0_rk
         logical :: converged = .false.
+        integer :: adaptive_event = ADAPTIVE_EVENT_NONE
+        integer :: adaptive_reason = ADAPTIVE_REASON_NONE
     end type nonlinear_history_entry_t
 
     type, public :: nonlinear_static_result_t
@@ -223,9 +232,10 @@ contains
         type(status_t), intent(out) :: status
         type(nonlinear_checkpoint_t), intent(in), optional :: initial_checkpoint
         type(nonlinear_displacement_state_t) :: state
-        real(rk) :: current_load, increment, target_load
+        real(rk) :: current_load, increment, target_load, previous_increment
         logical :: step_converged
-        integer :: corrections_used
+        integer :: corrections_used, pending_adaptive_event, pending_adaptive_reason
+        integer :: failure_reason
 
         call status%clear()
         call result%clear()
@@ -288,6 +298,8 @@ contains
 
         result%termination_phase = NONLINEAR_PHASE_NONE
         result%termination_reason = NONLINEAR_REASON_NONE
+        pending_adaptive_event = ADAPTIVE_EVENT_NONE
+        pending_adaptive_reason = ADAPTIVE_REASON_NONE
 
         do while (current_load < 1.0_rk - 100.0_rk*epsilon(1.0_rk))
             if (result%step_attempts >= options%max_step_attempts) then
@@ -305,7 +317,10 @@ contains
             if (.not. status%is_ok()) return
 
             call solve_single_load_step(model, state, target_load, increment, options, result, &
+                                        pending_adaptive_event, pending_adaptive_reason, &
                                         step_converged, corrections_used, status)
+            pending_adaptive_event = ADAPTIVE_EVENT_NONE
+            pending_adaptive_reason = ADAPTIVE_REASON_NONE
             if (.not. status%is_ok() .and. status%code /= FEM_STATUS_NUMERICAL_FAILURE) return
             if (.not. status%is_ok() .and. &
                 result%termination_reason == NONLINEAR_REASON_INVALID_REFERENCE_JACOBIAN) return
@@ -322,16 +337,33 @@ contains
                 result%active_displacement = state%committed
                 result%termination_phase = NONLINEAR_PHASE_NONE
                 result%termination_reason = NONLINEAR_REASON_NONE
+                previous_increment = increment
                 if (options%adaptive_stepping .and. current_load < 1.0_rk) then
                     if (corrections_used <= options%target_iterations) then
                         increment = min(options%maximum_load_increment, increment*options%growth_factor)
+                        if (increment > previous_increment*(1.0_rk+100.0_rk*epsilon(1.0_rk))) then
+                            pending_adaptive_event = ADAPTIVE_EVENT_GROWTH
+                            pending_adaptive_reason = ADAPTIVE_REASON_FAST_CONVERGENCE
+                        end if
                     else if (corrections_used > 2*options%target_iterations) then
                         increment = max(options%minimum_load_increment, increment*options%cutback_factor)
+                        if (increment < previous_increment*(1.0_rk-100.0_rk*epsilon(1.0_rk))) then
+                            pending_adaptive_event = ADAPTIVE_EVENT_CUTBACK
+                            pending_adaptive_reason = ADAPTIVE_REASON_ITERATION_PREDICTION
+                        end if
                     end if
                 end if
                 increment = min(increment, 1.0_rk-current_load)
                 if (increment <= 0.0_rk .and. current_load < 1.0_rk) increment = options%minimum_load_increment
+                if (pending_adaptive_event == ADAPTIVE_EVENT_GROWTH .and. &
+                    increment <= previous_increment*(1.0_rk+100.0_rk*epsilon(1.0_rk))) then
+                    ! Final load factorune tam oturmak icin yapilan clipping,
+                    ! backend tarafinda sahte Growth eventi uretmemelidir.
+                    pending_adaptive_event = ADAPTIVE_EVENT_NONE
+                    pending_adaptive_reason = ADAPTIVE_REASON_NONE
+                end if
             else
+                failure_reason = result%termination_reason
                 call state%revert(status)
                 if (.not. status%is_ok()) return
                 call model%contacts%revert(status)
@@ -343,9 +375,14 @@ contains
                 end if
                 result%cutback_count = result%cutback_count + 1
                 result%active_displacement = state%committed
+                pending_adaptive_reason = adaptive_reason_from_termination(failure_reason)
+                call annotate_last_history_event(result, ADAPTIVE_EVENT_CUTBACK, &
+                    pending_adaptive_reason)
                 increment = increment*options%cutback_factor
                 call status%clear()
                 if (increment < options%minimum_load_increment*(1.0_rk-100.0_rk*epsilon(1.0_rk))) then
+                    call annotate_last_history_event(result, ADAPTIVE_EVENT_CUTBACK, &
+                        ADAPTIVE_REASON_MINIMUM_INCREMENT_LIMIT)
                     result%termination_phase = NONLINEAR_PHASE_LOAD_STEPPING
                     result%termination_reason = NONLINEAR_REASON_MINIMUM_INCREMENT_REACHED
                     call status%set_error(FEM_STATUS_NUMERICAL_FAILURE, &
@@ -353,6 +390,7 @@ contains
                     return
                 end if
                 increment = max(increment, options%minimum_load_increment)
+                pending_adaptive_event = ADAPTIVE_EVENT_RETRY
             end if
         end do
         result%converged = .true.
@@ -364,12 +402,14 @@ contains
     end subroutine solve_nonlinear_static
 
     subroutine solve_single_load_step(model, state, load_factor, load_increment, options, result, &
+                                      attempt_adaptive_event, attempt_adaptive_reason, &
                                       converged, corrections_used, status)
         type(model_t), intent(inout) :: model
         type(nonlinear_displacement_state_t), intent(inout) :: state
         real(rk), intent(in) :: load_factor, load_increment
         type(nonlinear_solver_options_t), intent(in) :: options
         type(nonlinear_static_result_t), intent(inout) :: result
+        integer, intent(in) :: attempt_adaptive_event, attempt_adaptive_reason
         logical, intent(out) :: converged
         integer, intent(out) :: corrections_used
         type(status_t), intent(out) :: status
@@ -459,7 +499,9 @@ contains
                 relative_energy=relative_energy, line_search_alpha=previous_alpha, minimum_j=system%minimum_j, &
                 active_contact_count=system%active_contact_count,stick_contact_count=system%stick_contact_count, &
                 slip_contact_count=system%slip_contact_count,maximum_penetration=system%maximum_penetration, &
-                converged=all_ok))
+                converged=all_ok, &
+                adaptive_event=merge(attempt_adaptive_event,ADAPTIVE_EVENT_NONE,iteration==1), &
+                adaptive_reason=merge(attempt_adaptive_reason,ADAPTIVE_REASON_NONE,iteration==1)))
             result%final_residual_norm = residual_norm
             if (all_ok) then
                 converged = .true.
@@ -568,6 +610,36 @@ contains
             end do
         end if
     end subroutine validate_model_for_load_control
+
+    pure integer function adaptive_reason_from_termination(termination_reason) result(reason)
+        integer, intent(in) :: termination_reason
+
+        select case (termination_reason)
+        case (NONLINEAR_REASON_LINEAR_SOLVER_FAILURE, &
+              NONLINEAR_REASON_SINGULAR_OR_ILL_CONDITIONED_TANGENT)
+            reason = ADAPTIVE_REASON_LINEAR_SOLVER_FAILURE
+        case (NONLINEAR_REASON_INVALID_REFERENCE_JACOBIAN, &
+              NONLINEAR_REASON_INVALID_DEFORMATION_JACOBIAN)
+            reason = ADAPTIVE_REASON_INVALID_JACOBIAN
+        case default
+            ! Newton iteration veya line-search nonconvergence, bu RC.1
+            ! load-step motorunda ayni rejected-attempt cutback sinifidir.
+            reason = ADAPTIVE_REASON_NEWTON_NONCONVERGENCE
+        end select
+    end function adaptive_reason_from_termination
+
+    subroutine annotate_last_history_event(result, event_type, event_reason)
+        type(nonlinear_static_result_t), intent(inout) :: result
+        integer, intent(in) :: event_type, event_reason
+        integer :: last
+
+        if (.not. allocated(result%history)) return
+        last = size(result%history)
+        if (last < 1) return
+        if (result%history(last)%attempt /= result%step_attempts) return
+        result%history(last)%adaptive_event = event_type
+        result%history(last)%adaptive_reason = event_reason
+    end subroutine annotate_last_history_event
 
     subroutine append_history(result, entry)
         type(nonlinear_static_result_t), intent(inout) :: result

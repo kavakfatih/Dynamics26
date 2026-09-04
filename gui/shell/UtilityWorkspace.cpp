@@ -1,9 +1,11 @@
 #include "UtilityWorkspace.h"
+#include "../widgets/ConvergencePlotWidget.h"
 
 #include <QDateTime>
 #include <QFont>
 #include <QFontDatabase>
 #include <QHeaderView>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QTabWidget>
@@ -78,6 +80,24 @@ QString adaptiveEventText(const SolverAdaptiveEvent event)
     case SolverAdaptiveEvent::None:        return QStringLiteral("—");
     case SolverAdaptiveEvent::Growth:      return QStringLiteral("Growth");
     case SolverAdaptiveEvent::Cutback:     return QStringLiteral("Cutback");
+    case SolverAdaptiveEvent::Retry:       return QStringLiteral("Retry");
+    }
+    return QStringLiteral("—");
+}
+
+QString adaptiveReasonText(const SolverAdaptiveReason reason)
+{
+    switch (reason) {
+    case SolverAdaptiveReason::Unavailable: return QStringLiteral("—");
+    case SolverAdaptiveReason::None: return QStringLiteral("—");
+    case SolverAdaptiveReason::FastConvergence: return QStringLiteral("Fast convergence");
+    case SolverAdaptiveReason::NewtonNonconvergence: return QStringLiteral("Newton nonconvergence");
+    case SolverAdaptiveReason::IterationPrediction: return QStringLiteral("Iteration prediction");
+    case SolverAdaptiveReason::LinearSolverFailure: return QStringLiteral("Linear solver failure");
+    case SolverAdaptiveReason::InvalidJacobian: return QStringLiteral("Invalid Jacobian");
+    case SolverAdaptiveReason::MinimumIncrementLimit: return QStringLiteral("Minimum increment limit");
+    case SolverAdaptiveReason::FutureContactEvent: return QStringLiteral("Unavailable");
+    case SolverAdaptiveReason::FutureMaterialEvent: return QStringLiteral("Unavailable");
     }
     return QStringLiteral("—");
 }
@@ -161,12 +181,26 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
                               QStringLiteral("α"), tr("Durum")}, convergencePage);
     convergence_->setObjectName(QStringLiteral("Dynamics26UtilityConvergence"));
 
+    auto *plotRow = new QWidget(convergencePage);
+    auto *plotLayout = new QHBoxLayout(plotRow);
+    plotLayout->setContentsMargins(0, 0, 0, 0);
+    plotLayout->setSpacing(8);
+    residualPlot_ = new ConvergencePlotWidget(
+        ConvergencePlotWidget::Metric::RelativeResidual, plotRow);
+    residualPlot_->setObjectName(QStringLiteral("Dynamics26RelativeResidualPlot"));
+    displacementPlot_ = new ConvergencePlotWidget(
+        ConvergencePlotWidget::Metric::RelativeDisplacementCorrection, plotRow);
+    displacementPlot_->setObjectName(QStringLiteral("Dynamics26RelativeDisplacementPlot"));
+    plotLayout->addWidget(residualPlot_);
+    plotLayout->addWidget(displacementPlot_);
+
     diagnosticsSummary_ = new QLabel(tr("Advanced diagnostics: Unavailable"), convergencePage);
     diagnosticsSummary_->setObjectName(QStringLiteral("Dynamics26UtilityConvergenceDiagnosticsSummary"));
     diagnosticsSummary_->setWordWrap(true);
     diagnosticsSummary_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     diagnostics_ = makeTable({tr("Attempt"), tr("Iter"), QStringLiteral("Δλ"), QStringLiteral("|R|"),
-                              QStringLiteral("|Δu|"), tr("min J"), tr("Adaptive"), tr("Criteria")},
+                              QStringLiteral("|Δu|"), tr("min J"), tr("Adaptive"), tr("Reason"),
+                              tr("Criteria")},
                              convergencePage);
     diagnostics_->setObjectName(QStringLiteral("Dynamics26UtilityConvergenceDiagnostics"));
 
@@ -180,6 +214,7 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
     coupledDiagnostics_->setObjectName(QStringLiteral("Dynamics26UtilityCoupledDiagnostics"));
 
     convergenceLayout->addWidget(convergenceSummary_);
+    convergenceLayout->addWidget(plotRow);
     convergenceLayout->addWidget(convergence_, 2);
     convergenceLayout->addWidget(diagnosticsSummary_);
     convergenceLayout->addWidget(diagnostics_, 1);
@@ -308,6 +343,8 @@ void UtilityWorkspace::setResultRows(const QVector<QPair<QString, QString>> &row
 
 void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snapshot)
 {
+    residualPlot_->setSnapshot(snapshot, snapshot.summary.residualRelativeTolerance);
+    displacementPlot_->setSnapshot(snapshot, snapshot.summary.displacementRelativeTolerance);
     const int rowCount = static_cast<int>(snapshot.entries.size());
     convergence_->setRowCount(rowCount);
     for (int row = 0; row < rowCount; ++row) {
@@ -332,6 +369,7 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
             || entry.displacementIncrementNorm.has_value()
             || entry.minimumJacobian.has_value()
             || entry.adaptiveEvent != SolverAdaptiveEvent::Unavailable
+            || entry.adaptiveReason != SolverAdaptiveReason::Unavailable
             || entry.residualCriterion != SolverCriterionState::Unavailable
             || entry.displacementCriterion != SolverCriterionState::Unavailable;
         if (hasAdvanced) {
@@ -359,7 +397,8 @@ void UtilityWorkspace::setConvergenceData(const SolverConvergenceSnapshot &snaps
         diagnostics_->setItem(row, 4, new QTableWidgetItem(optionalNumber(entry.displacementIncrementNorm)));
         diagnostics_->setItem(row, 5, new QTableWidgetItem(optionalNumber(entry.minimumJacobian)));
         diagnostics_->setItem(row, 6, new QTableWidgetItem(adaptiveEventText(entry.adaptiveEvent)));
-        diagnostics_->setItem(row, 7, new QTableWidgetItem(
+        diagnostics_->setItem(row, 7, new QTableWidgetItem(adaptiveReasonText(entry.adaptiveReason)));
+        diagnostics_->setItem(row, 8, new QTableWidgetItem(
             criterionText(entry.residualCriterion, entry.displacementCriterion)));
     }
     diagnostics_->resizeRowsToContents();
@@ -475,6 +514,8 @@ void UtilityWorkspace::clearAll()
     preflight_->setRowCount(0);
     solverOutput_->clear();
     convergence_->setRowCount(0);
+    residualPlot_->setSnapshot({}, std::nullopt);
+    displacementPlot_->setSnapshot({}, std::nullopt);
     convergenceSummary_->setText(tr("Yakınsama verisi yok."));
     diagnostics_->setRowCount(0);
     diagnosticsSummary_->setText(tr("Advanced diagnostics: Unavailable"));

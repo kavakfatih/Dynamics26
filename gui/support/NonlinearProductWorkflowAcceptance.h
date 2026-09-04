@@ -439,6 +439,19 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
         flushUi();
         const SolverConvergenceSnapshot *failedTelemetry =
             services.analysis->solverTelemetry(analysisId);
+        bool sawTypedCutback = false;
+        bool sawTypedRetry = false;
+        if (failedTelemetry != nullptr) {
+            for (const SolverConvergenceEntry &entry : failedTelemetry->entries) {
+                sawTypedCutback = sawTypedCutback
+                    || (entry.adaptiveEvent == SolverAdaptiveEvent::Cutback
+                        && (entry.adaptiveReason == SolverAdaptiveReason::NewtonNonconvergence
+                            || entry.adaptiveReason == SolverAdaptiveReason::MinimumIncrementLimit));
+                sawTypedRetry = sawTypedRetry
+                    || (entry.adaptiveEvent == SolverAdaptiveEvent::Retry
+                        && entry.adaptiveReason == SolverAdaptiveReason::NewtonNonconvergence);
+            }
+        }
         check(failedTelemetry != nullptr
                   && failedTelemetry->summary.executionMode == SolverExecutionMode::NonlinearNewton
                   && failedTelemetry->summary.state == SolverConvergenceState::Failed
@@ -450,9 +463,11 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
                   && failedTelemetry->summary.lastAttemptedLoadFactor
                       > failedTelemetry->summary.completedLoadFactor
                   && failedTelemetry->summary.lastLoadIncrement > 0.0
+                  && sawTypedCutback
+                  && sawTypedRetry
                   && !failedTelemetry->entries.isEmpty(),
               "failed product solve exposes typed minimum-increment termination, "
-              "last attempted load state and retained iteration history");
+              "cutback/retry provenance and retained iteration history");
         check(services.analysis->analysisToJson(analysisId) == failureDocument
                   && undo->index() == undoBeforeFailure,
               "Newton failure/cutback leaves persistent document and Undo state unchanged");

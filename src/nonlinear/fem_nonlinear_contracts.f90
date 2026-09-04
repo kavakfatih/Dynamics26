@@ -34,4 +34,22 @@ module fem_nonlinear_contracts
     integer, parameter, public :: NONLINEAR_REASON_CANCELLED = 13
     integer, parameter, public :: NONLINEAR_REASON_UNKNOWN_NUMERICAL_FAILURE = 14
 
+    ! Adaptive event bir Newton iteration degildir. Event ve reason ayri
+    ! tutulur; boylece rejected attempt, cutback ve sonraki retry kronolojisi
+    ! caller tarafinda increment farkindan tahmin edilmez.
+    integer, parameter, public :: ADAPTIVE_EVENT_NONE = 0
+    integer, parameter, public :: ADAPTIVE_EVENT_GROWTH = 1
+    integer, parameter, public :: ADAPTIVE_EVENT_CUTBACK = 2
+    integer, parameter, public :: ADAPTIVE_EVENT_RETRY = 3
+
+    integer, parameter, public :: ADAPTIVE_REASON_NONE = 0
+    integer, parameter, public :: ADAPTIVE_REASON_FAST_CONVERGENCE = 1
+    integer, parameter, public :: ADAPTIVE_REASON_NEWTON_NONCONVERGENCE = 2
+    integer, parameter, public :: ADAPTIVE_REASON_ITERATION_PREDICTION = 3
+    integer, parameter, public :: ADAPTIVE_REASON_LINEAR_SOLVER_FAILURE = 4
+    integer, parameter, public :: ADAPTIVE_REASON_INVALID_JACOBIAN = 5
+    integer, parameter, public :: ADAPTIVE_REASON_MINIMUM_INCREMENT_LIMIT = 6
+    integer, parameter, public :: ADAPTIVE_REASON_FUTURE_CONTACT_EVENT = 7
+    integer, parameter, public :: ADAPTIVE_REASON_FUTURE_MATERIAL_EVENT = 8
+
 end module fem_nonlinear_contracts

@@ -20,6 +20,15 @@ typedef struct termination_run_t {
     int cutbacks;
     int phase;
     int reason;
+    int history_count;
+    int history_attempt[HISTORY_CAPACITY];
+    int history_accepted[HISTORY_CAPACITY];
+    int history_iteration[HISTORY_CAPACITY];
+    int history_converged[HISTORY_CAPACITY];
+    double history_load[HISTORY_CAPACITY];
+    double history_increment[HISTORY_CAPACITY];
+    int adaptive_event[HISTORY_CAPACITY];
+    int adaptive_reason[HISTORY_CAPACITY];
 } termination_run_t;
 
 static const long long node_ids[NODE_COUNT] = {1, 2, 3, 4, 5, 6, 7, 8};
@@ -68,12 +77,6 @@ static termination_run_t run_case(const long long *connectivity,
     double load_values[4];
     int history_count = 0;
     int history_required = 0;
-    int history_attempt[HISTORY_CAPACITY] = {0};
-    int history_accepted[HISTORY_CAPACITY] = {0};
-    int history_iteration[HISTORY_CAPACITY] = {0};
-    int history_converged[HISTORY_CAPACITY] = {0};
-    double history_load[HISTORY_CAPACITY] = {0.0};
-    double history_increment[HISTORY_CAPACITY] = {0.0};
     double history_residual[HISTORY_CAPACITY] = {0.0};
     double history_relative_residual[HISTORY_CAPACITY] = {0.0};
     double history_du[HISTORY_CAPACITY] = {0.0};
@@ -87,8 +90,8 @@ static termination_run_t run_case(const long long *connectivity,
         load_values[i] = total_force / 4.0;
     }
 
-    run.status = fem_solve_nonlinear_static_hex8_v2(
-        FEM_NONLINEAR_STATIC_HEX8_API_VERSION_V2,
+    run.status = fem_solve_nonlinear_static_hex8_v3(
+        FEM_NONLINEAR_STATIC_HEX8_API_VERSION_V3,
         NODE_COUNT, node_ids, coordinates, 1, element_ids, connectivity,
         1.0e6, 0.30,
         constraint_count, constraint_nodes, constraint_components, constraint_values,
@@ -101,17 +104,23 @@ static termination_run_t run_case(const long long *connectivity,
         &run.completed_load_factor, &run.residual, &run.minimum_j,
         &run.accepted_steps, &run.step_attempts, &run.iterations, &run.cutbacks,
         HISTORY_CAPACITY, &history_count, &history_required,
-        history_attempt, history_accepted, history_iteration, history_load,
-        history_increment, history_residual, history_relative_residual,
+        run.history_attempt, run.history_accepted, run.history_iteration,
+        run.history_load, run.history_increment, history_residual, history_relative_residual,
         history_du, history_relative_du, history_alpha, history_minimum_j,
-        history_converged, &run.last_attempted_load_factor,
-        &run.last_load_increment, &run.phase, &run.reason);
+        run.history_converged, &run.last_attempted_load_factor,
+        &run.last_load_increment, &run.phase, &run.reason,
+        run.adaptive_event, run.adaptive_reason);
+    run.history_count = history_count;
     return run;
 }
 
 int main(void)
 {
     termination_run_t run;
+    int i;
+    int saw_growth;
+    int saw_cutback;
+    int saw_retry;
 
     run = run_case(valid_connectivity, 12, fixed_face_nodes,
                    fixed_face_components, fixed_face_values,
@@ -122,6 +131,19 @@ int main(void)
     assert(run.reason == FEM_NONLINEAR_REASON_CONVERGED);
     assert(fabs(run.completed_load_factor - 1.0) < 1.0e-12);
     assert(fabs(run.last_attempted_load_factor - 1.0) < 1.0e-12);
+    saw_growth = 0;
+    for (i = 0; i < run.history_count; ++i) {
+        if (run.adaptive_event[i] == FEM_NONLINEAR_ADAPTIVE_EVENT_GROWTH
+            && run.adaptive_reason[i] == FEM_NONLINEAR_ADAPTIVE_REASON_FAST_CONVERGENCE) {
+            saw_growth = 1;
+        }
+    }
+    assert(saw_growth == 1);
+    assert(run.cutbacks == 0);
+    for (i = 0; i < run.history_count; ++i) {
+        assert(run.adaptive_event[i] != FEM_NONLINEAR_ADAPTIVE_EVENT_CUTBACK);
+        assert(run.adaptive_event[i] != FEM_NONLINEAR_ADAPTIVE_EVENT_RETRY);
+    }
 
     run = run_case(valid_connectivity, 12, fixed_face_nodes,
                    fixed_face_components, fixed_face_values,
@@ -137,6 +159,10 @@ int main(void)
     assert(run.phase == FEM_NONLINEAR_PHASE_LOAD_STEPPING);
     assert(run.reason == FEM_NONLINEAR_REASON_MAXIMUM_STEP_ATTEMPTS_REACHED);
     assert(run.step_attempts == 1);
+    assert(run.adaptive_event[run.history_count - 1]
+           == FEM_NONLINEAR_ADAPTIVE_EVENT_CUTBACK);
+    assert(run.adaptive_reason[run.history_count - 1]
+           == FEM_NONLINEAR_ADAPTIVE_REASON_NEWTON_NONCONVERGENCE);
 
     run = run_case(valid_connectivity, 12, fixed_face_nodes,
                    fixed_face_components, fixed_face_values,
@@ -145,6 +171,33 @@ int main(void)
     assert(run.phase == FEM_NONLINEAR_PHASE_LOAD_STEPPING);
     assert(run.reason == FEM_NONLINEAR_REASON_MINIMUM_INCREMENT_REACHED);
     assert(run.cutbacks == 1);
+    assert(run.adaptive_event[run.history_count - 1]
+           == FEM_NONLINEAR_ADAPTIVE_EVENT_CUTBACK);
+    assert(run.adaptive_reason[run.history_count - 1]
+           == FEM_NONLINEAR_ADAPTIVE_REASON_MINIMUM_INCREMENT_LIMIT);
+
+    run = run_case(valid_connectivity, 12, fixed_face_nodes,
+                   fixed_face_components, fixed_face_values,
+                   1.0e9, 1, 100, 1, 0.25, 0.01, 0, 8);
+    assert(run.status == 30);
+    saw_cutback = 0;
+    saw_retry = 0;
+    for (i = 0; i < run.history_count; ++i) {
+        if (run.adaptive_event[i] == FEM_NONLINEAR_ADAPTIVE_EVENT_CUTBACK) {
+            saw_cutback = 1;
+        }
+        if (run.adaptive_event[i] == FEM_NONLINEAR_ADAPTIVE_EVENT_RETRY) {
+            saw_retry = 1;
+            assert(i > 0);
+            assert(run.history_attempt[i] > run.history_attempt[i - 1]);
+            assert(run.history_accepted[i] == run.history_accepted[i - 1]);
+            assert(run.history_increment[i] < run.history_increment[i - 1]);
+            assert(run.adaptive_reason[i]
+                   == FEM_NONLINEAR_ADAPTIVE_REASON_NEWTON_NONCONVERGENCE);
+        }
+    }
+    assert(saw_cutback == 1);
+    assert(saw_retry == 1);
 
     run = run_case(valid_connectivity, 12, fixed_face_nodes,
                    fixed_face_components, fixed_face_values,
