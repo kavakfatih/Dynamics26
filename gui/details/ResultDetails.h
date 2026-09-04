@@ -22,6 +22,11 @@ public:
 
     [[nodiscard]] ResultField field() const noexcept { return field_; }
 
+    // Transient probe presentation; document/Undo/persistence state'i degildir.
+    void clearProbe();
+    void showDisplacementProbe(qint64 nodeId, double uxMm, double uyMm, double uzMm);
+    void showEquivalentStressProbe(qint64 elementId, double vonMisesMPa);
+
 private:
     ServiceContext services_;
     ResultField field_{ResultField::TotalDeformation};
@@ -43,6 +48,7 @@ private:
     QLabel *displayUnit_{nullptr};
     QLabel *configuration_{nullptr};
     QLabel *solveTime_{nullptr};
+    QLabel *probeMethod_{nullptr};
     QLabel *probe_{nullptr};
     DetailsSection *reactionSection_{nullptr};
     DetailsSection *contourSection_{nullptr};

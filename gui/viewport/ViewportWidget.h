@@ -112,6 +112,10 @@ signals:
     // Rendering katmanı selection kararını vermez; yalnız pick edilen display
     // cell'in gerçek CAD Body/Face provenance'ini yayınlar.
     void topologyPicked(quint64 bodyId, quint64 faceId);
+    // Result probe transient view state'tir. world point deformation probe'una,
+    // boundaryFacetId ise stress'in owner-element recovery'sine provenance verir.
+    // InvalidMeshId, pick miss anlamina gelir.
+    void resultPicked(double worldX, double worldY, double worldZ, qint64 boundaryFacetId);
 
 protected:
     bool event(QEvent *event) override;

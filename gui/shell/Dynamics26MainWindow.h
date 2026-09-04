@@ -108,6 +108,7 @@ private:
     void handleCommand(const QString &id);
     void handleSelection(ObjectId id);
     void handleGeometryPick(quint64 geometryId);
+    void handleResultPick(double worldX, double worldY, double worldZ, qint64 boundaryFacetId);
     void showObjectContextMenu(ObjectId id, const QPoint &globalPosition);
     void updateWindowTitle();
 

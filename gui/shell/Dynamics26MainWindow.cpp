@@ -597,6 +597,7 @@ void Dynamics26MainWindow::wireSignals()
     connect(graphics_, &GraphicsWorkspace::isometricViewRequested, this,
             [this] { graphics_->viewport()->setIsometricView(); });
     connect(graphics_->viewport(), &ViewportWidget::geometryPicked, this, &Dynamics26MainWindow::handleGeometryPick);
+    connect(graphics_->viewport(), &ViewportWidget::resultPicked, this, &Dynamics26MainWindow::handleResultPick);
 
     connect(details_, &DetailsHost::modelEdited, this, [this] { syncAll(); });
     connect(details_, &DetailsHost::commandRequested, this, &Dynamics26MainWindow::handleCommand);
@@ -841,6 +842,50 @@ void Dynamics26MainWindow::handleGeometryPick(const quint64 geometryId)
     }
     graphics_->setSelectionLabel(tr("1 Body seçildi"));
     engineeringStatus_->setSelection(tr("1 Body  •  Global Coordinate System"));
+}
+
+void Dynamics26MainWindow::handleResultPick(const double worldX, const double worldY,
+                                             const double worldZ, const qint64 boundaryFacetId)
+{
+    const ObjectType type = project_->typeOf(selected_);
+    if (type != ObjectType::TotalDeformation && type != ObjectType::EquivalentStress) {
+        return;
+    }
+
+    ResultDetails *page = details_->resultPage();
+    const ObjectId analysisId = analysis_->owningAnalysis(selected_);
+    const ResultDatabase *database = analysis_->resultDatabase(analysisId);
+    if (page == nullptr || database == nullptr || !mesh_->hasMesh()) {
+        return;
+    }
+    if (boundaryFacetId == static_cast<qint64>(InvalidMeshId)) {
+        page->clearProbe();
+        return;
+    }
+
+    if (type == ObjectType::TotalDeformation) {
+        const auto probe = database->probeNearestNode(
+            mesh_->mesh(), {worldX, worldY, worldZ});
+        if (!probe.has_value()) {
+            page->clearProbe();
+            return;
+        }
+        page->showDisplacementProbe(
+            static_cast<qint64>(probe->nodeId),
+            probe->vectorValue.x * 1.0e3,
+            probe->vectorValue.y * 1.0e3,
+            probe->vectorValue.z * 1.0e3);
+        return;
+    }
+
+    const auto probe = database->probeBoundaryFacet(
+        mesh_->mesh(), static_cast<MeshEntityId>(boundaryFacetId), "von_mises");
+    if (!probe.has_value()) {
+        page->clearProbe();
+        return;
+    }
+    page->showEquivalentStressProbe(
+        static_cast<qint64>(probe->elementId), probe->scalarValue / 1.0e6);
 }
 
 void Dynamics26MainWindow::selectObject(const ObjectId id)

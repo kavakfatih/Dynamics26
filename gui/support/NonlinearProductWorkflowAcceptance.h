@@ -18,7 +18,9 @@
 #include "../services/MeshService.h"
 #include "../services/NamedSelectionService.h"
 #include "../shell/Dynamics26MainWindow.h"
+#include "../shell/GraphicsWorkspace.h"
 #include "../shell/ProjectNavigator.h"
+#include "../viewport/ViewportWidget.h"
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -727,6 +729,56 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
               && sourceLocation->text().contains(QStringLiteral("8 Integration Points"))
               && recovery != nullptr && recovery->text() == QStringLiteral("Arithmetic Mean"),
           "Equivalent Stress Details exposes Cauchy, element, 8-GP and recovery semantics separately");
+
+    const SimulationMesh &probeMesh = services.mesh->mesh();
+    check(!probeMesh.nodes.empty() && !probeMesh.boundaryFacets.empty(),
+          "RC1.5 result probe acceptance has real FEM node and boundary-facet provenance");
+    const auto facetProbe = database != nullptr && !probeMesh.boundaryFacets.empty()
+        ? database->probeBoundaryFacet(
+              probeMesh, probeMesh.boundaryFacets.front().id, "von_mises")
+        : std::nullopt;
+    check(facetProbe.has_value()
+              && facetProbe->elementId == probeMesh.boundaryFacets.front().ownerElementId
+              && std::isfinite(facetProbe->scalarValue),
+          "boundary-facet probe resolves owner Element and stored element stress without interpolation");
+
+    const int undoBeforeProbe = undo->index();
+    const auto *probeMethod =
+        window.findChild<QLabel *>(QStringLiteral("resultInspector.probeMethod"));
+    const auto *probeValue =
+        window.findChild<QLabel *>(QStringLiteral("resultInspector.probe"));
+
+    if (nonlinearDeformationId != InvalidObjectId
+        && !probeMesh.nodes.empty() && !probeMesh.boundaryFacets.empty()) {
+        window.selectObject(nonlinearDeformationId);
+        flushUi();
+        const MeshNode &pickedNode = probeMesh.nodes.back();
+        window.graphics()->viewport()->resultPicked(
+            pickedNode.x.x, pickedNode.x.y, pickedNode.x.z,
+            static_cast<qint64>(probeMesh.boundaryFacets.front().id));
+        flushUi();
+    }
+    check(probeMethod != nullptr && probeValue != nullptr
+              && probeMethod->text() == QStringLiteral("Nearest FEM Node")
+              && probeValue->text().contains(QStringLiteral("Node "))
+              && probeValue->text().contains(QStringLiteral("|U|=")),
+          "deformation viewport probe is explicitly Nearest FEM Node with Ux/Uy/Uz and magnitude");
+
+    if (nonlinearStressId != InvalidObjectId && !probeMesh.boundaryFacets.empty()) {
+        window.selectObject(nonlinearStressId);
+        flushUi();
+        window.graphics()->viewport()->resultPicked(
+            0.0, 0.0, 0.0,
+            static_cast<qint64>(probeMesh.boundaryFacets.front().id));
+        flushUi();
+    }
+    check(probeMethod != nullptr && probeValue != nullptr
+              && probeMethod->text().contains(QStringLiteral("Owner Element"))
+              && probeValue->text().contains(QStringLiteral("Element "))
+              && probeValue->text().contains(QStringLiteral("Cauchy von Mises"))
+              && probeValue->text().contains(QStringLiteral("8-GP Mean"))
+              && undo->index() == undoBeforeProbe,
+          "stress viewport probe reports Element / Cauchy von Mises / 8-GP Mean as transient UI state");
 
     // Derived fields/history are deliberately absent from project JSON. The
     // persistent authoring model can be reopened and solved again.

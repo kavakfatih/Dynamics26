@@ -138,6 +138,8 @@ public:
     // Picking: mesh/legacy sahnede hücre -> geometri kimliği; topology-aware
     // CAD sahnede GeometrySelectionScene hücre -> Body/Face provenance taşır.
     std::vector<GeometryEntityId> facetGeometryIds;
+    std::vector<MeshEntityId> resultFacetIds;
+    bool resultScene{false};
     GeometrySelectionScene geometryScene;
     vtkSmartPointer<vtkActor> surfaceActor;
     vtkSmartPointer<vtkActor> geometryEdgeActor;
@@ -556,6 +558,8 @@ void ViewportWidget::clearScene()
     impl_->geometryEdgeActor = nullptr;
     impl_->highlightActor = nullptr;
     impl_->facetGeometryIds.clear();
+    impl_->resultFacetIds.clear();
+    impl_->resultScene = false;
     impl_->geometryScene.clear();
     impl_->hasCachedMesh = false;
     impl_->cachedMesh = {};
@@ -697,9 +701,13 @@ vtkSmartPointer<vtkPolyData> buildBoundarySurface(const SimulationMesh &mesh,
                                                   double deformationScale,
                                                   const femcae::meshing::ElementScalarField *elementScalar,
                                                   bool nodalMagnitude,
-                                                  std::vector<GeometryEntityId> &facetGeometryIds)
+                                                  std::vector<GeometryEntityId> &facetGeometryIds,
+                                                  std::vector<MeshEntityId> *facetIds = nullptr)
 {
     facetGeometryIds.clear();
+    if (facetIds != nullptr) {
+        facetIds->clear();
+    }
     vtkSmartPointer<vtkPolyData> data = vtkSmartPointer<vtkPolyData>::New();
     if (mesh.nodes.empty() || mesh.boundaryFacets.empty()) {
         return data;
@@ -761,6 +769,9 @@ vtkSmartPointer<vtkPolyData> buildBoundarySurface(const SimulationMesh &mesh,
         }
         polys->InsertNextCell(4, ids);
         facetGeometryIds.push_back(facet.sourceGeometryId);
+        if (facetIds != nullptr) {
+            facetIds->push_back(facet.id);
+        }
         if (cellField != nullptr) {
             const auto it = elementScalar->values.find(facet.ownerElementId);
             cellField->InsertNextValue(it == elementScalar->values.end() ? 0.0 : it->second / 1.0e6);
@@ -937,13 +948,15 @@ void ViewportWidget::showResult(const SimulationMesh &mesh, const femcae::meshin
     const bool useCellStress = field == ResultField::EquivalentStress;
 
     auto data = buildBoundarySurface(mesh, displacement, scale, useCellStress ? stress : nullptr,
-                                     useNodalMagnitude, impl_->facetGeometryIds);
+                                     useNodalMagnitude, impl_->facetGeometryIds,
+                                     &impl_->resultFacetIds);
     if (data->GetNumberOfCells() == 0) {
         impl_->render();
         return;
     }
     impl_->cachedMesh = mesh;
     impl_->hasCachedMesh = true;
+    impl_->resultScene = true;
 
     if (field == ResultField::ReactionForce) {
         // Reaksiyon kuvveti skaler bir alan değildir; deforme model nötr
@@ -1222,7 +1235,9 @@ void ViewportWidget::handlePick(const int x, const int y)
     impl_->picker->AddPickList(impl_->surfaceActor);
     impl_->picker->PickFromListOn();
     if (impl_->picker->Pick(x, y, 0, impl_->renderer) == 0) {
-        if (!impl_->geometryScene.empty()) {
+        if (impl_->resultScene) {
+            emit resultPicked(0.0, 0.0, 0.0, static_cast<qint64>(InvalidMeshId));
+        } else if (!impl_->geometryScene.empty()) {
             emit topologyPicked(0, 0);
         } else {
             emit geometryPicked(0);
@@ -1231,6 +1246,16 @@ void ViewportWidget::handlePick(const int x, const int y)
     }
     const vtkIdType cellId = impl_->picker->GetCellId();
     if (cellId < 0) {
+        return;
+    }
+    if (impl_->resultScene) {
+        const MeshEntityId facetId =
+            cellId < static_cast<vtkIdType>(impl_->resultFacetIds.size())
+            ? impl_->resultFacetIds[static_cast<std::size_t>(cellId)]
+            : InvalidMeshId;
+        double world[3] = {0.0, 0.0, 0.0};
+        impl_->picker->GetPickPosition(world);
+        emit resultPicked(world[0], world[1], world[2], static_cast<qint64>(facetId));
         return;
     }
     if (!impl_->geometryScene.empty()) {

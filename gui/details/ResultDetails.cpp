@@ -6,6 +6,8 @@
 #include <QLabel>
 #include <QPushButton>
 
+#include <cmath>
+
 namespace d26 {
 namespace {
 
@@ -163,7 +165,12 @@ ResultDetails::ResultDetails(const ServiceContext &services, QWidget *parent)
     configuration_ = advanced->addValueRow(tr("Configuration"));
     configuration_->setObjectName(QStringLiteral("resultInspector.configuration"));
     solveTime_ = advanced->addValueRow(tr("Solve Wall Clock"));
-    probe_ = advanced->addValueRow(tr("Corner Probe"));
+
+    auto *probeSection = addSection(tr("Probe"));
+    probeMethod_ = probeSection->addValueRow(tr("Method"));
+    probeMethod_->setObjectName(QStringLiteral("resultInspector.probeMethod"));
+    probe_ = probeSection->addValueRow(tr("Value"));
+    probe_->setObjectName(QStringLiteral("resultInspector.probe"));
 
     addStretch();
 
@@ -219,6 +226,7 @@ void ResultDetails::refresh()
         legend_->setText(suppressed ? tr("Bastırıldı") : tr("Çözüm çalıştırılmadı"));
         deformationScale_->setText(dash);
         solveTime_->setText(dash);
+        probeMethod_->setText(dash);
         probe_->setText(dash);
         return;
     }
@@ -248,9 +256,48 @@ void ResultDetails::refresh()
         legend_->setText(tr("Girdiler değişti — yeniden çözün"));
     }
     solveTime_->setText(QStringLiteral("%1 s").arg(results.wallClockSeconds, 0, 'f', 3));
-    probe_->setText(results.probeNodeId >= 0
-                        ? tr("Node %1 · ux = %2 mm").arg(results.probeNodeId).arg(results.probeUxMm, 0, 'g', 6)
-                        : tr("—"));
+    if (field_ == ResultField::ReactionForce) {
+        probeMethod_->setText(tr("Not applicable"));
+        probe_->setText(dash);
+    } else {
+        clearProbe();
+    }
+}
+
+void ResultDetails::clearProbe()
+{
+    if (field_ == ResultField::TotalDeformation) {
+        probeMethod_->setText(tr("Nearest FEM Node"));
+        probe_->setText(tr("Click viewport to probe"));
+    } else if (field_ == ResultField::EquivalentStress) {
+        probeMethod_->setText(tr("Boundary Facet → Owner Element"));
+        probe_->setText(tr("Click viewport to probe"));
+    } else {
+        probeMethod_->setText(tr("Not applicable"));
+        probe_->setText(tr("—"));
+    }
+}
+
+void ResultDetails::showDisplacementProbe(const qint64 nodeId, const double uxMm,
+                                          const double uyMm, const double uzMm)
+{
+    const double magnitudeMm = std::sqrt(uxMm * uxMm + uyMm * uyMm + uzMm * uzMm);
+    probeMethod_->setText(tr("Nearest FEM Node"));
+    probe_->setText(tr("Node %1 · U=(%2, %3, %4) mm · |U|=%5 mm")
+                        .arg(nodeId)
+                        .arg(uxMm, 0, 'g', 7)
+                        .arg(uyMm, 0, 'g', 7)
+                        .arg(uzMm, 0, 'g', 7)
+                        .arg(magnitudeMm, 0, 'g', 7));
+}
+
+void ResultDetails::showEquivalentStressProbe(const qint64 elementId,
+                                              const double vonMisesMPa)
+{
+    probeMethod_->setText(tr("Boundary Facet → Owner Element"));
+    probe_->setText(tr("Element %1 · Cauchy von Mises · 8-GP Mean = %2 MPa")
+                        .arg(elementId)
+                        .arg(vonMisesMPa, 0, 'g', 8));
 }
 
 } // namespace d26
