@@ -80,7 +80,10 @@ SolverInputBuildResult SolverInputBuilder::buildHex8(const AnalysisSnapshot &sna
             return failure(SolverInputBuildError::NonFiniteAggregate,
                            "Equivalent nodal load toplamı finite değil.");
         }
-        if (std::abs(value) <= 1.0e-30) {
+        // Document capability contract exact-zero resultant'ı reddeder. Burada
+        // yeniden ölçek eşiği uygulamak küçük fakat geçerli SI yükünü sessizce
+        // yok ederdi; yalnız gerçek cebirsel iptal atlanır.
+        if (value == 0.0) {
             continue;
         }
         input.loadNodeIds.push_back(static_cast<long long>(address.first));

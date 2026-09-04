@@ -158,7 +158,9 @@ SupportDefinition SupportDefinition::fromJson(const QJsonObject &object)
 
 double LoadDefinition::magnitudeN() const
 {
-    return std::sqrt(fxN * fxN + fyN * fyN + fzN * fzN);
+    // hypot ölçekleyerek hesaplar; doğrudan kareler çok küçük SI yüklerinde
+    // underflow, çok büyük değerlerde premature overflow üretebilir.
+    return std::hypot(fxN, fyN, fzN);
 }
 
 QJsonObject LoadDefinition::toJson() const
@@ -860,6 +862,14 @@ AnalysisCapabilityResolution AnalysisService::resolveCapabilities(const ObjectId
             if (input.boundarySubject == InvalidObjectId) {
                 input.boundarySubject = id;
             }
+            const SupportDefinition *definition = support(id);
+            if (definition == nullptr
+                || (!definition->fixX && !definition->fixY && !definition->fixZ)) {
+                ++input.invalidFixedSupportCount;
+                if (input.invalidBoundarySubject == InvalidObjectId) {
+                    input.invalidBoundarySubject = id;
+                }
+            }
         }
     }
     if (input.boundarySubject == InvalidObjectId) {
@@ -872,15 +882,24 @@ AnalysisCapabilityResolution AnalysisService::resolveCapabilities(const ObjectId
             if (input.loadSubject == InvalidObjectId) {
                 input.loadSubject = id;
             }
+            const LoadDefinition *definition = load(id);
+            const double magnitude = definition != nullptr
+                ? definition->magnitudeN() : 0.0;
+            if (definition == nullptr || !std::isfinite(magnitude) || magnitude <= 0.0) {
+                ++input.invalidTotalForceCount;
+                if (input.invalidLoadSubject == InvalidObjectId) {
+                    input.invalidLoadSubject = id;
+                }
+            }
         }
     }
     if (input.loadSubject == InvalidObjectId) {
         input.loadSubject = analysisId;
     }
 
-    // B3.0 resolver, mevcut Total Force consumer'ının varlığını typed biçimde
-    // kaydeder. B3.2 bu consumer'ın içini consistent QUAD4 surface integration
-    // ile değiştirecek; capability/Preflight API'si değişmeyecektir.
+    // B3.0 resolver consumer varlığını typed biçimde kaydeder; B3.2'nin
+    // consistent QUAD4 surface integration implementation'ı bu capability'nin
+    // tek product consumer'ıdır.
     input.totalForceConsumerAvailable = true;
 
     if (project_ != nullptr) {
@@ -1020,19 +1039,15 @@ PreflightReport AnalysisService::preflight(
         }
     }
 
-    int activeLoads = 0;
-    double totalLoad = 0.0;
     for (const ObjectId id : record->loads) {
         if (!isActive(id)) {
             continue;
         }
-        ++activeLoads;
         const LoadDefinition *definition = load(id);
         if (definition == nullptr) {
             add(PreflightCheck::Status::Failed, tr("Yük Kapsamı"), tr("Yük tanımı bulunamadı."), id);
             continue;
         }
-        totalLoad += definition->magnitudeN();
         if (definition->scopingMethod == BoundaryScopingMethod::NamedSelection || meshReadyForScope) {
             const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
             if (!scope.valid) {
@@ -1069,10 +1084,6 @@ PreflightReport AnalysisService::preflight(
             }
         }
     }
-    if (activeLoads > 0 && totalLoad <= 0.0) {
-        add(PreflightCheck::Status::Warning, tr("Yük"), tr("Toplam yük büyüklüğü sıfır."), analysisId);
-    }
-
     // 6) Project-level Connections altındaki aktif ContactRegion nesneleri bu
     // Beta.1 aşamasında tüm model analizleri için engineering connection state'i
     // kabul edilir. Contact scope doğrulaması tek sahibi ContactService üzerinden
@@ -1357,7 +1368,11 @@ AnalysisSnapshotBuildResult AnalysisService::buildAnalysisSnapshot(
                 nodalLoad.value.x, nodalLoad.value.y, nodalLoad.value.z};
             for (int component = 0; component < 3; ++component) {
                 const double value = components[static_cast<std::size_t>(component)];
-                if (std::abs(value) > 1.0e-30) {
+                // Capability contract exact-zero Total Force'u bloklar. Burada
+                // fiziksel ölçek eşiği uygulamak, küçük fakat geçerli bir SI
+                // yükünü snapshot'tan sessizce düşürerek Preflight/Solve
+                // tutarsızlığını yeniden üretirdi.
+                if (value != 0.0) {
                     draft.nodalLoads.push_back({nodalLoad.nodeId, component + 1, value});
                 }
             }

@@ -250,20 +250,34 @@ AnalysisCapabilityResolution AnalysisCapabilityResolver::resolve(const AnalysisC
             QCoreApplication::translate("d26", "Displacement-based (u)"), input.settingsSubject);
     }
 
-    add(resolution, Axis::BoundaryCondition,
-        input.activeFixedSupportCount > 0 ? State::Ready : State::Invalid,
-        QCoreApplication::translate("d26", "Sınır Şartı"),
-        input.activeFixedSupportCount > 0
-            ? QCoreApplication::translate("d26", "%n aktif Fixed Support", nullptr,
-                                          input.activeFixedSupportCount)
-            : QCoreApplication::translate("d26", "En az bir aktif Fixed Support tanımlanmalıdır."),
-        input.boundarySubject);
+    State boundaryState = State::Ready;
+    QString boundaryDetail;
+    ObjectId boundarySubject = input.boundarySubject;
+    if (input.activeFixedSupportCount <= 0) {
+        boundaryState = State::Invalid;
+        boundaryDetail = QCoreApplication::translate(
+            "d26", "En az bir aktif Fixed Support tanımlanmalıdır.");
+    } else if (input.invalidFixedSupportCount > 0) {
+        boundaryState = State::Invalid;
+        boundaryDetail = QCoreApplication::translate(
+            "d26", "Fixed Support en az bir kısıtlı yer değiştirme bileşeni gerektirir.");
+        boundarySubject = input.invalidBoundarySubject;
+    } else {
+        boundaryDetail = QCoreApplication::translate(
+            "d26", "%n aktif Fixed Support", nullptr, input.activeFixedSupportCount);
+    }
+    add(resolution, Axis::BoundaryCondition, boundaryState,
+        QCoreApplication::translate("d26", "Sınır Şartı"), boundaryDetail, boundarySubject);
 
     State loadState = State::Ready;
     QString loadDetail;
     if (input.activeTotalForceCount <= 0) {
         loadState = State::Invalid;
         loadDetail = QCoreApplication::translate("d26", "En az bir aktif Total Force tanımlanmalıdır.");
+    } else if (input.invalidTotalForceCount > 0) {
+        loadState = State::Invalid;
+        loadDetail = QCoreApplication::translate(
+            "d26", "Total Force resultant vektörü finite ve sıfırdan farklı olmalıdır.");
     } else if (!input.totalForceConsumerAvailable) {
         loadState = State::SetupOnly;
         loadDetail = QCoreApplication::translate(
@@ -273,7 +287,8 @@ AnalysisCapabilityResolution AnalysisCapabilityResolver::resolve(const AnalysisC
                                                  nullptr, input.activeTotalForceCount);
     }
     add(resolution, Axis::LoadType, loadState,
-        QCoreApplication::translate("d26", "Yük"), loadDetail, input.loadSubject);
+        QCoreApplication::translate("d26", "Yük"), loadDetail,
+        input.invalidTotalForceCount > 0 ? input.invalidLoadSubject : input.loadSubject);
 
     if (input.activeContactCount > 0) {
         add(resolution, Axis::Contact, State::Unavailable,

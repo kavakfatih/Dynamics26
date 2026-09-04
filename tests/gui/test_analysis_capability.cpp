@@ -70,11 +70,29 @@ int main()
           "missing nonlinear Fixed Support is explicitly Invalid");
 
     input = supportedNonlinearInput();
+    input.invalidFixedSupportCount = 1;
+    input.invalidBoundarySubject = 201;
+    resolution = AnalysisCapabilityResolver::resolve(input);
+    check(!resolution.solveReady()
+              && resolution.decision(CapabilityAxis::BoundaryCondition)->state == CapabilityState::Invalid
+              && resolution.decision(CapabilityAxis::BoundaryCondition)->subject == 201,
+          "Fixed Support without a constrained DOF is Invalid at its exact ObjectId");
+
+    input = supportedNonlinearInput();
     input.activeTotalForceCount = 0;
     resolution = AnalysisCapabilityResolver::resolve(input);
     check(!resolution.solveReady()
               && resolution.decision(CapabilityAxis::LoadType)->state == CapabilityState::Invalid,
           "missing nonlinear Total Force is explicitly Invalid");
+
+    input = supportedNonlinearInput();
+    input.invalidTotalForceCount = 1;
+    input.invalidLoadSubject = 202;
+    resolution = AnalysisCapabilityResolver::resolve(input);
+    check(!resolution.solveReady()
+              && resolution.decision(CapabilityAxis::LoadType)->state == CapabilityState::Invalid
+              && resolution.decision(CapabilityAxis::LoadType)->subject == 202,
+          "zero or non-finite Total Force is Invalid at its exact ObjectId");
 
     input = supportedNonlinearInput();
     input.largeDeformation = false;

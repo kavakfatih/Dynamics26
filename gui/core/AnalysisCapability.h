@@ -109,8 +109,12 @@ struct AnalysisCapabilityInput {
     ResolvedFormulation formulation{ResolvedFormulation::DisplacementBased};
 
     int activeFixedSupportCount{0};
+    int invalidFixedSupportCount{0};
+    ObjectId invalidBoundarySubject{InvalidObjectId};
     ObjectId boundarySubject{InvalidObjectId};
     int activeTotalForceCount{0};
+    int invalidTotalForceCount{0};
+    ObjectId invalidLoadSubject{InvalidObjectId};
     ObjectId loadSubject{InvalidObjectId};
     bool totalForceConsumerAvailable{true};
 

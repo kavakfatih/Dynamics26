@@ -110,6 +110,30 @@ int main()
                "requested final result fields survive immutable bridge");
     }
 
+    AnalysisSnapshotDraft smallLoad = nonlinearCubeDraft();
+    smallLoad.nodalLoads = {{7, 1, 1.0e-40}};
+    AnalysisSnapshotBuildResult smallLoadSnapshot =
+        AnalysisSnapshotBuilder::build(std::move(smallLoad));
+    expect(smallLoadSnapshot.success(), "small nonzero SI load accepted by snapshot contract");
+    if (smallLoadSnapshot.success()) {
+        const SolverInputBuildResult smallLoadInput =
+            SolverInputBuilder::buildHex8(*smallLoadSnapshot.snapshot);
+        expect(smallLoadInput.success() && smallLoadInput.input->loadValues.size() == 1
+                   && smallLoadInput.input->loadValues.front() == 1.0e-40,
+               "small nonzero SI load survives C ABI flattening without a scale cutoff");
+    }
+
+    AnalysisSnapshotDraft cancelledLoad = nonlinearCubeDraft();
+    cancelledLoad.nodalLoads = {{7, 1, 1.0}, {7, 1, -1.0}};
+    AnalysisSnapshotBuildResult cancelledLoadSnapshot =
+        AnalysisSnapshotBuilder::build(std::move(cancelledLoad));
+    expect(cancelledLoadSnapshot.success(), "snapshot preserves opposing nodal load contributions");
+    if (cancelledLoadSnapshot.success()) {
+        expect(SolverInputBuilder::buildHex8(*cancelledLoadSnapshot.snapshot).error
+                   == SolverInputBuildError::EmptyEquivalentLoad,
+               "exactly cancelled equivalent loads remain invalid at solver-input boundary");
+    }
+
     AnalysisSnapshotDraft dangling = nonlinearCubeDraft();
     dangling.elements.front().nodeIds.back() = 123456;
     expect(AnalysisSnapshotBuilder::build(std::move(dangling)).error

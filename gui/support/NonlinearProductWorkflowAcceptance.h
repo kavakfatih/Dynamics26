@@ -250,6 +250,125 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
               && record->supports.size() == 1 && record->loads.size() == 1
               && record->results.size() == 3,
           "supported nonlinear document carries large deformation, controls, BC/load and three results");
+
+    // Aktif bir tree nesnesinin varlığı tek başına engineering action değildir:
+    // Fixed Support en az bir DOF kısıtlamalı, Total Force ise finite ve
+    // sıfırdan farklı bir resultant taşımalıdır. Bu geçerlilik aynı typed
+    // capability kararı üzerinden hem Preflight'a hem Solve'a ulaşır.
+    const SupportDefinition *authoredSupportPointer = services.analysis->support(supportId);
+    const LoadDefinition *authoredForcePointer = services.analysis->load(forceId);
+    if (authoredSupportPointer != nullptr && authoredForcePointer != nullptr) {
+        const SupportDefinition authoredSupport = *authoredSupportPointer;
+        const LoadDefinition authoredForce = *authoredForcePointer;
+
+        SupportDefinition emptySupport = authoredSupport;
+        emptySupport.fixX = false;
+        emptySupport.fixY = false;
+        emptySupport.fixZ = false;
+        commands->push(new commands::SetSupportCommand(
+            services, supportId, authoredSupport, emptySupport));
+        flushUi();
+        const AnalysisCapabilityResolution emptySupportCapabilities =
+            services.analysis->resolveCapabilities(analysisId);
+        const CapabilityDecision *emptySupportDecision =
+            emptySupportCapabilities.decision(CapabilityAxis::BoundaryCondition);
+        const PreflightReport emptySupportPreflight = services.analysis->preflight(analysisId);
+        const bool emptySupportNavigatesExactly = std::any_of(
+            emptySupportPreflight.checks.cbegin(), emptySupportPreflight.checks.cend(),
+            [supportId](const PreflightCheck &item) {
+                return item.status == PreflightCheck::Status::Failed
+                    && item.subject == supportId;
+            });
+        check(emptySupportDecision != nullptr
+                  && emptySupportDecision->state == CapabilityState::Invalid
+                  && emptySupportDecision->subject == supportId
+                  && !emptySupportPreflight.passed() && emptySupportNavigatesExactly,
+              "Fixed Support with no constrained DOF fails Preflight at its exact ObjectId");
+        const QJsonObject emptySupportDocument = services.analysis->analysisToJson(analysisId);
+        const int undoBeforeEmptySupportSolve = undo->index();
+        check(!services.analysis->solve(analysisId)
+                  && services.analysis->analysisToJson(analysisId) == emptySupportDocument
+                  && undo->index() == undoBeforeEmptySupportSolve,
+              "rejected empty Fixed Support cannot reach snapshot/solver or mutate document Undo state");
+        undo->undo();
+        flushUi();
+
+        SupportDefinition oneDofSupport = authoredSupport;
+        oneDofSupport.fixX = true;
+        oneDofSupport.fixY = false;
+        oneDofSupport.fixZ = false;
+        commands->push(new commands::SetSupportCommand(
+            services, supportId, authoredSupport, oneDofSupport));
+        flushUi();
+        const AnalysisCapabilityResolution oneDofCapabilities =
+            services.analysis->resolveCapabilities(analysisId);
+        const CapabilityDecision *oneDofDecision =
+            oneDofCapabilities.decision(CapabilityAxis::BoundaryCondition);
+        check(oneDofDecision != nullptr && oneDofDecision->state == CapabilityState::Ready
+                  && services.analysis->preflight(analysisId).passed(),
+              "Fixed Support with one constrained DOF remains a valid engineering action");
+        undo->undo();
+        flushUi();
+
+        LoadDefinition zeroForce = authoredForce;
+        zeroForce.fxN = 0.0;
+        zeroForce.fyN = 0.0;
+        zeroForce.fzN = 0.0;
+        commands->push(new commands::SetForceCommand(
+            services, forceId, authoredForce, zeroForce));
+        flushUi();
+        const AnalysisCapabilityResolution zeroForceCapabilities =
+            services.analysis->resolveCapabilities(analysisId);
+        const CapabilityDecision *zeroForceDecision =
+            zeroForceCapabilities.decision(CapabilityAxis::LoadType);
+        const PreflightReport zeroForcePreflight = services.analysis->preflight(analysisId);
+        const bool zeroForceNavigatesExactly = std::any_of(
+            zeroForcePreflight.checks.cbegin(), zeroForcePreflight.checks.cend(),
+            [forceId](const PreflightCheck &item) {
+                return item.status == PreflightCheck::Status::Failed
+                    && item.subject == forceId;
+            });
+        check(zeroForceDecision != nullptr
+                  && zeroForceDecision->state == CapabilityState::Invalid
+                  && zeroForceDecision->subject == forceId
+                  && !zeroForcePreflight.passed() && zeroForceNavigatesExactly,
+              "zero Total Force fails Preflight at its exact ObjectId");
+        const QJsonObject zeroForceDocument = services.analysis->analysisToJson(analysisId);
+        const int undoBeforeZeroForceSolve = undo->index();
+        check(!services.analysis->solve(analysisId)
+                  && services.analysis->analysisToJson(analysisId) == zeroForceDocument
+                  && undo->index() == undoBeforeZeroForceSolve,
+              "rejected zero Total Force cannot reach snapshot/solver or mutate document Undo state");
+        undo->undo();
+        flushUi();
+
+        LoadDefinition smallForce = authoredForce;
+        smallForce.fxN = 1.0e-40;
+        smallForce.fyN = 0.0;
+        smallForce.fzN = 0.0;
+        commands->push(new commands::SetForceCommand(
+            services, forceId, authoredForce, smallForce));
+        flushUi();
+        check(services.analysis->preflight(analysisId).passed()
+                  && services.analysis->solve(analysisId),
+              "small nonzero Total Force survives Preflight and immutable snapshot construction");
+        undo->undo();
+        flushUi();
+        const SupportDefinition *restoredSupport = services.analysis->support(supportId);
+        const LoadDefinition *restoredForce = services.analysis->load(forceId);
+        check(restoredSupport != nullptr && restoredForce != nullptr
+                  && restoredSupport->fixX == authoredSupport.fixX
+                  && restoredSupport->fixY == authoredSupport.fixY
+                  && restoredSupport->fixZ == authoredSupport.fixZ
+                  && restoredForce->fxN == authoredForce.fxN
+                  && restoredForce->fyN == authoredForce.fyN
+                  && restoredForce->fzN == authoredForce.fzN
+                  && services.analysis->preflight(analysisId).passed(),
+              "Undo restores the authored support/load relationship and Solve-ready state");
+    } else {
+        check(false, "structural-action validity fixture resolves the authored support and load");
+    }
+
     const AnalysisCapabilityResolution ready =
         services.analysis->resolveCapabilities(analysisId);
     check(ready.solveReady() && services.analysis->preflight(analysisId).passed(),
