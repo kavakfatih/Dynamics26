@@ -1009,6 +1009,7 @@ PreflightReport AnalysisService::preflight(
     // ulaşamaz. Mesh güncelse current CAD Face scope'un gerçek node union'ı da
     // boş olamaz.
     const bool meshReadyForScope = mesh_->hasMesh() && !mesh_->isOutOfDate();
+    ObjectId partialSupportSubject = InvalidObjectId;
     for (const ObjectId id : record->supports) {
         if (!isActive(id)) {
             continue;
@@ -1018,6 +1019,12 @@ PreflightReport AnalysisService::preflight(
             add(PreflightCheck::Status::Failed, tr("Sınır Şartı Kapsamı"),
                 tr("Sınır şartı tanımı bulunamadı."), id);
             continue;
+        }
+        const bool constrainsAnyComponent = definition->fixX || definition->fixY || definition->fixZ;
+        const bool constrainsAllComponents = definition->fixX && definition->fixY && definition->fixZ;
+        if (constrainsAnyComponent && !constrainsAllComponents
+            && partialSupportSubject == InvalidObjectId) {
+            partialSupportSubject = id;
         }
         if (definition->scopingMethod == BoundaryScopingMethod::NamedSelection || meshReadyForScope) {
             const BoundaryScopeResolution scope = resolveBoundaryScope(*definition);
@@ -1037,6 +1044,16 @@ PreflightReport AnalysisService::preflight(
                     id);
             }
         }
+    }
+    if (partialSupportSubject != InvalidObjectId) {
+        // Bir veya birkaç directional support birlikte tüm rijit-cisim
+        // modlarını bastırabilir; ancak Beta.3 henüz global constraint-rank
+        // ispatı yapmıyor. Bu nedenle action geçerlidir, model kararlılığı için
+        // doğrulanmamış bir "Stable" iddiası yerine açık warning üretilir.
+        add(PreflightCheck::Status::Warning, tr("Potential rigid-body motion"),
+            tr("Directional support kullanılıyor; 3B modelde tüm rijit-cisim modlarının "
+               "bastırıldığını doğrulayın."),
+            partialSupportSubject);
     }
 
     for (const ObjectId id : record->loads) {

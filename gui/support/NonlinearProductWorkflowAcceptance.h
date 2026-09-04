@@ -304,11 +304,28 @@ inline int runNonlinearProductWorkflowAcceptanceTest(QApplication &app,
             services.analysis->resolveCapabilities(analysisId);
         const CapabilityDecision *oneDofDecision =
             oneDofCapabilities.decision(CapabilityAxis::BoundaryCondition);
+        const PreflightReport oneDofPreflight = services.analysis->preflight(analysisId);
+        const bool oneDofWarnsRigidMotion = std::any_of(
+            oneDofPreflight.checks.cbegin(), oneDofPreflight.checks.cend(),
+            [supportId](const PreflightCheck &item) {
+                return item.status == PreflightCheck::Status::Warning
+                    && item.label == QStringLiteral("Potential rigid-body motion")
+                    && item.subject == supportId;
+            });
         check(oneDofDecision != nullptr && oneDofDecision->state == CapabilityState::Ready
-                  && services.analysis->preflight(analysisId).passed(),
-              "Fixed Support with one constrained DOF remains a valid engineering action");
+                  && oneDofPreflight.passed() && oneDofWarnsRigidMotion,
+              "one-DOF support remains valid but warns about potential rigid-body motion");
         undo->undo();
         flushUi();
+        const PreflightReport fullSupportPreflight = services.analysis->preflight(analysisId);
+        const bool fullSupportWarnsRigidMotion = std::any_of(
+            fullSupportPreflight.checks.cbegin(), fullSupportPreflight.checks.cend(),
+            [](const PreflightCheck &item) {
+                return item.status == PreflightCheck::Status::Warning
+                    && item.label == QStringLiteral("Potential rigid-body motion");
+            });
+        check(fullSupportPreflight.passed() && !fullSupportWarnsRigidMotion,
+              "all-DOF Fixed Support restores fixed behavior without the directional warning");
 
         LoadDefinition zeroForce = authoredForce;
         zeroForce.fxN = 0.0;
