@@ -16,6 +16,7 @@ name: macOS GUI application acceptance
       - "gui/shell/Dynamics26MainWindow.*"
       - "gui/shell/SelectionCoordinator.*"
       - "gui/shell/UtilityWorkspace.*"
+      - "gui/widgets/ConvergencePlotWidget.*"
       - "gui/support/SelectionAcceptanceTest.h"
       - "gui/support/MaterialInspectorAcceptance.h"
       - "gui/support/MeshInspectorAcceptance.h"
