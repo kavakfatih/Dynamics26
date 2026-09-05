@@ -288,3 +288,47 @@ if(Python3_Interpreter_FOUND)
         LABELS "unit;meshing;robust-geometry;predicate;exact-oracle;determinism"
     )
 endif()
+
+
+# M1.7 — exact production/reference robust predicates
+add_executable(
+    unit_m17_robust_predicates
+    meshing/robust_geometry/test_robust_predicates.cpp
+)
+target_link_libraries(unit_m17_robust_predicates PRIVATE femcae_meshing)
+femcae_enable_warnings(unit_m17_robust_predicates)
+
+add_test(
+    NAME unit_m17_robust_predicates_committed
+    COMMAND unit_m17_robust_predicates
+            ${CMAKE_CURRENT_SOURCE_DIR}/meshing/robust_geometry/fixtures
+)
+set_tests_properties(unit_m17_robust_predicates_committed PROPERTIES
+    LABELS "unit;meshing;robust-geometry;predicate;exact;determinism;m1.7"
+)
+
+if(Python3_Interpreter_FOUND)
+    set(FEMCAE_M17_GENERATED_DIR "${CMAKE_BINARY_DIR}/m17-predicate-corpus")
+    add_test(
+        NAME unit_m17_generate_predicate_corpus
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/meshing_oracle/generate_predicate_corpus.py
+                --output-dir ${FEMCAE_M17_GENERATED_DIR}
+                --random-cases 256
+                --seed 13789718
+    )
+    set_tests_properties(unit_m17_generate_predicate_corpus PROPERTIES
+        LABELS "unit;meshing;robust-geometry;predicate;exact-oracle;determinism;m1.7"
+        FIXTURES_SETUP d26_m17_predicate_corpus
+    )
+
+    add_test(
+        NAME unit_m17_robust_predicates_generated
+        COMMAND unit_m17_robust_predicates
+                ${FEMCAE_M17_GENERATED_DIR}
+    )
+    set_tests_properties(unit_m17_robust_predicates_generated PROPERTIES
+        LABELS "unit;meshing;robust-geometry;predicate;exact;generated;determinism;m1.7"
+        FIXTURES_REQUIRED d26_m17_predicate_corpus
+    )
+endif()

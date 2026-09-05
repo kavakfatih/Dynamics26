@@ -64,6 +64,7 @@ elseif(FEMCAE_REQUIRE_OCCT)
 endif()
 
 set(FEMCAE_MESHING_SOURCES
+    src/meshing/RobustPredicates.cpp
     src/meshing/MeshTypes.cpp
     src/meshing/StructuredHexMesher.cpp
     src/meshing/AbaqusInpMeshReader.cpp

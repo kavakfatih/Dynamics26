@@ -320,3 +320,61 @@ def structured_random_cross_check(cases_per_predicate: int = 128, seed: int = 0x
                 raise AssertionError(f"random oracle mismatch in {predicate}")
             checked += 1
     return checked
+
+
+def structured_random_cases(predicate: str, count: int, seed: int) -> list[dict[str, object]]:
+    if count < 0:
+        raise ValueError("random case count cannot be negative")
+    dimension, arity = PREDICATE_SPECS[predicate]
+    predicate_offsets = {
+        "orient2d": 0x102,
+        "orient3d": 0x103,
+        "incircle": 0x201,
+        "insphere": 0x301,
+    }
+    rng = random.Random(seed + predicate_offsets[predicate])
+    cases: list[dict[str, object]] = []
+    for case_index in range(count):
+        points = []
+        for _point in range(arity):
+            coordinates = []
+            for _axis in range(dimension):
+                mantissa = rng.randint(-4096, 4096)
+                exponent = rng.randint(-80, 80)
+                coordinates.append(math.ldexp(float(mantissa), exponent))
+            points.append(coordinates)
+        cases.append({
+            "id": f"rnd_{predicate}_{case_index:06d}",
+            "class": "random-structured",
+            "seed": seed,
+            "points": point_bits(points),
+        })
+    return cases
+
+
+def render_fixture_with_random(predicate: str, random_cases: int, seed: int) -> str:
+    dimension, arity = PREDICATE_SPECS[predicate]
+    lines = [
+        "# D26PRED 1",
+        f"# predicate={predicate}",
+        "# encoding=ieee754-binary64-bits-hex",
+        f"# dimension={dimension}",
+        f"# arity={arity}",
+        f"# coordinate_count={dimension * arity}",
+        f"# generator={GENERATOR_VERSION}",
+    ]
+    cases = list(canonical_cases()[predicate])
+    cases.extend(structured_random_cases(predicate, random_cases, seed))
+    lines.extend(_format_case(predicate, case) for case in cases)
+    return "\n".join(lines) + "\n"
+
+
+def generate_all_with_random(output_dir, random_cases: int, seed: int) -> None:
+    from pathlib import Path
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    for predicate in PREDICATE_SPECS:
+        (output / f"{predicate}.d26pred").write_text(
+            render_fixture_with_random(predicate, random_cases, seed),
+            encoding="utf-8",
+        )
