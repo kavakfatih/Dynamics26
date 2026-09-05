@@ -259,3 +259,32 @@ if(Python3_Interpreter_FOUND)
         LABELS "unit;release;repository;reproducibility"
     )
 endif()
+
+
+# M1.6 — executable robust-geometry verification prototype
+add_executable(
+    unit_m16_predicate_fixture_reader
+    meshing/robust_geometry/test_predicate_fixture_reader.cpp
+)
+target_link_libraries(unit_m16_predicate_fixture_reader PRIVATE femcae_meshing)
+femcae_enable_warnings(unit_m16_predicate_fixture_reader)
+add_test(
+    NAME unit_m16_predicate_fixture_reader
+    COMMAND unit_m16_predicate_fixture_reader
+            ${CMAKE_CURRENT_SOURCE_DIR}/meshing/robust_geometry/fixtures
+)
+set_tests_properties(unit_m16_predicate_fixture_reader PROPERTIES
+    LABELS "unit;meshing;robust-geometry;predicate;fixture;determinism"
+)
+
+if(Python3_Interpreter_FOUND)
+    add_test(
+        NAME unit_m16_exact_oracle
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/meshing/robust_geometry/test_oracle_generation.py
+                ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(unit_m16_exact_oracle PROPERTIES
+        LABELS "unit;meshing;robust-geometry;predicate;exact-oracle;determinism"
+    )
+endif()
