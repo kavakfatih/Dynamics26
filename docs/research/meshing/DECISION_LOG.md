@@ -1177,3 +1177,125 @@ SPR/multi-face remain research and oracle tracks.
 ### Evidence needed
 
 M6-R37..M6-R48.
+
+
+---
+
+## ADR-MESH-0032 — Commit acceptance uses exact sorted mean-ratio order; aggregate objectives generate proposals
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-06
+
+### Decision candidate
+
+For a legal changed cavity C, define:
+
+    QMRVector(C)
+      =
+    sorted q_MR values from worst to best.
+
+Candidate commit requires:
+
+    QMRVector(new)
+      >_lex
+    QMRVector(old).
+
+Rules:
+- first differing q_MR decides,
+- if one vector is an exact prefix of the other, shorter wins,
+- exactly equal vectors do not mutate topology,
+- canonical connectivity only breaks ties among multiple equally improving candidates.
+
+### Why not q_min alone
+
+q_min is the first component and remains strongly protected.
+
+But QMRVector can also improve:
+- second worst,
+- third worst,
+- deeper low-tail elements
+
+when q_min itself is unchanged.
+
+### Why not an aggregate mean
+
+Arithmetic/harmonic/inverse-mean objectives can:
+- improve while the worst tetrahedron becomes worse,
+- reject a useful second-worst improvement because high-quality cells decrease.
+
+They remain valuable differentiable proposal objectives, especially for smoothing.
+
+### Exact q_MR order
+
+For positive tetrahedron:
+
+    q_MR
+      =
+    12(3V)^(2/3)/S
+
+with:
+
+    D = 6V
+    S = sum of six squared edge lengths.
+
+Then:
+
+    q_MR^3
+      =
+    432 D^2/S^3.
+
+Hence the exact quality order is the sign of:
+
+    D_A^2 S_B^3
+      -
+    D_B^2 S_A^3.
+
+Canonical binary64 coordinates make D and S exact dyadic rationals under exact evaluation.
+
+This gives a research path to a deterministic exact q_MR comparator without pow/cube-root or
+pairwise epsilon equality.
+
+### Local/global theorem
+
+If a local changed submesh quality multiset improves lexicographically, adding the identical unchanged
+mesh-quality multiset to old and new preserves the comparison.
+
+Therefore local cavity comparison is sufficient for global monotone QualityVector improvement.
+
+### Strong-search update
+
+Max-min remains an independent first-component oracle.
+
+For full lexicographic SPR search, a partial sorted QMRVector padded with +infinity is an admissible
+upper bound for every completion.
+
+Therefore lexicographic branch-and-bound is a valid research target.
+
+The earlier max-min equality prune applies only to max-min-only optimization.
+
+### Termination consequence
+
+For fixed coordinates/sites and point-set-preserving connectivity:
+- finite state space,
+- strict exact QMRVector improvement,
+- no mutation on equality
+
+imply cycle-free finite accepted mutation history.
+
+Smoothing remains continuous and still needs independent convergence controls.
+
+### Policy placeholders
+
+Research-only candidate version names:
+
+    D26QMR1
+    D26QV1
+    D26QACC1.
+
+They are not accepted API contracts.
+
+### Evidence needed
+
+M6-R49..M6-R60.
+
+No production M6 implementation is authorized.

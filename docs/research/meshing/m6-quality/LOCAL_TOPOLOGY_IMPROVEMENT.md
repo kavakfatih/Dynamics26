@@ -137,27 +137,29 @@ A conservative first comparison is:
 
 This cannot sacrifice the old worst element for a better average.
 
-However pure max-min hill climbing can stall.
+However pure max-min hill climbing can stall even when the second-worst or third-worst tetrahedron can
+improve without changing q_min.
 
-Research candidate for deterministic secondary comparison:
+The current leading research order is therefore:
 
-    QualityKey(C)
-      = (
-          q_min,
-          harmonic_mean(q_MR),
-          arithmetic_mean(q_MR),
-          -cell_count
-        )
+    QMRVector(C)
+      =
+    sort_ascending(q_MR over C)
 
-compared lexicographically after hard validity.
+compared lexicographically from worst to best.
 
-This is not accepted yet; Q2 experiments must compare it against:
-- pure max-min,
-- combined worst + average objectives,
-- angle-based objectives.
+For different cell counts, if one vector is an exact prefix of the other, the shorter vector wins.
 
-Freitag/Knupp and Freitag/Ollivier-Gooch provide evidence that worst-element and aggregate objectives
-have complementary behavior.
+Consequences:
+- q_min remains the first and strongest component,
+- second/third/... worst improvements are visible,
+- aggregate means cannot compensate for a worse low-tail element,
+- local cavity comparison implies global quality-vector improvement.
+
+Harmonic/inverse-mean-ratio and arithmetic/average objectives remain valuable proposal/smoothing
+objectives, but they are not the leading commit-acceptance order.
+
+See QUALITY_ORDER_AND_ACCEPTANCE_POLICY.md.
 
 ## 8. Numerical quality comparison is not a geometric predicate
 
@@ -300,3 +302,35 @@ This proof does not extend directly to:
 - unrestricted point insertion/deletion, because the point set changes.
 
 Those paths require separate convergence/resource stop policies.
+
+
+## 17. Exact mean-ratio ordering update
+
+For positive tetrahedra:
+
+    q_MR
+      =
+    12 (3V)^(2/3)
+      / sum_edges l^2.
+
+With:
+
+    D = 6V
+    S = sum_edges l^2
+
+we have:
+
+    q_MR^3
+      =
+    432 D^2/S^3.
+
+Therefore q_MR ordering can be reduced to the exact sign of:
+
+    D_A^2 S_B^3
+      -
+    D_B^2 S_A^3.
+
+For canonical binary64 coordinates all factors admit exact dyadic evaluation.
+
+This is the leading research path for a deterministic quality comparator without pairwise epsilon
+equality.

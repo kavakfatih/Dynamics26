@@ -347,11 +347,15 @@ and:
 
     U(P) <= q_best,
 
-then the branch cannot produce a strictly better max-min solution and may be pruned.
+then the branch cannot produce a strictly better **max-min-only** solution and may be pruned.
 
-This is a simple admissible branch-and-bound upper bound.
+This is a simple admissible branch-and-bound upper bound for the max-min objective.
 
-It follows directly from the max-min objective.
+Important later research update:
+- equality pruning is **not** sufficient for a full lexicographic quality-vector objective,
+- a branch tying q_best at the worst element can still improve the second/third worst elements.
+
+See QUALITY_ORDER_AND_ACCEPTANCE_POLICY.md for the stronger lexicographic bound.
 
 ## 9. Why the first SPR objective should remain max-min
 
@@ -901,3 +905,41 @@ And the key engineering separation is:
     while committed mesh states remain strictly improving and valid.
 
 This document authorizes no production M6 code.
+
+
+## 31. Quality-order research update — lexicographic strong search
+
+The initial SPR research deliberately used max-min because its pruning bound is simple.
+
+M6 quality-order research now derives a stronger objective:
+
+    QMRVector(T)
+      =
+    sorted q_MR values, worst to best,
+
+with exact-prefix shorter-vector semantics.
+
+For a partial triangulation P:
+
+    Q_upper(P)
+      =
+    QMRVector(P) padded with +infinity
+
+is an optimistic lexicographic upper bound because any completion only adds finite-quality
+tetrahedra.
+
+Therefore if:
+
+    Q_upper(P)
+      <=_lex
+    Q_best,
+
+the branch may be pruned safely for a full lexicographic search.
+
+This means:
+- max-min remains an independent first-component oracle,
+- full QMRVector branch-and-bound is mathematically feasible,
+- branches with equal worst quality must not be discarded if their remaining low-tail entries can
+  improve.
+
+This update supersedes any implication that max-min must remain the final SPR objective.

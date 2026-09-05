@@ -387,3 +387,79 @@ Production decisions remain based on:
 - quantitative metric vector,
 - CAD/sizing constraints,
 - solver/formulation evidence.
+
+
+## 19. Optimization acceptance order
+
+The current leading M6 commit order is not:
+- arithmetic average,
+- harmonic average,
+- q_min alone.
+
+It is the sorted local mean-ratio vector:
+
+    QMRVector(C)
+      =
+    sort_ascending(q_MR(T), T in C)
+
+compared lexicographically.
+
+If the common prefix is exactly equal and cell counts differ:
+- shorter vector wins.
+
+If vectors are exactly equal:
+- no mutation.
+
+Canonical topology may select among equally improving candidates but does not authorize an
+equal-quality commit.
+
+## 20. Exact mean-ratio comparison
+
+For a positive tetrahedron:
+
+    q_MR^3
+      =
+    432 D^2/S^3
+
+where:
+- D is exact six-times-volume magnitude,
+- S is the sum of six squared edge lengths.
+
+Thus two tetrahedra can be ordered by the exact dyadic sign of:
+
+    D_A^2 S_B^3
+      -
+    D_B^2 S_A^3
+
+for canonical binary64 coordinates.
+
+This exact-order research path is preferred over a pairwise floating epsilon comparator.
+
+## 21. No epsilon equality inside QualityVector sorting
+
+A relation:
+
+    |a-b| < delta
+
+is not transitive and therefore is unsuitable as an equality relation for:
+- sorting,
+- priority ordering,
+- QualityVector comparison.
+
+Convergence margins for smoothing remain separate stop/gain policies.
+
+## 22. Proposal versus commit objective
+
+Continuous smoothing may use:
+- inverse mean ratio,
+- harmonic/aggregate objectives,
+- condition-number objectives,
+- max-min/nonsmooth objectives.
+
+A generated candidate still requires:
+- exact validity,
+- strict QMRVector improvement
+
+before commit.
+
+This prevents aggregate compensation from worsening the low-quality tail.

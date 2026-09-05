@@ -659,3 +659,155 @@ verify that the two search variables unlock one another.
 | M6-R48 | successful strong reconnection restarts cheap local passes and preserves exact boundary/provenance/size acceptance |
 
 These are research/verification-design gates only.
+
+
+## Tier Q2-I — QualityOrder / acceptance objective fixtures
+
+### Pure max-min versus sorted quality vector
+
+Use local vectors:
+
+    old = [0.20,0.30,0.80]
+    new = [0.20,0.31,0.32].
+
+Require:
+- max-min reports a first-component tie,
+- QMRVector reports strict improvement.
+
+### Aggregate worst-regression negative control
+
+Use:
+
+    old = [0.20,0.20]
+    new = [0.19,0.50].
+
+Require:
+- arithmetic mean improves,
+- harmonic mean / inverse-mean aggregate improves,
+- QMRVector rejects because the worst tetrahedron degrades.
+
+### Aggregate low-tail rejection negative control
+
+Use:
+
+    old = [0.20,0.30,0.80]
+    new = [0.20,0.31,0.32].
+
+Require:
+- QMRVector accepts,
+- arithmetic and harmonic means decrease.
+
+Purpose:
+prove aggregate and low-tail objectives answer different questions.
+
+## Tier Q2-J — exact q_MR ordering oracle
+
+For each positive tetra compute independently:
+
+    q_MR
+      =
+    12(3V)^(2/3)/S
+
+and exact-order ratio:
+
+    R_MR
+      =
+    D^2/S^3.
+
+Require:
+
+    q_MR^3
+      =
+    432 R_MR
+
+against high-precision reference arithmetic.
+
+Pairwise exact ordering must use:
+
+    sign(
+      D_A^2 S_B^3
+      -
+      D_B^2 S_A^3
+    ).
+
+Test:
+- regular tetra,
+- sliver/needle/wedge families,
+- dyadic scales,
+- nearly equal qualities,
+- exact quality ties,
+- coordinate permutations preserving the same positive tet.
+
+## Tier Q2-K — epsilon-comparator negative control
+
+Choose:
+
+    a = 0
+    b = 0.75 delta
+    c = 1.50 delta.
+
+Demonstrate:
+
+    a ~= b
+    b ~= c
+    a !~= c
+
+under pairwise absolute-epsilon equality.
+
+Require:
+- no QualityVector implementation uses this relation as its sort equality.
+
+## Tier Q2-L — local/global multiset order oracle
+
+Enumerate finite quality multisets over a small exact rational alphabet.
+
+For every:
+- unchanged multiset U,
+- old local A,
+- new local B,
+
+verify:
+
+    B >_lex A
+
+implies:
+
+    sort(U union B)
+      >_lex
+    sort(U union A).
+
+Include different old/new cell counts and exact-prefix cases.
+
+## Tier Q2-M — lexicographic SPR branch bound
+
+For tractable fixed cavities:
+- enumerate all legal complete tetrahedralizations independently,
+- compute the exact best QMRVector,
+- run branch-and-bound using partial QMRVector padded with +infinity as upper bound.
+
+Require exact agreement.
+
+Also run the max-min oracle.
+
+Require:
+- both agree on best worst quality,
+- lex search may select a better second/third-worst triangulation among equal-min candidates.
+
+## Additional M6 quality-order research gates
+
+| Gate | Requirement |
+|---|---|
+| M6-R49 | QMRVector strictly refines q_min on second/third-worst improvement fixtures |
+| M6-R50 | variable-cell-count exact-prefix rule is deterministic and local/global composable |
+| M6-R51 | q_MR^3 = 432 D^2/S^3 exact-order oracle matches independent high-precision evaluation |
+| M6-R52 | adversarial near-equal q_MR pairs resolve through exact dyadic comparison, not pairwise epsilon |
+| M6-R53 | epsilon-equality negative control demonstrates non-transitivity |
+| M6-R54 | aggregate arithmetic/harmonic objectives demonstrate both worst-regression and low-tail-rejection counterexamples |
+| M6-R55 | exhaustive finite-multiset oracle proves local QMRVector improvement implies global improvement |
+| M6-R56 | connectivity-only replay with strict exact QMRVector improvement is cycle-free |
+| M6-R57 | lexicographic SPR branch-and-bound matches exhaustive small-cavity QMRVector optimum |
+| M6-R58 | max-min and lex SPR oracles agree on first component but expose equal-worst secondary differences |
+| M6-R59 | smoothing proposal objectives commit only through exact validity + QMRVector acceptance |
+| M6-R60 | Debug/Release repeated runs reproduce candidate selection and exact quality ties for fixed policy |
+
+These remain research/verification-design gates.

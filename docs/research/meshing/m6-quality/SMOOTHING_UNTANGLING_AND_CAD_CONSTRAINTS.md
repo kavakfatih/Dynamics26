@@ -324,3 +324,44 @@ Future smoothing convergence policy must explicitly define combinations of:
 - active-set stall.
 
 These are optimizer-policy values, not geometric tolerances.
+
+
+## 19. Proposal objective versus authoritative acceptance
+
+Smooth inverse-mean-ratio / condition-number objectives are attractive because they support
+differentiable nonlinear optimization.
+
+They are now treated as **proposal objectives**.
+
+A proposal does not become mesh authority merely because its aggregate objective improves.
+
+Leading commit rule:
+
+    exact positive local star
+      +
+    QMRVector(new star)
+      >_lex
+    QMRVector(old star).
+
+This combines the numerical convenience of aggregate smoothing with worst-tail protection.
+
+## 20. Aggregate-objective negative controls
+
+Research fixtures must include at least:
+
+### Worst regression accepted by harmonic mean
+
+    old = [0.20,0.20]
+    new = [0.19,0.50].
+
+Harmonic mean improves while the worst tetrahedron degrades.
+
+### Lex improvement rejected by aggregate mean
+
+    old = [0.20,0.30,0.80]
+    new = [0.20,0.31,0.32].
+
+The second worst improves, so the lexicographic low tail improves, while arithmetic/harmonic means
+decrease.
+
+These fixtures prove proposal and commit objectives must remain distinct.
