@@ -11,7 +11,7 @@
 4. Mevcut Fortran nonlinear core yeni Newton demo yazmayı gerektirmiyor; kritik eksik general-model immutable snapshot + product C ABI bridge'dir.
 5. Mixed `u-p`, Contact ve rubber yalnız material-card problemi değildir; element formulation + matrix properties + linear backend + tangent contracts birlikte ele alınmalıdır.
 6. Full plugin SDK'yı V1.3'e ertelemek mümkündür, fakat typed capability/descriptor/DTO contracts V1.1/V1.2'de başlamalıdır.
-7. Keyfi automotive CAD workflow için mature volume-meshing adapter araştırmak, genel 3D mesheri sıfırdan yazmaktan daha doğru kısa/orta vadeli yoldur. Netgen güçlü adaydır ancak adoption kararı değildir.
+7. Keyfi automotive CAD workflow için Dynamics26 kendi özgün meshing çekirdeğini geliştirecektir. Netgen/Gmsh/MMG/TetGen/CGAL yalnız teori, mimari, failure-mode ve benchmark araştırma kaynaklarıdır; production meshing engine olarak entegre edilmeleri mevcut strateji değildir.
 8. Rubber roadmap'in Definition of Done'u cross-code benzerliği değil, material-point → element → benchmark → physical correlation zinciridir.
 
 # 2. Current Dynamics26 source reality
@@ -227,42 +227,50 @@ FEBio secondary open-source reference for:
 
 Dynamics26 solver algorithm roadmap'ı FEBio'nun yöntemlerini kopyalamaz; Full Newton baseline stabilize edilmeden quasi-Newton/BFGS öncelik olmaz.
 
-# 8. Volume meshing strategy research
+# 8. Volume meshing strategy research — superseded direction
 
-Current structured box mesher useful verification/product vertical slice baseline'dır fakat real automotive parts için yeterli değildir.
+The earlier adapter-oriented strategy has been superseded by the original-engine decision recorded on 2026-09-05.
 
-## Netgen candidate
+Current direction:
 
-Public Netgen project:
+```text
+Academic / mathematical literature
++ commercial CAE capability benchmarks
++ open-source architecture/failure/test studies
+        ↓
+independent Dynamics26 specification
+        ↓
+original Dynamics26 meshing implementation
+        ↓
+independent verification corpus
+```
 
-- automatic 3D tetrahedral meshing,
-- geometry-kernel-based STEP/IGES path,
-- mesh optimization,
-- hierarchical refinement,
-- library API,
-- Unix/Windows/OSX,
-- LGPL-2.1.
+Netgen, Gmsh, MMG, TetGen and CGAL remain important research references, but they are not the planned V1.2 production meshing engine.
 
-### Adoption gate
+The authoritative meshing research library is:
 
-Before adding dependency:
+- `docs/research/meshing/README.md`
+- `docs/research/meshing/SOURCE_REGISTRY.md`
+- `docs/research/meshing/ALGORITHM_TAXONOMY.md`
+- `docs/research/meshing/CLEAN_ROOM_POLICY.md`
+- `docs/research/meshing/DYNAMICS26_ORIGINAL_MESHER_ARCHITECTURE.md`
+- `docs/research/meshing/ROADMAP_AND_EXPERIMENTS.md`
+- `docs/research/meshing/DECISION_LOG.md`
 
-1. **License:** linking/distribution/package review.
-2. **Build:** Apple Silicon reproducibility, CMake integration, CI cost.
-3. **Geometry:** OCCT/B-Rep direct transfer; display tessellation never solver mesh source.
-4. **Provenance:** CAD Face persistent key → generated surface facets.
-5. **Topology:** first/second-order tetra support and data extraction.
-6. **Quality:** Jacobian/sliver/aspect metrics exposed or recomputed internally.
-7. **Controls:** global/local size, curvature, narrow-region behavior.
-8. **Determinism:** stable test behavior; raw mesh IDs need not be stable if provenance/remap is.
-9. **Failure:** typed diagnostics for invalid CAD/mesh failure.
-10. **Benchmark:** automotive/rubber geometry corpus.
+The initial original-engine research ladder is:
 
-### Decision
+1. robust geometric predicates,
+2. spatial search / point location,
+3. incremental Delaunay tetrahedralization on point clouds,
+4. CAD edge discretization and surface meshing,
+5. constrained boundary recovery,
+6. Delaunay refinement and size-field control,
+7. quality optimization / sliver treatment,
+8. CAD Face → FEM boundary-facet provenance,
+9. TET4 product qualification,
+10. TET10 and advanced meshing only after the baseline is verified.
 
-**RESEARCH CANDIDATE — NOT YET ADOPTED**
-
-A full general 3D mesher should not be built from scratch before this evaluation.
+`StructuredHexMesher` remains a supported deterministic baseline during this R&D program.
 
 # 9. Solver matrix-property research
 
