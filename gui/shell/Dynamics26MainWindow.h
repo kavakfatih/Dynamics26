@@ -57,6 +57,7 @@ public:
     [[nodiscard]] GraphicsWorkspace *graphics() const noexcept { return graphics_; }
     [[nodiscard]] DetailsHost *detailsHost() const noexcept { return details_; }
     [[nodiscard]] UtilityWorkspace *utility() const noexcept { return utility_; }
+    [[nodiscard]] SelectionCoordinator *selectionCoordinator() const noexcept;
     void selectObject(ObjectId id);
     [[nodiscard]] ObjectId firstObjectOfType(ObjectType type) const;
     [[nodiscard]] QVector<ObjectId> objectsOfType(ObjectType type) const;

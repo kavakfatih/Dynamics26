@@ -182,6 +182,11 @@ void ObjectDetails::buildNamedSelectionsFolder()
         return;
     }
     definition->addValueRow(tr("Named Selections"), QString::number(services_.namedSelections->count()));
+    auto *create = makeActionButton(tr("New Named Selection"));
+    create->setObjectName(QStringLiteral("Dynamics26NewNamedSelection"));
+    definition->addFullWidth(create);
+    connect(create, &QPushButton::clicked, this, [this] { emit requestCommand(QStringLiteral("selection.beginNamed")); });
+    definition->addNote(tr("Face seçin → Create Named Selection. Birden çok Face için Shift kullanın."));
     definition->addNote(tr("Named Selection; transient viewport seçimini CAD topology veya FEM mesh "
                            "kimlikleriyle kalıcı bir mühendislik kapsamına dönüştürür."));
 }
@@ -204,6 +209,8 @@ void ObjectDetails::buildNamedSelection()
     const ScopeReference &scope = definition->scope;
     const ScopeEntityReference &first = scope.entities.front();
     definitionSection->addValueRow(tr("Name"), definition->name);
+    definitionSection->addValueRow(tr("Scoping Method"), first.domain == SelectionDomain::Geometry
+        ? tr("Geometry Selection") : tr("Mesh Selection"));
     definitionSection->addValueRow(tr("Domain"), scopeDomainName(first.domain));
     definitionSection->addValueRow(tr("Entity Type"), scopeKindName(first.kind));
     definitionSection->addValueRow(tr("Entities"), QString::number(scope.entities.size()));

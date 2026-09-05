@@ -13,6 +13,7 @@
 #include "Dynamics26MainWindow.h"
 #include "EngineeringStatusBar.h"
 #include "ProjectNavigator.h"
+#include "CommandRegistry.h"
 
 #include <QAction>
 #include <QHash>
@@ -325,6 +326,7 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
     configurePolicy(graphics_->selectionFilter());
     QTimer::singleShot(0, this, [this] {
         refreshSelectionScene();
+        window_->syncCommandStates();
         updateFeedback();
     });
 }
@@ -788,56 +790,12 @@ void SelectionCoordinator::showSelectionContextMenu(const ObjectId objectId,
                                return entity.domain == SelectionDomain::Geometry
                                    && entity.kind == SelectionKind::Face;
                            });
-        // ANSYS/COMSOL benzeri hızlı authoring yolu: viewport'ta seçilmiş gerçek
-        // CAD Face seti önce persistent Named Selection olarak dondurulur, ardından
-        // Fixed Support / Force bu ObjectId'ye bağlanır. BC/load içine topology ID
-        // kopyalanmaz; existing stale-detection ve resolver tek doğruluk kaynağı
-        // olarak kalır. İki document mutation tek Undo transaction'dır.
-        QAction *insertBefore = menu->actions().isEmpty() ? nullptr : menu->actions().constFirst();
-        if (geometryFaceScope && window_->currentAnalysis() != InvalidObjectId
-            && services_.analysis != nullptr) {
-            auto *supportAction = new QAction(tr("Fixed Support from Selection"), menu);
-            supportAction->setToolTip(
-                tr("Seçili CAD Face kapsamını kalıcı scope olarak kaydet ve Fixed Support oluştur"));
-            connect(supportAction, &QAction::triggered, this, [this] {
-                (void)createBoundaryConditionFromCurrentFaceSelection(
-                    BoundaryFromSelectionKind::FixedSupport);
-            });
-
-            auto *forceAction = new QAction(tr("Force from Selection"), menu);
-            forceAction->setToolTip(
-                tr("Seçili CAD Face kapsamını kalıcı scope olarak kaydet ve Force oluştur"));
-            connect(forceAction, &QAction::triggered, this, [this] {
-                (void)createBoundaryConditionFromCurrentFaceSelection(
-                    BoundaryFromSelectionKind::TotalForce);
-            });
-
-            if (insertBefore == nullptr) {
-                menu->addAction(supportAction);
-                menu->addAction(forceAction);
-            } else {
-                menu->insertAction(insertBefore, supportAction);
-                menu->insertAction(insertBefore, forceAction);
-            }
-        }
-
-        auto *createAction = new QAction(tr("Create Named Selection"), menu);
-        createAction->setToolTip(tr("Geçerli CAD/FEM seçimini kalıcı engineering scope olarak kaydet"));
-        connect(createAction, &QAction::triggered, this, [this] {
-            const NamedSelectionCreateResult created = createNamedSelectionFromCurrentSelection();
-            if (!created.success() || window_ == nullptr) {
-                return;
-            }
-            // Persistence tamamlandıktan sonra transient seçim document state'i
-            // değildir; yeni Named Selection current project object yapılır.
-            window_->selectObject(created.id);
-        });
-
-        if (insertBefore == nullptr) {
-            menu->addAction(createAction);
-        } else {
-            menu->insertAction(insertBefore, createAction);
-            menu->insertSeparator(insertBefore);
+        window_->syncCommandStates();
+        auto *commands = window_->commandRegistry();
+        menu->addAction(commands->action(QStringLiteral("selection.createNamed")));
+        if (geometryFaceScope) {
+            menu->addAction(commands->action(QStringLiteral("selection.createSupport")));
+            menu->addAction(commands->action(QStringLiteral("selection.createForce")));
         }
     }
 
@@ -993,6 +951,9 @@ void SelectionCoordinator::handleSelectionChanged()
     if (meshBridge_ != nullptr) {
         meshBridge_->setSelection(selection_->items());
     }
+    // Aynı Body üzerindeki ikinci Face seçimi Navigator'ı değiştirmez; komutların
+    // etkinliği yine de güncel transient scope'tan hesaplanmalıdır.
+    if (window_) window_->syncCommandStates();
     updateFeedback();
 }
 

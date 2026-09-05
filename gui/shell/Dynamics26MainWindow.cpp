@@ -1,4 +1,5 @@
 #include "Dynamics26MainWindow.h"
+#include "SelectionCoordinator.h"
 
 #include "../commands/ContactCommands.h"
 #include "../commands/DomainCommands.h"
@@ -58,6 +59,7 @@
 #include <QFontDatabase>
 
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <exception>
 #include <vector>
@@ -350,6 +352,13 @@ void Dynamics26MainWindow::buildLayout()
     setStatusBar(engineeringStatus_);
 }
 
+SelectionCoordinator *Dynamics26MainWindow::selectionCoordinator() const noexcept
+{
+    for (QObject *child : children())
+        if (auto *coordinator = dynamic_cast<SelectionCoordinator *>(child)) return coordinator;
+    return nullptr;
+}
+
 void Dynamics26MainWindow::buildCommands()
 {
     commands_ = new CommandRegistry(this);
@@ -363,6 +372,15 @@ void Dynamics26MainWindow::buildCommands()
                    QString(), tr("Mevcut geometriyi yeni bir STEP dosyasıyla değiştir"));
     commands_->add(QStringLiteral("geometry.importSection"), tr("Import Section"), CommandGlyph::NamedSelection,
                    QString(), tr("DXF kesit profili içe aktar"));
+
+    commands_->add(QStringLiteral("selection.createNamed"), tr("Create Named Selection"),
+                   CommandGlyph::NamedSelection, QString(), tr("Seçili CAD/FEM kapsamını kaydet"));
+    commands_->add(QStringLiteral("selection.beginNamed"), tr("New Named Selection"),
+                   CommandGlyph::NamedSelection, QString(), tr("Geometry seçimini başlat"));
+    commands_->add(QStringLiteral("selection.createSupport"), tr("Fixed Support from Selection"),
+                   CommandGlyph::InsertSupport);
+    commands_->add(QStringLiteral("selection.createForce"), tr("Force from Selection"),
+                   CommandGlyph::InsertForce, QString(), tr("Seçili tüm yüzler için tek Total Force oluştur"));
 
     commands_->add(QStringLiteral("mesh.generate"), tr("Generate Mesh"), CommandGlyph::GenerateMesh,
                    QStringLiteral("F7"), tr("Structured HEX8 mesh üret"));
@@ -731,6 +749,24 @@ void Dynamics26MainWindow::handleCommand(const QString &id)
         showSystemInformation();
     } else if (id == QStringLiteral("help.about")) {
         showAbout();
+    } else if (id == QStringLiteral("selection.beginNamed")) {
+        if (auto *coordinator = selectionCoordinator()) {
+            coordinator->cancelNamedSelectionEdit();
+            selectObject(project_->geometryNode());
+            graphics_->setSelectionFilter(SelectionFilter::Face);
+            graphics_->viewport()->setFocus();
+            statusBar()->showMessage(tr("Face seçin; çoklu seçim için Shift kullanın. Ardından Create Named Selection."));
+        }
+    } else if (id == QStringLiteral("selection.createNamed")) {
+        if (auto *coordinator = selectionCoordinator()) {
+            const auto created = coordinator->createNamedSelectionFromCurrentSelection();
+            if (created.success()) { navigator_->expandAll(); selectObject(created.id); syncAll(); }
+        }
+    } else if (id == QStringLiteral("selection.createSupport") || id == QStringLiteral("selection.createForce")) {
+        if (auto *coordinator = selectionCoordinator())
+            (void)coordinator->createBoundaryConditionFromCurrentFaceSelection(
+                id == QStringLiteral("selection.createSupport")
+                    ? BoundaryFromSelectionKind::FixedSupport : BoundaryFromSelectionKind::TotalForce);
     } else if (id == QStringLiteral("geometry.import")) {
         importGeometry(false);
     } else if (id == QStringLiteral("geometry.replace")) {
@@ -1091,6 +1127,19 @@ void Dynamics26MainWindow::syncViewport()
 
 void Dynamics26MainWindow::syncCommandStates()
 {
+    auto *coordinator = selectionCoordinator();
+    const auto scope = coordinator ? coordinator->currentPersistentScope() : ScopeReferenceBuildResult{};
+    const bool authoring = coordinator && coordinator->editingNamedSelection() == InvalidObjectId
+        && coordinator->editingContact() == InvalidObjectId && !solving_;
+    const bool validScope = authoring && scope.success();
+    const bool faces = validScope && std::all_of(scope.scope.entities.cbegin(), scope.scope.entities.cend(),
+        [](const auto &entity) { return entity.domain == SelectionDomain::Geometry && entity.kind == SelectionKind::Face; });
+    commands_->setEnabled(QStringLiteral("selection.createNamed"), validScope,
+                          tr("Güncel CAD/FEM seçimi gerekli. Açık scope düzenlemesini önce tamamlayın."));
+    commands_->setEnabled(QStringLiteral("selection.beginNamed"), authoring, tr("Önce açık düzenlemeyi tamamlayın."));
+    for (const auto *id : {"selection.createSupport", "selection.createForce"})
+        commands_->setEnabled(QLatin1String(id), faces && activeAnalysis() != InvalidObjectId,
+                              tr("Aktif analiz ve güncel CAD Face seçimi gerekli."));
     const bool hasGeometry = geometry_->summary().hasGeometry;
     const bool occt = GeometryService::occtAvailable();
     commands_->setEnabled(QStringLiteral("geometry.import"), occt,
@@ -1178,6 +1227,10 @@ void Dynamics26MainWindow::syncContextualSurface()
         contextTitle_->setText(tr("GEOMETRY"));
         contextToolBar_->addAction(commands_->action(QStringLiteral("geometry.import")));
         contextToolBar_->addAction(commands_->action(QStringLiteral("geometry.replace")));
+        contextToolBar_->addSeparator();
+        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.createNamed")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.createSupport")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.createForce")));
         contextToolBar_->addAction(commands_->action(QStringLiteral("geometry.importSection")));
         break;
     case ObjectType::Mesh:
@@ -1219,6 +1272,7 @@ void Dynamics26MainWindow::syncContextualSurface()
         break;
     case ObjectType::NamedSelectionsFolder:
         contextTitle_->setText(tr("NAMED SELECTIONS"));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.beginNamed")));
         break;
     case ObjectType::NamedSelection:
         contextTitle_->setText(tr("NAMED SELECTION"));
@@ -2321,6 +2375,8 @@ QMenu *Dynamics26MainWindow::buildContextMenu(const ObjectId id, QWidget *parent
         add("edit.delete");
         break;
     case ObjectType::NamedSelectionsFolder:
+        add("selection.beginNamed");
+        menu.addSeparator();
         add("tree.expandAll");
         add("tree.collapseAll");
         break;

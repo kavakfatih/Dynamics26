@@ -9,6 +9,9 @@
 #include <QMouseEvent>
 #include <QPointer>
 #include <QSet>
+#include <QPushButton>
+#include <QToolBar>
+#include "../shell/CommandRegistry.h"
 #ifdef FEMCAE_GUI_HAS_VTK
 #include <QVTKOpenGLNativeWidget.h>
 #include <vtkRenderer.h>
@@ -49,6 +52,16 @@ inline int runViewportInteractionAcceptance(QApplication &app, Dynamics26MainWin
     if (!temporary.isValid() || !window.saveProjectToPath(baseline)) return 1;
     window.selectObject(services.project->geometryNode());
     flush();
+    window.selectObject(services.project->namedSelectionsNode()); flush();
+    auto *newSelection = window.detailsHost()->findChild<QPushButton *>(QStringLiteral("Dynamics26NewNamedSelection"));
+    check(newSelection && newSelection->isVisible(), "Named Selections folder has visible New Named Selection CTA");
+    const int beforeBegin = undo->index();
+    if (newSelection) newSelection->click();
+    flush();
+    check(undo->index() == beforeBegin && graphics->selectionFilter() == SelectionFilter::Face,
+          "folder CTA starts Face selection without creating an empty scope or Undo entry");
+    auto *createCommand = window.commandRegistry()->action(QStringLiteral("selection.createNamed"));
+    check(createCommand && !createCommand->isEnabled(), "Create Named Selection is disabled without selection");
     graphics->setSelectionFilter(SelectionFilter::Face);
     graphics->viewport()->setIsometricView();
     flush();
@@ -117,6 +130,11 @@ inline int runViewportInteractionAcceptance(QApplication &app, Dynamics26MainWin
     click(positions[0]);
     check(coordinator->selectionManager()->items().size() == 1,
           "real Face click commits one transient selection");
+    bool visibleCommand = false;
+    for (auto *toolbar : window.findChildren<QToolBar *>())
+        visibleCommand |= toolbar->isVisible() && toolbar->actions().contains(createCommand);
+    check(createCommand && createCommand->isEnabled() && visibleCommand,
+          "Face selection enables visible shared Create Named Selection command");
     const int before = undo->index();
     auto menu = secondaryClick(positions[0]);
     check(action(menu, "Create Named Selection") && action(menu, "Fixed Support from Selection")
@@ -159,7 +177,9 @@ inline int runViewportInteractionAcceptance(QApplication &app, Dynamics26MainWin
     check(coordinator->selectionManager()->items().size() == 2, "Shift-click preserves two distinct Faces");
     menu = secondaryClick(positions[1]);
     create = action(menu, "Create Named Selection");
-    if (create) create->trigger();
+    check(create == createCommand, "context menu and command surface share the identical QAction");
+    if (menu) menu->close();
+    check(window.runCommand(QStringLiteral("selection.createNamed")), "visible command creates multi-Face Named Selection");
     if (menu) menu->close();
     flush();
     definition = services.namedSelections->byId(window.navigator()->selectedObject());
@@ -171,6 +191,45 @@ inline int runViewportInteractionAcceptance(QApplication &app, Dynamics26MainWin
               && action(menu, "Fit View") && !action(menu, "Set Rotation Center to Selection"),
           "empty viewport menu only exposes navigation, never stale engineering actions");
     if (menu) menu->close();
+    flush();
+    for (const bool supportKind : {true, false}) {
+        window.selectObject(services.project->geometryNode()); flush();
+        graphics->setSelectionFilter(SelectionFilter::Face);
+        graphics->viewport()->setIsometricView(); flush();
+        click(positions[0]);
+        if (!supportKind) click(positions[1], Qt::ShiftModifier);
+        const int beforeBoundary = undo->index();
+        const auto commandId = supportKind ? QStringLiteral("selection.createSupport") : QStringLiteral("selection.createForce");
+        menu = secondaryClick(positions[0]);
+        auto *boundaryAction = action(menu, supportKind ? "Fixed Support from Selection" : "Force from Selection");
+        check(boundaryAction && boundaryAction == window.commandRegistry()->action(commandId) && boundaryAction->isEnabled(),
+              "Face menu shares enabled canonical boundary authoring command");
+        if (boundaryAction) boundaryAction->trigger();
+        if (menu) menu->close();
+        flush();
+        const ObjectId boundaryId = window.navigator()->selectedObject();
+        const auto *support = services.analysis->support(boundaryId);
+        const auto *force = services.analysis->load(boundaryId);
+        const ObjectId scopeId = supportKind ? (support ? support->namedSelectionId : InvalidObjectId)
+                                            : (force ? force->namedSelectionId : InvalidObjectId);
+        const auto *scope = services.namedSelections->byId(scopeId);
+        check(scope && scope->scope.entities.size() == (supportKind ? 1 : 2) && undo->index() == beforeBoundary + 1,
+              "physical Face menu creates scope plus BC/load in one Undo transaction");
+        if (scope) {
+            undo->undo(); flush();
+            check(!services.project->object(boundaryId) && !services.namedSelections->byId(scopeId),
+                  "one Undo removes boundary object and its owned Named Selection");
+            undo->redo(); flush();
+            support = services.analysis->support(boundaryId); force = services.analysis->load(boundaryId);
+            check((supportKind ? support && support->namedSelectionId == scopeId : force && force->namedSelectionId == scopeId)
+                      && services.namedSelections->validate(scopeId) == ScopeReferenceValidationError::None,
+                  "Redo restores the same boundary and scope ObjectId relationship");
+            check(window.saveProjectToPath(saved) && window.openProjectFromPath(saved), "boundary relationship saves and reopens");
+            flush();
+            check(services.namedSelections->validate(scopeId) == ScopeReferenceValidationError::None,
+                  "reopened boundary keeps persistent Face identities");
+        }
+    }
     check(window.openProjectFromPath(baseline), "interaction acceptance restores original project");
     flush();
     std::cout << "Viewport interaction acceptance " << (failures ? "FAIL" : "PASS") << '\n';
