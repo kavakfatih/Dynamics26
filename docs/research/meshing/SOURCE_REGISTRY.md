@@ -191,3 +191,16 @@ When adding a source:
 | M1.5-MAR-001 | Hexagon Nexus Marc 2026.1 | Current Mentat meshing improvements | https://nexus.hexagon.com/home/product/marc/ | 2026-09-05 |
 | M1.5-MAR-002 | Marc Community — mesh size / strain localization | Hexagon support guidance on refinement and local adaptive remeshing | https://nexus.hexagon.com/community/public/marc/f/marc-community-forum/143880/how-to-decide-proper-mesh-size-and-avoid-strain-localization-in-elements | 2026-09-05 |
 | M1.5-MAR-003 | Marc Community — global remeshing / local adaptivity | Distinct remeshing workflows | https://nexus.hexagon.com/community/public/marc/f/marc-community-forum/149663/can-i-do-remeshing-in-marc-mentat | 2026-09-05 |
+
+
+## M2.0 Delaunay reference-architecture sources
+
+M2.0 also reuses TH-001 (Bowyer), TH-006/TH-007 (Shewchuk robust predicates),
+M1-TH-004 (Simulation of Simplicity), M1.4-TH-001 (walking) and M1.4-DOC-001
+(3D triangulation representation).
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M2-TH-001 | D. F. Watson, Computing the n-dimensional Delaunay tessellation with application to Voronoi polytopes, The Computer Journal 24(2), 1981 | Independent incremental Delaunay/topological construction foundation | https://doi.org/10.1093/comjnl/24.2.167 | 2026-09-05 |
+| M2-TH-002 | O. Devillers, M. Teillaud, Perturbations for Delaunay and weighted Delaunay 3D triangulations, Computational Geometry 44(3), 2011 | Lift-only symbolic perturbation, degenerate 3D deterministic subdivision, no flat tetrahedra, infinite-cell extension | https://doi.org/10.1016/j.comgeo.2010.09.010 | 2026-09-05 |
+| M2-DOC-001 | CGAL Delaunay_triangulation_3 reference | Public conflict-hole connectivity/boundary semantics and finite/infinite sphere-side behavior; architecture/behavior cross-check only | https://doc.cgal.org/latest/Triangulation_3/classCGAL_1_1Delaunay__triangulation__3.html | 2026-09-05 |

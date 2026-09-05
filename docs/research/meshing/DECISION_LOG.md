@@ -413,3 +413,101 @@ This boundary prevents two opposite errors:
 2. hiding M2 implementation inside M1 merely to close the gate.
 
 M2 may begin only after the final M1 closeout audit is QUALIFIED.
+
+
+---
+
+## ADR-MESH-0013 — M2.0 serial ghost-hull reference architecture
+
+**Status:** PROPOSED
+**Date:** 2026-09-05
+
+### Decision candidate
+
+The first Dynamics26 3D point-cloud Delaunay constructor will use:
+- serial incremental Bowyer-Watson construction,
+- no numeric super-tetrahedron,
+- finite + infinite/ghost-cell hull topology,
+- tagged Infinite vertex separate from PointId,
+- deterministic affine-basis bootstrap,
+- brute-force location oracle,
+- deterministic adjacency walk,
+- canonical face keys for local patch stitching,
+- canonical finite/hull fingerprints.
+
+### Rationale
+
+M1 already established exact predicate truth and canonical site identity. Artificial extreme
+coordinates would reintroduce scale and conditioning choices at the construction boundary.
+
+Ghost topology makes convex-hull insertion part of the same adjacency/cavity model and gives every
+facet two incident cells.
+
+### Acceptance
+
+Remains PROPOSED until M2-G01..G20 executable evidence closes the architecture gates.
+
+---
+
+## ADR-MESH-0014 — Delaunay-specific lift-only symbolic tie policy
+
+**Status:** PROPOSED
+**Date:** 2026-09-05
+
+### Decision candidate
+
+The production M2 Delaunay tie rule will not directly reuse the M1 general spatial-coordinate
+symbolic oracle.
+
+For exact InSphere/InCircle zero:
+- keep real x/y/z coordinates unchanged,
+- conceptually perturb only the lifted coordinate by ordered infinitesimals,
+- use canonical PointId relative order as fixed global symbolic priority,
+- evaluate the first non-zero exact orientation cofactor,
+- never construct numeric epsilon.
+
+Exact Orient3D zero remains geometric truth and is never symbolically promoted into a finite
+tetrahedron.
+
+### Evidence
+
+Devillers-Teillaud 2011 provides specialized 3D perturbation theory and a fixed-order unique
+PP-regular triangulation without flat tetrahedra when sites are not all coplanar.
+
+Dynamics26 row-major cofactor signs are derived in
+m2-delaunay/DELAUNAY_MATHEMATICS.md from the existing M1 determinant layout and require executable
+exact fixtures before acceptance.
+
+### Semantic limit
+
+The selected degenerate subdivision is weakly Delaunay/regular at the limit. Do not overclaim that
+every selected degenerate connectivity is the Delaunay triangulation of a non-degenerate spatial
+coordinate perturbation.
+
+---
+
+## ADR-MESH-0015 — Transactional cavity insertion contract
+
+**Status:** PROPOSED
+**Date:** 2026-09-05
+
+### Decision candidate
+
+M2 mutation follows Plan -> Validate -> Commit.
+
+The existing triangulation is unchanged while location, conflict flood, cavity boundary, candidate
+cells, outside-neighbor patches and symbolic decisions are being validated.
+
+Reference validation includes:
+- connected conflict set,
+- 4C = 2I + B,
+- closed connected boundary 2-manifold,
+- Euler characteristic 2,
+- non-zero/positive finite candidate orientation,
+- reciprocal outside-neighbor patches,
+- exact oracle agreement in small/reference tests.
+
+### Acceptance
+
+Injected invalid plans must prove no mutation; interior/face/edge/hull/exterior fixtures must pass;
+brute-force/flood conflict sets must agree; replay must reproduce failures; exact-head CI must pass.

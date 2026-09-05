@@ -196,7 +196,7 @@ Mandatory before M2:
 
 ### M2 — Delaunay point-cloud tetrahedralization
 
-Status: **AUTHORIZED — M2.0 REFERENCE ARCHITECTURE & EXPERIMENT PLAN FIRST**
+Status: **RESEARCHING — M2.0 REFERENCE ARCHITECTURE & EXPERIMENT PLAN**
 
 Deliver:
 
@@ -437,7 +437,7 @@ Cross-code agreement is supporting evidence, not proof.
 | M1.7 | Exact robust predicate kernel | QUALIFIED |
 | M1.8 | Certified fast predicate path | QUALIFIED |
 | M1.9 | Closeout hardening | QUALIFIED |
-| M2 | Point-cloud Delaunay tetra | AUTHORIZED / M2.0 FIRST |
+| M2 | Point-cloud Delaunay tetra | RESEARCHING / M2.0 |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
 | M5 | Size fields | NOT STARTED |
@@ -461,12 +461,13 @@ BLOCKED
 
 ## 8. Immediate next research tasks
 
-1. M1 second/final closeout audit is PASS at exact-head `6e939eb6...`, workflow #242 SUCCESS,
-2. final closeout status commit must pass its own exact-head macOS arm64 workflow,
-3. then start **M2.0 — Delaunay Reference Architecture & Experiment Plan**,
-4. decide super-tetra vs ghost/infinite hull, first locator/reference locator, cavity transaction model, symbolic-zero consumption, fingerprint and benchmark sets before production insertion,
-5. keep Bowyer-Watson production implementation out of M2.0 until those decisions and acceptance tests are frozen,
-6. continue ANSYS / COMSOL / Marc workflow and quality benchmarking in parallel; do not use proprietary output as predicate truth.
+1. M1 is QUALIFIED; M2.0 research is active.
+2. Maintain the committed m2-delaunay mathematics/architecture package as implementation authority.
+3. Freeze ghost-hull, point-location, symbolic-tie and transactional-cavity contracts.
+4. Freeze M2-G01..G20 acceptance tests before production insertion.
+5. Then implement the serial correctness-first Bowyer-Watson reference path in auditable steps.
+6. Keep spatial ordering, hierarchy, packing and parallelism behind reference-oracle agreement.
+7. Continue commercial workflow/quality benchmarking in parallel; proprietary behavior is never predicate truth.
 
 ### M1.2 — Certified floating-point filters
 Status: **QUALIFIED**
