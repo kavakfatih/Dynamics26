@@ -115,10 +115,11 @@ int runSelfTest(QApplication &app, Dynamics26MainWindow &window)
         window.findChild<QToolButton *>(QStringLiteral("Dynamics26UtilityCollapse"));
     check(utilityCollapse != nullptr, "Diagnostics paneli kendi küçültme kontrolüne sahip");
     QAction *diagnosticsAction = window.commandRegistry()->action(QStringLiteral("panel.diagnostics"));
-    diagnosticsAction->setChecked(true);
+    diagnosticsAction->setChecked(false);
     diagnosticsAction->trigger();
     settle(60);
-    check(window.utility()->isVisible(), "Diagnostics kontrollü biçimde açılıyor");
+    check(window.utility()->isVisible() && diagnosticsAction->isChecked(),
+          "Diagnostics kontrollü biçimde açılıyor");
     if (utilityCollapse != nullptr) {
         utilityCollapse->click();
         settle(60);
@@ -126,11 +127,17 @@ int runSelfTest(QApplication &app, Dynamics26MainWindow &window)
     check(!window.utility()->isVisible() && !diagnosticsAction->isChecked(),
           "Diagnostics kendi bölgesinden küçültülüyor");
 
-    window.selectObject(window.firstObjectOfType(ObjectType::Analysis));
+    const ObjectId shellAnalysis = window.firstObjectOfType(ObjectType::Analysis);
+    window.selectObject(shellAnalysis);
     settle(60);
+    QAction *deactivateAction = window.commandRegistry()->action(QStringLiteral("edit.suppress"));
+    QMenu *analysisContext = window.buildContextMenu(shellAnalysis, &window);
     check(supportsSuppression(ObjectType::Analysis)
-              && window.commandRegistry()->action(QStringLiteral("edit.suppress"))->text() == QStringLiteral("Pasife Al"),
-          "Analysis sağ tık semantiği Pasife Al/Aktifleştir olarak destekleniyor");
+              && deactivateAction->text() == QStringLiteral("Pasife Al")
+              && analysisContext != nullptr
+              && analysisContext->actions().contains(deactivateAction),
+          "Analysis sağ tık menüsü Pasife Al/Aktifleştir semantiğini kullanıyor");
+    delete analysisContext;
 
     check(!ViewportWidget::vtkAvailable() || window.graphics()->viewport()->hasAxisTriad(),
           "viewport: non-interactive axis triad kuruldu");
