@@ -5,7 +5,7 @@ from itertools import permutations
 import math
 import random
 import struct
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, Union
 
 PREDICATE_SPECS = {
     "orient2d": (2, 3),
@@ -48,7 +48,7 @@ def dyadic_from_bits(bits: int) -> tuple[int, int]:
     return sign_value * significand, exponent
 
 
-def sign(value: int | Fraction) -> int:
+def sign(value: Union[int, Fraction]) -> int:
     return (value > 0) - (value < 0)
 
 
@@ -146,9 +146,18 @@ def oracle_b(predicate: str, points_bits: Sequence[Sequence[int]]) -> int:
     """Independent exact dyadic-integer oracle using homogeneous determinants."""
     _validate_shape(predicate, points_bits)
     dyadic_points = [[dyadic_from_bits(bits) for bits in point] for point in points_bits]
-    common_exponent = min(exponent for point in dyadic_points for _, exponent in point)
+    nonzero_exponents = [
+        exponent
+        for point in dyadic_points
+        for significand, exponent in point
+        if significand != 0
+    ]
+    common_exponent = min(nonzero_exponents) if nonzero_exponents else 0
     integer_points = [
-        [significand << (exponent - common_exponent) for significand, exponent in point]
+        [
+            0 if significand == 0 else significand << (exponent - common_exponent)
+            for significand, exponent in point
+        ]
         for point in dyadic_points
     ]
 
@@ -290,7 +299,7 @@ def generate_all(output_dir) -> None:
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
     for predicate in PREDICATE_SPECS:
-        (output / f"{predicate}.d26pred").write_text(render_fixture(predicate), encoding="utf-8", newline="\n")
+        (output / f"{predicate}.d26pred").write_text(render_fixture(predicate), encoding="utf-8")
 
 
 def structured_random_cross_check(cases_per_predicate: int = 128, seed: int = 0xD26) -> int:
