@@ -163,6 +163,9 @@ This separates weak-Delaunay geometric truth from symbolic topology choice.
 | M2-G22 | every exact local tie passes the canonical symbolic legality rule |
 | M2-G23 | unified finite+ghost S^3 Euler/incidence invariants pass |
 | M2-G24 | hull supporting-plane and coplanar hull-diagonal oracles pass on small-N sets |
+| M2-G25 | M2 typed finite/infinite cell validator and fixed ghost-slot convention pass |
+| M2-G26 | reference append-only commit path performs no allocation/predicate after commit barrier |
+| M2-G27 | later slot-reuse experiment preserves fingerprints and rejects stale generations |
 
 M2 is not QUALIFIED until mandatory gates are executable evidence.
 
@@ -203,3 +206,19 @@ M2 output is a research tetrahedralization of a point set. It is not yet arbitra
 
 M3/M4 must still solve CAD curve/facet conformity, boundary recovery, region classification and
 GeometryEntityId provenance. M7 performs actual TET4 solver/product qualification.
+
+
+## Storage telemetry
+
+Reference storage additionally records:
+- total slots,
+- live finite cells,
+- live ghost cells,
+- dead/tombstone slots,
+- peak slots,
+- candidate cells reserved per insertion,
+- stale-handle validation failures,
+- traversal-epoch resets.
+
+Dead-slot growth is accepted for M2.1 reference qualification but becomes an explicit input to the
+later reuse/packing decision.

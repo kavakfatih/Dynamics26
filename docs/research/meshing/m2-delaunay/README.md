@@ -38,6 +38,7 @@ be traceable to a committed derivation or contract. Chat history is not engineer
 - DELAUNAY_MATHEMATICS.md — Orient3D, point location, InSphere, ghost-hull and symbolic-tie mathematics
 - CAVITY_TRANSACTION_SPEC.md — conflict cavity topology, special insertion cases and transaction rules
 - LOCAL_CORRECTNESS_AND_SEED_CONTRACT.md — verified conflict seeds, local/global Delaunay legality and S^3 invariants
+- CELL_STORAGE_AND_MUTATION_MODEL.md — typed finite/infinite cell storage, face conventions, handle and commit-barrier policy
 - EXPERIMENT_PLAN.md — golden cases, brute-force oracles, determinism gates, replay and telemetry
 
 ## Current leading decisions

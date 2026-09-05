@@ -553,3 +553,36 @@ Dynamics26 topology policy.
 ### Acceptance
 
 Requires executable M2-G21..G24 in addition to the original M2.0 qualification gates.
+
+
+---
+
+## ADR-MESH-0017 — Typed ghost cell and append-only reference arena
+
+**Status:** PROPOSED
+**Date:** 2026-09-05
+
+### Decision candidate
+
+M2 does not encode the infinite vertex as a reserved PointId and does not silently change the meaning
+of the M1 finite TetRecord.
+
+The M2 reference topology uses:
+- typed Finite(PointId) / Infinite vertex references,
+- exactly one Infinite vertex in a ghost cell,
+- Infinite fixed at ghost local slot 0,
+- neighbor[i] opposite vertex[i],
+- separate canonical topological face keys and oriented finite faces,
+- append-only/tombstoned cell arena for M2.1 correctness qualification.
+
+Slot reuse, packing and SoA conversion are deferred performance/storage experiments.
+
+### Rationale
+
+The type boundary prevents Infinite from reaching coordinate lookup, exact predicates or symbolic
+site priority. Append-only allocation allows candidate capacity to be reserved before the commit
+barrier and removes free-list/generation-reuse behavior from first-principles topology debugging.
+
+### Acceptance
+
+M2-G25..G27 plus the existing topology/transaction gates.

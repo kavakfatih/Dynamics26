@@ -193,3 +193,18 @@ M2 reference sequence:
 
 Morton/Hilbert/BRIO ordering, hierarchy acceleration, memory packing and parallel insertion are later
 experiments. They may not change canonical topology under the fixed symbolic policy.
+
+
+## M2 cell-storage resolution
+
+The qualified M1 TetRecord remains a finite-only topology primitive. M2 ghost topology will not
+reinterpret InvalidPointId as Infinite.
+
+The M2 reference cell layer uses a typed Finite(PointId)/Infinite vertex reference. Ghost cells have
+exactly one Infinite vertex, fixed at local slot 0; the finite hull facet is therefore opposite slot
+0. Finite and ghost cells retain the neighbor[i] opposite vertex[i] convention.
+
+M2.1 reference storage is append-only/tombstoned after capacity reservation. Slot reuse and compact
+layout are optimization experiments after correctness qualification.
+
+See CELL_STORAGE_AND_MUTATION_MODEL.md.

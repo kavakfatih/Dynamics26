@@ -178,3 +178,20 @@ Point location is qualified when:
 - no infinite loop/cycle occurs,
 - walk step count benefits measurably from spatial ordering,
 - input permutation under stable symbolic identity does not change canonical topology.
+
+
+## 10. M2.0 resolution note — 2026-09-05
+
+Section 8 captured two M1.4 candidates and its then-leading suggestion to prototype P0
+super-tetrahedron first.
+
+M2.0 research has now resolved this open decision in favor of P1 finite+ghost topology. The numeric
+super-tetrahedron is rejected for the reference architecture because it introduces artificial extreme
+coordinates into the robust-predicate boundary.
+
+Current authority:
+- docs/research/meshing/m2-delaunay/M2_0_REFERENCE_ARCHITECTURE.md
+- docs/research/meshing/m2-delaunay/DELAUNAY_MATHEMATICS.md
+- docs/research/meshing/m2-delaunay/LOCAL_CORRECTNESS_AND_SEED_CONTRACT.md
+
+This note supersedes the old "prototype P0 first" suggestion without rewriting M1.4 history.

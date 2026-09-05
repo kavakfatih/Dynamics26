@@ -221,3 +221,18 @@ Required research validator:
 - liveCount consistent.
 
 Run this aggressively in Debug/test builds.
+
+
+## 14. M2.0 resolution note — 2026-09-05
+
+This M1.4 document records the finite-tetra foundation that was later implemented and qualified.
+
+M2.0 subsequently selected explicit ghost/infinite topology. Therefore the finite-only
+PointId[4] TetRecord above is not the final M2 cell semantic and must not encode Infinite through
+InvalidPointId or a reserved PointId.
+
+Current M2 authority:
+docs/research/meshing/m2-delaunay/CELL_STORAGE_AND_MUTATION_MODEL.md.
+
+M1 TetHandle/TetRecord remains valid evidence for finite topology primitives and stale-handle design;
+the M2 cell layer extends the concept with typed finite/infinite vertices.
