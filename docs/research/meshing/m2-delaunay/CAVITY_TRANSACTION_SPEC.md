@@ -231,3 +231,33 @@ M2 replay should preserve enough data to reconstruct a failure without a random 
     - boundary/internal facet keys
     - candidate patch
     - failed invariant / error code
+
+
+## Global closed-complex checks
+
+The finite hull is a 3-ball and the ghost cone is a second 3-ball. Their shared boundary is the hull
+2-sphere, so the unified finite+ghost complex is topologically S^3.
+
+Reference/global checks:
+
+    V - E + F - C = 0
+    F = 2C
+    E = V + C
+
+where V includes the Infinite vertex and C includes finite+ghost cells.
+
+These checks complement, rather than replace, the local cavity boundary Euler check.
+
+## Local legality after patching
+
+For every internal finite face, first verify geometric embedding: the two opposite finite vertices
+must lie on opposite sides of the exact face plane.
+
+Then test local Delaunay legality with exact InSphere. A positive-inside result is illegal. Exact zero
+is weakly legal geometrically but must additionally pass the lift-only symbolic tie rule for the
+canonical Dynamics26 topology.
+
+For hull faces, small-N validation checks exact convex-hull support. Coplanar adjacent hull triangles
+also pass the projected InCircle + symbolic InCircle legality rule.
+
+See LOCAL_CORRECTNESS_AND_SEED_CONTRACT.md.

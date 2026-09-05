@@ -37,6 +37,7 @@ be traceable to a committed derivation or contract. Chat history is not engineer
 - M2_0_REFERENCE_ARCHITECTURE.md — serial reference-construction architecture and data-flow decisions
 - DELAUNAY_MATHEMATICS.md — Orient3D, point location, InSphere, ghost-hull and symbolic-tie mathematics
 - CAVITY_TRANSACTION_SPEC.md — conflict cavity topology, special insertion cases and transaction rules
+- LOCAL_CORRECTNESS_AND_SEED_CONTRACT.md — verified conflict seeds, local/global Delaunay legality and S^3 invariants
 - EXPERIMENT_PLAN.md — golden cases, brute-force oracles, determinism gates, replay and telemetry
 
 ## Current leading decisions

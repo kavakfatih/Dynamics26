@@ -97,6 +97,22 @@ defines its own deterministic tie and replay policy.
 
 Every early M2 test tier compares walk and brute-force results.
 
+## Verified conflict seed
+
+Conflict flooding starts only from a cell already proven to conflict.
+
+- CELL: the located finite cell is a guaranteed strict conflict.
+- FACET/EDGE: an incident finite cell is a guaranteed strict conflict.
+- VERTEX: no insertion; duplicate/already-present handling.
+- OUTSIDE_CONVEX_HULL: the deterministic walk returns the strictly violated hull facet and its
+  ghost neighbor; that ghost is the seed.
+
+The locator returns a geometric location. The planner converts it to a separately verified
+ConflictSeed. An arbitrary ghost cell is never assumed to conflict.
+
+Reference walk safety records visited cells/facets and treats a cycle/stall as diagnostic evidence;
+the brute-force locator is the independent fallback/oracle.
+
 ## Conflict discovery
 
 Once a conflicting seed cell is known:

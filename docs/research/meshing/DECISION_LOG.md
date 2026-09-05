@@ -511,3 +511,45 @@ Reference validation includes:
 
 Injected invalid plans must prove no mutation; interior/face/edge/hull/exterior fixtures must pass;
 brute-force/flood conflict sets must agree; replay must reproduce failures; exact-head CI must pass.
+
+
+---
+
+## ADR-MESH-0016 — Layered local/global Delaunay verification
+
+**Status:** PROPOSED
+**Date:** 2026-09-05
+
+### Decision candidate
+
+M2 correctness is not represented by one boolean validator.
+
+The reference constructor will verify five layers:
+1. combinatorial finite+ghost topology,
+2. positive/non-overlapping geometric embedding and convex-hull support,
+3. unperturbed weak local Delaunay legality,
+4. canonical lift-only symbolic local legality for exact ties,
+5. independent small-N global location/conflict/empty-sphere and permutation oracles.
+
+The unified finite+ghost complex is additionally checked as an S^3 triangulation:
+
+    V - E + F - C = 0
+    F = 2C
+    E = V + C
+
+### Conflict seed contract
+
+Cavity flooding starts only from an explicitly verified conflict cell. The OUTSIDE_CONVEX_HULL
+location result retains the strictly violated hull facet and its ghost cell as a witness; an arbitrary
+infinite cell is never assumed to conflict.
+
+### Rationale
+
+The Delaunay Lemma links local facet legality with global Delaunay correctness for a valid
+triangulation, while exact co-spherical configurations still admit multiple weak Delaunay
+triangulations. The separate symbolic-local layer is therefore required to verify the fixed
+Dynamics26 topology policy.
+
+### Acceptance
+
+Requires executable M2-G21..G24 in addition to the original M2.0 qualification gates.

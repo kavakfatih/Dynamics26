@@ -112,6 +112,20 @@ Brute-force exact point-in-tetra/hull classification.
 For small triangulations, evaluate every finite/ghost cell independently and compare canonical
 conflict set with adjacency flood.
 
+### Local legality oracle
+For each internal finite face:
+- orient shared face against both opposite vertices and require opposite signs,
+- reject an opposite vertex strictly inside the neighboring tetra circumsphere,
+- on exact co-spherical zero, require the current facet to be legal under the lift-only symbolic
+  predicate.
+
+For hull geometry:
+- each outward hull face supports all finite sites on or inside its plane,
+- coplanar neighboring hull triangles satisfy projected 2D weak + symbolic local legality.
+
+By the Delaunay Lemma, local legality of all facets is a global Delaunay criterion for a valid
+triangulation of the convex hull. The small-N global empty-sphere oracle remains independent evidence.
+
 ### Delaunay oracle
 For small-N output:
 - every finite tetra positive,
@@ -145,6 +159,10 @@ This separates weak-Delaunay geometric truth from symbolic topology choice.
 | M2-G18 | generated small-N global weak-Delaunay oracle passes |
 | M2-G19 | standalone replay reproduces at least one injected failure |
 | M2-G20 | exact-head macOS arm64 Debug/Release CI + telemetry baseline green |
+| M2-G21 | every internal finite facet passes weak local Delaunay legality |
+| M2-G22 | every exact local tie passes the canonical symbolic legality rule |
+| M2-G23 | unified finite+ghost S^3 Euler/incidence invariants pass |
+| M2-G24 | hull supporting-plane and coplanar hull-diagonal oracles pass on small-N sets |
 
 M2 is not QUALIFIED until mandatory gates are executable evidence.
 
