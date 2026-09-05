@@ -28,7 +28,7 @@ Exit:
 
 ### M1 — Robust predicates and geometry kernel utilities
 
-Status: **VERIFYING — CLOSEOUT HARDENING**
+Status: **VERIFYING — FINAL CLOSEOUT CANDIDATE**
 
 Research package:
 - `docs/research/meshing/m1-robust-geometry/`
@@ -52,7 +52,7 @@ Test corpus:
 
 #### M1.1 — Independent exact predicate oracle
 
-Status: **RESEARCHING**
+Status: **QUALIFIED**
 
 Research package:
 - `docs/research/meshing/m1-robust-geometry/m1.1-exact-oracle/`
@@ -72,7 +72,7 @@ Exit:
 
 #### M1.3 — Degeneracy & deterministic symbolic perturbation
 
-Status: **RESEARCHING**
+Status: **QUALIFIED (M1 FOUNDATION)**
 
 Research package:
 - `docs/research/meshing/m1-robust-geometry/m1.3-degeneracy/`
@@ -94,7 +94,7 @@ Exit:
 
 #### M1.4 — Spatial search, point location & tetra topology
 
-Status: **RESEARCHING**
+Status: **QUALIFIED (M1 PRIMITIVES; M2 SEARCH DEFERRED)**
 
 Research package:
 - `docs/research/meshing/m1-robust-geometry/m1.4-spatial-topology/`
@@ -118,7 +118,7 @@ Exit:
 
 #### M1.5 — Executable verification harness
 
-Status: **RESEARCHING**
+Status: **QUALIFIED**
 
 Research package:
 - `docs/research/meshing/m1-robust-geometry/m1.5-verification-harness/`
@@ -182,7 +182,7 @@ Evidence:
 
 #### M1.9 — Closeout hardening
 
-Status: **ACTIVE**
+Status: **VERIFYING — FINAL AUDIT**
 
 Mandatory before M2:
 - replay/adversarial/metamorphic verification,
@@ -194,7 +194,7 @@ Mandatory before M2:
 
 ### M2 — Delaunay point-cloud tetrahedralization
 
-Status: **BLOCKED BY M1 CLOSEOUT**
+Status: **BLOCKED BY FINAL M1 AUDIT**
 
 Deliver:
 
@@ -427,15 +427,15 @@ Cross-code agreement is supporting evidence, not proof.
 | ID | Work package | State |
 |---|---|---|
 | M0 | Knowledge library | IN PROGRESS |
-| M1 | Robust predicates | VERIFYING / CLOSEOUT |
-| M1.3 | Degeneracy / symbolic perturbation | RESEARCHING |
-| M1.4 | Spatial search / tetra topology | RESEARCHING |
-| M1.5 | Verification harness | VERIFYING |
+| M1 | Robust predicates | VERIFYING / FINAL AUDIT |
+| M1.3 | Degeneracy / symbolic perturbation | QUALIFIED (M1) |
+| M1.4 | Spatial search / tetra topology | QUALIFIED (M1 primitives) |
+| M1.5 | Verification harness | QUALIFIED |
 | M1.6 | Executable verification prototype | QUALIFIED |
 | M1.7 | Exact robust predicate kernel | QUALIFIED |
 | M1.8 | Certified fast predicate path | QUALIFIED |
-| M1.9 | Closeout hardening | ACTIVE |
-| M2 | Point-cloud Delaunay tetra | BLOCKED |
+| M1.9 | Closeout hardening | VERIFYING / FINAL AUDIT |
+| M2 | Point-cloud Delaunay tetra | BLOCKED BY FINAL M1 AUDIT |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
 | M5 | Size fields | NOT STARTED |
@@ -459,16 +459,14 @@ BLOCKED
 
 ## 8. Immediate next research tasks
 
-1. implement M1.1 exact-oracle A/B prototype and bit-exact fixture round-trip,
-2. generate naive-double adversarial predicate corpus,
-3. prototype M1.2 F0 certified filters and measure fallback rates,
-4. prototype M1.3 duplicate canonicalization / affine-dimension classifier / symbolic oracle,
-5. freeze M1.4 tetra local-face and stable-handle conventions,
-6. begin M2 serial Bowyer-Watson reference implementation only after M1 executable evidence starts passing,
-7. keep ANSYS / COMSOL / Marc commercial benchmark corpus in parallel with each meshing milestone.
+1. run the synchronized M1 final-audit candidate exact-head CI,
+2. perform the second M1 closeout audit against executable evidence,
+3. keep M2 blocked until that audit is QUALIFIED,
+4. once qualified, start M2 with point-location/super-domain decisions before Bowyer-Watson insertion,
+5. continue ANSYS / COMSOL / Marc workflow and quality benchmarking in parallel; do not use proprietary output as predicate truth.
 
 ### M1.2 — Certified floating-point filters
-Status: **RESEARCHING**
+Status: **QUALIFIED**
 
 Research package:
 - `docs/research/meshing/m1-robust-geometry/m1.2-certified-filters/`

@@ -160,3 +160,8 @@ M1.5 is the bridge from research documents to executable evidence. The next codi
 - M1.6 executable robust-geometry verification prototype
 
 The first executable meshing R&D evidence now lives under `tools/meshing_oracle/` and `tests/meshing/robust_geometry/`. Production Delaunay implementation is intentionally still deferred.
+
+
+## M1.9 closeout
+
+M1 executable closeout hardening now includes replay/adversarial verification, degeneracy/site identity, tetra topology primitives and predicate telemetry. M2 remains blocked until the second M1 closeout audit is qualified.

@@ -94,7 +94,6 @@ The low-level meshing kernel receives resolved immutable geometry identities; it
 | ADR-MESH-0002 | Delaunay-first volume track | M1/M2/M4 experiments |
 | ADR-MESH-0003 | Named Selection mesh-control scope | mesh-control document model design |
 | ADR-MESH-0004 | First surface mesher | parameter-space CDT vs advancing front experiments |
-| ADR-MESH-0005 | Robust predicate implementation strategy | license/source-boundary review + M1 benchmark |
 | ADR-MESH-0006 | Quality metric release gates | nonlinear TET4 sensitivity study |
 | ADR-MESH-0007 | Curvature/proximity size-field formulas | M3/M5 experiments |
 
@@ -103,7 +102,7 @@ The low-level meshing kernel receives resolved immutable geometry identities; it
 
 ## ADR-MESH-0005 — Robust predicate implementation strategy
 
-**Status:** PROPOSED  
+**Status:** ACCEPTED  
 **Date:** 2026-09-05
 
 ### Research finding
@@ -130,14 +129,20 @@ An independent exact-rational oracle generated from the exact binary64 input val
 
 The predicate target must not be compiled under floating-point modes that invalidate the arithmetic/error-bound assumptions. Fast-math is therefore disallowed for this target; FP contraction policy must match the eventual filter proof.
 
-### Why still PROPOSED
+### Acceptance evidence
 
-The arithmetic implementation strategy is not accepted until:
+All original acceptance conditions are now executable:
 
-1. independent oracle fixtures exist,
-2. candidate filter/fallback designs are benchmarked,
-3. Apple Silicon Debug/Release behavior is tested,
-4. clean-room/source-boundary review is complete.
+1. dual independent exact-oracle paths and raw-bit fixtures exist,
+2. the M1.7 C++ exact dyadic fallback is independent from the Python oracle,
+3. the M1.8 fast path has an implementation-specific homogeneous determinant proof,
+4. the 2^-43 certification coefficient is protected by a compile-time inequality,
+5. fast-math is forbidden and FP contraction is disabled for the predicate source,
+6. committed, generated, adversarial and metamorphic corpora pass,
+7. macOS arm64 Debug/Release workflow #239 is SUCCESS,
+8. the kernel has no external mesher/predicate runtime/source dependency.
+
+Decision: the Dynamics26 filtered-exact predicate strategy is accepted for M1/M2 use.
 
 
 ### M1.1 exact-oracle research update — 2026-09-05
@@ -150,7 +155,7 @@ Evidence now supports the following parts of ADR-MESH-0005:
 - filter architecture should permit conservative fallback but never false certification,
 - commercial ANSYS/COMSOL/Marc tolerance and repair controls are geometry/meshing policy, not evidence for an epsilon-based predicate design.
 
-ADR-MESH-0005 remains **PROPOSED** until executable oracle and filter experiments are complete.
+Historical note: this condition was satisfied during M1.6–M1.9; ADR-MESH-0005 is now **ACCEPTED**.
 
 
 ### M1.2 certified-filter research update — 2026-09-05
@@ -169,14 +174,14 @@ Leading conservative first-order factors are approximately:
 - insphere: 80u,
 times the documented computed absolute-monomial sum and denominator corrections.
 
-ADR-MESH-0005 remains **PROPOSED** until executable M1.1/M1.2 experiments pass.
+Historical note: executable M1.6–M1.9 evidence has satisfied this condition; ADR-MESH-0005 is now **ACCEPTED**.
 
 
 ---
 
 ## ADR-MESH-0008 — Deterministic degeneracy policy
 
-**Status:** PROPOSED  
+**Status:** ACCEPTED  
 **Date:** 2026-09-05
 
 ### Research findings
@@ -195,14 +200,20 @@ Leading policy:
 
 For the same immutable sites, stable PointIds, settings and algorithm version, the canonical topology should not depend on transient pointer layout, input enumeration or supported insertion ordering.
 
-### Why PROPOSED
+### Acceptance evidence
 
-Acceptance requires:
-1. formal perturbation hierarchy,
-2. exact symbolic oracle,
-3. duplicate/dimension tests,
-4. co-spherical corpus,
-5. permutation/insertion-order experiments.
+M1.9-B now provides:
+
+1. exact duplicate canonicalization with signed-zero normalization,
+2. deterministic PointId assignment independent of input enumeration,
+3. exact affine-dimension classification,
+4. a Python standard-library formal symbolic perturbation oracle,
+5. stable PointId-driven perturbation ranking,
+6. exact coplanar/cocircular/cospherical symbolic fixtures,
+7. predicate permutation checks,
+8. macOS arm64 Debug/Release workflow #237 SUCCESS.
+
+The production Delaunay algorithm will consume this policy in M2. Actual insertion-order/cavity determinism belongs to M2 and is not silently claimed by M1.
 
 
 ---
@@ -248,7 +259,7 @@ Acceptance requires executable evidence from M1.4/M2:
 
 ## ADR-MESH-0010 — Meshing verification harness architecture
 
-**Status:** PROPOSED  
+**Status:** ACCEPTED  
 **Date:** 2026-09-05
 
 ### Leading design
@@ -275,15 +286,19 @@ Therefore Dynamics26 will distinguish:
 - reproducibility,
 - solver/analysis qualification.
 
-### Why PROPOSED
+### Acceptance evidence
 
-Acceptance requires executable evidence:
-1. dual oracle prototype,
+The harness now has:
+1. dual exact oracles,
 2. bit-exact Python/C++ round-trip,
 3. deterministic corpus regeneration,
-4. committed golden corpus,
+4. committed golden fixtures,
 5. CTest integration,
-6. failure replay proof.
+6. generated adversarial/metamorphic corpus,
+7. one-case D26PRED replay round-trip into the C++ production/reference predicate runner,
+8. target Debug/Release CI evidence through workflows #231, #233, #234, #236 and #239.
+
+ADR-MESH-0010 is accepted.
 
 
 ### M1.6 executable evidence update — 2026-09-05
@@ -301,7 +316,7 @@ The M1.5 verification architecture now has a first executable implementation:
 
 Local research-prototype checks passed before commit. Exact-head macOS arm64 CI is still the qualification authority.
 
-ADR-MESH-0010 remains **PROPOSED** until the exact-head CI and full regression suite pass.
+Historical note: those CI and replay requirements are now satisfied; ADR-MESH-0010 is **ACCEPTED**.
 
 
 ---
@@ -317,7 +332,7 @@ Dynamics26 will not begin M2 Bowyer-Watson / point-cloud Delaunay implementation
 
 A formal M1 closeout audit must pass first.
 
-### Current audit result
+### Audit history
 
 The first audit at `f1e3ab433d94...` found:
 
@@ -348,3 +363,44 @@ M2   = BLOCKED
 ```
 
 M2 may start only after a second closeout audit marks M1 QUALIFIED.
+
+
+---
+
+## ADR-MESH-0012 — M1/M2 executable scope boundary
+
+**Status:** ACCEPTED  
+**Date:** 2026-09-05
+
+### Decision
+
+M1 must deliver executable numerical/topological foundations, but it must not pre-implement the M2 Delaunay algorithm merely to satisfy closeout.
+
+M1 owns and verifies:
+- exact/filtered robust predicates,
+- exact duplicate canonicalization,
+- signed-zero site normalization,
+- stable PointId assignment,
+- affine-dimension classification,
+- formal test-only symbolic perturbation oracle,
+- tetra handle / opposite-face / canonical-face primitives,
+- reciprocal-neighbor topology validator,
+- replay/adversarial/metamorphic verification,
+- predicate telemetry.
+
+M2 owns:
+- point-location walking,
+- super-tetra/ghost-hull choice,
+- cavity discovery and retriangulation,
+- actual production symbolic tie consumption,
+- insertion-order experiments,
+- canonical final Delaunay topology fingerprint,
+- memory/locality optimization of the insertion engine.
+
+### Rationale
+
+This boundary prevents two opposite errors:
+1. starting M2 before M1 mathematics/topology is trustworthy,
+2. hiding M2 implementation inside M1 merely to close the gate.
+
+M2 may begin only after the final M1 closeout audit is QUALIFIED.

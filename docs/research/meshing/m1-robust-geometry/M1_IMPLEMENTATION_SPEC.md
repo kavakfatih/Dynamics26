@@ -1,210 +1,207 @@
-# M1 Proposed Implementation Specification
+# M1 Implementation Specification — Executable Baseline
 
-**Status:** RESEARCH SPECIFICATION — NO PRODUCTION CODE YET
+**Status:** IMPLEMENTED / FINAL CLOSEOUT CANDIDATE  
+**Baseline:** 2026-09-05
 
 ## 1. Objective
 
-Provide a small, independently verified geometry-decision kernel that later M2/M3/M4 meshing algorithms can trust.
+Provide a small independently verified geometry-decision and topology-foundation kernel that M2 can trust without importing external mesher predicate code.
 
-## 2. Production scope
-
-Initial predicates:
+## 2. Implemented production/reference modules
 
 ```text
-orient2d
-orient3d
-incircle
-insphere
+include/femcae/meshing/
+├── RobustPredicates.h
+├── RobustGeometry.h
+└── TetraTopology.h
+
+src/meshing/
+├── RobustPredicates.cpp
+├── RobustGeometry.cpp
+└── TetraTopology.cpp
 ```
 
-Required result:
+Test-only independent authorities:
 
 ```text
-Negative / Zero / Positive
+tools/meshing_oracle/
+├── exact_oracle.py
+└── symbolic_oracle.py
+
+tests/meshing/robust_geometry/
+└── ...
 ```
 
-## 3. Non-goals
+## 3. Predicate contract
+
+Implemented predicates:
+- orient2d,
+- orient3d,
+- incircle,
+- insphere.
+
+Contract:
+1. finite binary64 input,
+2. exact sign with respect to stored binary64 values,
+3. true degeneracy returns Zero,
+4. no CAD/user tolerance argument,
+5. deterministic,
+6. no global mutable telemetry,
+7. invalid non-finite input is explicit.
+
+## 4. Arithmetic architecture
+
+```text
+finite/range checks
+→ homogeneous binary64 determinant
+→ conservative certified envelope
+→ FastCertified if safe
+→ exact dyadic BigInt determinant fallback otherwise
+```
+
+Exact fallback is independently authored for Dynamics26.
+
+The test oracle is separate:
+- Oracle A: Fraction over exact binary64 ratios,
+- Oracle B: exact dyadic homogeneous integer determinant.
+
+Production code does not call Python.
+
+## 5. Fast-filter proof
+
+The M1.8 implemented graph differs from the earlier translated-form research model, so it has a dedicated proof:
+
+`m1.8-certified-fast-path/HOMOGENEOUS_BOUND_PROOF.md`
+
+Worst supported graph:
+- lifted 5x5 insphere,
+- term/lift path <= gamma_8,
+- conservative determinant accumulation <= gamma_128,
+- computed-permanent correction uses gamma_120.
+
+Chosen coefficient:
+```text
+2^-43 = 1024u
+```
+
+A source `static_assert` verifies the coefficient still dominates the derived bound after final multiplication rounding.
+
+## 6. Compiler contract
+
+For `src/meshing/RobustPredicates.cpp`:
+- `-fno-fast-math`,
+- `-ffp-contract=off` on supported Clang/GNU compilers,
+- compile-time rejection under `__FAST_MATH__`.
+
+Target evidence:
+- macOS arm64 Debug,
+- macOS arm64 Release.
+
+## 7. Site identity and affine dimension
+
+`RobustGeometry` implements:
+- signed-zero normalization at site boundary,
+- exact-coordinate duplicate canonicalization,
+- deterministic PointId assignment independent of input enumeration,
+- source-record provenance aggregation,
+- exact affine dimension 0D/1D/2D/3D using robust predicates.
+
+Near-coincident but distinct coordinates are not silently merged.
+
+## 8. Symbolic degeneracy authority
+
+Production predicates preserve exact Zero.
+
+M1 provides a **test-only formal symbolic perturbation oracle** using:
+- stable positive PointIds,
+- fixed component order,
+- sparse exact polynomial arithmetic,
+- base-4 exponent hierarchy to avoid degree-2 lift exponent collisions.
+
+Production Delaunay tie consumption remains M2 and must be validated against this authority.
+
+## 9. Tetra topology primitives
+
+`TetraTopology` implements:
+- `TetHandle {slot,generation}`,
+- invalid/stale handle semantics,
+- `TetRecord vertex[4] / neighbor[4]`,
+- neighbor[i] opposite vertex[i],
+- canonical sorted face key,
+- reciprocal-neighbor validator,
+- duplicate vertex/tetra detection,
+- dead/out-of-range/stale neighbor diagnostics.
+
+Point-location walking and cavity mutation are M2 scope.
+
+## 10. Verification harness
+
+Executable evidence includes:
+- 25 committed golden predicate cases,
+- deterministic generated exact-oracle corpus,
+- adversarial near-degenerate families,
+- positive power-of-two scales,
+- exact-representable translations,
+- permutation metamorphic checks,
+- one-case D26PRED failure replay,
+- deliberate tetra corruption corpus,
+- macOS arm64 Debug/Release CI.
+
+## 11. Telemetry
+
+Caller-owned optional `PredicateTelemetry` records:
+- calls,
+- fastCertified,
+- exactFallback,
+- exactZero,
+- invalidInput.
+
+No global mutable counter is used.
+
+Release workflow #239 baseline:
+```text
+cases=1049
+calls=1051
+fast=1043
+exact=6
+zero=4
+invalid=2
+mismatch=0
+```
+
+This is an R&D baseline, not a release performance threshold.
+
+## 12. Clean-room boundary
+
+No Gmsh, Netgen, TetGen, CGAL or commercial CAE predicate/meshing source is copied into the M1 kernel.
+
+External projects remain:
+- theory/architecture references,
+- benchmark/failure-study references,
+- optional external research oracles.
+
+## 13. Explicit M1 non-goals
 
 M1 does not implement:
-
-- Delaunay tetrahedralization,
+- Delaunay point insertion,
+- point-location walking,
+- cavity extraction/retriangulation,
+- super-tetra/ghost hull,
 - CAD surface meshing,
 - boundary recovery,
-- mesh repair,
-- tolerance-based CAD healing,
-- arbitrary precision geometry constructions,
-- surface projection,
 - tetra quality optimization.
 
-## 4. Module boundary
+Those belong to M2+.
 
-Provisional architecture:
+## 14. M2 assumptions after final M1 qualification
 
-```text
-include/femcae/geometry/
-  RobustPredicates.h
-  GeometryTolerance.h
+M2 may assume:
+- orient3d/insphere never intentionally return heuristic epsilon signs,
+- FastCertified is bounded by the documented proof,
+- uncertainty reaches exact fallback,
+- Zero is true degeneracy,
+- site duplicates/affine dimension can be resolved before insertion,
+- stable PointIds and symbolic test oracle exist,
+- tetra handle/face topology validators exist.
 
-src/geometry/
-  RobustPredicates.cpp
-  GeometryTolerance.cpp
-
-tests/geometry/
-  test_robust_predicates.cpp
-  test_robust_predicates_adversarial.cpp
-```
-
-Exact filenames are not accepted until implementation kickoff; the separation is the decision.
-
-## 5. Predicate contract
-
-Each predicate:
-
-1. requires finite binary64 coordinates,
-2. returns exact sign with respect to those input binary64 values,
-3. returns Zero for true degeneracy,
-4. has no user/CAD tolerance argument,
-5. does not mutate global mesh state,
-6. is deterministic and thread-safe,
-7. does not allocate in the ordinary fast-certified path if practical.
-
-## 6. Leading arithmetic design
-
-Proposed three-level design:
-
-### Level 0 — input validation
-
-Reject non-finite input.
-
-### Level 1 — fast determinant + certified filter
-
-Compute an ordinary binary64 estimate and an implementation-specific conservative error bound.
-
-If sign is certified, return it.
-
-### Level 2 — adaptive exact fallback
-
-Use an independently written exact/adaptive arithmetic representation derived from mathematical literature.
-
-Stop as soon as sign is certified; true exact zero reaches final Zero.
-
-No external source code is copied.
-
-## 7. Reference oracle
-
-Before Level 2 production code is trusted, build an independent test-data generator:
-
-```text
-binary64 coordinates
-→ exact integer ratios
-→ arbitrary-precision determinant
-→ expected PredicateSign
-```
-
-Recommended first tool: Python standard-library exact integer/rational arithmetic used only during test fixture generation.
-
-This gives an independent truth source and avoids validating the implementation against itself.
-
-## 8. Degeneracy policy
-
-M1:
-- returns Zero.
-
-M2 Delaunay:
-- owns symbolic/tie-break policy.
-
-Proposed Delaunay tie-break inputs:
-- exact predicate Zero,
-- stable PointIds,
-- deterministic ordering rule.
-
-The predicate library does not know about PointId.
-
-## 9. Compiler contract
-
-Predicate target:
-
-- no fast-math,
-- no Ofast,
-- explicit FP contraction policy consistent with error analysis,
-- CI/build guard,
-- Debug/Release test parity.
-
-If the arithmetic proof assumes separate rounding, use contraction-off specifically for this target.
-
-## 10. Tolerance contract
-
-`GeometryTolerancePolicy` is a separate module used for:
-
-- CAD validity,
-- explicit repair/healing decisions,
-- coincidence preprocessing,
-- edge/surface sampling reconciliation.
-
-It is not passed into orient/incircle/insphere.
-
-## 11. Instrumentation
-
-Research builds may expose counters through an optional telemetry object:
-
-- calls,
-- fast-certified,
-- fallback,
-- exact-zero,
-- invalid-input.
-
-No global mutable counter is required in production.
-
-## 12. Verification requirements
-
-Required before M1 is QUALIFIED:
-
-- deterministic exact fixtures,
-- adversarial near-degenerate suite,
-- exact independent oracle,
-- metamorphic permutation/scale/translation tests,
-- randomized replayable campaign,
-- Apple Silicon Debug/Release,
-- fast-math build guard,
-- zero source-code reuse finding in clean-room review.
-
-## 13. Performance research
-
-Measure, do not guess.
-
-Track:
-
-```text
-ordinary random inputs
-near-degenerate inputs
-CAD-like clustered inputs
-fallback frequency
-time / predicate
-```
-
-If exact fallback is too frequent, improve the filter or coordinate preprocessing without weakening correctness.
-
-## 14. Future use by M2
-
-M2 Delaunay is allowed to assume:
-
-- orient3d never returns a wrong nonzero sign,
-- insphere never returns a wrong nonzero sign,
-- Zero is real degeneracy,
-- input validation is explicit.
-
-That lets M2 focus on:
-- point location,
-- cavity topology,
-- adjacency,
-- insertion order,
-- symbolic tie handling.
-
-## 15. Proposed research decision
-
-ADR-MESH-0005 should be changed from OPEN to ACCEPTED only after:
-
-1. an independent exact oracle prototype exists,
-2. at least two arithmetic strategies are benchmarked or one is convincingly justified,
-3. compiler assumptions are experimentally validated,
-4. no-copy review is complete.
+M2 remains blocked until the second M1 closeout audit passes.
