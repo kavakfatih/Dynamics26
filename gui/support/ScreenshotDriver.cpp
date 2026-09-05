@@ -541,6 +541,48 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
         }
     }
 
+    // Fiziksel kullanıcı regresyonu: Z kuvvetinin okları gerçek üst yüzeye
+    // bağlı kalmalı; sıfır kuvvet için normal yönünde sahte ok üretilmez.
+    // Yalnız capture fixture değişir; iki canonical Undo yükü geri getirir.
+    {
+        const auto services = window.services();
+        const auto force = window.firstObjectOfType(ObjectType::Force);
+        const auto *original = services.analysis->load(force);
+        if (!original || !services.mesh->hasMesh()) {
+            std::cerr << "FAILED   surface force capture requires a real load and mesh\n";
+            ++failures;
+        } else {
+            const auto before = *original;
+            auto loaded = before;
+            loaded.scopingMethod = BoundaryScopingMethod::GeometrySelection;
+            loaded.scope = BoxFace::ZMax;
+            loaded.namedSelectionId = InvalidObjectId;
+            loaded.fxN = loaded.fyN = 0;
+            loaded.fzN = 1000;
+            window.documentCommands()->push(new commands::SetForceCommand(services, force, before, loaded));
+            window.selectObject(force);
+            settle(320);
+            auto *viewport = window.graphics()->viewport();
+            if (viewport->displayedLoadGlyphCount() < 1 || viewport->displayedLoadGlyphCount() > 5) {
+                std::cerr << "FAILED   surface force capture requires sparse resultant arrows\n";
+                ++failures;
+            }
+            shot(QStringLiteral("20-force-z"));
+            auto zero = loaded;
+            zero.fzN = 0;
+            window.documentCommands()->push(new commands::SetForceCommand(services, force, loaded, zero));
+            settle(320);
+            if (viewport->displayedLoadGlyphCount() != 0) {
+                std::cerr << "FAILED   zero force capture contains a fake arrow\n";
+                ++failures;
+            }
+            shot(QStringLiteral("21-zero-force"));
+            window.documentCommands()->stack()->undo();
+            window.documentCommands()->stack()->undo();
+            settle(180);
+        }
+    }
+
     return failures == 0 ? 0 : 1;
 }
 
