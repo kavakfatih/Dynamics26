@@ -457,7 +457,32 @@ std::optional<PredicateEvaluation> tryFastDeterminant(
     //
     // This deliberately trades additional exact fallbacks for a simple,
     // independently auditable no-false-certification envelope.
-    constexpr double conservativeCoefficient = 0x1p-43;
+    constexpr double unitRoundoff = 0x1p-53;
+    constexpr auto gamma = [](double operations) constexpr {
+        return (operations * unitRoundoff) /
+               (1.0 - operations * unitRoundoff);
+    };
+
+    // Worst supported graph is 5x5 insphere:
+    // - lift path: <= 3 rounded operations,
+    // - one determinant term: <= 5 rounded multiplies,
+    // - signed determinant accumulation: conservatively <= 120 additions,
+    // - permanent accumulation: conservatively <= 120 additions.
+    //
+    // Thus an exact term differs from its computed counterpart by <= gamma_8,
+    // and the full determinant forward error is bounded by gamma_128 times the
+    // exact absolute-term sum. Converting that exact sum to the computed
+    // permanent adds the (1-gamma_8)(1-gamma_120) denominator corrections.
+    constexpr double worstCaseHomogeneousBound =
+        gamma(128.0) /
+        ((1.0 - gamma(8.0)) * (1.0 - gamma(120.0)));
+
+    constexpr double conservativeCoefficient = 0x1p-43; // 1024*u
+    static_assert(
+        conservativeCoefficient * (1.0 - unitRoundoff) >
+        worstCaseHomogeneousBound,
+        "M1.8 fast-filter coefficient no longer dominates the proved error bound");
+
     double errorBound = 0.0;
     if (!safeMultiply(permanent, conservativeCoefficient, errorBound) ||
         errorBound == 0.0) {
@@ -559,70 +584,128 @@ PredicateEvaluation exactEvaluation(const Matrix& matrix) {
     return {predicateSign(determinant(matrix).sign()), PredicateEvaluationPath::ExactDyadic};
 }
 
+void recordEvaluation(
+    PredicateTelemetry* telemetry,
+    const PredicateEvaluation& evaluation) noexcept {
+    if (telemetry == nullptr) {
+        return;
+    }
+    if (evaluation.path == PredicateEvaluationPath::FastCertified) {
+        ++telemetry->fastCertified;
+    } else {
+        ++telemetry->exactFallback;
+    }
+    if (evaluation.sign == PredicateSign::Zero) {
+        ++telemetry->exactZero;
+    }
+}
+
+void recordCall(PredicateTelemetry* telemetry) noexcept {
+    if (telemetry != nullptr) {
+        ++telemetry->calls;
+    }
+}
+
+void recordInvalid(PredicateTelemetry* telemetry) noexcept {
+    if (telemetry != nullptr) {
+        ++telemetry->invalidInput;
+    }
+}
+
 } // namespace
 
 PredicateEvaluation orient2d(
     const geometry::Vec2& a,
     const geometry::Vec2& b,
-    const geometry::Vec2& c) {
-    if (const auto fast = tryFastOrient2d(a, b, c)) {
-        return *fast;
+    const geometry::Vec2& c,
+    PredicateTelemetry* telemetry) {
+    recordCall(telemetry);
+    try {
+        if (const auto fast = tryFastOrient2d(a, b, c)) {
+            recordEvaluation(telemetry, *fast);
+            return *fast;
+        }
+
+        const std::vector<BigInt> p = exactIntegerCoordinates({
+            a.x, a.y, b.x, b.y, c.x, c.y});
+
+        Matrix matrix{
+            {p[0], p[1], BigInt::one()},
+            {p[2], p[3], BigInt::one()},
+            {p[4], p[5], BigInt::one()}};
+        const PredicateEvaluation result = exactEvaluation(matrix);
+        recordEvaluation(telemetry, result);
+        return result;
+    } catch (const std::invalid_argument&) {
+        recordInvalid(telemetry);
+        throw;
     }
-
-    const std::vector<BigInt> p = exactIntegerCoordinates({
-        a.x, a.y, b.x, b.y, c.x, c.y});
-
-    Matrix matrix{
-        {p[0], p[1], BigInt::one()},
-        {p[2], p[3], BigInt::one()},
-        {p[4], p[5], BigInt::one()}};
-    return exactEvaluation(matrix);
 }
 
 PredicateEvaluation orient3d(
     const geometry::Vec3& a,
     const geometry::Vec3& b,
     const geometry::Vec3& c,
-    const geometry::Vec3& d) {
-    if (const auto fast = tryFastOrient3d(a, b, c, d)) {
-        return *fast;
+    const geometry::Vec3& d,
+    PredicateTelemetry* telemetry) {
+    recordCall(telemetry);
+    try {
+        if (const auto fast = tryFastOrient3d(a, b, c, d)) {
+            recordEvaluation(telemetry, *fast);
+            return *fast;
+        }
+
+        const std::vector<BigInt> p = exactIntegerCoordinates({
+            a.x, a.y, a.z,
+            b.x, b.y, b.z,
+            c.x, c.y, c.z,
+            d.x, d.y, d.z});
+
+        Matrix matrix{
+            {p[0], p[1], p[2], BigInt::one()},
+            {p[3], p[4], p[5], BigInt::one()},
+            {p[6], p[7], p[8], BigInt::one()},
+            {p[9], p[10], p[11], BigInt::one()}};
+        const PredicateEvaluation result = exactEvaluation(matrix);
+        recordEvaluation(telemetry, result);
+        return result;
+    } catch (const std::invalid_argument&) {
+        recordInvalid(telemetry);
+        throw;
     }
-
-    const std::vector<BigInt> p = exactIntegerCoordinates({
-        a.x, a.y, a.z,
-        b.x, b.y, b.z,
-        c.x, c.y, c.z,
-        d.x, d.y, d.z});
-
-    Matrix matrix{
-        {p[0], p[1], p[2], BigInt::one()},
-        {p[3], p[4], p[5], BigInt::one()},
-        {p[6], p[7], p[8], BigInt::one()},
-        {p[9], p[10], p[11], BigInt::one()}};
-    return exactEvaluation(matrix);
 }
 
 PredicateEvaluation incircle(
     const geometry::Vec2& a,
     const geometry::Vec2& b,
     const geometry::Vec2& c,
-    const geometry::Vec2& d) {
-    if (const auto fast = tryFastIncircle(a, b, c, d)) {
-        return *fast;
-    }
+    const geometry::Vec2& d,
+    PredicateTelemetry* telemetry) {
+    recordCall(telemetry);
+    try {
+        if (const auto fast = tryFastIncircle(a, b, c, d)) {
+            recordEvaluation(telemetry, *fast);
+            return *fast;
+        }
 
-    const std::vector<BigInt> p = exactIntegerCoordinates({
-        a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y});
+        const std::vector<BigInt> p = exactIntegerCoordinates({
+            a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y});
 
-    Matrix matrix;
-    matrix.reserve(4U);
-    for (std::size_t i = 0; i < 4U; ++i) {
-        const BigInt& x = p[2U * i];
-        const BigInt& y = p[2U * i + 1U];
-        const BigInt lift = x * x + y * y;
-        matrix.push_back({x, y, lift, BigInt::one()});
+        Matrix matrix;
+        matrix.reserve(4U);
+        for (std::size_t i = 0; i < 4U; ++i) {
+            const BigInt& x = p[2U * i];
+            const BigInt& y = p[2U * i + 1U];
+            const BigInt lift = x * x + y * y;
+            matrix.push_back({x, y, lift, BigInt::one()});
+        }
+        const PredicateEvaluation result = exactEvaluation(matrix);
+        recordEvaluation(telemetry, result);
+        return result;
+    } catch (const std::invalid_argument&) {
+        recordInvalid(telemetry);
+        throw;
     }
-    return exactEvaluation(matrix);
 }
 
 PredicateEvaluation insphere(
@@ -630,28 +713,38 @@ PredicateEvaluation insphere(
     const geometry::Vec3& b,
     const geometry::Vec3& c,
     const geometry::Vec3& d,
-    const geometry::Vec3& e) {
-    if (const auto fast = tryFastInsphere(a, b, c, d, e)) {
-        return *fast;
-    }
+    const geometry::Vec3& e,
+    PredicateTelemetry* telemetry) {
+    recordCall(telemetry);
+    try {
+        if (const auto fast = tryFastInsphere(a, b, c, d, e)) {
+            recordEvaluation(telemetry, *fast);
+            return *fast;
+        }
 
-    const std::vector<BigInt> p = exactIntegerCoordinates({
-        a.x, a.y, a.z,
-        b.x, b.y, b.z,
-        c.x, c.y, c.z,
-        d.x, d.y, d.z,
-        e.x, e.y, e.z});
+        const std::vector<BigInt> p = exactIntegerCoordinates({
+            a.x, a.y, a.z,
+            b.x, b.y, b.z,
+            c.x, c.y, c.z,
+            d.x, d.y, d.z,
+            e.x, e.y, e.z});
 
-    Matrix matrix;
-    matrix.reserve(5U);
-    for (std::size_t i = 0; i < 5U; ++i) {
-        const BigInt& x = p[3U * i];
-        const BigInt& y = p[3U * i + 1U];
-        const BigInt& z = p[3U * i + 2U];
-        const BigInt lift = x * x + y * y + z * z;
-        matrix.push_back({x, y, z, lift, BigInt::one()});
+        Matrix matrix;
+        matrix.reserve(5U);
+        for (std::size_t i = 0; i < 5U; ++i) {
+            const BigInt& x = p[3U * i];
+            const BigInt& y = p[3U * i + 1U];
+            const BigInt& z = p[3U * i + 2U];
+            const BigInt lift = x * x + y * y + z * z;
+            matrix.push_back({x, y, z, lift, BigInt::one()});
+        }
+        const PredicateEvaluation result = exactEvaluation(matrix);
+        recordEvaluation(telemetry, result);
+        return result;
+    } catch (const std::invalid_argument&) {
+        recordInvalid(telemetry);
+        throw;
     }
-    return exactEvaluation(matrix);
 }
 
 } // namespace femcae::meshing::predicates

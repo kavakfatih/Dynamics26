@@ -397,3 +397,11 @@ add_femcae_meshing_test(
     meshing/robust_geometry/test_m19_tetra_topology.cpp
     "unit;meshing;robust-geometry;tet-topology;handle;validator;corruption;determinism;m1.9"
 )
+
+
+# M1.9-D — caller-owned predicate telemetry / path baseline
+add_femcae_meshing_test(
+    unit_m19_predicate_telemetry
+    meshing/robust_geometry/test_m19_predicate_telemetry.cpp
+    "unit;meshing;robust-geometry;predicate;telemetry;performance;m1.9"
+)

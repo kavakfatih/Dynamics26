@@ -20,6 +20,7 @@ using femcae::geometry::Vec3;
 using femcae::meshing::predicates::PredicateEvaluation;
 using femcae::meshing::predicates::PredicateEvaluationPath;
 using femcae::meshing::predicates::PredicateSign;
+using femcae::meshing::predicates::PredicateTelemetry;
 
 [[noreturn]] void fail(const std::string& message) {
     throw std::runtime_error(message);
@@ -67,7 +68,8 @@ int toInt(PredicateSign sign) {
 
 PredicateEvaluation evaluate(
     const std::string& predicate,
-    const std::vector<double>& values) {
+    const std::vector<double>& values,
+    PredicateTelemetry* telemetry) {
     using namespace femcae::meshing::predicates;
 
     if (predicate == "orient2d") {
@@ -75,7 +77,8 @@ PredicateEvaluation evaluate(
         return orient2d(
             {values[0], values[1]},
             {values[2], values[3]},
-            {values[4], values[5]});
+            {values[4], values[5]},
+            telemetry);
     }
     if (predicate == "orient3d") {
         require(values.size() == 12U, "orient3d fixture arity mismatch");
@@ -83,7 +86,8 @@ PredicateEvaluation evaluate(
             {values[0], values[1], values[2]},
             {values[3], values[4], values[5]},
             {values[6], values[7], values[8]},
-            {values[9], values[10], values[11]});
+            {values[9], values[10], values[11]},
+            telemetry);
     }
     if (predicate == "incircle") {
         require(values.size() == 8U, "incircle fixture arity mismatch");
@@ -91,7 +95,8 @@ PredicateEvaluation evaluate(
             {values[0], values[1]},
             {values[2], values[3]},
             {values[4], values[5]},
-            {values[6], values[7]});
+            {values[6], values[7]},
+            telemetry);
     }
     if (predicate == "insphere") {
         require(values.size() == 15U, "insphere fixture arity mismatch");
@@ -100,7 +105,8 @@ PredicateEvaluation evaluate(
             {values[3], values[4], values[5]},
             {values[6], values[7], values[8]},
             {values[9], values[10], values[11]},
-            {values[12], values[13], values[14]});
+            {values[12], values[13], values[14]},
+            telemetry);
     }
     fail("unsupported predicate fixture");
 }
@@ -125,7 +131,8 @@ std::size_t verifyFile(
     const std::filesystem::path& path,
     const std::string& predicate,
     std::size_t& fastCount,
-    std::size_t& exactCount) {
+    std::size_t& exactCount,
+    PredicateTelemetry& telemetry) {
     std::ifstream input(path);
     require(input.good(), "cannot open fixture " + path.string());
 
@@ -151,7 +158,7 @@ std::size_t verifyFile(
             values.push_back(std::bit_cast<double>(bits));
         }
 
-        const PredicateEvaluation result = evaluate(predicate, values);
+        const PredicateEvaluation result = evaluate(predicate, values, &telemetry);
         if (toInt(result.sign) != expected) {
             fail(
                 predicate + "/" + caseId +
@@ -171,13 +178,13 @@ std::size_t verifyFile(
     return caseCount;
 }
 
-void verifyInvalidInput() {
+void verifyInvalidInput(PredicateTelemetry& telemetry) {
     using namespace femcae::meshing::predicates;
     const double infinity = std::numeric_limits<double>::infinity();
 
     bool rejected = false;
     try {
-        (void)orient2d({infinity, 0.0}, {1.0, 0.0}, {0.0, 1.0});
+        (void)orient2d({infinity, 0.0}, {1.0, 0.0}, {0.0, 1.0}, &telemetry);
     } catch (const std::invalid_argument&) {
         rejected = true;
     }
@@ -190,7 +197,8 @@ void verifyInvalidInput() {
             {0.0, 1.0, 0.0},
             {0.0, 0.0, 1.0},
             {0.0, 0.0, 0.0},
-            {std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0});
+            {std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0},
+            &telemetry);
     } catch (const std::invalid_argument&) {
         rejected = true;
     }
@@ -206,28 +214,37 @@ int main(int argc, char** argv) {
         std::size_t total = 0;
         std::size_t fastCount = 0;
         std::size_t exactCount = 0;
+        PredicateTelemetry telemetry;
 
         if (std::filesystem::is_regular_file(inputPath)) {
             const std::string predicate = predicateFromFixtureHeader(inputPath);
-            total += verifyFile(inputPath, predicate, fastCount, exactCount);
+            total += verifyFile(inputPath, predicate, fastCount, exactCount, telemetry);
         } else {
             require(std::filesystem::is_directory(inputPath), "fixture path is not a file/directory");
-            total += verifyFile(inputPath / "orient2d.d26pred", "orient2d", fastCount, exactCount);
-            total += verifyFile(inputPath / "orient3d.d26pred", "orient3d", fastCount, exactCount);
-            total += verifyFile(inputPath / "incircle.d26pred", "incircle", fastCount, exactCount);
-            total += verifyFile(inputPath / "insphere.d26pred", "insphere", fastCount, exactCount);
+            total += verifyFile(inputPath / "orient2d.d26pred", "orient2d", fastCount, exactCount, telemetry);
+            total += verifyFile(inputPath / "orient3d.d26pred", "orient3d", fastCount, exactCount, telemetry);
+            total += verifyFile(inputPath / "incircle.d26pred", "incircle", fastCount, exactCount, telemetry);
+            total += verifyFile(inputPath / "insphere.d26pred", "insphere", fastCount, exactCount, telemetry);
         }
-        verifyInvalidInput();
+        verifyInvalidInput(telemetry);
 
         if (std::filesystem::is_directory(inputPath)) {
             require(fastCount > 0U, "M1.8 fast filter never certified a case");
             require(exactCount > 0U, "M1.8 exact fallback coverage missing");
         }
 
-        std::cout << "M1.8 robust-predicates PASS cases=" << total
-                  << " fast=" << fastCount
-                  << " exact=" << exactCount
-                  << " mismatch=0 invalid_input=yes\n";
+        require(telemetry.fastCertified == fastCount, "telemetry fast count mismatch");
+        require(telemetry.exactFallback == exactCount, "telemetry exact count mismatch");
+        require(telemetry.calls == total + 2U, "telemetry call count mismatch");
+        require(telemetry.invalidInput == 2U, "telemetry invalid-input count mismatch");
+
+        std::cout << "M1.9-D predicate baseline cases=" << total
+                  << " calls=" << telemetry.calls
+                  << " fast=" << telemetry.fastCertified
+                  << " exact=" << telemetry.exactFallback
+                  << " zero=" << telemetry.exactZero
+                  << " invalid=" << telemetry.invalidInput
+                  << " mismatch=0\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "M1.7 robust-predicates FAIL: " << error.what() << '\n';

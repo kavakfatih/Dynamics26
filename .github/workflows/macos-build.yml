@@ -79,6 +79,14 @@ jobs:
       - name: Test
         run: ctest --test-dir build-${{ matrix.build_type }} --output-on-failure
 
+      - name: M1 predicate telemetry baseline
+        if: matrix.build_type == 'Release'
+        run: |
+          set -euxo pipefail
+          test -x build-Release/tests/unit_m17_robust_predicates
+          test -d build-Release/m17-predicate-corpus
+          build-Release/tests/unit_m17_robust_predicates build-Release/m17-predicate-corpus
+
       - name: Modal backend gate
         run: |
           set -euxo pipefail
