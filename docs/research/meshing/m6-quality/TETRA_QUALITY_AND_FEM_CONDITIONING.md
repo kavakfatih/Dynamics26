@@ -266,3 +266,95 @@ M6 must preserve this extension path.
 | element volume | size/sizing telemetry; not normalized shape |
 
 No final threshold is accepted in M6 early research.
+
+
+## 14. Exact q_MR / q_kappa singular-value relation
+
+Let:
+
+    lambda_i = sigma_i^2
+    g = (lambda1 lambda2 lambda3)^(1/3)
+    a_i = lambda_i/g
+
+so that a1 a2 a3=1.
+
+Define:
+
+    S = a1+a2+a3
+    P = 1/a1+1/a2+1/a3.
+
+Then:
+
+    q_MR(T) = 3/S
+    q_MR(T^-1) = 3/P
+
+and:
+
+    q_kappa(T)^2
+      = q_MR(T) q_MR(T^-1).
+
+Therefore:
+
+    q_MR^(3/2)
+      <= q_kappa
+      <= q_MR^(1/2).
+
+This identity is a useful implementation oracle and also proves that q_MR and q_kappa must not be
+treated as independent release votes.
+
+For kappa_2=sigma_max/sigma_min:
+
+    1/kappa_2
+      <= q_kappa
+      <= min(1, 3/(kappa_2 + 1/kappa_2)).
+
+See MULTI_METRIC_SOLVER_AWARE_FRAMEWORK.md for the derivation and pathology consequences.
+
+## 15. Local stiffness condition needs null-space semantics
+
+For scalar affine P1:
+
+    K_e = V G^T D G
+    G = A0^-T G_hat.
+
+The element has a constant null mode. Its useful local conditioning diagnostic is therefore based on
+the positive spectrum, not the ordinary full condition number.
+
+For an unconstrained linear-elastic TET4 there are six rigid-body null modes and the same rule
+applies.
+
+After removing the physical null space, geometry enters the local spectral bounds through inverse-map
+factors and can contribute approximately/quadratically in kappa_2(T), up to fixed reference and
+material constants.
+
+This is not an equality for the assembled global stiffness matrix.
+
+## 16. Interpolation quality is not stiffness quality
+
+Križek's tetrahedral maximum-angle result permits certain degenerating tetrahedra while preserving
+the standard linear interpolation error order.
+
+Shewchuk independently shows that interpolation and stiffness-conditioning quality objectives do not
+coincide.
+
+Therefore:
+- q_MR is not a universal interpolation-error oracle,
+- low q_MR can be unacceptable for the isotropic M6 baseline while a future metric-aligned
+  anisotropic element may still be approximation-efficient,
+- stiffness/solver evidence must be measured separately.
+
+## 17. Grading is a separate solver-context axis
+
+A shape-regular graded mesh can have ideal per-element q_MR/q_kappa/q_RR while containing a large
+element-size range.
+
+Bank/Scott show that local refinement need not significantly degrade conditioning when the mesh is
+nondegenerate and natural basis scaling is used, especially in 3D asymptotic bounds.
+
+Dynamics26 must therefore record:
+- shape distribution,
+- size/gradation distribution,
+- raw matrix condition/iterations,
+- scaling/preconditioner,
+
+as distinct observations.

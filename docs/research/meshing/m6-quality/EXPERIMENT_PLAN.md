@@ -305,3 +305,131 @@ Verify:
 - deterministic result.
 
 Until these pass, the M6 reference optimizer keeps boundary vertices fixed.
+
+
+## Tier Q1-B — metric-dependency and blind-spot fixtures
+
+### Singular-spectrum oracle
+
+Generate positive singular triples over many decades.
+
+Require:
+
+    q_kappa(T)^2
+      = q_MR(T) q_MR(T^-1)
+
+and:
+
+    q_MR^(3/2)
+      <= q_kappa
+      <= q_MR^(1/2).
+
+Also cross-check q_kappa against kappa_2 bounds.
+
+Purpose:
+- catch formula/normalization mistakes,
+- prove q_MR/q_kappa are related diagnostics rather than two independent votes.
+
+### Needle family N(epsilon)
+
+    A=(0,0,0)
+    B=(1,0,0)
+    C=(0,epsilon,0)
+    D=(0,0,epsilon).
+
+Expected:
+
+    q_MR
+      = 2^(4/3) epsilon^(4/3)
+        /(1+2 epsilon^2)
+      -> 0
+
+    q_kappa -> 0
+    q_RR -> 0
+    rho_RE -> infinity
+
+while:
+
+    theta_min -> 45 degrees
+    theta_max -> 90 degrees.
+
+Purpose:
+prove dihedral extrema alone are incomplete.
+
+### Wedge family W(epsilon)
+
+    A=(0,0,0)
+    B=(1,0,0)
+    C=(0,1,0)
+    D=(1/2,0,epsilon).
+
+Expected:
+
+    q_MR -> 0
+    q_kappa -> 0
+    q_RR -> 0
+    rho_RE -> infinity
+    theta_min -> 0
+    theta_max -> pi.
+
+Purpose:
+cross-check a collapse detected by both angle and radius-edge diagnostics.
+
+## Tier Q4-B — stiffness positive-spectrum correlation
+
+For scalar P1 and later elastic TET4:
+
+1. explicitly remove physical element null modes,
+2. compute positive-spectrum local stiffness condition/proxy,
+3. correlate with kappa_2(T), q_MR and q_kappa,
+4. sweep material condition separately,
+5. assemble controlled global meshes and record raw/scaled/preconditioned condition/iterations.
+
+Do not use the ordinary full element matrix condition number because it contains physical zero modes.
+
+## Tier Q4-C — interpolation versus conditioning separation
+
+Use scaled versions of:
+- regular tetra,
+- needle family,
+- controlled anisotropic families.
+
+Measure:
+- linear interpolation error for analytic fields,
+- local stiffness positive-spectrum condition,
+- q_MR/q_kappa,
+- face/dihedral maximum-angle conditions.
+
+Purpose:
+demonstrate experimentally that approximation fitness and stiffness conditioning can rank the same
+tetrahedron differently.
+
+## Tier Q4-D — graded shape-regular meshes
+
+Build meshes whose tetrahedra remain shape-regular while the size range increases.
+
+Record:
+- q_MR/q_kappa/angles/q_RR,
+- adjacent size/gradation distribution,
+- h_max/h_min,
+- raw condition estimate,
+- naturally scaled condition estimate,
+- preconditioned iterative count.
+
+Purpose:
+avoid attributing all global linear-system behavior to element shape.
+
+## Additional M6 research gates
+
+| Gate | Requirement |
+|---|---|
+| M6-R22 | exact q_MR/q_kappa identity and bounds pass analytic/random singular-spectrum oracle |
+| M6-R23 | needle family proves dihedral-extrema blind spot with committed analytic golden values |
+| M6-R24 | wedge family proves complementary angle/radius-edge response with committed analytic goldens |
+| M6-R25 | sliver/needle/wedge/graded/anisotropic pathology matrix is represented by independent fixtures |
+| M6-R26 | local stiffness condition diagnostics remove physical null modes and correlate with map condition |
+| M6-R27 | interpolation experiment demonstrates that maximum-angle/approximation and conditioning objectives differ |
+| M6-R28 | graded shape-regular meshes record raw/scaled/preconditioned solver behavior separately from shape |
+| M6-R29 | M6 geometry families are crossed with TET4 formulation/compressibility evidence in T4-R09/T4-G09 |
+
+These remain research/verification-design gates, not implementation authorization.

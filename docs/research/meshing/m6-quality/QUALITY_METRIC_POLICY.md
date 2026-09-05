@@ -59,11 +59,15 @@ Angles are interpretable and catch important sliver behavior, but are not a comp
 
 Useful for M5/M6 refinement studies, not a final standalone FEM gate.
 
-### Independent geometric cross-check
+### Formula-independent geometric cross-check
 
     q_RR = 3r/R.
 
 Useful for shape/sliver validation and independent formula testing.
+
+Liu/Joe show radius-ratio and mean-ratio families are equivalent in the asymptotic shape-regularity
+sense. Therefore q_RR is **not** an independent release vote; its value is cross-formula validation
+and different diagnostic sensitivity.
 
 ## 3. Metrics deliberately not primary
 
@@ -231,3 +235,79 @@ Future anisotropic adaptation should generalize to a target metric tensor and ev
 in metric space.
 
 Do not hard-code "regular in Euclidean space" into the generic mesh-quality architecture.
+
+
+## 12. Layered quality-vector contract
+
+Do not collapse the quality system to one composite scalar.
+
+Research candidate layers:
+
+1. **Hard validity** — exact orientation/topology/provenance.
+2. **Initial isotropic shape** — q_MR primary; q_kappa, dihedral extrema and q_RR diagnostics.
+3. **Sizing/refinement/gradation** — rho_RE, target-size compliance, local size ratios.
+4. **FEM numerical context** — positive-spectrum local stiffness proxy, global condition estimate,
+   interpolation/discretization error, solver iterations, scaling/preconditioner.
+5. **Current nonlinear distortion** — J_F, kappa(F), current q_MR/q_kappa/angles.
+6. **Formulation suitability** — element/material-specific verified capability.
+
+A UI summary may aggregate categories, but the engineering record must preserve the vector.
+
+## 13. Metric dependency policy
+
+The suite intentionally contains mathematically related quantities because they serve different
+diagnostic/oracle roles.
+
+Do not count correlated quantities as independent evidence:
+
+    q_MR <-> q_kappa
+    q_MR <-> q_RR shape-regularity equivalence.
+
+Use:
+- q_MR for isotropic shape optimization,
+- q_kappa for mapping-condition interpretation and consistency checks,
+- q_RR for geometric formula cross-check,
+- dihedral extrema for angle pathology,
+- rho_RE for Delaunay-refinement/spacing behavior.
+
+The exact relation:
+
+    q_kappa(T)^2
+      = q_MR(T) q_MR(T^-1)
+
+and its bounds are documented in MULTI_METRIC_SOLVER_AWARE_FRAMEWORK.md.
+
+## 14. Grading and stiffness policy
+
+Shape quality does not encode mesh grading.
+
+A regular-tetra mesh may have perfect element shape metrics while neighboring/global element sizes
+vary strongly.
+
+Future reports must keep:
+- element shape,
+- local size/gradation,
+- global stiffness conditioning,
+- raw/scaled/preconditioned solver behavior
+
+as separate fields.
+
+No local size-ratio threshold is accepted in this research package yet.
+
+## 15. Positive-spectrum stiffness diagnostic
+
+A free scalar P1 tetra stiffness matrix has a constant null mode; an unconstrained 3D elastic TET4 has
+six rigid-body null modes.
+
+Therefore an element "condition number" is meaningful only after the physical null space is removed.
+
+Any future field must name this explicitly, for example:
+
+    kappa_e_positive.
+
+Do not compare it numerically across different:
+- materials,
+- formulations,
+- BC/norm conventions,
+
+without recording that context.

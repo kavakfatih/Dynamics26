@@ -942,3 +942,78 @@ Display tessellation is never a projection/motion authority.
 ### Evidence needed
 
 M6-R20.
+
+
+---
+
+## ADR-MESH-0029 — TET4 quality is a layered vector, not a composite scalar
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-05
+
+### Decision candidate
+
+Dynamics26 shall not define tetrahedral FEM suitability by one opaque quality number.
+
+The leading quality contract is layered:
+
+1. exact topology/orientation validity,
+2. initial isotropic element shape,
+3. refinement/sizing/gradation,
+4. FEM interpolation/conditioning context,
+5. current nonlinear distortion,
+6. element/formulation suitability.
+
+Within the isotropic shape layer:
+- q_MR is the primary optimization candidate,
+- q_kappa is a mapping-condition diagnostic and is mathematically dependent on q_MR,
+- q_RR is a formula-independent cross-check but belongs to an equivalent shape-regularity family,
+- dihedral extrema are complementary pathology sentinels,
+- rho_RE belongs primarily to Delaunay refinement/spacing.
+
+The exact derived relation:
+
+    q_kappa(T)^2
+      = q_MR(T) q_MR(T^-1)
+
+must be used as a verification oracle rather than as a second quality vote.
+
+### Rationale
+
+The analytic sliver family shows a radius-edge blind spot.
+
+The new analytic needle family shows the complementary angle blind spot:
+
+    q_MR -> 0
+    q_kappa -> 0
+    q_RR -> 0
+
+while interior dihedral extrema tend to approximately 45 and 90 degrees.
+
+Classical interpolation theory also permits certain degenerating tetrahedra under a maximum-angle
+condition, whereas stiffness conditioning follows different geometric sensitivities.
+
+Finally, shape-regular local refinement can alter size distribution without making individual
+elements badly shaped, and nearly-incompressible locking remains a formulation problem.
+
+Therefore one scalar cannot preserve the engineering meaning of all these effects.
+
+### Product-language consequence
+
+Do not infer:
+
+    Mesh Quality = Good
+      =>
+    interpolation accurate
+      =>
+    stiffness well-conditioned
+      =>
+    nonlinear robust
+      =>
+    rubber-ready.
+
+Each implication requires its own evidence layer.
+
+### Evidence needed
+
+M6-R22..M6-R29 and T4-G09.

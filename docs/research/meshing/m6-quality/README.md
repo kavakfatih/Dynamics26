@@ -40,6 +40,7 @@ Dynamics26 solver benchmarks in M7.
 ## Document map
 
 - TETRA_QUALITY_AND_FEM_CONDITIONING.md — Jacobian/singular-value mechanics, mean ratio and stiffness-conditioning bridge
+- MULTI_METRIC_SOLVER_AWARE_FRAMEWORK.md — exact metric relations, pathology matrix, grading/interpolation/conditioning separation and layered quality-vector contract
 - SLIVER_AND_DELAUNAY_LIMITS.md — why valid Delaunay meshes still contain slivers and why radius-edge alone is insufficient
 - NONLINEAR_RUBBER_MESH_QUALITY.md — reference/current configuration quality, deformation gradient and incompressibility separation
 - QUALITY_METRIC_POLICY.md — proposed Dynamics26 metric roles, aggregation and release-policy boundaries
@@ -53,9 +54,10 @@ Dynamics26 solver benchmarks in M7.
 - positive tetra volume is a validity condition, not a scale-independent quality score,
 - Delaunay legality is not FEM-quality certification,
 - radius-edge ratio is useful for Delaunay refinement but does not reliably detect slivers,
-- mean ratio / weighted-Jacobian condition metrics are strong isotropic TET4 shape candidates,
-- angle diagnostics remain valuable because one scalar metric can hide specific pathologies,
+- mean ratio / weighted-Jacobian condition metrics are strong isotropic TET4 shape candidates, but their singular-value relation means they are not independent votes,
+- angle diagnostics remain valuable because one scalar metric can hide specific pathologies; the analytic needle family shows dihedral extrema can remain benign while q_MR collapses,
 - one bad element can matter; report worst/low-percentile distributions rather than average alone,
+- mesh grading, interpolation error, stiffness conditioning and nearly-incompressible formulation stability remain separate quality/evidence layers,
 - M2 D26LIFT1 infinitesimal symbolic perturbation is **not** sliver exudation,
 - large-deformation runtime distortion is separate from initial mesh quality,
 - nearly incompressible rubber locking is an element-formulation problem that good geometry alone
