@@ -891,14 +891,18 @@ Exercise wide exponent-span inputs approaching the binary64 theoretical limit.
 
 Reference exact-only comparator is authority.
 
-Research a certified interval filter for:
+Research a certified interval filter for the exact comparison polynomial:
 
-    q3 = 432 D^2/S^3.
+    F(A,B)
+      =
+    D_A^2 S_B^3
+      -
+    D_B^2 S_A^3.
 
-For each tetra:
+For each tetra pair:
 - use independent exact power-of-two scaling to bound local floating dynamic range,
-- evaluate outward intervals,
-- certify only disjoint score intervals,
+- evaluate outward intervals primitive-by-primitive,
+- certify only when the F interval excludes zero,
 - otherwise fall back.
 
 Require:
@@ -1143,3 +1147,221 @@ Do not use one global fallback percentage as the only performance evidence.
 | M6-R90 | Debug/Release/replay preserve the final exact result and qualified filter semantics |
 
 These gates do not authorize production filter implementation.
+
+
+## Tier Q2-Y — D26INT1 adjacent-step primitive oracle
+
+For one binary64 primitive operation under the qualified RN environment:
+
+    z = exact real result
+    r = RN(z).
+
+Require:
+
+    nextDown(r)
+      <=
+    z
+      <=
+    nextUp(r).
+
+Use an independent exact dyadic/rational oracle.
+
+Exercise:
+- exact operations,
+- halfway/tie-to-even cases,
+- cancellation to signed/unsigned zero,
+- minimum subnormal neighborhoods,
+- maximum finite neighborhoods where the fast path remains finite.
+
+The reference adjacent implementation is std::nextafter.
+
+## Tier Q2-Z — interval primitive containment
+
+Verify independently:
+
+### Addition
+
+    [a,b]+[c,d]
+      encloses
+    [a+c,b+d].
+
+### Subtraction
+
+    [a,b]-[c,d]
+      encloses
+    [a-d,b-c].
+
+### General multiplication
+
+All exact extrema over the endpoint rectangle are enclosed.
+
+### Non-negative multiplication
+
+Monotone two-endpoint specialization matches the general oracle.
+
+### Square
+
+Cross-zero intervals use exact lower bound zero.
+
+### Positive cube
+
+Composition:
+
+    square
+      ->
+    multiply
+
+with outward enclosure at every primitive node.
+
+Every interval result is checked against exact rational extrema.
+
+## Tier Q2-AA — compound-expression negative control
+
+Implement only in verification code a deliberately unsafe comparison path:
+
+    evaluate compound expression in ordinary double
+      ->
+    widen final result by one adjacent representable value.
+
+Generate/search fixtures where the independent exact result lies outside this unsafe enclosure.
+
+Require the negative control to fail.
+
+Purpose:
+prove that D26INT1's one-step theorem is local to one primitive and cannot be applied once at the end
+of a multi-operation expression.
+
+## Tier Q2-AB — fixed expression-tree containment
+
+Freeze research trees for:
+
+    determinant
+    six-edge S
+    final F.
+
+Require:
+- determinant interval contains exact determinant,
+- balanced edge-sum interval contains exact S,
+- final F interval contains exact cross polynomial.
+
+Repeat under:
+- all canonical permutation/replay fixtures,
+- large translations,
+- wide exponent spans,
+- sliver/needle/wedge families,
+- near-equal q_MR pairs.
+
+## Tier Q2-AC — environment guard matrix
+
+Run qualification under supported rounding modes:
+
+    FE_TONEAREST
+    FE_UPWARD
+    FE_DOWNWARD
+    FE_TOWARDZERO.
+
+Require:
+- only FE_TONEAREST enables D26INT1,
+- all other modes route to exact fallback,
+- final D26QMR1 result is unchanged.
+
+Where architecture/test support exists, exercise:
+- gradual underflow,
+- flush-to-zero/subnormal-incompatible mode.
+
+Require the portable arithmetic probe to detect incompatible behavior.
+
+## Tier Q2-AD — compiler/contraction matrix
+
+Compile the future certified interval kernel under:
+
+1. explicit non-contracted safe candidate,
+2. explicit FMA experimental tree,
+3. unsafe/fast-math negative-control configuration.
+
+Require:
+- D26INT1 qualification only for the frozen non-contracted tree,
+- explicit FMA path treated as a distinct backend,
+- unsafe configuration cannot silently claim certification,
+- exact D26QMR1 final result remains the reference.
+
+Until implementation exists this tier is verification design only.
+
+## Tier Q2-AE — normalization primitive
+
+For positive finite maximum relative magnitude M:
+
+    e = ilogb(M)
+    k = -e-1.
+
+Verify:
+
+    1/2
+      <=
+    scalbn(M,k)
+      <
+    1
+
+whenever the reference normalization path reports no unsupported range condition.
+
+Test:
+- powers of two,
+- values adjacent to powers of two,
+- subnormal M,
+- maximum finite M,
+- mixed exponent-span relative coordinates.
+
+If an endpoint scaling cannot be certified:
+- require UncertainRange,
+- never a guessed interval.
+
+## Tier Q2-AF — adjacent-step backend equivalence
+
+If a bit-level nextDown/nextUp optimization is researched:
+
+Cross-check against std::nextafter for:
+- +0/-0,
+- minimum subnormal,
+- maximum subnormal,
+- minimum normal,
+- random normals,
+- max finite boundary,
+- positive/negative values.
+
+The optimized path must be exactly equivalent for every supported finite input class.
+
+## Tier Q2-AG — nextafter side-effect audit
+
+Record floating exception flags before/after reference std::nextafter boundary tests.
+
+Determine whether Dynamics26:
+- permits interval-helper flag changes,
+- preserves/restores caller state,
+- or selects the future bit-step adjacent implementation.
+
+No flag policy is accepted solely from performance preference.
+
+## Additional D26INT1 research gates
+
+| Gate | Requirement |
+|---|---|
+| M6-R91 | one-step adjacent-representable enclosure theorem passes exact dyadic primitive oracle |
+| M6-R92 | std::nextafter reference adjacency covers signed zero, subnormal, normal and finite-boundary cases |
+| M6-R93 | D26INT1 addition/subtraction intervals contain exact extrema |
+| M6-R94 | general and non-negative multiplication intervals contain exact extrema |
+| M6-R95 | square and positive-cube specializations contain exact ranges |
+| M6-R96 | final-only-widening negative control fails as expected and per-primitive composition succeeds |
+| M6-R97 | fixed determinant interval tree contains exact determinant |
+| M6-R98 | fixed balanced edge-sum tree contains exact six-edge S |
+| M6-R99 | final F interval contains exact cross-polynomial value |
+| M6-R100 | FE_TONEAREST guard disables D26INT1 under alternate rounding modes |
+| M6-R101 | runtime subnormal probes detect unsupported flush/input-subnormal behavior |
+| M6-R102 | scalbn normalization reaches the documented [1/2,1) maximum-magnitude target or falls back |
+| M6-R103 | compiler contract prevents unproved reassociation/contraction in certified D26INT1 kernel |
+| M6-R104 | any optimized bit-step nextDown/nextUp path matches std::nextafter reference |
+| M6-R105 | Apple arm64 FPCR diagnostic agrees with portable behavior probes where enabled |
+| M6-R106 | directed-rounding D26INTD1 cross-check never disagrees with D26QMR1 |
+| M6-R107 | EFT/FMA D26INTE1 remains experimental until D26INT1 fallback telemetry justifies it |
+| M6-R108 | Debug/Release/replay preserve final exact comparison and qualified D26INT1 semantics |
+
+These gates do not authorize production interval code.

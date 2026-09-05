@@ -1572,3 +1572,152 @@ First qualification remains the simpler two-stage filtered/exact path.
 M6-R75..M6-R90.
 
 No production M6 filter code is authorized.
+
+
+---
+
+## ADR-MESH-0035 — D26INT1 uses RN per-primitive adjacent-representable widening
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-06
+
+### Decision candidate
+
+The first interval backend for D26QMRF1 should be:
+
+    D26INT1
+      =
+    FE_TONEAREST
+      +
+    per-primitive adjacent-representable outward widening
+      +
+    fixed expression trees
+      +
+    environment guards
+      +
+    exact D26QMR1 fallback.
+
+It does not mutate the rounding mode.
+
+### Primitive-local proof
+
+For one correctly rounded finite binary64 primitive result:
+
+    r = RN(z),
+
+the exact result z is enclosed by the two adjacent representable neighbors around r.
+
+Therefore:
+- addition,
+- subtraction,
+- multiplication
+
+may use one-step outward widening per endpoint primitive.
+
+The proof does **not** authorize:
+- evaluating a multi-operation expression,
+- widening only the final result by one step.
+
+Compound expressions must compose certified interval primitives.
+
+### Fixed trees
+
+Research freezes explicit trees for:
+- 3x3 determinant,
+- balanced six-edge squared-length sum,
+- final D26QMRF1 cross polynomial.
+
+A changed arithmetic tree is a changed filter contract until requalified.
+
+### Compiler boundary
+
+Clang's default precise model can permit FP contraction.
+
+Therefore:
+
+    repository has no explicit fast-math flag
+
+does not prove a non-FMA expression tree.
+
+When implementation is authorized, D26INT1 requires an explicit non-contraction/reassociation policy
+for the certified kernel.
+
+Explicit FMA belongs to separate D26INTE1 research.
+
+### Runtime environment
+
+D26INT1 fast path requires:
+- binary radix 2,
+- 53-bit double precision,
+- IEC-60559-compatible binary64 capability,
+- FE_TONEAREST,
+- demonstrated gradual-subnormal behavior,
+- finite supported operands.
+
+If a requirement is not established:
+
+    UncertainEnvironment
+      ->
+    exact D26QMR1 fallback.
+
+### Apple Silicon boundary
+
+AArch64 FPCR contains:
+- RMode,
+- FZ.
+
+Apple XNU arm64 definitions expose corresponding fields.
+
+Therefore Apple Silicon is capable of runtime states incompatible with the filter assumptions.
+
+Do not rely on platform name as proof of:
+- RN mode,
+- gradual underflow.
+
+Portable behavior probes remain part of qualification.
+
+### Adjacent-value backend
+
+Reference:
+
+    std::nextafter.
+
+Future optimization may use exact binary64 bit stepping to implement:
+- nextDown,
+- nextUp
+
+without libm/exception-flag side effects.
+
+Such an optimization requires exhaustive equivalence against the reference behavior.
+
+### Normalization
+
+Reference power-of-two scaling uses std::scalbn semantics.
+
+For positive finite M:
+
+    k = -ilogb(M)-1
+
+targets:
+
+    1/2 <= scalbn(M,k) < 1.
+
+Unsupported range behavior returns UncertainRange.
+
+### Alternative backends
+
+Research placeholders:
+
+    D26INTD1
+      dynamic directed rounding
+
+    D26INTE1
+      EFT / explicit FMA.
+
+Neither is the first qualification dependency.
+
+### Evidence needed
+
+M6-R91..M6-R108.
+
+No production interval implementation is authorized.

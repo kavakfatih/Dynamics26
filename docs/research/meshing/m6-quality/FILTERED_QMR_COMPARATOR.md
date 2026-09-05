@@ -985,3 +985,141 @@ Semi-static filtering remains attractive for performance, but should be earned b
 certificate rather than hand-tuned constants.
 
 This document does not authorize production M6 code.
+
+
+## 37. Interval-backend research update
+
+The first D26QMRF1 backend is now narrowed to:
+
+    D26INT1
+      =
+    FE_TONEAREST primitive arithmetic
+      +
+    per-primitive adjacent-representable outward widening
+      +
+    exact/power-of-two normalization
+      +
+    strict environment guard
+      +
+    D26QMR1 fallback on uncertainty.
+
+Important:
+
+    per-primitive widening
+    !=
+    evaluate a compound expression and widen once at the end.
+
+The one-step enclosure theorem applies to one correctly rounded primitive operation.
+
+Therefore:
+- cube is built from interval multiplications,
+- determinant is built from interval multiplications/additions/subtractions,
+- F is built from interval square/cube/multiply/subtract nodes.
+
+See INTERVAL_ARITHMETIC_BACKEND.md.
+
+## 38. One-step primitive enclosure theorem
+
+Let z be the exact finite real result of one binary64 primitive operation and:
+
+    r = RN(z)
+
+the correctly rounded result in round-to-nearest mode.
+
+Let:
+
+    prev(r)
+      =
+    adjacent binary64 below r
+
+and:
+
+    next(r)
+      =
+    adjacent binary64 above r.
+
+Then:
+
+    prev(r)
+      <=
+    z
+      <=
+    next(r).
+
+Therefore one adjacent-representable outward step encloses the exact result of that one primitive.
+
+The theorem requires the actual executed operation to match the certified primitive:
+- binary64 RN semantics,
+- no unsupported flush-to-zero,
+- no hidden reassociation,
+- no unproved FMA contraction.
+
+## 39. Environment guard
+
+The adjacent-step function itself may be rounding-mode independent.
+
+The arithmetic being enclosed is not.
+
+D26INT1 therefore requires:
+
+    active rounding mode == FE_TONEAREST.
+
+If this cannot be established:
+
+    UncertainEnvironment
+      ->
+    D26QMR1 exact fallback.
+
+The first backend does not change the rounding mode.
+
+## 40. Contraction policy refinement
+
+Clang's default precise floating model permits FP contraction.
+
+Therefore merely observing that the repository does not currently pass an explicit fp-contract flag is
+not enough to qualify a non-FMA proof.
+
+When implementation is authorized, the certified D26INT1 kernel must use a frozen contraction policy,
+leading candidate:
+
+    -ffp-contract=off
+
+or an equivalently qualified source/compiler contract.
+
+An explicit-FMA interval backend is a different future proof.
+
+## 41. Subnormal capability policy
+
+AArch64 FPCR contains:
+- RMode,
+- FZ flush-to-zero control.
+
+Apple's arm64 kernel headers expose the same architectural FPCR fields.
+
+Therefore D26INT1 must not infer gradual-underflow capability solely from the CPU family name.
+
+First research policy:
+- static binary64 capability checks,
+- runtime arithmetic probes that cannot be constant-folded,
+- exact fallback if gradual-subnormal behavior is not demonstrated.
+
+Direct FPCR inspection may be a platform-specific diagnostic, but is not required as the portable
+first contract.
+
+## 42. Adjacent-step implementation boundary
+
+std::nextafter is the standards/library reference behavior for moving to the adjacent representable
+value.
+
+A future optimized backend may use a derived binary64 bit-step implementation to avoid:
+- libm call overhead,
+- nextafter floating-exception flag side effects.
+
+Such a bit-step implementation must be exhaustively cross-checked against std::nextafter over:
+- zeros,
+- subnormals,
+- normals,
+- infinities boundary behavior,
+- both signs.
+
+No production choice is frozen here.
