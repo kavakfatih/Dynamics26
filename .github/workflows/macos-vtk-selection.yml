@@ -165,6 +165,12 @@ jobs:
       - name: Build application shell
         run: cmake --build build-topology-selection --parallel --target femcae_gui
 
+      - name: Native CAD viewport interaction acceptance
+        timeout-minutes: 3
+        env:
+          QT_QPA_PLATFORM: cocoa
+        run: build-topology-selection/gui/FEMCAE.app/Contents/MacOS/FEMCAE --import-step "$DYNAMICS26_STEP_FIXTURE" --interaction-selftest
+
       - name: Selection and named boundary consumer shell acceptance
         env:
           QT_QPA_PLATFORM: offscreen

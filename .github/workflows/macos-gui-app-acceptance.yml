@@ -125,6 +125,12 @@ jobs:
         shell: bash
         run: ctest --test-dir "$BUILD_DIR" -R '^gui.analysis_capability$' --output-on-failure
 
+      - name: Run native viewport interaction acceptance
+        timeout-minutes: 3
+        env:
+          QT_QPA_PLATFORM: cocoa
+        run: '"$BUILD_DIR/gui/FEMCAE.app/Contents/MacOS/FEMCAE" --interaction-selftest'
+
       - name: Run integrated application acceptance
         shell: bash
         env:
@@ -140,7 +146,6 @@ jobs:
           printf '%s\n' "$output"
           test "$status" -eq 0
           grep -q "selection shell acceptance PASS" <<< "$output"
-          grep -q "Viewport interaction acceptance PASS" <<< "$output"
           grep -q "Material Inspector acceptance: 26/26 PASS" <<< "$output"
           grep -q "Mesh Inspector acceptance PASS" <<< "$output"
           grep -q "Analysis Inspector acceptance PASS" <<< "$output"

@@ -227,6 +227,14 @@ int main(int argc, char *argv[])
         window.importGeometryFromPath(QString::fromStdString(stepPath));
     }
 
+    if (hasArgument(argc, argv, "--interaction-selftest")) {
+        // Gerçek pick testi görünür Cocoa/OpenGL penceresi gerektirir. Headless
+        // service acceptance ile ayrı çalıştırılır; hiçbir assertion atlanmaz.
+        std::cout << std::unitbuf;
+        app.processEvents();
+        return d26::runViewportInteractionAcceptance(app, window);
+    }
+
     if (selectionSelfTest) {
         // Acceptance binary'si crash ederse son başarılı assertion CI logunda
         // kaybolmamalıdır. Yalnız self-test modunda stdout'u line-buffer benzeri
@@ -242,8 +250,6 @@ int main(int argc, char *argv[])
         // Inspector/solver-workspace acceptance'ları yalnız görünür/current
         // application state'i düzenler; hidden widget state'i veya ikinci engineering
         // state kullanılmaz. Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
-        const int interactionStatus = d26::runViewportInteractionAcceptance(app, window);
-        if (interactionStatus != 0) return interactionStatus;
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
             return selectionStatus;

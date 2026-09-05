@@ -253,6 +253,12 @@ jobs:
       - name: Selection state and VTK picker gate
         run: ctest --test-dir build-selfhosted-gui-fast -L selection --output-on-failure
 
+      - name: Native viewport interaction acceptance
+        timeout-minutes: 3
+        env:
+          QT_QPA_PLATFORM: cocoa
+        run: build-selfhosted-gui-fast/gui/FEMCAE.app/Contents/MacOS/FEMCAE --interaction-selftest
+
       - name: Selection Coordinator shell acceptance
         env:
           QT_QPA_PLATFORM: offscreen
