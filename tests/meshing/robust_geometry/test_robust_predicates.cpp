@@ -105,6 +105,22 @@ PredicateEvaluation evaluate(
     fail("unsupported predicate fixture");
 }
 
+std::string predicateFromFixtureHeader(const std::filesystem::path& path) {
+    std::ifstream input(path);
+    require(input.good(), "cannot open fixture " + path.string());
+    std::string line;
+    while (std::getline(input, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        constexpr std::string_view prefix = "# predicate=";
+        if (line.rfind(prefix, 0) == 0) {
+            return line.substr(prefix.size());
+        }
+    }
+    fail("fixture has no predicate header: " + path.string());
+}
+
 std::size_t verifyFile(
     const std::filesystem::path& path,
     const std::string& predicate,
@@ -186,18 +202,27 @@ void verifyInvalidInput() {
 int main(int argc, char** argv) {
     try {
         require(argc == 2, "fixture directory argument required");
-        const std::filesystem::path directory(argv[1]);
+        const std::filesystem::path inputPath(argv[1]);
         std::size_t total = 0;
         std::size_t fastCount = 0;
         std::size_t exactCount = 0;
-        total += verifyFile(directory / "orient2d.d26pred", "orient2d", fastCount, exactCount);
-        total += verifyFile(directory / "orient3d.d26pred", "orient3d", fastCount, exactCount);
-        total += verifyFile(directory / "incircle.d26pred", "incircle", fastCount, exactCount);
-        total += verifyFile(directory / "insphere.d26pred", "insphere", fastCount, exactCount);
+
+        if (std::filesystem::is_regular_file(inputPath)) {
+            const std::string predicate = predicateFromFixtureHeader(inputPath);
+            total += verifyFile(inputPath, predicate, fastCount, exactCount);
+        } else {
+            require(std::filesystem::is_directory(inputPath), "fixture path is not a file/directory");
+            total += verifyFile(inputPath / "orient2d.d26pred", "orient2d", fastCount, exactCount);
+            total += verifyFile(inputPath / "orient3d.d26pred", "orient3d", fastCount, exactCount);
+            total += verifyFile(inputPath / "incircle.d26pred", "incircle", fastCount, exactCount);
+            total += verifyFile(inputPath / "insphere.d26pred", "insphere", fastCount, exactCount);
+        }
         verifyInvalidInput();
 
-        require(fastCount > 0U, "M1.8 fast filter never certified a case");
-        require(exactCount > 0U, "M1.8 exact fallback coverage missing");
+        if (std::filesystem::is_directory(inputPath)) {
+            require(fastCount > 0U, "M1.8 fast filter never certified a case");
+            require(exactCount > 0U, "M1.8 exact fallback coverage missing");
+        }
 
         std::cout << "M1.8 robust-predicates PASS cases=" << total
                   << " fast=" << fastCount

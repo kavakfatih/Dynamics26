@@ -378,3 +378,126 @@ def generate_all_with_random(output_dir, random_cases: int, seed: int) -> None:
             render_fixture_with_random(predicate, random_cases, seed),
             encoding="utf-8",
         )
+
+
+def _transform_points(
+    points_bits: Sequence[Sequence[int]],
+    scale: float = 1.0,
+    translation: Sequence[float] | None = None,
+) -> list[list[int]]:
+    points = [[float_from_bits(bits) for bits in point] for point in points_bits]
+    if translation is None:
+        translation = [0.0] * len(points[0])
+    transformed = [
+        [scale * coordinate + translation[axis] for axis, coordinate in enumerate(point)]
+        for point in points
+    ]
+    return point_bits(transformed)
+
+
+def adversarial_cases(predicate: str) -> list[dict[str, object]]:
+    deltas = [0.0]
+    for exponent in (-10, -20, -40, -50):
+        delta = math.ldexp(1.0, exponent)
+        deltas.extend((delta, -delta))
+
+    if predicate == "orient2d":
+        bases = [
+            [(0.0, 0.0), (1.0, 1.0), (2.0, 2.0 + delta)]
+            for delta in deltas
+        ]
+    elif predicate == "orient3d":
+        bases = [
+            [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 0.0), (0.25, 0.25, delta)]
+            for delta in deltas
+        ]
+    elif predicate == "incircle":
+        bases = [
+            [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0 + delta)]
+            for delta in deltas
+        ]
+    elif predicate == "insphere":
+        bases = [
+            [
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+                (0.0, 0.0, 1.0),
+                (0.0, 0.0, 0.0),
+                (1.0, 1.0, 1.0 + delta),
+            ]
+            for delta in deltas
+        ]
+    else:
+        raise ValueError(f"unsupported predicate: {predicate}")
+
+    cases: list[dict[str, object]] = []
+    for index, points in enumerate(bases):
+        cases.append({
+            "id": f"adv_{predicate}_near_{index:03d}",
+            "class": "near-degenerate",
+            "seed": 0,
+            "points": point_bits(points),
+        })
+
+    reference = cases[1]["points"]
+    assert isinstance(reference, list)
+
+    for exponent in (-200, -50, 50, 200):
+        scale = math.ldexp(1.0, exponent)
+        cases.append({
+            "id": f"adv_{predicate}_scale_{exponent:+d}",
+            "class": "scale",
+            "seed": 0,
+            "points": _transform_points(reference, scale=scale),
+        })
+
+    dimension, _ = PREDICATE_SPECS[predicate]
+    translation = [math.ldexp(1.0, 20)] * dimension
+    if dimension >= 2:
+        translation[1] = -translation[1]
+    cases.append({
+        "id": f"adv_{predicate}_translated",
+        "class": "large-offset",
+        "seed": 0,
+        "points": _transform_points(reference, translation=translation),
+    })
+
+    swapped = [list(point) for point in reference]
+    swapped[0], swapped[1] = swapped[1], swapped[0]
+    cases.append({
+        "id": f"adv_{predicate}_swap01",
+        "class": "permutation",
+        "seed": 0,
+        "points": swapped,
+    })
+    return cases
+
+
+def render_fixture_cases(predicate: str, cases: Sequence[dict[str, object]]) -> str:
+    dimension, arity = PREDICATE_SPECS[predicate]
+    lines = [
+        "# D26PRED 1",
+        f"# predicate={predicate}",
+        "# encoding=ieee754-binary64-bits-hex",
+        f"# dimension={dimension}",
+        f"# arity={arity}",
+        f"# coordinate_count={dimension * arity}",
+        f"# generator={GENERATOR_VERSION}",
+    ]
+    lines.extend(_format_case(predicate, case) for case in cases)
+    return "\n".join(lines) + "\n"
+
+
+def generate_adversarial(output_dir) -> None:
+    from pathlib import Path
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    for predicate in PREDICATE_SPECS:
+        (output / f"{predicate}.d26pred").write_text(
+            render_fixture_cases(predicate, adversarial_cases(predicate)),
+            encoding="utf-8",
+        )
+
+
+def render_replay_fixture(predicate: str, case: dict[str, object]) -> str:
+    return render_fixture_cases(predicate, [case])

@@ -332,3 +332,40 @@ if(Python3_Interpreter_FOUND)
         FIXTURES_REQUIRED d26_m17_predicate_corpus
     )
 endif()
+
+
+# M1.9-A — adversarial/metamorphic corpus + one-case replay
+if(Python3_Interpreter_FOUND)
+    set(FEMCAE_M19_ADVERSARIAL_DIR "${CMAKE_BINARY_DIR}/m19-adversarial-corpus")
+    add_test(
+        NAME unit_m19_generate_adversarial
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/meshing/robust_geometry/test_m19_adversarial.py
+                ${CMAKE_SOURCE_DIR}
+                ${FEMCAE_M19_ADVERSARIAL_DIR}
+    )
+    set_tests_properties(unit_m19_generate_adversarial PROPERTIES
+        LABELS "unit;meshing;robust-geometry;predicate;adversarial;metamorphic;replay;m1.9"
+        FIXTURES_SETUP d26_m19_adversarial
+    )
+
+    add_test(
+        NAME unit_m19_robust_predicates_adversarial
+        COMMAND unit_m17_robust_predicates
+                ${FEMCAE_M19_ADVERSARIAL_DIR}
+    )
+    set_tests_properties(unit_m19_robust_predicates_adversarial PROPERTIES
+        LABELS "unit;meshing;robust-geometry;predicate;adversarial;metamorphic;m1.9"
+        FIXTURES_REQUIRED d26_m19_adversarial
+    )
+
+    add_test(
+        NAME unit_m19_replay_roundtrip
+        COMMAND unit_m17_robust_predicates
+                ${FEMCAE_M19_ADVERSARIAL_DIR}/replay_orient3d.d26pred
+    )
+    set_tests_properties(unit_m19_replay_roundtrip PROPERTIES
+        LABELS "unit;meshing;robust-geometry;predicate;replay;determinism;m1.9"
+        FIXTURES_REQUIRED d26_m19_adversarial
+    )
+endif()
