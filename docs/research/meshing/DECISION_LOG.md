@@ -1299,3 +1299,127 @@ They are not accepted API contracts.
 M6-R49..M6-R60.
 
 No production M6 implementation is authorized.
+
+
+---
+
+## ADR-MESH-0033 — D26QMR1 uses exact binary64-lattice ordering with certified filtered fallback
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-06
+
+### Decision candidate
+
+D26QMR1 is an exact **mean-ratio ordering** contract.
+
+It does not attempt to construct an exact real-valued q_MR scalar.
+
+For a positive tetrahedron:
+
+    q_MR^3
+      =
+    432 D^2/S^3.
+
+Therefore authoritative comparison reduces to:
+
+    compare(
+      D_A^2/S_A^3,
+      D_B^2/S_B^3
+    ).
+
+### Exact reference representation
+
+Every finite binary64 coordinate is represented exactly on the common lattice:
+
+    x
+      =
+    I_x 2^-1074.
+
+For one tetra:
+- remove exact translation,
+- divide the common integer gcd of coordinate differences,
+- compute primitive integer determinant magnitude d,
+- compute primitive integer six-edge squared sum s.
+
+Then:
+
+    q_MR^3
+      =
+    432 d^2/s^3
+
+and pairwise order is:
+
+    sign(
+      d_A^2 s_B^3
+      -
+      d_B^2 s_A^3
+    ).
+
+No root, division or quality epsilon is required by the exact order.
+
+### Validity boundary
+
+Exact M1/M2 validity precedes quality comparison.
+
+Because d^2 hides determinant sign:
+- inverted tetrahedra may not enter D26QMR1 acceptance,
+- zero orientation is a geometry failure, not a quality tie.
+
+### Arithmetic bound
+
+For primitive pairwise scalar edge-component bit width B:
+
+    B <= 2099
+
+for arbitrary finite binary64 inputs.
+
+The exact comparison magnitude has the conservative bound:
+
+    < 12B+22 bits
+
+and therefore below approximately 25210 bits at the input-format worst case.
+
+This is an arithmetic-size bound, not a performance claim.
+
+### Filtered acceleration candidate
+
+A later fast path may:
+1. power-of-two normalize each tetra independently,
+2. compute a certified outward interval for q_MR^3,
+3. return Less/Greater only for disjoint intervals,
+4. return Uncertain otherwise,
+5. invoke the exact lattice comparator.
+
+Interval overlap is never equality.
+
+Only the exact stage may return Equal.
+
+### Environmental boundary
+
+The exact lattice oracle depends on stored binary64 bits and exact integer arithmetic.
+
+A floating filter additionally requires a qualified:
+- radix/precision contract,
+- rounding environment,
+- subnormal behavior,
+- compiler contraction/FMA policy.
+
+Do not let fast-math or unproved interval shortcuts change the authoritative sign.
+
+### Backend boundary
+
+This ADR freezes semantics, not the implementation backend.
+
+Candidates remain:
+- arbitrary-precision integer exact fallback,
+- floating-expansion exact fallback,
+- interval/static filter variants.
+
+The exact primitive-lattice oracle is the qualification reference even if a different backend is later
+selected for production.
+
+### Evidence needed
+
+M6-R61..M6-R74.
+
+No production M6 code is authorized.

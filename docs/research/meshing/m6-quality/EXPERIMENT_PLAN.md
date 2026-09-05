@@ -811,3 +811,138 @@ Require:
 | M6-R60 | Debug/Release repeated runs reproduce candidate selection and exact quality ties for fixed policy |
 
 These remain research/verification-design gates.
+
+
+## Tier Q2-N — D26QMR1 binary64 lattice oracle
+
+### Bit-level decode corpus
+
+Verify exact lattice integer reconstruction for:
+- +0 / -0,
+- minimum positive subnormal,
+- maximum subnormal,
+- minimum normal,
+- adjacent normals,
+- 1.0 and exact powers of two,
+- maximum finite binary64,
+- negative counterparts.
+
+Reject:
+- NaN,
+- +infinity,
+- -infinity.
+
+Independent oracle must reconstruct:
+
+    x = I 2^-1074.
+
+### Primitive gcd normalization
+
+For tetra lattice coordinates:
+- compute all pairwise integer component differences,
+- divide common positive gcd G,
+- verify primitive gcd becomes one,
+- repeat under every vertex permutation and multiple exact lattice translations.
+
+Require identical:
+
+    d^2/s^3.
+
+### Exact mean-ratio order
+
+For positive tetrahedra compare:
+
+    sign(
+      d_A^2 s_B^3
+      -
+      d_B^2 s_A^3
+    ).
+
+Cross-check against independent arbitrary-precision rational evaluation.
+
+Include:
+- regular/near-regular,
+- sliver,
+- needle,
+- wedge,
+- exact ties,
+- adversarial near-ties.
+
+## Tier Q2-O — exact-arithmetic width audit
+
+For every reference corpus item record:
+
+    primitive_component_bits
+    determinant_bits
+    edge_sum_bits
+    comparison_product_bits.
+
+Verify the derived conservative bounds:
+
+    bitlen(s) <= 2B+5
+    bitlen(|d|) <= 3B+3
+    comparison magnitude < 12B+22 bits
+
+using the experiment's exact definition of B.
+
+Exercise wide exponent-span inputs approaching the binary64 theoretical limit.
+
+## Tier Q2-P — D26QMR filtered-exact oracle
+
+Reference exact-only comparator is authority.
+
+Research a certified interval filter for:
+
+    q3 = 432 D^2/S^3.
+
+For each tetra:
+- use independent exact power-of-two scaling to bound local floating dynamic range,
+- evaluate outward intervals,
+- certify only disjoint score intervals,
+- otherwise fall back.
+
+Require:
+- no filter/exact disagreement,
+- interval overlap never returns Equal,
+- subnormal/underflow uncertainty goes to fallback,
+- no overflow-driven decision,
+- exact equality only from exact stage.
+
+Record fallback rate by pathology and operation class.
+
+## Tier Q2-Q — metamorphic comparator verification
+
+Require D26QMR1 invariance under:
+- all 24 tetra vertex permutations,
+- exact lattice translations,
+- exact power-of-two uniform scale,
+- reflection of the geometric shape with orientation validity handled separately.
+
+Cross-check:
+
+    sign(integer determinant)
+      ==
+    M1 Orient3D exact sign
+
+for identical ordered vertices.
+
+## Additional D26QMR1 research gates
+
+| Gate | Requirement |
+|---|---|
+| M6-R61 | binary64 bit patterns decode exactly to the common 2^-1074 integer lattice |
+| M6-R62 | primitive gcd normalization is anchor- and permutation-invariant |
+| M6-R63 | q_MR^3 = 432 d^2/s^3 passes an independent rational oracle |
+| M6-R64 | derived bigint-width bounds are never exceeded by the adversarial corpus |
+| M6-R65 | exact D26QMR1 comparator matches independent arbitrary-precision ordering |
+| M6-R66 | all 24 vertex permutations preserve the exact quality key |
+| M6-R67 | exact lattice translation and power-of-two scaling metamorphic tests pass |
+| M6-R68 | inverted, degenerate and non-finite candidates cannot enter quality acceptance |
+| M6-R69 | integer determinant sign agrees with M1 exact Orient3D sign |
+| M6-R70 | certified interval filter never disagrees with exact D26QMR1 |
+| M6-R71 | interval overlap/underflow is Uncertain and exact equality comes only from fallback |
+| M6-R72 | wide exponent-span corpus exercises the bounded exact fallback path |
+| M6-R73 | Debug/Release/replay produce the same final comparator result |
+| M6-R74 | approximate displayed q_MR remains separate from authoritative exact ordering |
+
+No M6 production comparator is authorized by these gates.

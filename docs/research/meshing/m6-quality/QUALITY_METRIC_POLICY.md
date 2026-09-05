@@ -463,3 +463,78 @@ A generated candidate still requires:
 before commit.
 
 This prevents aggregate compensation from worsening the low-quality tail.
+
+
+## 23. D26QMR1 is an exact order, not an exact display value
+
+Authoritative topology acceptance does not require an exact real-valued cube root for q_MR.
+
+For positive tetrahedra:
+
+    q_MR^3
+      =
+    432 D^2/S^3.
+
+Therefore D26QMR1 compares the rational invariant:
+
+    D^2/S^3
+
+exactly and separately computes ordinary floating q_MR values for reporting/plots.
+
+This distinction is intentional:
+- exact decision,
+- approximate diagnostic scalar.
+
+## 24. Binary64 primitive-lattice reference oracle
+
+Every finite binary64 coordinate is exactly:
+
+    I 2^-1074.
+
+For a tetrahedron:
+1. decode coordinates to exact lattice integers,
+2. remove translation,
+3. divide the common integer gcd of coordinate differences,
+4. compute integer determinant magnitude d,
+5. compute integer six-edge squared sum s.
+
+Then:
+
+    q_MR^3
+      =
+    432 d^2/s^3.
+
+Pairwise order is the sign of:
+
+    d_A^2 s_B^3
+      -
+    d_B^2 s_A^3.
+
+This is the leading exact reference oracle.
+
+The arbitrary-precision backend is not yet selected.
+
+## 25. Filter policy
+
+A fast filter may certify Less/Greater only when its error/enclosure proof excludes the opposite
+result.
+
+If it cannot certify:
+- return Uncertain,
+- invoke exact D26QMR1 fallback.
+
+Only the exact stage may establish an exact tie.
+
+Pairwise quality epsilon remains forbidden for ordering.
+
+## 26. Floating-environment separation
+
+Exact integer fallback semantics must not depend on:
+- FMA contraction,
+- rounding mode,
+- gradual-underflow behavior,
+- long-double width.
+
+A floating filter may depend on such properties only after they are explicitly qualified.
+
+Filter/compiler assumptions belong in reproducibility telemetry and CI, not implicit folklore.

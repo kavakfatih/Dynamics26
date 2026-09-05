@@ -254,3 +254,12 @@ This section extends the M6 metric sources with operation/scheduling research.
 | M6-OPT-010 | J. Liu, Y. Q. Chen, S. L. Sun, *Small polyhedron reconnection for mesh improvement and its implementation based on advancing front technique*, IJNME 79(8), 2009 | Practical SPR workflow; larger local reconnection after elementary transforms/smoothing | https://doi.org/10.1002/nme.2605 | 2026-09-06 |
 | M6-OPT-011 | C. Marot, K. Verhetsel, J.-F. Remacle et al., *Reviving the Search for Optimal Tetrahedralizations*, 28th International Meshing Roundtable, 2020 | Branch-and-bound optimal fixed-cavity tetrahedralization, pruning heuristics and post-smoothing/edge-removal gains | https://doi.org/10.5281/zenodo.3653420 | 2026-09-06 |
 | M6-OPT-012 | B. M. Klingner, *Improving Tetrahedral Meshes*, UC Berkeley EECS Technical Report UCB/EECS-2008-145, 2008 | Detailed quality-vector objective, local-submesh lexicographic comparison, operation scheduling and size-control separation | https://www2.eecs.berkeley.edu/Pubs/TechRpts/2008/EECS-2008-145.html | 2026-09-06 |
+
+
+## M6 exact quality-order / numerical robustness sources
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M6-NUM-001 | J. R. Shewchuk, *Adaptive Precision Floating-Point Arithmetic and Fast Robust Geometric Predicates*, Discrete & Computational Geometry 18(3), 1997 | Exact addition/multiplication of floating inputs, adaptive precision and certified-sign philosophy for robust polynomial decisions | https://people.eecs.berkeley.edu/~jrs/papers/robustr.pdf | 2026-09-06 |
+| M6-NUM-002 | D. Goldberg, *What Every Computer Scientist Should Know About Floating-Point Arithmetic*, ACM Computing Surveys 23(1), 1991 | IEEE binary radix/53-bit double properties, exact power-of-two scaling context, denormals/gradual underflow and rounding-environment cautions | https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html | 2026-09-06 |
+| M6-NUM-003 | CGAL, *Filtered_predicate / Filtered_exact* documentation | Architecture reference for fast interval/filter evaluation with exact fallback on uncertainty; not source-code authority | https://doc.cgal.org/latest/Kernel_23/classCGAL_1_1Filtered__predicate.html | 2026-09-06 |
