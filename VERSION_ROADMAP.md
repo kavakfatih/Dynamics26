@@ -335,27 +335,28 @@ USER VALIDATED additionally tests real pointer/trackpad/keyboard/Light/Dark work
 
 V1.2 begins with the blocker that currently prevents real arbitrary-part workflows.
 
-## M1 — Meshing Engine Decision Gate
+## M1 — Original Dynamics26 Meshing Engine Foundation
 
-Compare:
+Production meshing strategy için karar kapanmıştır: Dynamics26 kendi özgün meshing
+engine'ini clean-room araştırma ve doğrulama zinciriyle geliştirir. External mesher
+entegrasyonu production stratejisi değildir.
 
-- mature external mesher adapter,
-- targeted in-house methods only where strategically justified.
+Repository'deki meshing R&D source of truth:
 
-Netgen is a primary candidate because it supports automatic 3D tetra meshing, geometry-kernel STEP/IGES paths, mesh optimization/refinement, macOS and LGPL-2.1. Adoption is conditional.
+- `docs/research/meshing/DECISION_LOG.md`,
+- `docs/research/meshing/CLEAN_ROOM_POLICY.md`,
+- `docs/research/meshing/ROADMAP_AND_EXPERIMENTS.md`.
 
-Required evaluation:
+Güncel gate durumu:
 
-- license/linking/distribution review,
-- Apple Silicon build reproducibility,
-- OCCT/B-Rep handoff without display tessellation dependency,
-- CAD Face persistent key → surface element provenance,
-- deterministic IDs or stable remap strategy,
-- local size / curvature / narrow-region controls,
-- mesh quality extraction,
-- failure diagnostics,
-- performance/memory,
-- test corpus on representative automotive/rubber geometries.
+- M1 robust geometry foundation: **QUALIFIED**,
+- exact predicates / certified fast path / deterministic degeneracy foundation: qualified M1 evidence,
+- tetra topology primitives/validator: qualified M1 scope,
+- M2: **AUTHORIZED — M2.0 REFERENCE ARCHITECTURE & EXPERIMENT PLAN FIRST**.
+
+Gmsh, Netgen, TetGen, CGAL, MMG ve benzeri projeler teori, architecture,
+failure-mode ve benchmark araştırma kaynağı olarak kullanılabilir; kaynak kodu
+kopyalama/transliteration veya production mesher dependency adoption yapılmaz.
 
 ## M2 — Arbitrary B-Rep Volume Meshing
 

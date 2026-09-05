@@ -55,7 +55,7 @@ Bugünkü repository gerçeğinde product meshing yolu `StructuredHexMesher` tab
 
 ### V1.2 — Geometry-aware meshing + scalable nonlinear foundation
 
-- production meshing-engine decision gate,
+- original Dynamics26 meshing engine M2+ qualification,
 - arbitrary B-Rep/STEP volume meshing,
 - CAD Face → mesh Facet provenance,
 - local sizing / curvature / quality,
@@ -64,7 +64,7 @@ Bugünkü repository gerçeğinde product meshing yolu `StructuredHexMesher` tab
 - dense reference → suitable sparse backend routing,
 - nonlinear element distortion and mesh-convergence framework.
 
-Netgen güçlü bir adaydır fakat **adopt edilmiş değildir**; license, macOS packaging, OCCT/B-Rep provenance, determinism, quality ve nonlinear benchmark gate'leri tamamlanmadan dependency haline getirilmez.
+Production meshing strategy artık **özgün Dynamics26 meshing engine** olarak dondurulmuştur. M1 robust-geometry foundation QUALIFIED, M2 ise M2.0 reference-architecture/experiment-plan adımıyla AUTHORIZED durumdadır. Gmsh/Netgen/TetGen/CGAL/MMG benzeri projeler yalnız clean-room teori, mimari, failure-mode ve benchmark araştırma kaynaklarıdır; production mesher dependency'si değildir.
 
 ### V1.3 — Extension / Plugin Architecture & SDK
 

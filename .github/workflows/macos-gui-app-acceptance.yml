@@ -11,6 +11,7 @@ name: macOS GUI application acceptance
     # de aynı gerçek application selftest'i yeniden çalıştırmalıdır.
     paths:
       - ".github/workflows/macos-gui-app-acceptance.yml"
+      - "docs/planning/V1.1_RC1_STATUS.md"
       - "gui/CMakeLists.txt"
       - "gui/main.cpp"
       - "gui/shell/Dynamics26MainWindow.*"

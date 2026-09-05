@@ -376,10 +376,12 @@ void AnalysisDetails::refresh()
     const bool controlsValid = controls.isValid(&nonlinearControlError);
     if (nonlinearAuthoring) {
         nonlinearConsumer_->setText(controlsValid
-                                         ? tr("Ready — general Total-Lagrangian HEX8 / StVK")
+                                         ? tr("Ready — general Total-Lagrangian HEX8 / StVK · synchronous")
                                          : tr("Invalid — nonlinear controls"));
         nonlinearConsumer_->setToolTip(controlsValid
-                                           ? tr("Controls are consumed by the general nonlinear product solver.")
+                                           ? tr("Controls are consumed by the general nonlinear product solver. "
+                                                "RC.1 solve execution is synchronous; cancellation is unavailable "
+                                                "and no Cancel command is exposed.")
                                            : nonlinearControlError);
     } else if (record->largeDeflection) {
         nonlinearConsumer_->setText(tr("Unavailable — Large Deflection model path not connected"));
@@ -645,6 +647,8 @@ void AnalysisDetails::refresh()
     }
     solve_->setEnabled(canSolve && record->solveState != SolveState::Solving);
     solve_->setToolTip(canSolve ? QString() : report.firstFailure());
+    status_->setToolTip(tr("RC.1 solve execution is synchronous. Cancellation is unavailable; "
+                           "no Cancel action is exposed until a cooperative solver boundary exists."));
 
     const int resultDefinitionCount = record->results.size();
     if (services_.analysis->hasResults(analysisId)) {

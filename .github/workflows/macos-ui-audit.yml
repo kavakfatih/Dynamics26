@@ -9,6 +9,7 @@ on:
       - "scripts/github/run_owned_process.py"
       - "tests/scripts/test_owned_process.py"
       - ".github/workflows/macos-ui-audit.yml"
+      - "docs/planning/V1.1_RC1_STATUS.md"
   workflow_dispatch:
 
 permissions:

@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.1.0-rc.1] - Unreleased
+
+Technical closeout candidate for workflow hardening. This is **not** a release
+claim: physical macOS `USER VALIDATED` acceptance remains mandatory.
+
+### Hardened
+- Synchronous solve capability is explicit; no fake Cancel action is exposed.
+- RC closeout status changes trigger hosted GUI, topology/selection, trusted-Mac
+  native and visual-audit workflows on the same exact HEAD.
+- The standalone GUI bundle audit runs automatically only for an explicit
+  `[rc-closeout]` milestone commit or manual dispatch.
+- Top-level product roadmap now matches the accepted original Dynamics26 meshing
+  engine strategy; external meshers remain clean-room research/benchmark sources.
+
+### Open release gates
+- Exact-HEAD automated/native closeout workflows must complete successfully.
+- Physical pointer/keyboard/trackpad/Light/Dark/save-reopen workflow acceptance
+  must be recorded as `USER VALIDATED` before RC.1 is declared released.
+
 ## [1.1.0-beta.3] - 2026-09-05
 
 Supported nonlinear workflow vertical slice for the real document/application

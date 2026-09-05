@@ -15,6 +15,7 @@
 #include "../services/AnalysisService.h"
 #include "../services/MaterialService.h"
 #include "../services/MeshService.h"
+#include "../shell/CommandRegistry.h"
 #include "../shell/DetailsHost.h"
 #include "../shell/Dynamics26MainWindow.h"
 #include "../shell/UtilityWorkspace.h"
@@ -156,6 +157,10 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
               && nonlinearMethod->currentIndex() == 0 && maximumIterations->value() == 25
               && adaptiveStepping->currentIndex() == 1 && lineSearch->currentIndex() == 1,
           "linear Static Structural Inspector shows nonlinear defaults but keeps inactive authoring controls disabled");
+    check(window.commandRegistry()->action(QStringLiteral("analysis.cancel")) == nullptr
+              && state->toolTip().contains(QStringLiteral("synchronous"), Qt::CaseInsensitive)
+              && state->toolTip().contains(QStringLiteral("unavailable"), Qt::CaseInsensitive),
+          "RC.1 exposes synchronous solve truth and does not publish a fake Cancel command");
 
     // Inspector Run Preflight yalnız mevcut shell command registry yolunu ister.
     // Mesh henüz yokken blocking rapor beklenir; bu salt diagnostics işlemi Undo
@@ -286,8 +291,10 @@ inline int runAnalysisInspectorAcceptanceTest(QApplication &app,
               && initialIncrement->isEnabled() && minimumIncrement->isEnabled()
               && maximumIncrement->isEnabled() && residualTolerance->isEnabled()
               && displacementTolerance->isEnabled()
-              && nonlinearConsumer->text().contains(QStringLiteral("Ready"), Qt::CaseInsensitive),
-          "Nonlinear Static Inspector exposes controls consumed by the ready product solver");
+              && nonlinearConsumer->text().contains(QStringLiteral("Ready"), Qt::CaseInsensitive)
+              && nonlinearConsumer->text().contains(QStringLiteral("synchronous"), Qt::CaseInsensitive)
+              && nonlinearConsumer->toolTip().contains(QStringLiteral("cancellation"), Qt::CaseInsensitive),
+          "Nonlinear Static Inspector exposes ready synchronous consumer and explicit cancellation limitation");
     if (record == nullptr) {
         return failures + 1;
     }

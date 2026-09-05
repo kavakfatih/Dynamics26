@@ -46,6 +46,7 @@ on:
       - "tests/gui/test_geometry_window_selection.cpp"
       - "tests/gui/test_mesh_viewport_selection.cpp"
       - "gui/CMakeLists.txt"
+      - "docs/planning/V1.1_RC1_STATUS.md"
       - "gui/widgets/ConvergencePlotWidget.*"
       - ".github/workflows/macos-selection.yml"
   workflow_dispatch:

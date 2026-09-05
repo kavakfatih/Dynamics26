@@ -234,7 +234,9 @@ jobs:
   # Temiz standalone bundle doğrulaması bilinçli olarak manuel/milestone kapısıdır.
   # CI hız kazanırken release güvenliği düşürülmez.
   gui-bundle-audit:
-    if: github.event_name == 'workflow_dispatch'
+    # Normal push'larda pahalı standalone audit çalışmaz. Yalnız manuel istek
+    # veya açık [rc-closeout] milestone commit'i exact-HEAD release kanıtı üretir.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[rc-closeout]')
     timeout-minutes: 90
     runs-on: macos-15
     steps:
