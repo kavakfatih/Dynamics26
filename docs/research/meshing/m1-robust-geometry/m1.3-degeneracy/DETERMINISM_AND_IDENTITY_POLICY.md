@@ -94,3 +94,24 @@ It does not replace:
 ## Failure over hidden nondeterminism
 
 If a stable symbolic identity cannot be established for an input class, report unsupported/ambiguous input rather than falling back to transient pointer ordering.
+
+
+## M2.0 determinism scope resolution — 2026-09-05
+
+M2.0 has made the original "same topology" target more precise.
+
+Current guarantee candidate:
+
+    same exact canonical binary64 sites
+    + same canonicalization policy
+    + same symbolic topology policy
+    => same finite/hull canonical topology
+
+independent of input enumeration and supported insertion order.
+
+Because the current PointId priority is derived from canonical coordinate-bit ordering, exact-degenerate
+symbolic connectivity is not claimed invariant under a coordinate transformation that changes that
+ordering.
+
+Current authority:
+docs/research/meshing/m2-delaunay/DETERMINISM_SCOPE_AND_POLICY_VERSIONING.md.

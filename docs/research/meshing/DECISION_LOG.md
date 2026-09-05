@@ -615,3 +615,41 @@ predicate weakening or unversioned topology changes.
 ### Acceptance
 
 M2-G28 and M2-G29 plus complexity telemetry over ordinary and adversarial distributions.
+
+
+---
+
+## ADR-MESH-0019 — Determinism scope and versioned topology policy
+
+**Status:** PROPOSED
+**Date:** 2026-09-05
+
+### Decision candidate
+
+M2 determinism is scoped to the same exact canonical binary64 site set and the same versioned
+canonicalization/symbolic topology policy.
+
+Under that scope, final finite/hull topology is independent of input enumeration, supported insertion
+order, memory allocation and build mode.
+
+The current symbolic priority is coordinate-derived canonical PointId order. Therefore M2 does not
+claim exact-degenerate symbolic connectivity is invariant under coordinate transforms that alter that
+priority. The transformed result must instead satisfy the current policy for its transformed exact
+site set.
+
+### Versioning candidate
+
+- D26SITE1 — canonical binary64 site identity/order,
+- D26LIFT1 — lift-only Delaunay tie using D26SITE1 PointId priority,
+- D26DT1 — canonical finite/hull topology serialization.
+
+Replay and fingerprint metadata carry these versions.
+
+### Future option
+
+A provenance-derived stable SymbolicPriorityKey may be researched for CAD/adaptation stages if
+degenerate topology must survive model transforms. It is not part of M2.0 default semantics.
+
+### Acceptance
+
+M2-G30..G33.

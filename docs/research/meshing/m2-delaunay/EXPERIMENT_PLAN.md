@@ -170,6 +170,10 @@ This separates weak-Delaunay geometric truth from symbolic topology choice.
 | M2-G27 | later slot-reuse experiment preserves fingerprints and rejects stale generations |
 | M2-G28 | controlled high-complexity family completes or returns typed resource limit without topology corruption |
 | M2-G29 | checked capacity arithmetic and pre-commit resource failure preserve old topology |
+| M2-G30 | arbitrary input/source enumeration gives identical D26SITE1 PointIds and finite/hull fingerprints |
+| M2-G31 | repeated/Debug/Release/supported insertion-order runs under one policy give identical fingerprints |
+| M2-G32 | fingerprint and replay record site/symbolic/schema policy versions |
+| M2-G33 | metamorphic transform suite distinguishes non-degenerate mapped invariance from degenerate policy-dependent ties |
 
 M2 is not QUALIFIED until mandatory gates are executable evidence.
 
@@ -240,3 +244,22 @@ At minimum report separate families:
 
 A tetra/site ratio is telemetry, not a validity threshold. 3D Delaunay output can be quadratic in
 the worst case.
+
+
+## Determinism and transformation matrix
+
+Primary determinism fixtures keep the exact canonical binary64 site set fixed and vary:
+- input enumeration,
+- source-record enumeration,
+- supported insertion order,
+- repeat count,
+- Debug/Release execution.
+
+All require identical D26SITE1/D26LIFT1 finite and hull fingerprints.
+
+Metamorphic transform fixtures are a separate test class:
+- non-degenerate exact-representable transforms require mapped equivalent connectivity,
+- exact-degenerate transforms require weak-Delaunay + current-policy correctness, not necessarily the
+  old internal diagonal pattern if canonical symbolic priority changed.
+
+See DETERMINISM_SCOPE_AND_POLICY_VERSIONING.md.
