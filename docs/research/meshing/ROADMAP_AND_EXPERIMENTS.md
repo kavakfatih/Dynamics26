@@ -336,3 +336,16 @@ BLOCKED
 4. freeze exact-zero and symbolic tie-break boundary between M1 and M2,
 5. run first Apple Silicon compiler/optimization sensitivity experiment,
 6. after M1 evidence, begin M2 point-location and Bowyer-Watson correctness research.
+
+
+### M1.2 — Certified floating-point filters
+Status: **RESEARCHING**
+
+Research package:
+- `docs/research/meshing/m1-robust-geometry/m1.2-certified-filters/`
+
+Exit:
+- zero false sign certifications on exact-oracle corpus,
+- unsafe FP ranges always fallback,
+- Apple Silicon Debug/Release agreement,
+- fallback profile measured.

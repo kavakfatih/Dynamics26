@@ -151,3 +151,22 @@ Evidence now supports the following parts of ADR-MESH-0005:
 - commercial ANSYS/COMSOL/Marc tolerance and repair controls are geometry/meshing policy, not evidence for an epsilon-based predicate design.
 
 ADR-MESH-0005 remains **PROPOSED** until executable oracle and filter experiments are complete.
+
+
+### M1.2 certified-filter research update — 2026-09-05
+The first Dynamics26 F0 filter specification is now derived independently:
+- expanded-monomial evaluation graph,
+- gamma_n error accumulation,
+- fast sign certification only outside the computed error envelope,
+- no fast-path Zero,
+- explicit normal-range gate,
+- initial `-fno-fast-math -ffp-contract=off` compiler contract.
+
+Leading conservative first-order factors are approximately:
+- orient2d: 4u,
+- orient3d: 10u,
+- incircle: 18u,
+- insphere: 80u,
+times the documented computed absolute-monomial sum and denominator corrections.
+
+ADR-MESH-0005 remains **PROPOSED** until executable M1.1/M1.2 experiments pass.

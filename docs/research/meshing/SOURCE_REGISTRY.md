@@ -114,3 +114,20 @@ When adding a source:
 - state whether the source is THEORY, BENCHMARK, ARCHITECTURE or TROUBLESHOOTING,
 - never paste substantial source code into this library,
 - record implementation decisions separately in \`DECISION_LOG.md\`.
+
+
+## M1.2 certified-filter sources
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M1.2-TH-001 | N. J. Higham, *Accuracy and Stability of Numerical Algorithms*, 2nd ed. | Standard FP model and gamma_n accumulation | https://eprints.maths.manchester.ac.uk/238/ | 2026-09-05 |
+| M1.2-TH-002 | J. R. Shewchuk, *Adaptive Precision Floating-Point Arithmetic and Fast Robust Geometric Predicates* | Adaptive exact-predicate theory | https://people.eecs.berkeley.edu/~jrs/papers/robust-predicates.pdf | 2026-09-05 |
+| M1.2-TH-003 | O. Devillers, F. Preparata, *Further Results on Arithmetic Filters for Geometric Predicates* | Rounded evaluation + certificate + exact fallback | https://doi.org/10.1016/S0925-7721(99)00011-5 | 2026-09-05 |
+| M1.2-DOC-001 | CGAL Filtered Predicate / Kernel | Public filtered-exact architecture reference | https://doc.cgal.org/latest/Kernel_23/classCGAL_1_1Filtered__predicate.html | 2026-09-05 |
+| M1.2-DOC-002 | Clang Compiler User Manual | FP reassociation, contraction and fast-math semantics | https://clang.llvm.org/docs/UsersManual.html | 2026-09-05 |
+| M1.2-ANS-001 | ANSYS 2026 R1 Repair Topology | Explicit topology repair/protection | https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/wb_msh/msh_wrkflw_repairtopology.html | 2026-09-05 |
+| M1.2-ANS-002 | ANSYS 2026 R1 RepairTopologyTolerance | Explicit topology-conditioning tolerance | https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/act_ref/item86166192241305182105861492522144151206411274113.html | 2026-09-05 |
+| M1.2-COM-001 | COMSOL 6.4 Geometry Node | Automatic/relative/absolute repair tolerance | https://doc.comsol.com/6.4/doc/com.comsol.help.comsol/comsol_ref_geometry.23.011.html | 2026-09-05 |
+| M1.2-COM-002 | COMSOL 6.4 Repair | Explicit CAD repair operations | https://doc.comsol.com/6.4/doc/com.comsol.help.cad/cad_ug_ref.6.24.html | 2026-09-05 |
+| M1.2-MAR-001 | Hexagon Nexus Marc 2026.1 | Current Mentat meshing advances | https://nexus.hexagon.com/home/product/marc/ | 2026-09-05 |
+| M1.2-MAR-002 | Marc Community — free edges prevent tetra meshing | Closed-surface prerequisite / gap diagnosis | https://nexus.hexagon.com/community/public/marc/f/marc-community-forum/144789/free-edges-prevent-tetrahedral-meshing-how-can-i-solve-this-problem | 2026-09-05 |

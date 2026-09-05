@@ -64,3 +64,7 @@ M1 research can move to implementation when:
 ## M1.1 subprogram
 
 `m1.1-exact-oracle/` defines the independent exact predicate oracle, filtering research, commercial CAE sanity check and experiment plan. Production robust-predicate code remains intentionally deferred until the oracle is executable and independently verified.
+
+
+## M1.2 subprogram
+`m1.2-certified-filters/` derives the first original conservative floating-point certification filters from the general gamma_n rounding-error model. Every certified sign must match the independent M1.1 exact oracle.
