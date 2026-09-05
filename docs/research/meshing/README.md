@@ -140,3 +140,13 @@ Every new study should:
 5. update \`DECISION_LOG.md\` only after evidence is sufficient.
 
 This directory is intended to remain useful after individual chat or coding sessions end.
+
+
+## Active robust-geometry subprograms
+
+- M1.1 exact predicate oracle
+- M1.2 certified floating-point filters
+- M1.3 degeneracy / deterministic symbolic perturbation
+- M1.4 spatial search / point location / tetra topology
+
+These research packages are prerequisites for the first original serial 3D Delaunay prototype.

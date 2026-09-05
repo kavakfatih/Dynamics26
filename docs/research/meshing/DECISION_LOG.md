@@ -203,3 +203,42 @@ Acceptance requires:
 3. duplicate/dimension tests,
 4. co-spherical corpus,
 5. permutation/insertion-order experiments.
+
+
+---
+
+## ADR-MESH-0009 — M2 tetra topology and point-location foundation
+
+**Status:** PROPOSED  
+**Date:** 2026-09-05
+
+### Leading design
+
+- separate geometry predicates, combinatorial topology and location policy,
+- tetra record has four vertices and four neighbors, where neighbor[i] is opposite vertex[i],
+- use index+generation `TetHandle` semantics to detect stale references,
+- preserve oriented face representation separately from sorted canonical face keys,
+- use adjacency walking from a good seed as the primary first point locator,
+- use an exact slow fallback during the reference implementation,
+- spatial insertion ordering is benchmarked as part of point-location performance,
+- cavity traversal uses reusable buffers and epoch marks,
+- failed local retriangulation must not leave a corrupted mesh,
+- M2.0 remains serial.
+
+### Commercial benchmark findings
+
+- ANSYS exposes parallel part/method meshing with explicit CPU and memory guidance.
+- COMSOL's 3D tetra mesher parallelizes over faces/domains; one single imported CAD domain may see little parallel speedup.
+- Marc exposes rich remeshing/density/protected-entity controls but not internal point-location/storage algorithms.
+
+These findings support measuring memory and designing later parallelism, but do not dictate M2 internal search code.
+
+### Why PROPOSED
+
+Acceptance requires executable evidence from M1.4/M2:
+1. topology invariant tests,
+2. walk vs brute-force agreement,
+3. stale-handle tests,
+4. insertion-order benchmark,
+5. memory profile,
+6. cavity rollback validation.

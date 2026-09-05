@@ -149,3 +149,24 @@ When adding a source:
 | M1.3-COM-002 | COMSOL 6.4 Repair | Invalid manifolds, self-intersections, sliver/small-detail repair | https://doc.comsol.com/6.4/doc/com.comsol.help.cad/cad_ug_cad_import_repair_defeaturing.5.17.html | 2026-09-05 |
 | M1.3-COM-003 | COMSOL Techniques for Creating Geometries | Public warning that geometric degeneracies may cause meshing/analysis problems | https://doc.comsol.com/6.4/doc/com.comsol.help.comsol/comsol_ref_geometry.23.003.html | 2026-09-05 |
 | M1.3-MAR-001 | Marc Community — node equivalencing | Public evidence of duplicate/coincident node equivalence workflow | https://nexus.hexagon.com/community/public/marc/f/marc-community-forum/145559/how-to-equivalence-nodes-in-mentat | 2026-09-05 |
+
+
+## M1.4 point-location / topology / scalability sources
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M1.4-TH-001 | O. Devillers, S. Pion, M. Teillaud, *Walking in a Triangulation*, IJFCS 13(2), 2002 | Point location by adjacency walk in 2D/3D | https://doi.org/10.1142/S0129054102001047 | 2026-09-05 |
+| M1.4-TH-002 | N. Amenta, S. Choi, G. Rote, *Incremental Constructions con BRIO*, SoCG 2003 | Biased randomized insertion order and memory locality | https://doi.org/10.1145/777792.777824 | 2026-09-05 |
+| M1.4-TH-003 | O. Devillers, *The Delaunay Hierarchy*, IJFCS 13(2), 2002 | Hierarchical point-location accelerator | https://doi.org/10.1142/S0129054102001035 | 2026-09-05 |
+| M1.4-TH-004 | H. Si, *TetGen, a Delaunay-Based Quality Tetrahedral Mesh Generator*, ACM TOMS 41(2), 2015 | Tetra data structure, spatial point sorting, incremental insertion | https://doi.org/10.1145/2629697 | 2026-09-05 |
+| M1.4-TH-005 | C. Marot, J. Pellerin, J.-F. Remacle, *One machine, one minute, three billion tetrahedra*, IJNME 117(9), 2019 | Compact serial data structure, spatial ordering, Moore-curve parallelization | https://doi.org/10.1002/nme.5987 | 2026-09-05 |
+| M1.4-TH-006 | C. Marot, J.-F. Remacle, *Quality tetrahedral mesh generation with HXT*, 2020 | Parallel cavity/locality/quality architecture | https://arxiv.org/abs/2008.08508 | 2026-09-05 |
+| M1.4-DOC-001 | CGAL 3D Triangulations | Geometry/combinatorics separation, typed locate, hints and location policy | https://doc.cgal.org/latest/Triangulation_3/ | 2026-09-05 |
+| M1.4-OS-001 | Gmsh `src/mesh/delaunay3d.cpp` | Source study: neighbor walk, cavity buffers, spatial ordering, stable storage concern | https://github.com/live-clones/gmsh/blob/master/src/mesh/delaunay3d.cpp | 2026-09-05 |
+| M1.4-OS-002 | Gmsh/HXT `hxt_tetDelaunay.c` | Source study: walk-to-cavity, BFS cavity, Moore/Hilbert ordering, partition conflicts | https://github.com/live-clones/gmsh/blob/master/contrib/hxt/tetMesh/src/hxt_tetDelaunay.c | 2026-09-05 |
+| M1.4-OS-003 | Netgen `meshing3.cpp` | Source study: local advancing-front extraction and spatial/local-size structures | https://github.com/NGSolve/netgen/blob/master/libsrc/meshing/meshing3.cpp | 2026-09-05 |
+| M1.4-ANS-001 | ANSYS Parallel Part Meshing | CPU/memory-aware parallel meshing behavior | https://ansyshelp.ansys.com/public/Views/Secured/corp/v242/en/wb_msh/msh_ppm_best.html | 2026-09-05 |
+| M1.4-COM-001 | COMSOL 6.4 Shared-Memory Parallel COMSOL | 3D tet mesher parallelism over faces/domains and single-domain limitation | https://doc.comsol.com/6.4/doc/com.comsol.help.comsol/comsol_ref_running.38.24.html | 2026-09-05 |
+| M1.4-COM-002 | COMSOL 6.4 Free Tetrahedral | Domain-scoped tetra meshing and sizing controls | https://doc.comsol.com/6.4/doc/com.comsol.help.comsol/comsol_ref_mesh.24.64.html | 2026-09-05 |
+| M1.4-MAR-001 | Marc 2024.2 Program Input — ADAPT GLOBAL | Mesh density fields, hard/soft topology and remeshing controls | https://documentation-be.hexagon.com/bundle/Marc_2024.2-Volume_C_Program_Input/raw/resource/enus/Marc_2024.2-Volume_C_Program_Input.pdf | 2026-09-05 |
+| M1.4-MAR-002 | Hexagon Nexus Marc 2026.1 | Current Mentat meshing improvements | https://nexus.hexagon.com/home/product/marc/ | 2026-09-05 |

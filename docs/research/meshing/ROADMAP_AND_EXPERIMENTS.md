@@ -92,6 +92,30 @@ Exit:
 - exact symbolic oracle can verify tie decisions,
 - canonical topology determinism target is testable.
 
+#### M1.4 — Spatial search, point location & tetra topology
+
+Status: **RESEARCHING**
+
+Research package:
+- `docs/research/meshing/m1-robust-geometry/m1.4-spatial-topology/`
+
+Deliver:
+- tetra topology storage contract,
+- generation-checked handle policy,
+- opposite-face neighbor convention,
+- typed point-location states,
+- walk-first locator with correctness fallback,
+- cavity boundary/replacement records,
+- spatial insertion-order benchmark,
+- ANSYS / COMSOL / Marc scalability cross-check.
+
+Exit:
+- point-location and cavity data contracts frozen,
+- walk/fallback agreement test designed,
+- insertion-order performance experiment designed,
+- memory telemetry defined,
+- serial M2 implementation can start without external mesher data structures.
+
 ### M2 — Delaunay point-cloud tetrahedralization
 
 Deliver:
@@ -327,6 +351,7 @@ Cross-code agreement is supporting evidence, not proof.
 | M0 | Knowledge library | IN PROGRESS |
 | M1 | Robust predicates | RESEARCHING |
 | M1.3 | Degeneracy / symbolic perturbation | RESEARCHING |
+| M1.4 | Spatial search / tetra topology | RESEARCHING |
 | M2 | Point-cloud Delaunay tetra | NOT STARTED |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
@@ -351,15 +376,13 @@ BLOCKED
 
 ## 8. Immediate next research tasks
 
-1. implement EXP-MESH-0101 exact oracle A/B prototype,
-2. verify bit-exact fixture round-trip (EXP-MESH-0102),
-3. generate naive-double failure corpus (EXP-MESH-0103),
-4. derive and benchmark candidate fast-filter/error-bound strategies,
-3. compare adaptive expansion arithmetic against a deliberately slow exact-reference path,
-4. freeze exact-zero and symbolic tie-break boundary between M1 and M2,
-5. run first Apple Silicon compiler/optimization sensitivity experiment,
-6. after M1 evidence, begin M2 point-location and Bowyer-Watson correctness research.
-
+1. implement M1.1 exact-oracle A/B prototype and bit-exact fixture round-trip,
+2. generate naive-double adversarial predicate corpus,
+3. prototype M1.2 F0 certified filters and measure fallback rates,
+4. prototype M1.3 duplicate canonicalization / affine-dimension classifier / symbolic oracle,
+5. freeze M1.4 tetra local-face and stable-handle conventions,
+6. begin M2 serial Bowyer-Watson reference implementation only after M1 executable evidence starts passing,
+7. keep ANSYS / COMSOL / Marc commercial benchmark corpus in parallel with each meshing milestone.
 
 ### M1.2 — Certified floating-point filters
 Status: **RESEARCHING**

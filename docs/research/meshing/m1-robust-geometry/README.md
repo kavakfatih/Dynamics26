@@ -73,3 +73,8 @@ M1 research can move to implementation when:
 ## M1.3 subprogram
 
 `m1.3-degeneracy/` separates exact duplicates, affine-dimension deficiency, local coplanarity, co-spherical Delaunay ambiguity and invalid CAD/domain topology. The leading Delaunay policy is a stable PointId-driven formal symbolic perturbation invoked only on exact predicate `Zero`.
+
+
+## M1.4 subprogram
+
+`m1.4-spatial-topology/` defines the serial M2 point-location and tetra-combinatorics foundation: generation-checked handles, opposite-face neighbor convention, walk-first location with typed states, cavity buffers, spatial insertion ordering and performance/memory experiments.
