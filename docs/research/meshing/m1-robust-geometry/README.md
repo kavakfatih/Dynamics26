@@ -59,3 +59,8 @@ M1 research can move to implementation when:
 4. independent exact test oracle is specified,
 5. public kernel interface is implementation-neutral,
 6. no external predicate source code is required by the design.
+
+
+## M1.1 subprogram
+
+`m1.1-exact-oracle/` defines the independent exact predicate oracle, filtering research, commercial CAE sanity check and experiment plan. Production robust-predicate code remains intentionally deferred until the oracle is executable and independently verified.

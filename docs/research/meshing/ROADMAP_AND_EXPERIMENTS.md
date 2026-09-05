@@ -50,6 +50,26 @@ Test corpus:
 - coordinate translations,
 - randomized property tests.
 
+#### M1.1 — Independent exact predicate oracle
+
+Status: **RESEARCHING**
+
+Research package:
+- `docs/research/meshing/m1-robust-geometry/m1.1-exact-oracle/`
+
+Deliver:
+- exact rational oracle,
+- exact dyadic-integer oracle,
+- exact binary64 fixture serialization,
+- naive-double adversarial corpus,
+- filter experiment plan,
+- ANSYS / COMSOL / Marc tolerance/repair cross-check.
+
+Exit:
+- two exact oracle paths agree,
+- fixture round-trip is bit-exact,
+- commercial repair/tolerance semantics remain separate from predicate truth.
+
 ### M2 — Delaunay point-cloud tetrahedralization
 
 Deliver:
@@ -308,8 +328,10 @@ BLOCKED
 
 ## 8. Immediate next research tasks
 
-1. independent exact-rational predicate oracle prototype/specification,
-2. derive and benchmark candidate fast-filter/error-bound strategies,
+1. implement EXP-MESH-0101 exact oracle A/B prototype,
+2. verify bit-exact fixture round-trip (EXP-MESH-0102),
+3. generate naive-double failure corpus (EXP-MESH-0103),
+4. derive and benchmark candidate fast-filter/error-bound strategies,
 3. compare adaptive expansion arithmetic against a deliberately slow exact-reference path,
 4. freeze exact-zero and symbolic tie-break boundary between M1 and M2,
 5. run first Apple Silicon compiler/optimization sensitivity experiment,

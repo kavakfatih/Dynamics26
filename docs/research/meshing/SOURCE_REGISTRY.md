@@ -76,7 +76,24 @@ These repositories are **study references, not code sources for Dynamics26 imple
 | M1-CA-003 | ANSYS Repair Topology | Explicit short-edge/thin-face repair and topology-protection controls | https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/wb_msh/msh_wrkflw_repairtopology.html | 2026-09-05 |
 | M1-CA-004 | Marc/Mentat 2020 Release Guide | Public evidence of auto-calculated tolerance / CAD tolerance behavior; no internal predicate disclosure | https://documentation-be.hexagon.com/bundle/Marc_2020-Release_Guide/raw/resource/enus/Marc_2020-Release_Guide.pdf | 2026-09-05 |
 
-## E. Dynamics26 internal sources
+## E. M1.1 exact-oracle / filtering sources
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M1.1-DOC-001 | Python Built-in Types — `float.as_integer_ratio()` | Exact integer ratio of stored float | https://docs.python.org/3/library/stdtypes.html | 2026-09-05 |
+| M1.1-DOC-002 | Python Floating-Point Tutorial — exact ratio / hex representation | Exact round-trip fixture representation | https://docs.python.org/3/tutorial/floatingpoint.html | 2026-09-05 |
+| M1.1-DOC-003 | Python `fractions.Fraction` | Standard-library exact rational arithmetic for test oracle | https://docs.python.org/3/library/fractions.html | 2026-09-05 |
+| M1.1-TH-001 | E. H. Bareiss, *Sylvester's Identity and Multistep Integer-Preserving Gaussian Elimination*, 1968 | Fraction-free exact integer determinant | https://doi.org/10.1090/S0025-5718-1968-0226829-0 | 2026-09-05 |
+| M1.1-TH-002 | O. Devillers, F. Preparata, *Further Results on Arithmetic Filters for Geometric Predicates*, 1999 | Filter + exact fallback efficiency | https://doi.org/10.1016/S0925-7721(99)00011-5 | 2026-09-05 |
+| M1.1-DOC-004 | CGAL Filtered Kernel / Filtered Predicate documentation | Public architecture example of fast filtering + exact fallback | https://doc.cgal.org/latest/Kernel_23/structCGAL_1_1Filtered__kernel.html | 2026-09-05 |
+| M1.1-DOC-005 | Clang User Manual — floating-point behavior | Reassociation, fast-math, FP contraction build risks | https://clang.llvm.org/docs/UsersManual.html | 2026-09-05 |
+| M1.1-ANS-001 | ANSYS Repair Topology 2025/2026 docs | Explicit repair operations/topology protection | https://ansyshelp.ansys.com/public/Views/Secured/corp/v252/en/wb_msh/msh_wrkflw_repairtopology.html | 2026-09-05 |
+| M1.1-ANS-002 | ANSYS `RepairTopologyTolerance` 2026 R1 API | Explicit repair tolerance as meshing control | https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/act_ref/item86166192241305182105861492522144151206411274113.html | 2026-09-05 |
+| M1.1-COM-001 | COMSOL 6.3 Default Repair Tolerances | Automatic/relative/absolute geometry-operation tolerance lifecycle | https://doc.comsol.com/6.3/doc/com.comsol.help.comsol/comsol_api_geom.48.026.html | 2026-09-05 |
+| M1.1-MAR-001 | Marc 2026.1 product / What's New | Current Mentat meshing capability improvements | https://nexus.hexagon.com/home/product/marc/ | 2026-09-05 |
+| M1.1-MAR-002 | Cadence Marc 2026.1 capabilities article | Automatic meshing, refinement transitions, density controls, tetra support | https://community.cadence.com/cadence_blogs_8/b/pss/posts/new-capabilities-in-marc-2026-1-you-should-be-using-for-nonlinear-analysis | 2026-09-05 |
+
+## F. Dynamics26 internal sources
 
 | ID | Path | Relevance |
 |---|---|---|
@@ -87,7 +104,7 @@ These repositories are **study references, not code sources for Dynamics26 imple
 | D26-005 | \`src/meshing/StructuredHexMesher.cpp\` | Existing deterministic structured baseline |
 | D26-006 | \`gui/services/NamedSelectionService.*\` | Persistent geometry/mesh scope lifecycle |
 
-## F. Source-entry rules
+## G. Source-entry rules
 
 When adding a source:
 

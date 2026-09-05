@@ -138,3 +138,16 @@ The arithmetic implementation strategy is not accepted until:
 2. candidate filter/fallback designs are benchmarked,
 3. Apple Silicon Debug/Release behavior is tested,
 4. clean-room/source-boundary review is complete.
+
+
+### M1.1 exact-oracle research update — 2026-09-05
+
+Evidence now supports the following parts of ADR-MESH-0005:
+
+- predicate truth is exact with respect to stored finite binary64 inputs,
+- a test-only exact-rational oracle is feasible using standard integer/rational arithmetic,
+- binary64 inputs can be converted to common dyadic integers without changing predicate sign,
+- filter architecture should permit conservative fallback but never false certification,
+- commercial ANSYS/COMSOL/Marc tolerance and repair controls are geometry/meshing policy, not evidence for an epsilon-based predicate design.
+
+ADR-MESH-0005 remains **PROPOSED** until executable oracle and filter experiments are complete.
