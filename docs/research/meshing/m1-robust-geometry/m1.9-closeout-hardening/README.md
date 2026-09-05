@@ -1,8 +1,8 @@
 # M1.9 — Closeout Hardening
 
-**State:** VERIFYING — EXECUTABLE BLOCKERS CLOSED; SECOND FINAL AUDIT READY  
+**State:** QUALIFIED  
 **Parent:** M1 Robust Geometry Foundation  
-**Rule:** M2 remains blocked until M1.9 and the final M1 re-audit pass.
+**Rule:** M1.9 is closed by the second/final audit; M2 starts with M2.0 only after the final closeout status commit itself is exact-head CI green.
 
 ## Workstreams
 
@@ -46,7 +46,9 @@ Evidence: base primitive workflow #238 SUCCESS; hardening commit `d6501f1d...` e
 - roadmap states synchronized,
 - candidate synchronization `d007fca6...` workflow #240 SUCCESS,
 - topology-hardening `d6501f1d...` workflow #241 SUCCESS,
-- second final exact-head audit is the remaining gate.
+- documentation synchronization `6e939eb6...` workflow #242 SUCCESS,
+- second/final audit G01–G20 PASS, blocker count 0,
+- final closeout status commit exact-head CI is the remaining operational authorization check.
 
 ## Explicit non-goals
 

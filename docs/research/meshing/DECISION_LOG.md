@@ -359,14 +359,19 @@ BLOCKERS:
 
 The synchronized candidate commit `d007fca6...` passed exact-head workflow #240. Independent re-audit of the executable topology validator then found that noncanonical invalid neighbor handles and shared/non-manifold face-incidence corruption could be underdiagnosed. Commit `d6501f1d...` hardened those M1 combinatorial invariants and passed exact-head workflow #241. M2 remained blocked throughout.
 
+### Second/final closeout result — 2026-09-05
+
+Documentation synchronization `6e939eb6...` passed exact-head workflow #242. The second/final audit re-evaluated G01–G20 from repository evidence and returned PASS for every gate with M1 blocker count 0. The full decision record is `m1-robust-geometry/M1_FINAL_CLOSEOUT.md`.
+
 ### Consequence
 
 ```text
-M1.9 = VERIFYING / SECOND FINAL AUDIT READY
-M2   = BLOCKED
+M1    = QUALIFIED
+M1.9  = QUALIFIED
+M2    = AUTHORIZED AFTER FINAL-CLOSEOUT EXACT-HEAD CI
 ```
 
-M2 may start only after a second closeout audit marks M1 QUALIFIED.
+The first M2 activity is M2.0 — Delaunay Reference Architecture & Experiment Plan. Bowyer-Watson production insertion does not start before the M2.0 decisions and acceptance tests are frozen.
 
 
 ---

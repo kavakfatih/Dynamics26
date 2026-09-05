@@ -2,7 +2,7 @@
 
 **Program:** Dynamics26 Original Meshing System R&D  
 **Work package:** M1  
-**State:** VERIFYING — SECOND FINAL AUDIT READY  
+**State:** QUALIFIED  
 **Research baseline:** 2026-09-05
 
 ## Objective
@@ -87,7 +87,7 @@ M1 research can move to implementation when:
 
 ## M1.6 subprogram
 
-`m1.6-executable-verification/` is QUALIFIED verification infrastructure. `m1.7-exact-kernel/` is the QUALIFIED exact C++ predicate kernel. `m1.8-certified-fast-path/` is the QUALIFIED filtered fast path. `M1_CLOSEOUT_AUDIT.md` records the first failed closeout. M1.9-A through M1.9-D are executable and green. The synchronized candidate commit `d007fca6...` passed workflow #240; the subsequent topology-validator hardening commit `d6501f1d...` passed workflow #241. The second audit is ready after documentation synchronization.
+`m1.6-executable-verification/` is QUALIFIED verification infrastructure. `m1.7-exact-kernel/` is the QUALIFIED exact C++ predicate kernel. `m1.8-certified-fast-path/` is the QUALIFIED filtered fast path. `M1_CLOSEOUT_AUDIT.md` records the first failed closeout. M1.9-A through M1.9-D are executable and green. The synchronized candidate commit `d007fca6...` passed workflow #240; topology-validator hardening `d6501f1d...` passed workflow #241; documentation synchronization `6e939eb6...` passed workflow #242. The second/final audit is PASS and is recorded in `M1_FINAL_CLOSEOUT.md`.
 
 
 ## Executable M1.9 closeout evidence
@@ -97,6 +97,7 @@ M1 research can move to implementation when:
 - M1.9-C: TetHandle / opposite-face / canonical-face / reciprocal-neighbor validator — workflow #238 SUCCESS.
 - M1.9-C hardening: malformed neighbor handles, missing shared-face adjacency and non-manifold face detection — `d6501f1d...`, workflow #241 SUCCESS.
 - M1.9-D: telemetry + homogeneous fast-filter proof — workflow #239 SUCCESS.
+- Second/final closeout: G01–G20 PASS at `6e939eb6...`, workflow #242 SUCCESS; see `M1_FINAL_CLOSEOUT.md`.
 - Release predicate baseline: 1049 cases, 1043 fast-certified, 6 exact fallback, 4 exact zero, 2 invalid input, 0 mismatch.
 
 Production point location, cavity insertion and Bowyer-Watson remain intentionally unimplemented until M1 final audit passes.

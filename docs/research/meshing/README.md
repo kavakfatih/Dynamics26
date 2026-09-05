@@ -164,4 +164,4 @@ The first executable meshing R&D evidence now lives under `tools/meshing_oracle/
 
 ## M1.9 closeout
 
-M1 executable closeout hardening now includes replay/adversarial verification, degeneracy/site identity, tetra topology primitives and predicate telemetry. The synchronized candidate HEAD `d007fca6...` passed workflow #240, and topology-validator hardening at `d6501f1d...` passed exact-head workflow #241. M2 remains blocked until the second M1 closeout audit is qualified.
+M1 executable closeout hardening includes replay/adversarial verification, degeneracy/site identity, tetra topology primitives and predicate telemetry. Candidate synchronization `d007fca6...` passed workflow #240, topology hardening `d6501f1d...` passed #241, and second-audit synchronization `6e939eb6...` passed #242. The second/final M1 audit is PASS with G01–G20 PASS and blocker count 0; `M1_FINAL_CLOSEOUT.md` is the qualification record. M2 becomes operationally authorized only after the final closeout status commit itself is exact-head CI green.

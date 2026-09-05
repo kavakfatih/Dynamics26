@@ -1,6 +1,6 @@
 # M1 Implementation Specification — Executable Baseline
 
-**Status:** IMPLEMENTED / SECOND FINAL AUDIT READY  
+**Status:** QUALIFIED  
 **Baseline:** 2026-09-05
 
 ## 1. Objective
@@ -207,4 +207,4 @@ M2 may assume:
 - stable PointIds and symbolic test oracle exist,
 - tetra handle/face topology validators exist.
 
-M2 remains blocked until the second M1 closeout audit passes.
+The second M1 closeout audit passed at exact-head `6e939eb6...` with workflow #242 SUCCESS. M2 is authorized after the final closeout status commit itself passes exact-head CI; the first activity is M2.0 reference architecture/experiment planning.

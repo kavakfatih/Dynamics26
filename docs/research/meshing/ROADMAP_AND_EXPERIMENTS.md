@@ -28,7 +28,7 @@ Exit:
 
 ### M1 — Robust predicates and geometry kernel utilities
 
-Status: **VERIFYING — SECOND FINAL AUDIT READY**
+Status: **QUALIFIED**
 
 Research package:
 - `docs/research/meshing/m1-robust-geometry/`
@@ -184,7 +184,7 @@ Evidence:
 
 #### M1.9 — Closeout hardening
 
-Status: **VERIFYING — SECOND FINAL AUDIT READY**
+Status: **QUALIFIED**
 
 Mandatory before M2:
 - replay/adversarial/metamorphic verification,
@@ -196,7 +196,7 @@ Mandatory before M2:
 
 ### M2 — Delaunay point-cloud tetrahedralization
 
-Status: **BLOCKED BY FINAL M1 AUDIT**
+Status: **AUTHORIZED — M2.0 REFERENCE ARCHITECTURE & EXPERIMENT PLAN FIRST**
 
 Deliver:
 
@@ -429,15 +429,15 @@ Cross-code agreement is supporting evidence, not proof.
 | ID | Work package | State |
 |---|---|---|
 | M0 | Knowledge library | IN PROGRESS |
-| M1 | Robust predicates | VERIFYING / SECOND FINAL AUDIT READY |
+| M1 | Robust predicates | QUALIFIED |
 | M1.3 | Degeneracy / symbolic perturbation | QUALIFIED (M1) |
 | M1.4 | Spatial search / tetra topology | QUALIFIED (M1 primitives) |
 | M1.5 | Verification harness | QUALIFIED |
 | M1.6 | Executable verification prototype | QUALIFIED |
 | M1.7 | Exact robust predicate kernel | QUALIFIED |
 | M1.8 | Certified fast predicate path | QUALIFIED |
-| M1.9 | Closeout hardening | VERIFYING / SECOND FINAL AUDIT READY |
-| M2 | Point-cloud Delaunay tetra | BLOCKED BY FINAL M1 AUDIT |
+| M1.9 | Closeout hardening | QUALIFIED |
+| M2 | Point-cloud Delaunay tetra | AUTHORIZED / M2.0 FIRST |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
 | M5 | Size fields | NOT STARTED |
@@ -461,11 +461,11 @@ BLOCKED
 
 ## 8. Immediate next research tasks
 
-1. exact-head topology-hardening workflow #241 is SUCCESS at `d6501f1d...`,
-2. synchronize the M1 status documents with the hardened topology-validator scope,
-3. perform the second M1 closeout audit against executable evidence,
-4. keep M2 blocked until that audit is QUALIFIED,
-5. once qualified, start M2 with M2.0 point-location/super-domain/reference-architecture decisions before Bowyer-Watson insertion,
+1. M1 second/final closeout audit is PASS at exact-head `6e939eb6...`, workflow #242 SUCCESS,
+2. final closeout status commit must pass its own exact-head macOS arm64 workflow,
+3. then start **M2.0 — Delaunay Reference Architecture & Experiment Plan**,
+4. decide super-tetra vs ghost/infinite hull, first locator/reference locator, cavity transaction model, symbolic-zero consumption, fingerprint and benchmark sets before production insertion,
+5. keep Bowyer-Watson production implementation out of M2.0 until those decisions and acceptance tests are frozen,
 6. continue ANSYS / COMSOL / Marc workflow and quality benchmarking in parallel; do not use proprietary output as predicate truth.
 
 ### M1.2 — Certified floating-point filters
