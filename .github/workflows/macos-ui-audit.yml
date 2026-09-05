@@ -6,6 +6,8 @@ on:
     paths:
       - "gui/**"
       - "tests/gui/**"
+      - "scripts/github/run_owned_process.py"
+      - "tests/scripts/test_owned_process.py"
       - ".github/workflows/macos-ui-audit.yml"
   workflow_dispatch:
 
@@ -99,38 +101,41 @@ jobs:
           cmake --build build-ui-audit --parallel --target femcae_gui
           cmake --build build-ui-audit --parallel --target femcae_selection_manager_test
 
-      - name: Run functional GUI self-test
-        shell: bash
-        run: |
-          set -euxo pipefail
-          app="build-ui-audit/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
-          # The runner keeps the interactive login session across jobs. Clean up
-          # an interrupted prior audit before starting any GUI process.
-          pkill -x FEMCAE 2>/dev/null || true
-          trap 'pkill -x FEMCAE 2>/dev/null || true' EXIT
-          sleep 2
-          test -x "$app"
-          "$app" --selftest
+      - name: Verify process ownership watchdog
+        run: python3 tests/scripts/test_owned_process.py
 
-      - name: Capture real Light and Dark UI states
+      - name: Prepare audit artifacts
         shell: bash
         run: |
-          set -euxo pipefail
-          app="build-ui-audit/gui/FEMCAE.app/Contents/MacOS/FEMCAE"
-          out="$RUNNER_TEMP/dynamics26-ui-audit"
-          # Self-hosted runner jobs share the interactive login session. A
-          # previously interrupted capture must not leave an application process
-          # that blocks the next exact-HEAD visual audit.
-          pkill -x FEMCAE 2>/dev/null || true
-          trap 'pkill -x FEMCAE 2>/dev/null || true' EXIT
-          sleep 2
-          rm -rf "$out"
+          out="$RUNNER_TEMP/dynamics26-ui-audit-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           mkdir -p "$out/light" "$out/dark"
-          "$app" --capture "$out/light" --capture-appearance light
-          pkill -x FEMCAE 2>/dev/null || true
-          sleep 1
-          "$app" --capture "$out/dark" --capture-appearance dark
           echo "UI_AUDIT_DIR=$out" >> "$GITHUB_ENV"
+
+      - name: Run functional GUI self-test
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/github/run_owned_process.py --timeout 240 -- \
+            build-ui-audit/gui/FEMCAE.app/Contents/MacOS/FEMCAE --selftest 2>&1 | tee "$UI_AUDIT_DIR/selftest.log"
+
+      - name: Capture Light UI states
+        timeout-minutes: 6
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/github/run_owned_process.py --timeout 300 -- \
+            build-ui-audit/gui/FEMCAE.app/Contents/MacOS/FEMCAE --capture "$UI_AUDIT_DIR/light" --capture-appearance light \
+            2>&1 | tee "$UI_AUDIT_DIR/light.log"
+
+      - name: Capture Dark UI states
+        timeout-minutes: 6
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/github/run_owned_process.py --timeout 300 -- \
+            build-ui-audit/gui/FEMCAE.app/Contents/MacOS/FEMCAE --capture "$UI_AUDIT_DIR/dark" --capture-appearance dark \
+            2>&1 | tee "$UI_AUDIT_DIR/dark.log"
 
       - name: Validate screenshot artifact
         shell: bash
@@ -155,6 +160,7 @@ jobs:
           done < <(find "$UI_AUDIT_DIR" -type f -name '*.png' | sort)
 
       - name: Upload UI audit screenshots
+        if: always() && env.UI_AUDIT_DIR != ''
         uses: actions/upload-artifact@v4
         with:
           name: Dynamics26-ui-audit-${{ github.sha }}

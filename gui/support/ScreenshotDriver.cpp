@@ -68,7 +68,7 @@ bool captureWithMenu(Dynamics26MainWindow &window, const QString &path, QMenu *m
         painter.drawPixmap(windowPosition, menuPixmap);
     }
     const bool ok = shot.save(path, "PNG");
-    std::cout << (ok ? "captured " : "FAILED   ") << path.toStdString() << '\n';
+    std::cout << (ok ? "captured " : "FAILED   ") << path.toStdString() << std::endl;
     return ok;
 }
 
