@@ -65,6 +65,7 @@ endif()
 
 set(FEMCAE_MESHING_SOURCES
     src/meshing/RobustPredicates.cpp
+    src/meshing/RobustGeometry.cpp
     src/meshing/MeshTypes.cpp
     src/meshing/StructuredHexMesher.cpp
     src/meshing/AbaqusInpMeshReader.cpp

@@ -369,3 +369,23 @@ if(Python3_Interpreter_FOUND)
         FIXTURES_REQUIRED d26_m19_adversarial
     )
 endif()
+
+
+# M1.9-B — executable degeneracy foundation, still no Delaunay insertion
+add_femcae_meshing_test(
+    unit_m19_degeneracy_foundation
+    meshing/robust_geometry/test_m19_degeneracy_foundation.cpp
+    "unit;meshing;robust-geometry;degeneracy;pointid;affine-dimension;determinism;m1.9"
+)
+
+if(Python3_Interpreter_FOUND)
+    add_test(
+        NAME unit_m19_symbolic_oracle
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/meshing/robust_geometry/test_m19_symbolic_oracle.py
+                ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(unit_m19_symbolic_oracle PROPERTIES
+        LABELS "unit;meshing;robust-geometry;degeneracy;symbolic-oracle;determinism;m1.9"
+    )
+endif()
