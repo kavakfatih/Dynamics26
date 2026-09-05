@@ -138,6 +138,28 @@ Exit:
 - CI tiers and labels frozen,
 - first executable M1 oracle/predicate harness can be implemented without architecture ambiguity.
 
+#### M1.6 — Executable robust-geometry verification prototype
+
+Status: **VERIFYING**
+
+Implementation:
+- `tools/meshing_oracle/`
+- `tests/meshing/robust_geometry/`
+
+Evidence now implemented:
+- dual exact oracle for orient2d/orient3d/incircle/insphere,
+- D26PRED raw-bit fixture schema,
+- 25-case committed golden corpus,
+- 1024-case deterministic dual-oracle cross-check in the test script,
+- strict C++ fixture reader,
+- signed-zero normalization policy test,
+- CTest integration.
+
+Exit:
+- exact-head macOS arm64 Debug and Release pass the new robust-geometry tests,
+- full existing CTest suite remains green,
+- then executable robust-predicate implementation can begin.
+
 ### M2 — Delaunay point-cloud tetrahedralization
 
 Deliver:
@@ -375,6 +397,7 @@ Cross-code agreement is supporting evidence, not proof.
 | M1.3 | Degeneracy / symbolic perturbation | RESEARCHING |
 | M1.4 | Spatial search / tetra topology | RESEARCHING |
 | M1.5 | Verification harness | RESEARCHING |
+| M1.6 | Executable verification prototype | VERIFYING |
 | M2 | Point-cloud Delaunay tetra | NOT STARTED |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |

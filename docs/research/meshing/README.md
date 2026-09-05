@@ -155,3 +155,8 @@ These research packages are prerequisites for the first original serial 3D Delau
 - M1.5 verification harness / exact corpus / CI architecture
 
 M1.5 is the bridge from research documents to executable evidence. The next coding step is the test-only exact oracle and fixture reader, not yet the production Delaunay mesher.
+
+
+- M1.6 executable robust-geometry verification prototype
+
+The first executable meshing R&D evidence now lives under `tools/meshing_oracle/` and `tests/meshing/robust_geometry/`. Production Delaunay implementation is intentionally still deferred.

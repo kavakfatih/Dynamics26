@@ -83,3 +83,8 @@ M1 research can move to implementation when:
 ## M1.5 subprogram
 
 `m1.5-verification-harness/` converts M1 theory into an executable evidence architecture: dual exact oracles, raw-bit fixtures, CTest tiers, deterministic generated corpora, failure replay, topology reference checks and commercial mesh-quality/reporting benchmarks.
+
+
+## M1.6 subprogram
+
+`m1.6-executable-verification/` records the first executable M1 evidence. The repository now contains a dual exact Python oracle, raw-bit D26PRED fixtures, deterministic regeneration checks and a strict C++ fixture reader integrated with CTest. Status remains VERIFYING until exact-head macOS arm64 CI passes.

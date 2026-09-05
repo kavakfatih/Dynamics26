@@ -284,3 +284,21 @@ Acceptance requires executable evidence:
 4. committed golden corpus,
 5. CTest integration,
 6. failure replay proof.
+
+
+### M1.6 executable evidence update — 2026-09-05
+
+The M1.5 verification architecture now has a first executable implementation:
+
+- dual exact predicate oracles implemented independently,
+- all four target predicates represented,
+- D26PRED raw-bit fixture schema implemented,
+- committed golden corpus contains 25 cases,
+- deterministic generated test cross-checks 1024 additional cases per run,
+- C++ parser verifies binary64 bit round-trip and strict schema behavior,
+- signed-zero canonicalization policy is exercised,
+- CTest integration is present.
+
+Local research-prototype checks passed before commit. Exact-head macOS arm64 CI is still the qualification authority.
+
+ADR-MESH-0010 remains **PROPOSED** until the exact-head CI and full regression suite pass.
