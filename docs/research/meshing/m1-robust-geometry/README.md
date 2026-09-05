@@ -68,3 +68,8 @@ M1 research can move to implementation when:
 
 ## M1.2 subprogram
 `m1.2-certified-filters/` derives the first original conservative floating-point certification filters from the general gamma_n rounding-error model. Every certified sign must match the independent M1.1 exact oracle.
+
+
+## M1.3 subprogram
+
+`m1.3-degeneracy/` separates exact duplicates, affine-dimension deficiency, local coplanarity, co-spherical Delaunay ambiguity and invalid CAD/domain topology. The leading Delaunay policy is a stable PointId-driven formal symbolic perturbation invoked only on exact predicate `Zero`.

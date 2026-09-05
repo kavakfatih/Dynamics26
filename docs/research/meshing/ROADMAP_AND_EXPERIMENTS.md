@@ -70,6 +70,28 @@ Exit:
 - fixture round-trip is bit-exact,
 - commercial repair/tolerance semantics remain separate from predicate truth.
 
+#### M1.3 — Degeneracy & deterministic symbolic perturbation
+
+Status: **RESEARCHING**
+
+Research package:
+- `docs/research/meshing/m1-robust-geometry/m1.3-degeneracy/`
+
+Deliver:
+- degeneracy taxonomy,
+- exact duplicate canonicalization policy,
+- affine-dimension behavior,
+- stable PointId semantics,
+- SoS-style symbolic Delaunay tie specification,
+- permutation/insertion-order determinism experiments,
+- ANSYS / COMSOL / Marc degeneracy cross-check.
+
+Exit:
+- exact duplicates and lower-dimensional inputs have explicit behavior,
+- symbolic policy is formal rather than heuristic,
+- exact symbolic oracle can verify tie decisions,
+- canonical topology determinism target is testable.
+
 ### M2 — Delaunay point-cloud tetrahedralization
 
 Deliver:
@@ -304,6 +326,7 @@ Cross-code agreement is supporting evidence, not proof.
 |---|---|---|
 | M0 | Knowledge library | IN PROGRESS |
 | M1 | Robust predicates | RESEARCHING |
+| M1.3 | Degeneracy / symbolic perturbation | RESEARCHING |
 | M2 | Point-cloud Delaunay tetra | NOT STARTED |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |

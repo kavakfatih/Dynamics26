@@ -131,3 +131,21 @@ When adding a source:
 | M1.2-COM-002 | COMSOL 6.4 Repair | Explicit CAD repair operations | https://doc.comsol.com/6.4/doc/com.comsol.help.cad/cad_ug_ref.6.24.html | 2026-09-05 |
 | M1.2-MAR-001 | Hexagon Nexus Marc 2026.1 | Current Mentat meshing advances | https://nexus.hexagon.com/home/product/marc/ | 2026-09-05 |
 | M1.2-MAR-002 | Marc Community — free edges prevent tetra meshing | Closed-surface prerequisite / gap diagnosis | https://nexus.hexagon.com/community/public/marc/f/marc-community-forum/144789/free-edges-prevent-tetrahedral-meshing-how-can-i-solve-this-problem | 2026-09-05 |
+
+
+## M1.3 degeneracy / symbolic-perturbation sources
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M1.3-TH-001 | H. Edelsbrunner, E. P. Mücke, *Simulation of Simplicity*, ACM TOG 9(1), 1990 | General symbolic perturbation / consistent degeneracy handling | https://doi.org/10.1145/77635.77639 | 2026-09-05 |
+| M1.3-TH-002 | M. B. Dillencourt, W. D. Smith, *A Simple Method for Resolving Degeneracies in Delaunay Triangulations*, ICALP 1993 | Alternative Delaunay-degeneracy completion approach | https://doi.org/10.1007/3-540-56939-1_71 | 2026-09-05 |
+| M1.3-TH-003 | O. Devillers, M. Teillaud, *Perturbations for Delaunay and weighted Delaunay 3D triangulations*, Computational Geometry 44(3), 2011 | Unique robust 3D Delaunay perturbation research | https://doi.org/10.1016/j.comgeo.2010.09.010 | 2026-09-05 |
+| M1.3-DOC-001 | CGAL Delaunay/Triangulation documentation | Coincident insertion + symbolic perturbation for co-spherical ambiguity | https://doc.cgal.org/latest/Triangulation_3/ | 2026-09-05 |
+| M1.3-OS-001 | Gmsh `src/mesh/delaunay3d.cpp` | Architecture study: exact-zero insphere enters separate perturbation path | https://github.com/live-clones/gmsh/blob/master/src/mesh/delaunay3d.cpp | 2026-09-05 |
+| M1.3-OS-002 | TetGen CHANGELOG | Public note that symbolic perturbation addressed spherical degeneracies | https://github.com/TetGen/TetGen/blob/main/CHANGELOG.md | 2026-09-05 |
+| M1.3-ANS-001 | ANSYS Precheck Tool Options | Short/sliver/duplicate/self-intersection/misalignment diagnostics | https://ansyshelp.ansys.com/public/Views/Secured/corp/v252/en/discovery/UDA/user_manual/modeling/prepare/topics/r_st_precheck_tool_guides_options.html | 2026-09-05 |
+| M1.3-ANS-002 | ANSYS Tetra Meshing Problems | Duplicate node/face and invalid-surface diagnostics | https://ansyshelp.ansys.com/public/Views/Secured/corp/v242/en/flu_ug/tgd_user_tet_mesh.html | 2026-09-05 |
+| M1.3-COM-001 | COMSOL 6.4 Check | Tolerance faults, invalid entities and meshing consequences | https://doc.comsol.com/6.4/doc/com.comsol.help.design/design_ug_function.5.27.html | 2026-09-05 |
+| M1.3-COM-002 | COMSOL 6.4 Repair | Invalid manifolds, self-intersections, sliver/small-detail repair | https://doc.comsol.com/6.4/doc/com.comsol.help.cad/cad_ug_cad_import_repair_defeaturing.5.17.html | 2026-09-05 |
+| M1.3-COM-003 | COMSOL Techniques for Creating Geometries | Public warning that geometric degeneracies may cause meshing/analysis problems | https://doc.comsol.com/6.4/doc/com.comsol.help.comsol/comsol_ref_geometry.23.003.html | 2026-09-05 |
+| M1.3-MAR-001 | Marc Community — node equivalencing | Public evidence of duplicate/coincident node equivalence workflow | https://nexus.hexagon.com/community/public/marc/f/marc-community-forum/145559/how-to-equivalence-nodes-in-mentat | 2026-09-05 |

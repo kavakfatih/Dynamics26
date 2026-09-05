@@ -170,3 +170,36 @@ Leading conservative first-order factors are approximately:
 times the documented computed absolute-monomial sum and denominator corrections.
 
 ADR-MESH-0005 remains **PROPOSED** until executable M1.1/M1.2 experiments pass.
+
+
+---
+
+## ADR-MESH-0008 — Deterministic degeneracy policy
+
+**Status:** PROPOSED  
+**Date:** 2026-09-05
+
+### Research findings
+
+M1.3 separates multiple degeneracy classes that must not share one epsilon/tie rule.
+
+Leading policy:
+- exact duplicate coordinates are canonicalized into one site,
+- near-coincident distinct coordinates remain distinct unless explicit geometry conditioning merges them,
+- lower-dimensional point sets are reported explicitly,
+- robust predicates preserve exact `Zero`,
+- distinct co-spherical Delaunay sites may use a formal SoS-style perturbation based on stable PointId ordering,
+- CAD/domain invalidity is never hidden by symbolic perturbation.
+
+### Determinism target
+
+For the same immutable sites, stable PointIds, settings and algorithm version, the canonical topology should not depend on transient pointer layout, input enumeration or supported insertion ordering.
+
+### Why PROPOSED
+
+Acceptance requires:
+1. formal perturbation hierarchy,
+2. exact symbolic oracle,
+3. duplicate/dimension tests,
+4. co-spherical corpus,
+5. permutation/insertion-order experiments.
