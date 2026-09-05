@@ -147,7 +147,7 @@ This directory is intended to remain useful after individual chat or coding sess
 - M1.1 exact predicate oracle
 - M1.2 certified floating-point filters
 - M1.3 degeneracy / deterministic symbolic perturbation
-- M1.4 spatial search / point location / tetra topology
+- M1.4 spatial-search / point-location research contracts + executable M1 tetra-topology primitives; production search/insertion is deferred to M2 by ADR-MESH-0012
 
 These research packages are prerequisites for the first original serial 3D Delaunay prototype.
 
@@ -164,4 +164,4 @@ The first executable meshing R&D evidence now lives under `tools/meshing_oracle/
 
 ## M1.9 closeout
 
-M1 executable closeout hardening now includes replay/adversarial verification, degeneracy/site identity, tetra topology primitives and predicate telemetry. M2 remains blocked until the second M1 closeout audit is qualified.
+M1 executable closeout hardening now includes replay/adversarial verification, degeneracy/site identity, tetra topology primitives and predicate telemetry. The synchronized candidate HEAD `d007fca6...` passed workflow #240, and topology-validator hardening at `d6501f1d...` passed exact-head workflow #241. M2 remains blocked until the second M1 closeout audit is qualified.

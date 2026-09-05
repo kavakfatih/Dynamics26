@@ -1,6 +1,6 @@
 # M1 Implementation Specification — Executable Baseline
 
-**Status:** IMPLEMENTED / FINAL CLOSEOUT CANDIDATE  
+**Status:** IMPLEMENTED / SECOND FINAL AUDIT READY  
 **Baseline:** 2026-09-05
 
 ## 1. Objective
@@ -130,7 +130,10 @@ Production Delaunay tie consumption remains M2 and must be validated against thi
 - canonical sorted face key,
 - reciprocal-neighbor validator,
 - duplicate vertex/tetra detection,
-- dead/out-of-range/stale neighbor diagnostics.
+- dead/out-of-range/stale neighbor diagnostics,
+- rejection of malformed noncanonical invalid neighbor handles,
+- detection of missing adjacency on a face shared by exactly two live tetrahedra,
+- detection of non-manifold faces shared by more than two live tetrahedra.
 
 Point-location walking and cavity mutation are M2 scope.
 
@@ -144,7 +147,7 @@ Executable evidence includes:
 - exact-representable translations,
 - permutation metamorphic checks,
 - one-case D26PRED failure replay,
-- deliberate tetra corruption corpus,
+- deliberate tetra corruption corpus including stale/dead/out-of-range, malformed-handle, missing-shared-face adjacency and non-manifold-face cases,
 - macOS arm64 Debug/Release CI.
 
 ## 11. Telemetry

@@ -4,6 +4,8 @@
 **Executable baseline audited:** `0e829f3efe765876155146f92bcd184020a16008`  
 **Decision at document creation:** **CANDIDATE PASS — FINAL STATUS AWAITS THIS SYNCHRONIZATION COMMIT CI**
 
+**Post-candidate resolution:** synchronization commit `d007fca6...` passed workflow #240. The independent second-audit review then identified a combinatorial-topology validator gap; hardening commit `d6501f1d...` closes malformed-neighbor, missing-shared-face-adjacency and non-manifold-face false-negative cases and passed workflow #241. This file remains the historical candidate record, not the final closeout decision.
+
 ## 1. Gate review
 
 | Gate | State | Final evidence |

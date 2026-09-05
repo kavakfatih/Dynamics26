@@ -1,6 +1,6 @@
 # M1.9 — Closeout Hardening
 
-**State:** ACTIVE  
+**State:** VERIFYING — EXECUTABLE BLOCKERS CLOSED; SECOND FINAL AUDIT READY  
 **Parent:** M1 Robust Geometry Foundation  
 **Rule:** M2 remains blocked until M1.9 and the final M1 re-audit pass.
 
@@ -25,8 +25,13 @@
 - generation-checked TetHandle,
 - opposite-face neighbor convention,
 - canonical/oriented face separation,
-- local topology validator,
-- corruption tests.
+- local combinatorial topology validator,
+- malformed invalid-handle rejection,
+- shared-face adjacency completeness check,
+- non-manifold face detection,
+- deliberate corruption tests.
+
+Evidence: base primitive workflow #238 SUCCESS; hardening commit `d6501f1d...` exact-head workflow #241 SUCCESS.
 
 ### D — Predicate telemetry
 
@@ -36,10 +41,12 @@
 
 ### E — Closeout synchronization
 
-- implementation specs,
-- ADR status,
-- roadmap states,
-- final exact-head audit.
+- implementation specs synchronized,
+- ADR scope synchronized,
+- roadmap states synchronized,
+- candidate synchronization `d007fca6...` workflow #240 SUCCESS,
+- topology-hardening `d6501f1d...` workflow #241 SUCCESS,
+- second final exact-head audit is the remaining gate.
 
 ## Explicit non-goals
 

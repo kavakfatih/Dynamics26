@@ -1,6 +1,6 @@
 # M1.4 Proposed Decision Specification
 
-**Status:** research proposal
+**Status:** M1 topology subset accepted by ADR-MESH-0012; M2 search/insertion decisions remain proposed
 
 ## D1 — Geometry/combinatorics/search separation
 
@@ -12,7 +12,7 @@ are separate modules.
 
 ## D2 — Opposite-face neighbor convention
 
-Candidate ACCEPT:
+**ACCEPTED FOR M1** via ADR-MESH-0012:
 
 ```text
 Tet.vertex[4]
@@ -22,7 +22,7 @@ neighbor[i] is across face opposite vertex[i]
 
 ## D3 — Generation-checked handles
 
-Candidate ACCEPT:
+**ACCEPTED FOR M1** via ADR-MESH-0012:
 - long-lived tetra references are index+generation handles,
 - stale references are detectable,
 - raw pointers may only be transient implementation details if ever used.

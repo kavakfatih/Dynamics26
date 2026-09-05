@@ -355,10 +355,14 @@ BLOCKERS:
 - telemetry baseline,
 - documentation synchronization.
 
+### Second-audit hardening update — 2026-09-05
+
+The synchronized candidate commit `d007fca6...` passed exact-head workflow #240. Independent re-audit of the executable topology validator then found that noncanonical invalid neighbor handles and shared/non-manifold face-incidence corruption could be underdiagnosed. Commit `d6501f1d...` hardened those M1 combinatorial invariants and passed exact-head workflow #241. M2 remained blocked throughout.
+
 ### Consequence
 
 ```text
-M1.9 = ACTIVE
+M1.9 = VERIFYING / SECOND FINAL AUDIT READY
 M2   = BLOCKED
 ```
 

@@ -28,7 +28,7 @@ Exit:
 
 ### M1 — Robust predicates and geometry kernel utilities
 
-Status: **VERIFYING — FINAL CLOSEOUT CANDIDATE**
+Status: **VERIFYING — SECOND FINAL AUDIT READY**
 
 Research package:
 - `docs/research/meshing/m1-robust-geometry/`
@@ -95,6 +95,8 @@ Exit:
 #### M1.4 — Spatial search, point location & tetra topology
 
 Status: **QUALIFIED (M1 PRIMITIVES; M2 SEARCH DEFERRED)**
+
+Scope clarification (ADR-MESH-0012): point-location states, walk/fallback policy, cavity records and insertion-order items in this research package are M2 design inputs. M1 executable qualification is limited to the tetra handle/opposite-face/canonical-face/topology-validation primitives; production point location and cavity mutation are not M1 deliverables.
 
 Research package:
 - `docs/research/meshing/m1-robust-geometry/m1.4-spatial-topology/`
@@ -182,7 +184,7 @@ Evidence:
 
 #### M1.9 — Closeout hardening
 
-Status: **VERIFYING — FINAL AUDIT**
+Status: **VERIFYING — SECOND FINAL AUDIT READY**
 
 Mandatory before M2:
 - replay/adversarial/metamorphic verification,
@@ -427,14 +429,14 @@ Cross-code agreement is supporting evidence, not proof.
 | ID | Work package | State |
 |---|---|---|
 | M0 | Knowledge library | IN PROGRESS |
-| M1 | Robust predicates | VERIFYING / FINAL AUDIT |
+| M1 | Robust predicates | VERIFYING / SECOND FINAL AUDIT READY |
 | M1.3 | Degeneracy / symbolic perturbation | QUALIFIED (M1) |
 | M1.4 | Spatial search / tetra topology | QUALIFIED (M1 primitives) |
 | M1.5 | Verification harness | QUALIFIED |
 | M1.6 | Executable verification prototype | QUALIFIED |
 | M1.7 | Exact robust predicate kernel | QUALIFIED |
 | M1.8 | Certified fast predicate path | QUALIFIED |
-| M1.9 | Closeout hardening | VERIFYING / FINAL AUDIT |
+| M1.9 | Closeout hardening | VERIFYING / SECOND FINAL AUDIT READY |
 | M2 | Point-cloud Delaunay tetra | BLOCKED BY FINAL M1 AUDIT |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
@@ -459,11 +461,12 @@ BLOCKED
 
 ## 8. Immediate next research tasks
 
-1. run the synchronized M1 final-audit candidate exact-head CI,
-2. perform the second M1 closeout audit against executable evidence,
-3. keep M2 blocked until that audit is QUALIFIED,
-4. once qualified, start M2 with point-location/super-domain decisions before Bowyer-Watson insertion,
-5. continue ANSYS / COMSOL / Marc workflow and quality benchmarking in parallel; do not use proprietary output as predicate truth.
+1. exact-head topology-hardening workflow #241 is SUCCESS at `d6501f1d...`,
+2. synchronize the M1 status documents with the hardened topology-validator scope,
+3. perform the second M1 closeout audit against executable evidence,
+4. keep M2 blocked until that audit is QUALIFIED,
+5. once qualified, start M2 with M2.0 point-location/super-domain/reference-architecture decisions before Bowyer-Watson insertion,
+6. continue ANSYS / COMSOL / Marc workflow and quality benchmarking in parallel; do not use proprietary output as predicate truth.
 
 ### M1.2 — Certified floating-point filters
 Status: **QUALIFIED**

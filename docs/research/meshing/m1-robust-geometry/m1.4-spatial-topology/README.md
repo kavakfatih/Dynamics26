@@ -3,9 +3,9 @@
 **Program:** Dynamics26 Original Meshing System R&D  
 **Parent:** M1 — Robust Geometry Foundation  
 **Depends on:** M1.1 exact oracle, M1.2 certified filters, M1.3 degeneracy policy  
-**State:** RESEARCHING  
+**State:** QUALIFIED — M1 RESEARCH CONTRACT + TOPOLOGY PRIMITIVES; M2 SEARCH DEFERRED  
 **Baseline:** 2026-09-05  
-**Production code:** none
+**Production code:** `TetraTopology` primitives/validator only; point location, cavity traversal and insertion remain M2
 
 ## Objective
 
@@ -17,6 +17,14 @@ M1.4 separates four problems:
 2. point location,
 3. cavity traversal/retriangulation support,
 4. spatial ordering / optional acceleration.
+
+## Executable scope clarification
+
+ADR-MESH-0012 freezes the M1/M2 boundary:
+
+- M1 executes and verifies the tetra handle, opposite-face convention, canonical face key and combinatorial topology validator.
+- M2 owns the point-location walk/reference locator, cavity traversal and mutation, insertion ordering and Bowyer-Watson insertion.
+- The point-location/cavity material in this package is therefore a research contract for M2, not hidden M1 production code.
 
 ## Core architecture
 
@@ -66,7 +74,9 @@ A secondary point-location accelerator is added only if experiments justify its 
 
 ## M1.4 exit
 
-Research can move to M2 implementation when:
+The research contract is frozen for M1. The executable M1 topology subset is qualified by M1.9-C/#238 and the topology-validator hardening at `d6501f1d...`/#241. M2 implementation may still begin only after the parent M1 final closeout gate passes.
+
+The M2 research/implementation contract includes:
 
 - tetra local-face convention is frozen,
 - handle lifetime/stale-reference policy is frozen,
