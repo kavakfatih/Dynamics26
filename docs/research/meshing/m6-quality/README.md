@@ -43,6 +43,9 @@ Dynamics26 solver benchmarks in M7.
 - SLIVER_AND_DELAUNAY_LIMITS.md — why valid Delaunay meshes still contain slivers and why radius-edge alone is insufficient
 - NONLINEAR_RUBBER_MESH_QUALITY.md — reference/current configuration quality, deformation gradient and incompressibility separation
 - QUALITY_METRIC_POLICY.md — proposed Dynamics26 metric roles, aggregation and release-policy boundaries
+- LOCAL_TOPOLOGY_IMPROVEMENT.md — 2<->3, 3<->2, 4<->4, protected topology and deterministic quality reconnection
+- EDGE_REMOVAL_DYNAMIC_PROGRAMMING.md — general edge-star removal and original max-min link-polygon DP formulation
+- SMOOTHING_UNTANGLING_AND_CAD_CONSTRAINTS.md — smart smoothing, feasible region, untangling separation and CAD mobility
 - EXPERIMENT_PLAN.md — analytic shape families and solver-correlation campaign
 
 ## Leading research conclusions
@@ -71,3 +74,15 @@ It does not authorize:
 - arbitrary thresholds,
 - TET4 rubber product claims,
 - M9 anisotropic adaptation.
+
+
+## Early optimizer research direction
+
+Current evidence favors a **combined** quality strategy rather than a single operation:
+- connectivity changes remove bad local topology,
+- smoothing improves vertex positions,
+- stronger edge/cavity reconnection can escape elementary-flip local maxima,
+- sliver-specific finite-weight methods remain a separate later policy.
+
+The first implementation candidate remains interior-only until CAD boundary/provenance motion is
+qualified.

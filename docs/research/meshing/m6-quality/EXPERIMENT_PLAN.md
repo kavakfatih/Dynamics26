@@ -218,6 +218,15 @@ Customer/proprietary geometry is not committed without permission.
 | M6-R10 | nonlinear reference/current quality separation benchmarked |
 | M6-R11 | incompressible locking experiment separates geometry from formulation |
 | M6-R12 | D26LIFT1 and future finite regular-Delaunay weights remain separate policies |
+| M6-R13 | 2->3 / 3->2 generic cavity validator rejects non-conformal/non-positive candidates |
+| M6-R14 | N=3..7 edge-removal DP matches exhaustive polygon triangulation oracle |
+| M6-R15 | edge-removal candidate preserves exact cavity boundary and volume |
+| M6-R16 | smart Laplacian never commits a lower-quality or inverted local star |
+| M6-R17 | max-min signed-volume untangling fixture is separate from shape-improvement acceptance |
+| M6-R18 | q_MR optimization fallback improves controlled low-tail stars without inversion |
+| M6-R19 | combined reconnection+smoothing compared against either mechanism alone |
+| M6-R20 | boundary mobility classes preserve CAD/provenance/feature constraints in future surface tests |
+| M6-R21 | deterministic operation ordering reproduces identical optimized topology/coordinates for fixed policy |
 
 These are early research gates, not M6 implementation qualification.
 
@@ -232,3 +241,67 @@ Research should eventually answer:
 6. whether/where weighted sliver treatment is justified,
 7. runtime nonlinear distortion monitoring policy,
 8. how quality results appear in MeshGenerationReport/solver preflight.
+
+
+## Tier Q2-A — exact local reconnection fixtures
+
+### 2->3
+Construct:
+- legal convex five-site cavity,
+- complementary-edge-already-present rejection,
+- coplanar/zero candidate rejection,
+- protected-face rejection.
+
+Require exact boundary/volume preservation.
+
+### 3->2
+Construct valence-3 edge star and invalid variants.
+
+Require exact inverse relationship with 2->3 where the same five-site cavity is used.
+
+### General edge removal
+For N=3..7:
+- enumerate all Catalan polygon triangulations independently,
+- compare exhaustive best max-min q_MR with dynamic-programming result,
+- verify canonical tie choice,
+- inject invalid triangle contributions and confirm they are excluded.
+
+### 4->4
+Use N=4 edge star and verify the two link-polygon diagonal alternatives.
+
+No implementation table is source authority.
+
+
+## Tier Q2-B — smoothing and untangling fixtures
+
+For a free interior vertex star:
+- ordinary centroid proposal that would invert -> smart smoother must reject,
+- centroid proposal that improves worst q_MR -> accept,
+- case where centroid stalls but optimization can improve,
+- exact feasible-region half-space checks,
+- deterministic vertex-order permutations.
+
+Untangling fixtures:
+- one local inverted star with a feasible positive solution,
+- one impossible/constraint-blocked star.
+
+Untangling success must not be interpreted as permission to hide an invalid M2/M4 generated mesh.
+
+
+## Tier Q2-C — CAD mobility research fixtures
+
+When M3/M4 surface contracts exist:
+- interior 3-DOF vertex,
+- Face 2-DOF vertex,
+- Edge 1-DOF vertex,
+- CAD Vertex fixed,
+- protected shared/bonded interface.
+
+Verify:
+- no off-manifold motion,
+- Edge node ordering,
+- persistent GeometryEntityId provenance,
+- size-field constraints,
+- deterministic result.
+
+Until these pass, the M6 reference optimizer keeps boundary vertices fixed.

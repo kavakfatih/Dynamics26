@@ -227,3 +227,18 @@ TH-016 (TetGen) and the commercial quality-reporting references in M1.5.
 | M6-FEM-002 | E. Karabelas et al., An accurate, robust, and efficient finite element framework with applications to anisotropic, nearly and fully incompressible elasticity, CMAME, 2022 | Stabilized low-order elements; volumetric locking and mixed/stabilized formulation separation | https://pmc.ncbi.nlm.nih.gov/articles/PMC7612621/ | 2026-09-05 |
 | M6-FEM-003 | J. A. Schönherr, P. Schneider, C. Mittelstedt, Robust hybrid/mixed finite elements for rubber-like materials under severe compression, Computational Mechanics 70, 2022 | Rubber-like quasi-incompressibility, volumetric locking and severe-distortion formulation behavior | https://doi.org/10.1007/s00466-022-02157-y | 2026-09-05 |
 | M6-WATCH-001 | A. Quiriny, J. Lambrechts, N. Moës, V. Kučera, J.-F. Remacle, Taming Slivers: A Robust TFEM Framework for Reliable Computations on Degenerate Tetrahedral Meshes, 2026 preprint | Recent solver-side sliver research; research-watch only, not architecture authority | https://arxiv.org/abs/2606.14301 | 2026-09-05 |
+
+
+## M6 local optimization / reconnection sources
+
+This section extends the M6 metric sources with operation/scheduling research.
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M6-OPT-001 | B. Joe, Three-Dimensional Triangulations from Local Transformations, SIAM J. Sci. Stat. Comput. 10, 1989 | 2<->3 local transformations and 3D local triangulation theory | https://doi.org/10.1137/0910044 | 2026-09-05 |
+| M6-OPT-002 | L. Freitag, C. Ollivier-Gooch, Tetrahedral Mesh Improvement Using Swapping and Smoothing, IJNME 40, 1997 | Face/edge swapping, smart/optimization smoothing, combined schedule evidence | https://ftp.mcs.anl.gov/pub/tech_reports/reports/P657.pdf | 2026-09-05 |
+| M6-OPT-003 | L. Freitag, P. Plassmann, Local Optimization-Based Simplicial Mesh Untangling and Improvement, IJNME 49, 2000 | Local feasible region; max-min signed volume untangling via affine simplex volume | https://ftp.mcs.anl.gov/pub/tech_reports/reports/P749.pdf | 2026-09-05 |
+| M6-OPT-004 | J. R. Shewchuk, Two Discrete Optimization Algorithms for the Topological Improvement of Tetrahedral Meshes, 2002 manuscript | Dynamic-programming edge removal and multi-face removal research | https://www.cs.cmu.edu/~jrs/jrspapers.html | 2026-09-05 |
+| M6-OPT-005 | C. Marot, J.-F. Remacle, Quality tetrahedral mesh generation with HXT, 2020 | 2<->3/3<->2 limits, edge removal, composite operations, accepted Laplacian smoothing and improvement schedule | https://arxiv.org/abs/2008.08508 | 2026-09-05 |
+| M6-OPT-006 | T. Munson, Mesh Shape-Quality Optimization Using the Inverse Mean-Ratio Metric, Argonne TM, 2004 | Aggregate inverse-mean-ratio optimization / r-refinement research | https://www.mcs.anl.gov/~tmunson/papers/shape.pdf | 2026-09-05 |
+| M6-OPT-007 | Z. Chen, W. Wang, B. Levy, L. Liu, F. Sun, Revisiting Optimal Delaunay Triangulation for 3D Graded Mesh Generation, SISC 36(3), 2014 | ODT energy, Delaunay consistency, graded optimization and sliver-suppression research | https://doi.org/10.1137/120875132 | 2026-09-05 |
