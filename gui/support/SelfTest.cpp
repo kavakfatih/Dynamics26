@@ -11,6 +11,7 @@
 #include "../services/MeshService.h"
 #include "../shell/Dynamics26MainWindow.h"
 #include "../shell/GraphicsWorkspace.h"
+#include "../shell/CommandRegistry.h"
 
 #include <QApplication>
 #include <QDir>
