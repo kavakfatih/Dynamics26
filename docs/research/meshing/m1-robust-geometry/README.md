@@ -2,7 +2,7 @@
 
 **Program:** Dynamics26 Original Meshing System R&D  
 **Work package:** M1  
-**State:** RESEARCHING  
+**State:** VERIFYING — M1.9 CLOSEOUT HARDENING  
 **Research baseline:** 2026-09-05
 
 ## Objective
@@ -87,4 +87,4 @@ M1 research can move to implementation when:
 
 ## M1.6 subprogram
 
-`m1.6-executable-verification/` records the first executable M1 evidence. The repository now contains a dual exact Python oracle, raw-bit D26PRED fixtures, deterministic regeneration checks and a strict C++ fixture reader integrated with CTest. Status remains VERIFYING until exact-head macOS arm64 CI passes.
+`m1.6-executable-verification/` is QUALIFIED verification infrastructure. `m1.7-exact-kernel/` is the QUALIFIED exact C++ predicate kernel. `m1.8-certified-fast-path/` is the QUALIFIED filtered fast path. `M1_CLOSEOUT_AUDIT.md` identifies the remaining M1.9 blockers that must close before M2.

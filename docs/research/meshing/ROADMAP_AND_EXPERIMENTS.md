@@ -28,7 +28,7 @@ Exit:
 
 ### M1 — Robust predicates and geometry kernel utilities
 
-Status: **RESEARCHING**
+Status: **VERIFYING — CLOSEOUT HARDENING**
 
 Research package:
 - `docs/research/meshing/m1-robust-geometry/`
@@ -140,7 +140,7 @@ Exit:
 
 #### M1.6 — Executable robust-geometry verification prototype
 
-Status: **VERIFYING**
+Status: **QUALIFIED**
 
 Implementation:
 - `tools/meshing_oracle/`
@@ -160,7 +160,41 @@ Exit:
 - full existing CTest suite remains green,
 - then executable robust-predicate implementation can begin.
 
+#### M1.7 — Exact robust predicate kernel
+
+Status: **QUALIFIED**
+
+Evidence:
+- exact C++ dyadic predicate kernel,
+- committed + generated exact-oracle corpus,
+- macOS arm64 workflow #233 SUCCESS.
+
+#### M1.8 — Certified fast predicate path
+
+Status: **QUALIFIED**
+
+Evidence:
+- conservative certified fast path,
+- exact M1.7 fallback,
+- committed + generated exact-oracle corpus,
+- Debug/Release,
+- macOS arm64 workflow #234 SUCCESS.
+
+#### M1.9 — Closeout hardening
+
+Status: **ACTIVE**
+
+Mandatory before M2:
+- replay/adversarial/metamorphic verification,
+- executable degeneracy foundation,
+- tetra primitive/validator foundation,
+- predicate telemetry baseline,
+- documentation/ADR synchronization,
+- final second M1 closeout audit.
+
 ### M2 — Delaunay point-cloud tetrahedralization
+
+Status: **BLOCKED BY M1 CLOSEOUT**
 
 Deliver:
 
@@ -393,12 +427,15 @@ Cross-code agreement is supporting evidence, not proof.
 | ID | Work package | State |
 |---|---|---|
 | M0 | Knowledge library | IN PROGRESS |
-| M1 | Robust predicates | RESEARCHING |
+| M1 | Robust predicates | VERIFYING / CLOSEOUT |
 | M1.3 | Degeneracy / symbolic perturbation | RESEARCHING |
 | M1.4 | Spatial search / tetra topology | RESEARCHING |
-| M1.5 | Verification harness | RESEARCHING |
-| M1.6 | Executable verification prototype | VERIFYING |
-| M2 | Point-cloud Delaunay tetra | NOT STARTED |
+| M1.5 | Verification harness | VERIFYING |
+| M1.6 | Executable verification prototype | QUALIFIED |
+| M1.7 | Exact robust predicate kernel | QUALIFIED |
+| M1.8 | Certified fast predicate path | QUALIFIED |
+| M1.9 | Closeout hardening | ACTIVE |
+| M2 | Point-cloud Delaunay tetra | BLOCKED |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
 | M5 | Size fields | NOT STARTED |

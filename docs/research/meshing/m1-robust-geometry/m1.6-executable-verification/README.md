@@ -1,7 +1,7 @@
 # M1.6 — Executable Robust-Geometry Verification Prototype
 
 **Program:** Dynamics26 Original Meshing System R&D  
-**State:** VERIFYING  
+**State:** QUALIFIED  
 **Implemented:** 2026-09-05  
 **Production Delaunay code:** not started
 

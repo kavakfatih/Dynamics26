@@ -302,3 +302,49 @@ The M1.5 verification architecture now has a first executable implementation:
 Local research-prototype checks passed before commit. Exact-head macOS arm64 CI is still the qualification authority.
 
 ADR-MESH-0010 remains **PROPOSED** until the exact-head CI and full regression suite pass.
+
+
+---
+
+## ADR-MESH-0011 — M1 closeout gate is mandatory before M2
+
+**Status:** ACCEPTED  
+**Date:** 2026-09-05
+
+### Decision
+
+Dynamics26 will not begin M2 Bowyer-Watson / point-cloud Delaunay implementation merely because predicate tests are green.
+
+A formal M1 closeout audit must pass first.
+
+### Current audit result
+
+The first audit at `f1e3ab433d94...` found:
+
+PASS:
+- exact dual oracle,
+- bit-exact fixtures,
+- exact C++ predicate kernel,
+- certified fast path,
+- compiler contract,
+- target macOS arm64 Debug/Release CI,
+- clean-room kernel boundary.
+
+BLOCKERS:
+- executable duplicate/affine-dimension foundation,
+- formal symbolic perturbation oracle,
+- stable PointId perturbation hierarchy,
+- tetra primitive/validator foundation,
+- failure replay proof,
+- broader adversarial/metamorphic corpus,
+- telemetry baseline,
+- documentation synchronization.
+
+### Consequence
+
+```text
+M1.9 = ACTIVE
+M2   = BLOCKED
+```
+
+M2 may start only after a second closeout audit marks M1 QUALIFIED.
