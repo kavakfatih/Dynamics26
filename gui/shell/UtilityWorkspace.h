@@ -59,9 +59,12 @@ public:
     void showTab(Tab tab);
     // Kullanıcının paneli kapattığı bilgisini taşır: sadece gerçek hata bunu aşar.
     void noteUserDismissed();
+    void noteUserOpened();
     [[nodiscard]] bool userDismissed() const noexcept { return userDismissed_; }
 
 signals:
+    // Panel kendi bölgesinden tek hareketle tekrar viewport lehine daraltılabilir.
+    void collapseRequested();
     void openRequested(Tab tab);
     // Structured Preflight tablosu yalnız navigation isteği üretir. Document
     // state/Undo burada değiştirilmez; MainWindow canonical selectObject yolunu

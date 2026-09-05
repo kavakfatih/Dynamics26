@@ -11,6 +11,9 @@
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QToolButton>
+#include <QStyle>
+#include <QSizePolicy>
 #include <QVBoxLayout>
 
 namespace d26 {
@@ -149,6 +152,10 @@ bool isLegacyPreflightCheckEcho(const QString &text)
 UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
 {
     setObjectName(QStringLiteral("Dynamics26UtilityWorkspace"));
+    // Alt panel görünür olduğunda ana pencerenin minimum yüksekliğini büyütmez;
+    // splitter içinde güvenli biçimde daraltılabilir ve tamamen kapatılabilir.
+    setMinimumHeight(0);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Ignored);
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
@@ -156,6 +163,16 @@ UtilityWorkspace::UtilityWorkspace(QWidget *parent) : QWidget(parent)
     tabs_ = new QTabWidget(this);
     tabs_->setDocumentMode(true);
     tabs_->setObjectName(QStringLiteral("Dynamics26UtilityTabs"));
+
+    auto *collapse = new QToolButton(tabs_);
+    collapse->setObjectName(QStringLiteral("Dynamics26UtilityCollapse"));
+    collapse->setAutoRaise(true);
+    collapse->setFocusPolicy(Qt::StrongFocus);
+    collapse->setIcon(style()->standardIcon(QStyle::SP_TitleBarShadeButton));
+    collapse->setToolTip(tr("Tanılama panelini küçült"));
+    collapse->setAccessibleName(tr("Tanılama panelini küçült"));
+    tabs_->setCornerWidget(collapse, Qt::TopRightCorner);
+    connect(collapse, &QToolButton::clicked, this, &UtilityWorkspace::collapseRequested);
 
     messages_ = makeConsole(tabs_);
     messages_->setObjectName(QStringLiteral("Dynamics26UtilityMessages"));
@@ -533,6 +550,11 @@ void UtilityWorkspace::showTab(const Tab tab)
 void UtilityWorkspace::noteUserDismissed()
 {
     userDismissed_ = true;
+}
+
+void UtilityWorkspace::noteUserOpened()
+{
+    userDismissed_ = false;
 }
 
 } // namespace d26

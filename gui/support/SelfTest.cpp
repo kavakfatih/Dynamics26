@@ -17,6 +17,9 @@
 #include <QEventLoop>
 #include <QStyleHints>
 #include <QTemporaryDir>
+#include <QToolBar>
+#include <QToolButton>
+#include <QMenu>
 #include <QTimer>
 #include <QUndoStack>
 #include <QtGlobal>
@@ -84,6 +87,51 @@ int runSelfTest(QApplication &app, Dynamics26MainWindow &window)
     check(!services.mesh->hasMesh(), "başlangıçta mesh yok");
     check(!window.utility()->isVisible(), "alt yardımcı alan başlangıçta kapalı");
     check(!document->isDirty(), "başlangıçta doküman temiz");
+
+    // RC.1 shell ergonomics: native Dosya menüsü dosya komutlarının tek görünür
+    // üst seviye sahibidir; application ribbon çalışma kategorilerine ayrılır.
+    auto *ribbon = window.findChild<QToolBar *>(QStringLiteral("Dynamics26CommandSurface"));
+    check(ribbon != nullptr, "RC.1 ribbon yüzeyi bulunuyor");
+    if (ribbon != nullptr) {
+        check(!ribbon->actions().contains(window.commandRegistry()->action(QStringLiteral("file.new")))
+                  && !ribbon->actions().contains(window.commandRegistry()->action(QStringLiteral("file.open")))
+                  && !ribbon->actions().contains(window.commandRegistry()->action(QStringLiteral("file.save"))),
+              "New/Open/Save ribbon'da yinelenmiyor");
+    }
+    check(window.findChild<QToolButton *>(QStringLiteral("Dynamics26RibbonGeometry")) != nullptr
+              && window.findChild<QToolButton *>(QStringLiteral("Dynamics26RibbonMaterial")) != nullptr
+              && window.findChild<QToolButton *>(QStringLiteral("Dynamics26RibbonMesh")) != nullptr
+              && window.findChild<QToolButton *>(QStringLiteral("Dynamics26RibbonAnalysis")) != nullptr
+              && window.findChild<QToolButton *>(QStringLiteral("Dynamics26RibbonResults")) != nullptr,
+          "Geometri/Malzeme/Mesh/Analiz/Sonuçlar ribbon kategorileri görünür");
+
+    const ObjectId namedFolder = services.project->namedSelectionsNode();
+    window.selectObject(namedFolder);
+    settle(80);
+    check(window.graphics()->filterAvailable(SelectionFilter::Body),
+          "Named Selections folder CAD selection araçlarını görünür tutuyor");
+
+    auto *utilityCollapse =
+        window.findChild<QToolButton *>(QStringLiteral("Dynamics26UtilityCollapse"));
+    check(utilityCollapse != nullptr, "Diagnostics paneli kendi küçültme kontrolüne sahip");
+    QAction *diagnosticsAction = window.commandRegistry()->action(QStringLiteral("panel.diagnostics"));
+    diagnosticsAction->setChecked(true);
+    diagnosticsAction->trigger();
+    settle(60);
+    check(window.utility()->isVisible(), "Diagnostics kontrollü biçimde açılıyor");
+    if (utilityCollapse != nullptr) {
+        utilityCollapse->click();
+        settle(60);
+    }
+    check(!window.utility()->isVisible() && !diagnosticsAction->isChecked(),
+          "Diagnostics kendi bölgesinden küçültülüyor");
+
+    window.selectObject(window.firstObjectOfType(ObjectType::Analysis));
+    settle(60);
+    check(supportsSuppression(ObjectType::Analysis)
+              && window.commandRegistry()->action(QStringLiteral("edit.suppress"))->text() == QStringLiteral("Pasife Al"),
+          "Analysis sağ tık semantiği Pasife Al/Aktifleştir olarak destekleniyor");
+
     check(!ViewportWidget::vtkAvailable() || window.graphics()->viewport()->hasAxisTriad(),
           "viewport: non-interactive axis triad kuruldu");
     check(!ViewportWidget::orientationCubeAvailable() || window.graphics()->viewport()->hasOrientationCube(),

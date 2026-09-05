@@ -27,6 +27,7 @@ class QLabel;
 class QMenu;
 class QSplitter;
 class QToolBar;
+class QToolButton;
 
 namespace d26 {
 
@@ -148,6 +149,7 @@ private:
     void showAbout();
 
     void showUtility(UtilityWorkspace::Tab tab, bool force);
+    void setUtilityVisible(bool visible);
     void reportMessage(const QString &text, Severity severity);
     [[nodiscard]] ObjectId activeAnalysis() const;
 
@@ -174,6 +176,11 @@ private:
 
     QToolBar *mainToolBar_{nullptr};
     QToolBar *contextToolBar_{nullptr};
+    QToolButton *ribbonGeometry_{nullptr};
+    QToolButton *ribbonMaterial_{nullptr};
+    QToolButton *ribbonMesh_{nullptr};
+    QToolButton *ribbonAnalysis_{nullptr};
+    QToolButton *ribbonResults_{nullptr};
     QLabel *contextTitle_{nullptr};
     QSplitter *workspaceSplitter_{nullptr};
     QSplitter *verticalSplitter_{nullptr};

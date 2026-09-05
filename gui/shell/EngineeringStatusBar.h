@@ -26,6 +26,7 @@ public:
     void setDocumentState(bool dirty, const QString &staleWarning);
     void setSolverState(SolverState state, const QString &detail = QString());
     void setDiagnosticsChecked(bool checked);
+    void refreshAppearance();
     [[nodiscard]] QToolButton *diagnosticsButton() const noexcept { return diagnostics_; }
 
 signals:

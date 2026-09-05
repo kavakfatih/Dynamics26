@@ -29,6 +29,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QButtonGroup>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFile>
@@ -53,6 +54,7 @@
 #include <QSplitter>
 #include <QSysInfo>
 #include <QToolBar>
+#include <QToolButton>
 #include <QUndoStack>
 #include <QVBoxLayout>
 #include <QCloseEvent>
@@ -338,7 +340,9 @@ void Dynamics26MainWindow::buildLayout()
 
     verticalSplitter_ = new QSplitter(Qt::Vertical, this);
     verticalSplitter_->setObjectName(QStringLiteral("Dynamics26VerticalSplitter"));
-    verticalSplitter_->setChildrenCollapsible(false);
+    verticalSplitter_->setChildrenCollapsible(true);
+    verticalSplitter_->setCollapsible(0, false);
+    verticalSplitter_->setCollapsible(1, true);
     verticalSplitter_->setHandleWidth(1);
     verticalSplitter_->addWidget(workspaceSplitter_);
     verticalSplitter_->addWidget(utility_);
@@ -422,8 +426,8 @@ void Dynamics26MainWindow::buildCommands()
     commands_->addPlain(QStringLiteral("edit.copy"), tr("Kopyala"), QStringLiteral("Ctrl+C"));
     commands_->addPlain(QStringLiteral("edit.paste"), tr("Yapıştır"), QStringLiteral("Ctrl+V"));
     commands_->addPlain(QStringLiteral("edit.selectAll"), tr("Tümünü Seç"), QStringLiteral("Ctrl+A"));
-    commands_->addPlain(QStringLiteral("edit.suppress"), tr("Bastır"));
-    commands_->addPlain(QStringLiteral("edit.unsuppress"), tr("Bastırmayı Kaldır"));
+    commands_->addPlain(QStringLiteral("edit.suppress"), tr("Pasife Al"));
+    commands_->addPlain(QStringLiteral("edit.unsuppress"), tr("Aktifleştir"));
 
     commands_->addPlain(QStringLiteral("file.saveAs"), tr("Farklı Kaydet…"), QStringLiteral("Shift+Ctrl+S"));
     commands_->addPlain(QStringLiteral("file.revert"), tr("Kaydedilene Dön"));
@@ -457,33 +461,82 @@ void Dynamics26MainWindow::buildCommands()
 
 void Dynamics26MainWindow::buildCommandSurface()
 {
-    mainToolBar_ = addToolBar(tr("Komutlar"));
+    // RC.1 final shell: üst satır dosya kısayolu deposu değildir. Native Dosya
+    // menüsü New/Open/Save sahibi olmaya devam eder; uygulama içi üst satır
+    // yalnız çalışma kategorileri ve kompakt panel görünürlük ikonlarını taşır.
+    mainToolBar_ = addToolBar(tr("Ribbon"));
     mainToolBar_->setObjectName(QStringLiteral("Dynamics26CommandSurface"));
     mainToolBar_->setMovable(false);
     mainToolBar_->setFloatable(false);
-    mainToolBar_->setIconSize(QSize(17, 17));
-    mainToolBar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    mainToolBar_->setIconSize(QSize(16, 16));
 
-    mainToolBar_->addAction(commands_->action(QStringLiteral("file.new")));
-    mainToolBar_->addAction(commands_->action(QStringLiteral("file.open")));
-    mainToolBar_->addAction(commands_->action(QStringLiteral("file.save")));
+    const auto addPanelToggle = [this](const QString &commandId, const QString &objectName) {
+        auto *button = new QToolButton(mainToolBar_);
+        button->setObjectName(objectName);
+        button->setDefaultAction(commands_->action(commandId));
+        button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        button->setAutoRaise(true);
+        button->setFocusPolicy(Qt::StrongFocus);
+        mainToolBar_->addWidget(button);
+        return button;
+    };
+
+    addPanelToggle(QStringLiteral("panel.navigator"), QStringLiteral("Dynamics26RibbonNavigator"));
     mainToolBar_->addSeparator();
-    mainToolBar_->addAction(commands_->action(QStringLiteral("geometry.import")));
-    mainToolBar_->addAction(commands_->action(QStringLiteral("mesh.generate")));
-    mainToolBar_->addSeparator();
-    mainToolBar_->addAction(commands_->action(QStringLiteral("analysis.solve")));
-    mainToolBar_->addSeparator();
-    mainToolBar_->addAction(commands_->action(QStringLiteral("view.fit")));
+
+    auto *sectionGroup = new QButtonGroup(mainToolBar_);
+    sectionGroup->setExclusive(true);
+    const auto addSection = [this, sectionGroup](const QString &text, const QString &objectName,
+                                                 const auto &activate) {
+        auto *button = new QToolButton(mainToolBar_);
+        button->setObjectName(objectName);
+        button->setText(text);
+        button->setCheckable(true);
+        button->setAutoRaise(true);
+        button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        button->setFocusPolicy(Qt::StrongFocus);
+        sectionGroup->addButton(button);
+        connect(button, &QToolButton::clicked, this, activate);
+        mainToolBar_->addWidget(button);
+        return button;
+    };
+
+    ribbonGeometry_ = addSection(tr("Geometri"), QStringLiteral("Dynamics26RibbonGeometry"), [this] {
+        selectObject(project_->geometryNode());
+    });
+    ribbonMaterial_ = addSection(tr("Malzeme"), QStringLiteral("Dynamics26RibbonMaterial"), [this] {
+        selectObject(project_->materialsNode());
+    });
+    ribbonMesh_ = addSection(tr("Mesh"), QStringLiteral("Dynamics26RibbonMesh"), [this] {
+        selectObject(project_->meshNode());
+    });
+    ribbonAnalysis_ = addSection(tr("Analiz"), QStringLiteral("Dynamics26RibbonAnalysis"), [this] {
+        ObjectId analysisId = activeAnalysis();
+        if (analysisId == InvalidObjectId) {
+            analysisId = firstObjectOfType(ObjectType::Analysis);
+        }
+        if (analysisId != InvalidObjectId) {
+            selectObject(analysisId);
+        }
+    });
+    ribbonResults_ = addSection(tr("Sonuçlar"), QStringLiteral("Dynamics26RibbonResults"), [this] {
+        if (const AnalysisRecord *record = analysis_->analysis(activeAnalysis())) {
+            if (record->solutionNode != InvalidObjectId) {
+                selectObject(record->solutionNode);
+            }
+        }
+    });
+    ribbonGeometry_->setChecked(true);
 
     auto *spacer = new QWidget(mainToolBar_);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     mainToolBar_->addWidget(spacer);
-    mainToolBar_->addAction(commands_->action(QStringLiteral("panel.navigator")));
-    mainToolBar_->addAction(commands_->action(QStringLiteral("panel.details")));
-    mainToolBar_->addAction(commands_->action(QStringLiteral("panel.diagnostics")));
+
+    addPanelToggle(QStringLiteral("panel.details"), QStringLiteral("Dynamics26RibbonDetails"));
+    addPanelToggle(QStringLiteral("panel.diagnostics"), QStringLiteral("Dynamics26RibbonDiagnostics"));
 
     addToolBarBreak();
-    contextToolBar_ = addToolBar(tr("Bağlam"));
+    contextToolBar_ = addToolBar(tr("Araçlar"));
     contextToolBar_->setObjectName(QStringLiteral("Dynamics26ContextSurface"));
     contextToolBar_->setMovable(false);
     contextToolBar_->setFloatable(false);
@@ -654,16 +707,10 @@ void Dynamics26MainWindow::wireSignals()
                 syncStatusBar();
             });
 
-    connect(engineeringStatus_, &EngineeringStatusBar::diagnosticsToggled, this, [this](const bool visible) {
-        if (!visible) {
-            utility_->noteUserDismissed();
-        }
-        utility_->setVisible(visible);
-        commands_->action(QStringLiteral("panel.diagnostics"))->setChecked(visible);
-        if (visible) {
-            verticalSplitter_->setSizes({height() - 240, 200});
-        }
-    });
+    connect(engineeringStatus_, &EngineeringStatusBar::diagnosticsToggled, this,
+            [this](const bool visible) { setUtilityVisible(visible); });
+    connect(utility_, &UtilityWorkspace::collapseRequested, this,
+            [this] { setUtilityVisible(false); });
 }
 
 void Dynamics26MainWindow::handleCommand(const QString &id)
@@ -817,15 +864,7 @@ void Dynamics26MainWindow::handleCommand(const QString &id)
     } else if (id == QStringLiteral("panel.details")) {
         details_->setVisible(commands_->action(id)->isChecked());
     } else if (id == QStringLiteral("panel.diagnostics")) {
-        const bool visible = commands_->action(id)->isChecked();
-        if (!visible) {
-            utility_->noteUserDismissed();
-        }
-        utility_->setVisible(visible);
-        engineeringStatus_->setDiagnosticsChecked(visible);
-        if (visible) {
-            verticalSplitter_->setSizes({height() - 240, 200});
-        }
+        setUtilityVisible(commands_->action(id)->isChecked());
     } else if (id.startsWith(QStringLiteral("verify."))) {
         runVerificationPreset(id);
     }
@@ -1195,9 +1234,9 @@ void Dynamics26MainWindow::syncCommandStates()
     const bool suppressible = valid && supportsSuppression(type);
     const bool alreadySuppressed = suppressible && project_->isSuppressed(selected_);
     commands_->setEnabled(QStringLiteral("edit.suppress"), suppressible && !alreadySuppressed,
-                          alreadySuppressed ? tr("Nesne zaten bastırılmış.") : tr("Bu nesne bastırılamaz."));
+                          alreadySuppressed ? tr("Nesne zaten pasif.") : tr("Bu nesne pasife alınamaz."));
     commands_->setEnabled(QStringLiteral("edit.unsuppress"), suppressible && alreadySuppressed,
-                          tr("Nesne bastırılmamış."));
+                          tr("Nesne pasif değil."));
     commands_->setEnabled(QStringLiteral("material.assign"),
                           type == ObjectType::Material && materials_->assignedMaterialId() != selected_,
                           tr("Bu malzeme zaten atanmış."));
@@ -1221,6 +1260,37 @@ void Dynamics26MainWindow::syncContextualSurface()
     contextToolBar_->addWidget(contextTitle_);
 
     const ObjectType type = project_->typeOf(selected_);
+    QToolButton *activeRibbon = ribbonGeometry_;
+    switch (type) {
+    case ObjectType::MaterialsFolder:
+    case ObjectType::Material:
+        activeRibbon = ribbonMaterial_;
+        break;
+    case ObjectType::Mesh:
+        activeRibbon = ribbonMesh_;
+        break;
+    case ObjectType::ConnectionsFolder:
+    case ObjectType::ContactRegion:
+    case ObjectType::Analysis:
+    case ObjectType::AnalysisSettings:
+    case ObjectType::FixedSupport:
+    case ObjectType::Force:
+        activeRibbon = ribbonAnalysis_;
+        break;
+    case ObjectType::Solution:
+    case ObjectType::TotalDeformation:
+    case ObjectType::EquivalentStress:
+    case ObjectType::ReactionForce:
+        activeRibbon = ribbonResults_;
+        break;
+    default:
+        activeRibbon = ribbonGeometry_;
+        break;
+    }
+    if (activeRibbon != nullptr) {
+        activeRibbon->setChecked(true);
+    }
+
     switch (type) {
     case ObjectType::GeometryFolder:
     case ObjectType::Body:
@@ -1231,11 +1301,33 @@ void Dynamics26MainWindow::syncContextualSurface()
         contextToolBar_->addAction(commands_->action(QStringLiteral("selection.createNamed")));
         contextToolBar_->addAction(commands_->action(QStringLiteral("selection.createSupport")));
         contextToolBar_->addAction(commands_->action(QStringLiteral("selection.createForce")));
+        contextToolBar_->addSeparator();
         contextToolBar_->addAction(commands_->action(QStringLiteral("geometry.importSection")));
+        break;
+    case ObjectType::NamedSelectionsFolder:
+        contextTitle_->setText(tr("NAMED SELECTIONS"));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.beginNamed")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.createNamed")));
+        contextToolBar_->addSeparator();
+        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.createSupport")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.createForce")));
+        break;
+    case ObjectType::NamedSelection:
+        contextTitle_->setText(tr("NAMED SELECTION"));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.beginNamed")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.createNamed")));
+        break;
+    case ObjectType::MaterialsFolder:
+    case ObjectType::Material:
+        contextTitle_->setText(tr("MATERIALS"));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("material.create")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("material.assign")));
         break;
     case ObjectType::Mesh:
         contextTitle_->setText(tr("MESH"));
         contextToolBar_->addAction(commands_->action(QStringLiteral("mesh.generate")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("mesh.clearGenerated")));
+        contextToolBar_->addSeparator();
         contextToolBar_->addAction(commands_->action(QStringLiteral("mesh.showNodes")));
         break;
     case ObjectType::Analysis:
@@ -1243,22 +1335,27 @@ void Dynamics26MainWindow::syncContextualSurface()
     case ObjectType::FixedSupport:
     case ObjectType::Force:
         contextTitle_->setText(tr("ANALYSIS"));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("analysis.insertStatic")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("analysis.insertModal")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("analysis.insertNonlinear")));
+        contextToolBar_->addSeparator();
         contextToolBar_->addAction(commands_->action(QStringLiteral("analysis.insertSupport")));
         contextToolBar_->addAction(commands_->action(QStringLiteral("analysis.insertForce")));
         contextToolBar_->addSeparator();
+        contextToolBar_->addAction(commands_->action(QStringLiteral("analysis.preflight")));
         contextToolBar_->addAction(commands_->action(QStringLiteral("analysis.solve")));
         break;
     case ObjectType::Solution:
     case ObjectType::TotalDeformation:
     case ObjectType::EquivalentStress:
     case ObjectType::ReactionForce:
-        contextTitle_->setText(tr("SOLUTION"));
+        contextTitle_->setText(tr("RESULTS"));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("analysis.insertDeformation")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("analysis.insertStress")));
+        contextToolBar_->addAction(commands_->action(QStringLiteral("analysis.insertReaction")));
+        contextToolBar_->addSeparator();
         contextToolBar_->addAction(commands_->action(QStringLiteral("results.exportCsv")));
         contextToolBar_->addAction(commands_->action(QStringLiteral("results.exportVtk")));
-        break;
-    case ObjectType::MaterialsFolder:
-    case ObjectType::Material:
-        contextTitle_->setText(tr("MATERIALS"));
         break;
     case ObjectType::SectionsFolder:
     case ObjectType::Section:
@@ -1269,13 +1366,6 @@ void Dynamics26MainWindow::syncContextualSurface()
     case ObjectType::ContactRegion:
         contextTitle_->setText(tr("CONNECTIONS"));
         contextToolBar_->addAction(commands_->action(QStringLiteral("connections.insertContact")));
-        break;
-    case ObjectType::NamedSelectionsFolder:
-        contextTitle_->setText(tr("NAMED SELECTIONS"));
-        contextToolBar_->addAction(commands_->action(QStringLiteral("selection.beginNamed")));
-        break;
-    case ObjectType::NamedSelection:
-        contextTitle_->setText(tr("NAMED SELECTION"));
         break;
     default:
         contextTitle_->setText(tr("PROJECT"));
@@ -2038,12 +2128,28 @@ void Dynamics26MainWindow::showUtility(const UtilityWorkspace::Tab tab, const bo
         return;
     }
     utility_->showTab(tab);
-    if (!utility_->isVisible()) {
-        utility_->setVisible(true);
-        verticalSplitter_->setSizes({height() - 240, 200});
+    setUtilityVisible(true);
+}
+
+void Dynamics26MainWindow::setUtilityVisible(const bool visible)
+{
+    if (visible) {
+        utility_->noteUserOpened();
+    } else {
+        utility_->noteUserDismissed();
     }
-    commands_->action(QStringLiteral("panel.diagnostics"))->setChecked(true);
-    engineeringStatus_->setDiagnosticsChecked(true);
+
+    utility_->setVisible(visible);
+    commands_->action(QStringLiteral("panel.diagnostics"))->setChecked(visible);
+    engineeringStatus_->setDiagnosticsChecked(visible);
+
+    const int available = qMax(1, verticalSplitter_->height());
+    if (visible) {
+        const int target = qBound(150, available / 4, 230);
+        verticalSplitter_->setSizes({qMax(1, available - target), target});
+    } else {
+        verticalSplitter_->setSizes({available, 0});
+    }
 }
 
 void Dynamics26MainWindow::reportMessage(const QString &text, const Severity severity)
@@ -2390,6 +2496,10 @@ QMenu *Dynamics26MainWindow::buildContextMenu(const ObjectId id, QWidget *parent
         insert->addAction(commands_->action(QStringLiteral("analysis.insertSupport")));
         insert->addAction(commands_->action(QStringLiteral("analysis.insertForce")));
         menu.addSeparator();
+        if (type == ObjectType::Analysis) {
+            add(project_->isSuppressed(id) ? "edit.unsuppress" : "edit.suppress");
+            menu.addSeparator();
+        }
         add("edit.rename");
         add("edit.delete");
         break;
@@ -2536,6 +2646,7 @@ bool Dynamics26MainWindow::event(QEvent *event)
         commands_->refreshIcons();
         graphics_->refreshIcons();
         navigator_->refreshDecorations();
+        engineeringStatus_->refreshAppearance();
         graphics_->viewport()->refreshAppearance();
     }
     return QMainWindow::event(event);

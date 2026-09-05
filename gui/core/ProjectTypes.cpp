@@ -65,7 +65,7 @@ QString displayName(const ObjectState state)
     case ObjectState::OutOfDate: return QCoreApplication::translate("d26", "Güncel değil");
     case ObjectState::Warning:   return QCoreApplication::translate("d26", "Uyarı");
     case ObjectState::Error:     return QCoreApplication::translate("d26", "Hata");
-    case ObjectState::Suppressed: return QCoreApplication::translate("d26", "Bastırıldı");
+    case ObjectState::Suppressed: return QCoreApplication::translate("d26", "Pasif");
     case ObjectState::Solving:   return QCoreApplication::translate("d26", "Çözülüyor");
     }
     return QString();
@@ -99,9 +99,9 @@ bool isResultDefinition(const ObjectType type)
 
 bool supportsSuppression(const ObjectType type)
 {
-    return type == ObjectType::Body || type == ObjectType::ContactRegion
-        || type == ObjectType::FixedSupport || type == ObjectType::Force
-        || isResultDefinition(type);
+    return type == ObjectType::Body || type == ObjectType::Analysis
+        || type == ObjectType::ContactRegion || type == ObjectType::FixedSupport
+        || type == ObjectType::Force || isResultDefinition(type);
 }
 
 bool supportsRename(const ObjectType type)
@@ -159,9 +159,11 @@ ViewportContext viewportContextFor(const ObjectType type)
     case ObjectType::ModeShape:
         return ViewportContext::Modal;
     case ObjectType::NamedSelectionsFolder:
+        // Yeni Named Selection authoring Geometry seçim araçlarıyla başlar.
+        // Folder seçiliyken Body/Face/Edge/Vertex araçları görünür kalmalıdır.
+        return ViewportContext::Geometry;
     case ObjectType::NamedSelection:
-        // Named Selection kendi başına Geometry veya Mesh bağlamı değildir;
-        // gerçek viewport domain'i saved ScopeReference üzerinden çözülür.
+        // Mevcut Named Selection domain'i saved ScopeReference üzerinden çözülür.
         return ViewportContext::Empty;
     }
     return ViewportContext::Empty;

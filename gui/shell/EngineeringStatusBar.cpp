@@ -1,7 +1,9 @@
 #include "EngineeringStatusBar.h"
 
 #include "../core/UiTheme.h"
+#include "../core/CaeIcons.h"
 
+#include <QApplication>
 #include <QFont>
 #include <QLabel>
 #include <QLocale>
@@ -48,10 +50,15 @@ EngineeringStatusBar::EngineeringStatusBar(QWidget *parent) : QStatusBar(parent)
     addPermanentWidget(solverState_);
 
     diagnostics_ = new QToolButton(this);
-    diagnostics_->setText(tr("Tanılama"));
+    diagnostics_->setObjectName(QStringLiteral("Dynamics26StatusDiagnostics"));
+    diagnostics_->setText(QString());
     diagnostics_->setCheckable(true);
     diagnostics_->setAutoRaise(true);
     diagnostics_->setFocusPolicy(Qt::NoFocus);
+    diagnostics_->setToolTip(tr("Tanılama panelini göster/gizle"));
+    diagnostics_->setAccessibleName(tr("Tanılama paneli"));
+    diagnostics_->setIconSize(QSize(15, 15));
+    refreshAppearance();
     QFont diagnosticsFont = diagnostics_->font();
     diagnosticsFont.setPointSizeF(qMax(9.0, diagnosticsFont.pointSizeF() - 1.0));
     diagnostics_->setFont(diagnosticsFont);
@@ -111,6 +118,15 @@ void EngineeringStatusBar::setDiagnosticsChecked(const bool checked)
 {
     QSignalBlocker blocker(diagnostics_);
     diagnostics_->setChecked(checked);
+}
+
+void EngineeringStatusBar::refreshAppearance()
+{
+    if (diagnostics_ == nullptr) {
+        return;
+    }
+    diagnostics_->setIcon(CaeIcons::forCommand(
+        CommandGlyph::ShowDiagnostics, qApp->palette().color(QPalette::WindowText)));
 }
 
 } // namespace d26

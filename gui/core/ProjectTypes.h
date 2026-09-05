@@ -110,7 +110,7 @@ enum class ResultDefinitionKind {
 QString displayName(ResultDefinitionKind kind);
 ObjectType objectTypeFor(ResultDefinitionKind kind);
 [[nodiscard]] bool isResultDefinition(ObjectType type);
-// Suppress/Unsuppress hangi nesne türlerinde anlamlıdır?
+// Pasife Al / Aktifleştir hangi nesne türlerinde anlamlıdır?
 [[nodiscard]] bool supportsSuppression(ObjectType type);
 // Rename / Duplicate / Delete hangi türlerde anlamlıdır?
 [[nodiscard]] bool supportsRename(ObjectType type);
