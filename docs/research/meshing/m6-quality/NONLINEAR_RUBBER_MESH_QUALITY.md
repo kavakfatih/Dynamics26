@@ -251,3 +251,20 @@ Future reporting should distinguish:
     Current Nonlinear Distortion
 
 A mesh can pass one category and fail another.
+
+
+## 13. Solver-formulation research link
+
+The dedicated TET4 incompressibility/formulation research now lives at:
+
+`docs/research/fem/tet4-nearly-incompressible/`
+
+M6 remains responsible for geometric quality/distortion. The FEM research package owns:
+- approximation spaces,
+- inf-sup/stabilization,
+- pressure field,
+- locking,
+- element tangent,
+- formulation-specific solver qualification.
+
+These two evidence tracks are crossed only in the later TET4 product qualification matrix.

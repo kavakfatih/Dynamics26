@@ -665,6 +665,32 @@ Compare:
 
 Mixed `u-p` adds pressure DOFs and changes linear-system structure; backend suitability is part of formulation qualification.
 
+## D4.1. TET4 nearly-incompressible research track
+
+Research package:
+
+`docs/research/fem/tet4-nearly-incompressible/`
+
+TET4 does not inherit the current HEX8 Q1/P0 mixed formulation by topology substitution.
+
+Candidate comparison:
+- pure P1 and P1/P0 negative controls,
+- MINI P1+bubble/P1 as stable mixed reference candidate,
+- pressure-projection stabilized P1/P1,
+- patch F-bar displacement-only alternative,
+- later hybrid/mixed TET10.
+
+Qualification includes:
+- numerical inf-sup mesh sequence where applicable,
+- pressure/spurious-mode checks,
+- exact consistent tangent,
+- K/G locking sweep,
+- nonlinear local-state rollback,
+- M6 geometry-quality cross matrix,
+- higher-order comparison.
+
+No candidate is selected for product use before this evidence exists.
+
 ## D5. Verification pyramid
 
 ```text
