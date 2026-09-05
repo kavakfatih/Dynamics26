@@ -99,7 +99,9 @@ hull fingerprints under fixed symbolic priority.
 - duplicate source records,
 - reversed input enumeration,
 - reversed insertion order,
-- deterministic generated random clouds.
+- deterministic generated random clouds,
+- controlled two-non-coplanar-lines complexity family,
+- independently constructed bounded-spread/surface complexity stress sets.
 
 Near-coincident but mathematically distinct sites are not merged by an M2 epsilon.
 
@@ -166,6 +168,8 @@ This separates weak-Delaunay geometric truth from symbolic topology choice.
 | M2-G25 | M2 typed finite/infinite cell validator and fixed ghost-slot convention pass |
 | M2-G26 | reference append-only commit path performs no allocation/predicate after commit barrier |
 | M2-G27 | later slot-reuse experiment preserves fingerprints and rejects stale generations |
+| M2-G28 | controlled high-complexity family completes or returns typed resource limit without topology corruption |
+| M2-G29 | checked capacity arithmetic and pre-commit resource failure preserve old topology |
 
 M2 is not QUALIFIED until mandatory gates are executable evidence.
 
@@ -222,3 +226,17 @@ Reference storage additionally records:
 
 Dead-slot growth is accepted for M2.1 reference qualification but becomes an explicit input to the
 later reuse/packing decision.
+
+
+## Complexity benchmark reporting
+
+Do not evaluate scalability from one distribution.
+
+At minimum report separate families:
+- ordinary volumetric random,
+- grid/sphere/surface-like,
+- exact-degenerate,
+- controlled high-complexity.
+
+A tetra/site ratio is telemetry, not a validity threshold. 3D Delaunay output can be quadratic in
+the worst case.

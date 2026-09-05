@@ -586,3 +586,32 @@ barrier and removes free-list/generation-reuse behavior from first-principles to
 ### Acceptance
 
 M2-G25..G27 plus the existing topology/transaction gates.
+
+
+---
+
+## ADR-MESH-0018 — Resource limits are not geometric validity
+
+**Status:** PROPOSED
+**Date:** 2026-09-05
+
+### Decision candidate
+
+M2 treats computational resource exhaustion as an operational state separate from geometry and
+topology validity.
+
+3D Delaunay output can have quadratic worst-case complexity. No constant tetra/site ratio is a
+mathematical validity bound.
+
+Resource checks occur before the commit barrier using checked arithmetic and the known candidate
+cell count. If the configured budget cannot accommodate the insertion, the existing triangulation
+remains unchanged and a typed ResourceLimitExceeded result is returned.
+
+### Forbidden fallback
+
+Resource pressure does not authorize silent site merging, skipped insertions, partial-mesh success,
+predicate weakening or unversioned topology changes.
+
+### Acceptance
+
+M2-G28 and M2-G29 plus complexity telemetry over ordinary and adversarial distributions.
