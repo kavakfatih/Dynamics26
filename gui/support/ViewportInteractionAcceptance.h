@@ -4,6 +4,7 @@
 // -> one visible menu -> canonical document command. No bridge signals injected.
 #include "BoundarySelectionAuthoringAcceptance.h"
 #include "FinalShellAcceptance.h"
+#include "LoadGlyphAcceptance.h"
 #include <QAction>
 #include <QContextMenuEvent>
 #include <QMenu>
@@ -265,6 +266,7 @@ inline int runViewportInteractionAcceptance(QApplication &app, Dynamics26MainWin
                   "reopened boundary keeps persistent Face identities");
         }
     }
+    failures += runLoadGlyphAcceptance(app, window);
     check(window.openProjectFromPath(baseline), "interaction acceptance restores original project");
     flush();
     std::cout << "Viewport interaction acceptance " << (failures ? "FAIL" : "PASS") << '\n';

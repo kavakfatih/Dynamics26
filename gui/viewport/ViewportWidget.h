@@ -45,11 +45,13 @@ enum class ResultField {
 
 // Sınır şartı / yük görselleştirmesi için kapsam tanımı.
 struct BoundaryGlyph {
+    // Display-only scope grouping; one Total Force resultant for all selected Faces.
     femcae::geometry::GeometryEntityId geometryId{femcae::geometry::InvalidGeometryId};
     bool isLoad{false};
     double dx{1.0};
     double dy{0.0};
     double dz{0.0};
+    QVector<femcae::geometry::GeometryEntityId> scopeGeometryIds;
 };
 
 class ViewportWidget final : public QWidget
@@ -84,6 +86,8 @@ public:
 
     // Seçili nesnenin kapsadığı CAD/kutu yüzünü vurgular.
     void setHighlightedGeometry(femcae::geometry::GeometryEntityId geometryId);
+    void setHighlightedGeometryScope(const QVector<femcae::geometry::GeometryEntityId> &ids);
+    [[nodiscard]] int displayedLoadGlyphCount() const noexcept;
 
     // Menu ownership application coordinator'dadır; viewport yalnız kamera
     // eylemlerini ekler. Bounds transient selection display bounds'udur.

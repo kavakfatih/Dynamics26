@@ -1,4 +1,5 @@
 #include "ViewportWidget.h"
+#include "BoundaryGlyphLayout.h"
 
 #include "Dynamics26InteractorStyle.h"
 #include "GeometrySelectionScene.h"
@@ -33,6 +34,7 @@
 #include <vtkConeSource.h>
 #include <vtkDoubleArray.h>
 #include <vtkFeatureEdges.h>
+#include <vtkFieldData.h>
 #include <vtkGenericOpenGLRenderWindow.h>
 #include <vtkGlyph3D.h>
 #include <vtkLookupTable.h>
@@ -145,6 +147,8 @@ public:
     vtkSmartPointer<vtkActor> geometryEdgeActor;
     vtkSmartPointer<vtkActor> highlightActor;
     GeometryEntityId highlighted{InvalidGeometryId};
+    QVector<GeometryEntityId> highlightedScope;
+    int loadGlyphCount{0};
     SimulationMesh cachedMesh;
     bool hasCachedMesh{false};
 
@@ -254,7 +258,7 @@ void ViewportWidget::Impl::rebuildHighlight()
                      actors.end());
         highlightActor = nullptr;
     }
-    if (highlighted == InvalidGeometryId || !hasCachedMesh) {
+    if (highlightedScope.isEmpty() || !hasCachedMesh) {
         return;
     }
 
@@ -269,7 +273,7 @@ void ViewportWidget::Impl::rebuildHighlight()
     vtkNew<vtkCellArray> polys;
     bool any = false;
     for (const auto &facet : cachedMesh.boundaryFacets) {
-        if (facet.sourceGeometryId != highlighted) {
+        if (!highlightedScope.contains(facet.sourceGeometryId)) {
             continue;
         }
         vtkIdType ids[4];
@@ -564,6 +568,7 @@ void ViewportWidget::clearScene()
         impl_->renderer->RemoveActor(entry.actor);
     }
     impl_->actors.clear();
+    impl_->loadGlyphCount = 0;
     impl_->surfaceActor = nullptr;
     impl_->geometryEdgeActor = nullptr;
     impl_->highlightActor = nullptr;
@@ -851,10 +856,15 @@ void ViewportWidget::showModelWithBoundaryConditions(const SimulationMesh &mesh,
     const auto bounds = computeBounds(mesh);
 
     for (const auto &glyph : glyphs) {
-        // Kapsanan yüzün düğüm konumlarında sembol yerleştirilir.
+        const double norm = std::hypot(glyph.dx, glyph.dy, glyph.dz);
+        // Sıfır/geçersiz yük geçerli bir resultant oku gibi gösterilemez.
+        if (!std::isfinite(norm) || norm <= 1.0e-12) continue;
+        std::vector<std::array<double, 3>> centres;
         vtkNew<vtkPoints> points;
+        points->SetDataTypeToDouble();
         for (const auto &facet : mesh.boundaryFacets) {
-            if (facet.sourceGeometryId != glyph.geometryId) {
+            if (glyph.scopeGeometryIds.isEmpty() ? facet.sourceGeometryId != glyph.geometryId
+                                                 : !glyph.scopeGeometryIds.contains(facet.sourceGeometryId)) {
                 continue;
             }
             double centre[3] = {0.0, 0.0, 0.0};
@@ -869,16 +879,29 @@ void ViewportWidget::showModelWithBoundaryConditions(const SimulationMesh &mesh,
                 centre[2] += node->x.z;
                 ++found;
             }
-            if (found == 0) {
+            if (found != static_cast<int>(facet.nodeIds.size())) {
                 continue;
             }
-            points->InsertNextPoint(centre[0] / found, centre[1] / found, centre[2] / found);
+            centres.push_back({centre[0] / found, centre[1] / found, centre[2] / found});
+        }
+        if (centres.empty()) continue;
+        const auto placements = boundaryGlyphLayout(centres, {glyph.dx, glyph.dy, glyph.dz}, glyph.isLoad);
+        vtkNew<vtkDoubleArray> scales;
+        for (const auto &placement : placements) {
+            points->InsertNextPoint(placement.origin.data());
+            scales->InsertNextValue(placement.scale);
         }
         if (points->GetNumberOfPoints() == 0) {
             continue;
         }
         vtkSmartPointer<vtkPolyData> seeds = vtkSmartPointer<vtkPolyData>::New();
         seeds->SetPoints(points);
+        seeds->GetPointData()->SetScalars(scales);
+        vtkNew<vtkDoubleArray> directions;
+        directions->SetNumberOfComponents(3);
+        for (vtkIdType i = 0; i < points->GetNumberOfPoints(); ++i)
+            directions->InsertNextTuple3(glyph.dx / norm, glyph.dy / norm, glyph.dz / norm);
+        seeds->GetPointData()->SetVectors(directions);
 
         vtkNew<vtkGlyph3D> glyphFilter;
         glyphFilter->SetInputData(seeds);
@@ -900,29 +923,38 @@ void ViewportWidget::showModelWithBoundaryConditions(const SimulationMesh &mesh,
         }
         glyphFilter->SetScaleFactor(bounds.span * (glyph.isLoad ? 0.10 : 0.055));
         glyphFilter->ScalingOn();
-        glyphFilter->SetScaleModeToDataScalingOff();
+        glyphFilter->SetScaleModeToScaleByScalar();
+        // Her sembol kendi seed konumunda yönlenir. Actor'u dünya orijini
+        // çevresinde döndürmek sembolleri seçili yüzün dışına taşırdı.
+        glyphFilter->SetVectorModeToUseVector();
+        glyphFilter->OrientOn();
         glyphFilter->Update();
 
         vtkSmartPointer<vtkPolyData> glyphData = vtkSmartPointer<vtkPolyData>::New();
         glyphData->DeepCopy(glyphFilter->GetOutput());
-        auto actor = impl_->addActor(glyphData,
+        if (glyph.isLoad) {
+            // Derived render metadata: native acceptance gerçek mapper noktalarını
+            // bu seed'lerle karşılaştırır. Project/Undo/solver girdisi değildir.
+            vtkNew<vtkDoubleArray> origins;
+            origins->DeepCopy(points->GetData());
+            origins->SetName("D26LoadGlyphOrigins");
+            glyphData->GetFieldData()->AddArray(origins);
+            vtkNew<vtkDoubleArray> vector;
+            vector->SetName("D26LoadGlyphDirection");
+            vector->SetNumberOfComponents(3);
+            vector->InsertNextTuple3(glyph.dx / norm, glyph.dy / norm, glyph.dz / norm);
+            glyphData->GetFieldData()->AddArray(vector);
+            vtkNew<vtkDoubleArray> lengths;
+            lengths->SetName("D26LoadGlyphLengths");
+            for (const auto &placement : placements)
+                lengths->InsertNextValue(bounds.span * 0.10 * placement.scale);
+            glyphData->GetFieldData()->AddArray(lengths);
+        }
+        impl_->addActor(glyphData,
                                       glyph.isLoad ? RenderRole::LoadGlyph : RenderRole::BoundaryCondition,
                                       glyph.isLoad ? RenderRole::LoadGlyph : RenderRole::BoundaryCondition,
                                       false);
-        // Yön: yük vektörü boyunca; mesnet sembolü yüzeye dik içeri bakar.
-        const double dx = glyph.dx;
-        const double dy = glyph.dy;
-        const double dz = glyph.dz;
-        const double norm = std::sqrt(dx * dx + dy * dy + dz * dz);
-        if (norm > 1.0e-12) {
-            const double ux = dx / norm;
-            const double uy = dy / norm;
-            const double uz = dz / norm;
-            // vtkArrowSource/vtkConeSource +X yönünde tanımlıdır.
-            const double azimuth = std::atan2(uy, ux) * 180.0 / M_PI;
-            const double elevation = std::asin(std::clamp(uz, -1.0, 1.0)) * 180.0 / M_PI;
-            actor->SetOrientation(0.0, -elevation, azimuth);
-        }
+        if (glyph.isLoad) impl_->loadGlyphCount += static_cast<int>(points->GetNumberOfPoints());
     }
 
     impl_->applyPalette();
@@ -1039,15 +1071,28 @@ void ViewportWidget::showResult(const SimulationMesh &mesh, const femcae::meshin
 
 void ViewportWidget::setHighlightedGeometry(const GeometryEntityId geometryId)
 {
+    setHighlightedGeometryScope(geometryId == InvalidGeometryId ? QVector<GeometryEntityId>{}
+                                                               : QVector<GeometryEntityId>{geometryId});
+}
+
+void ViewportWidget::setHighlightedGeometryScope(const QVector<GeometryEntityId> &ids)
+{
 #ifdef FEMCAE_GUI_HAS_VTK
-    if (impl_->highlighted == geometryId) {
-        return;
-    }
-    impl_->highlighted = geometryId;
+    impl_->highlightedScope = ids;
+    impl_->highlighted = ids.size() == 1 ? ids.front() : InvalidGeometryId;
     impl_->rebuildHighlight();
     impl_->render();
 #else
-    Q_UNUSED(geometryId)
+    Q_UNUSED(ids)
+#endif
+}
+
+int ViewportWidget::displayedLoadGlyphCount() const noexcept
+{
+#ifdef FEMCAE_GUI_HAS_VTK
+    return impl_->loadGlyphCount;
+#else
+    return 0;
 #endif
 }
 

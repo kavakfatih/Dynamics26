@@ -125,11 +125,9 @@ BoundaryConditionDetails::BoundaryConditionDetails(const ServiceContext &service
     coordinateSystem_ = coordinateSection->addValueRow(tr("System"), tr("Global"));
 
     auto *advanced = addSection(tr("Advanced"), true, true);
-    advanced->addNote(tr("Geometry Selection tek CAD yüzünü doğrudan kapsar. Named Selection ise yalnız "
-                         "persistent ObjectId referansı taşır; yüz kimlikleri Fixed Support / Force içine "
-                         "kopyalanmaz. Birden fazla yüz kapsayan Force için bütün FEM düğümleri önce tek "
-                         "union kümesine alınır ve toplam kuvvet bu kümeye yalnız bir kez dağıtılır. "
-                         "Display tessellation solver scope değildir."));
+    advanced->addNote(tr("Total Force seçili tüm yüzler için tek resultant kuvvettir. Reference alan üzerinde "
+                         "uniform traction ve tutarlı FEM yüzey integrasyonu kullanılır. Ok sayısı yalnız görsel temsildir."));
+    advanced->addNote(tr("Define By: Components / Global desteklenir. Vector ve Normal to Surface authoring: Unavailable."));
 
     addStretch();
 

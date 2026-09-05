@@ -200,14 +200,6 @@ bool inwardBoundaryNormal(const femcae::meshing::SimulationMesh &mesh,
     return false;
 }
 
-femcae::geometry::GeometryEntityId singleBoundaryHighlight(const BoundaryScopeResolution &resolution)
-{
-    if (!resolution.valid || resolution.geometryFaceIds.size() != 1) {
-        return femcae::geometry::InvalidGeometryId;
-    }
-    return resolution.geometryFaceIds.front();
-}
-
 QString contextTitleFor(const ViewportContext context)
 {
     switch (context) {
@@ -1059,7 +1051,7 @@ void Dynamics26MainWindow::syncViewport()
         if (record != nullptr) {
             for (const ObjectId supportId : record->supports) {
                 const SupportDefinition *definition = analysis_->support(supportId);
-                if (definition == nullptr) {
+                if (definition == nullptr || project_->isEffectivelySuppressed(supportId)) {
                     continue;
                 }
                 const BoundaryScopeResolution resolution = analysis_->resolveBoundaryScope(*definition);
@@ -1084,36 +1076,21 @@ void Dynamics26MainWindow::syncViewport()
             }
             for (const ObjectId loadId : record->loads) {
                 const LoadDefinition *definition = analysis_->load(loadId);
-                if (definition == nullptr) {
+                if (definition == nullptr || project_->isEffectivelySuppressed(loadId)
+                    || !std::isfinite(definition->magnitudeN()) || definition->magnitudeN() <= 1.0e-12) {
                     continue;
                 }
                 const BoundaryScopeResolution resolution = analysis_->resolveBoundaryScope(*definition);
                 if (!resolution.valid) {
                     continue;
                 }
-                for (const auto geometryId : resolution.geometryFaceIds) {
-                    BoundaryGlyph glyph;
-                    glyph.geometryId = geometryId;
-                    glyph.isLoad = true;
-                    glyph.dx = definition->fxN;
-                    glyph.dy = definition->fyN;
-                    glyph.dz = definition->fzN;
-                    if (definition->magnitudeN() < 1.0e-12) {
-                        double inwardX = 0.0;
-                        double inwardY = 0.0;
-                        double inwardZ = 0.0;
-                        if (inwardBoundaryNormal(currentMesh, geometryId, inwardX, inwardY, inwardZ)) {
-                            glyph.dx = -inwardX;
-                            glyph.dy = -inwardY;
-                            glyph.dz = -inwardZ;
-                        } else if (definition->scopingMethod == BoundaryScopingMethod::GeometrySelection) {
-                            outwardNormal(definition->scope, glyph.dx, glyph.dy, glyph.dz);
-                        } else {
-                            continue;
-                        }
-                    }
-                    glyphs.push_back(glyph);
-                }
+                BoundaryGlyph glyph;
+                glyph.isLoad = true;
+                glyph.scopeGeometryIds = resolution.geometryFaceIds;
+                glyph.dx = definition->fxN;
+                glyph.dy = definition->fyN;
+                glyph.dz = definition->fzN;
+                glyphs.push_back(glyph);
             }
         }
         viewport->showModelWithBoundaryConditions(currentMesh, glyphs);
@@ -1159,17 +1136,17 @@ void Dynamics26MainWindow::syncViewport()
         break;
     }
 
-    femcae::geometry::GeometryEntityId highlighted = femcae::geometry::InvalidGeometryId;
-    if (type == ObjectType::FixedSupport) {
-        if (const SupportDefinition *definition = analysis_->support(selected_)) {
-            highlighted = singleBoundaryHighlight(analysis_->resolveBoundaryScope(*definition));
+    QVector<femcae::geometry::GeometryEntityId> highlight;
+    BoundaryScopeResolution scope;
+    if (!project_->isEffectivelySuppressed(selected_)) {
+        if (type == ObjectType::FixedSupport) {
+            if (const auto *definition = analysis_->support(selected_)) scope = analysis_->resolveBoundaryScope(*definition);
+        } else if (type == ObjectType::Force) {
+            if (const auto *definition = analysis_->load(selected_)) scope = analysis_->resolveBoundaryScope(*definition);
         }
-    } else if (type == ObjectType::Force) {
-        if (const LoadDefinition *definition = analysis_->load(selected_)) {
-            highlighted = singleBoundaryHighlight(analysis_->resolveBoundaryScope(*definition));
-        }
+        if (scope.valid) highlight = scope.geometryFaceIds;
     }
-    viewport->setHighlightedGeometry(highlighted);
+    viewport->setHighlightedGeometryScope(highlight);
 }
 
 void Dynamics26MainWindow::syncCommandStates()

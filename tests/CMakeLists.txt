@@ -1,4 +1,8 @@
 set(FEMCAE_TEST_MODULE_DIR "${CMAKE_BINARY_DIR}/test-fortran-modules")
+add_executable(unit_boundary_glyph_layout gui/test_boundary_glyph_layout.cpp)
+target_compile_features(unit_boundary_glyph_layout PRIVATE cxx_std_20)
+add_test(NAME unit_boundary_glyph_layout COMMAND unit_boundary_glyph_layout)
+set_tests_properties(unit_boundary_glyph_layout PROPERTIES LABELS "unit;gui;presentation")
 file(MAKE_DIRECTORY "${FEMCAE_TEST_MODULE_DIR}")
 
 add_library(femcae_test_support STATIC test_support.f90 nonlinear_test_models.f90)
