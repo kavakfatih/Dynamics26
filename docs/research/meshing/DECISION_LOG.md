@@ -729,3 +729,98 @@ not the first coding task.
 
 If executable evidence contradicts a frozen mathematical/architectural contract, reopen the relevant
 ADR and derivation explicitly. Do not patch around the contradiction inside production code.
+
+
+---
+
+## ADR-MESH-0022 — Separate tetra validity, shape quality and analysis suitability
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-05
+
+### Decision candidate
+
+Dynamics26 will not represent tetrahedral quality with one undifferentiated scalar.
+
+Separate:
+1. topology/orientation validity,
+2. initial geometric shape quality,
+3. CAD/sizing fidelity,
+4. solver/formulation suitability,
+5. current nonlinear distortion.
+
+Leading isotropic TET4 metric roles:
+- exact positive orientation: hard validity,
+- mean ratio: primary shape/optimization candidate,
+- weighted-Jacobian condition score: solver-facing diagnostic,
+- min/max dihedral: angle/sliver diagnostic,
+- radius ratio: independent shape cross-check,
+- radius-edge: Delaunay refinement/spacing diagnostic.
+
+No final numerical release thresholds are accepted before M7 solver-correlation evidence.
+
+### Rationale
+
+Literature shows different metrics have different blind spots and FEM interpolation/conditioning
+objectives do not fully agree. One bad element can also be hidden by an average.
+
+### Evidence needed
+
+M6-R01..M6-R11.
+
+---
+
+## ADR-MESH-0023 — Symbolic Delaunay lift and quality weights are different policies
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-05
+
+### Decision candidate
+
+D26LIFT1 remains an infinitesimal exact-tie policy for M2.
+
+Finite vertex weights used by a future weighted/regular-Delaunay quality or sliver-exudation method
+belong to a separate M6 algorithm/policy and may not reuse D26LIFT1 semantics.
+
+### Rationale
+
+D26LIFT1 changes topology only at exact Delaunay ties and exists for determinism. Sliver exudation
+deliberately uses finite weights to change regular triangulation for quality.
+
+Conflating them would make a quality parameter silently change M2 mathematical identity.
+
+### Evidence needed
+
+M6-R12 and a future weighted-quality research package before implementation.
+
+---
+
+## ADR-MESH-0024 — Nonlinear distortion and incompressibility are not initial mesh quality
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-05
+
+### Decision candidate
+
+For TET4 nonlinear mechanics distinguish:
+
+    A0 = reference geometry map
+    F  = deformation gradient
+    J_F = det(F) physical volume ratio
+    At = F A0 current geometry map.
+
+Initial shape quality derives from A0.
+Current distortion derives from At/F.
+Volumetric locking is a formulation/stability phenomenon and is not cured by good initial q_MR.
+
+A future TET4 nearly-incompressible rubber capability requires its own mixed/stabilized formulation
+qualification independent of M6 geometric-quality qualification.
+
+### Rationale
+
+This prevents the words "Jacobian", "distortion" and "quality" from mixing geometry validity with
+physical incompressibility and element formulation.
+
+### Evidence needed
+
+M6-R09..M6-R11 plus M7 formulation-specific tests.

@@ -264,6 +264,11 @@ Verification:
 
 ### M6 — Quality optimization
 
+Status: **RESEARCHING (EARLY) — IMPLEMENTATION NOT STARTED**
+
+Early research package:
+- `docs/research/meshing/m6-quality/`
+
 Deliver:
 
 - quality metric suite,
@@ -441,7 +446,7 @@ Cross-code agreement is supporting evidence, not proof.
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
 | M5 | Size fields | NOT STARTED |
-| M6 | Quality optimization | NOT STARTED |
+| M6 | Quality optimization | RESEARCHING (EARLY) / IMPLEMENTATION NOT STARTED |
 | M7 | TET4 product qualification | NOT STARTED |
 | M8 | TET10 | NOT STARTED |
 | M9 | Adaptation/remeshing | RESEARCH LATER |

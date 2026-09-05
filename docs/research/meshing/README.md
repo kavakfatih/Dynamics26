@@ -177,3 +177,16 @@ qualification contracts for the first original serial Delaunay constructor.
 Production Bowyer-Watson code remains blocked until the proposed M2.0 contracts and acceptance gates
 are frozen. Research/chat conclusions that affect implementation must be promoted into this package
 before coding.
+
+
+## M6 early FEM-quality research
+
+M6 implementation is not started, but early cross-stage research is active under:
+
+- docs/research/meshing/m6-quality/
+
+The purpose is to connect tetrahedral geometric quality with FEM conditioning, nonlinear distortion
+and nearly-incompressible/rubber suitability before quality algorithms or release thresholds are
+chosen.
+
+This early research does not change the M2.1 implementation sequence.

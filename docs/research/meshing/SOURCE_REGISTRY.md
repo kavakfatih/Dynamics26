@@ -207,3 +207,23 @@ M1-TH-004 (Simulation of Simplicity), M1.4-TH-001 (walking) and M1.4-DOC-001
 | M2-TH-003 | J. R. Shewchuk, General-Dimensional Constrained Delaunay and Constrained Regular Triangulations, I: Combinatorial Properties, DCG 39, 2008 | General-dimensional Delaunay Lemma; local regular/Delaunay facet legality implies global regular/Delaunay triangulation | https://doi.org/10.1007/s00454-008-9060-3 | 2026-09-05 |
 | M2-TH-004 | E. P. Muecke, A Robust Implementation for Three-Dimensional Delaunay Triangulations, IJCGA 8(2), 1998 | Robust 3D implementation history; symbolic perturbation; quadratic worst-case construction complexity context | https://doi.org/10.1142/S0218195998000138 | 2026-09-05 |
 | M2-TH-005 | J. Erickson, Nice Point Sets Can Have Nasty Delaunay Triangulations, DCG 30(1), 2003 | 3D Delaunay complexity can be near/quadratic even for practically constrained/surface-like sets; resource-policy adversaries | https://doi.org/10.1007/s00454-003-2927-4 | 2026-09-05 |
+
+
+## M6 early tetra-quality / FEM-correlation sources
+
+M6 also reuses TH-013/TH-014 (tetra mesh improvement), TH-015 (Sliver Exudation),
+TH-016 (TetGen) and the commercial quality-reporting references in M1.5.
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M6-TH-001 | A. Liu, B. Joe, Relationship between tetrahedron shape measures, BIT 34, 1994 | Radius ratio, mean ratio, solid-angle shape relationships | https://doi.org/10.1007/BF01955874 | 2026-09-05 |
+| M6-TH-002 | V. N. Parthasarathy, C. M. Graichen, A. F. Hathaway, A comparison of tetrahedron quality measures, Finite Elements in Analysis and Design 15(3), 1994 | Comparative tetra metric behavior and computational considerations | https://doi.org/10.1016/0168-874X(94)90033-7 | 2026-09-05 |
+| M6-TH-003 | P. M. Knupp, Algebraic Mesh Quality Metrics, SIAM Journal on Scientific Computing 23(1), 2001 | Weighted Jacobian, singular-value/condition metrics, distance to degeneracy, mean-ratio equivalence | https://doi.org/10.1137/S1064827500371499 | 2026-09-05 |
+| M6-TH-004 | J. R. Shewchuk, What Is a Good Linear Element? Interpolation, Conditioning, and Quality Measures, 11th International Meshing Roundtable, 2002 | Element shape versus interpolation, stiffness conditioning and anisotropy | https://www.cs.cmu.edu/~jrs/jrspapers.html | 2026-09-05 |
+| M6-TH-005 | S.-W. Cheng, T. K. Dey, H. Edelsbrunner, M. A. Facello, S.-H. Teng, Sliver Exudation, JACM 47(5), 2000 | Sliver pathology and finite weighted/regular-Delaunay quality treatment | https://doi.org/10.1145/355483.355487 | 2026-09-05 |
+| M6-TH-006 | L. A. Freitag, P. M. Knupp, Tetrahedral mesh improvement via optimization of the element condition number, IJNME 53, 2002 | Condition-based tetra shape objective; average plus worst-quality optimization evidence | https://doi.org/10.1002/nme.341 | 2026-09-05 |
+| M6-TH-007 | T. Sorgente et al., A Survey of Indicators for Mesh Quality Assessment, Computer Graphics Forum, 2023 | Modern taxonomy; metric blind spots; relation to FEM error/conditioning | https://doi.org/10.1111/cgf.14779 | 2026-09-05 |
+| M6-FEM-001 | E. A. de Souza Neto, D. Peric, M. Dutko, D. R. J. Owen, Design of simple low order finite elements for large strain analysis of nearly incompressible solids, IJSS 33, 1996 | Large-strain nearly-incompressible element formulation / locking background | https://doi.org/10.1016/0020-7683(95)00259-6 | 2026-09-05 |
+| M6-FEM-002 | E. Karabelas et al., An accurate, robust, and efficient finite element framework with applications to anisotropic, nearly and fully incompressible elasticity, CMAME, 2022 | Stabilized low-order elements; volumetric locking and mixed/stabilized formulation separation | https://pmc.ncbi.nlm.nih.gov/articles/PMC7612621/ | 2026-09-05 |
+| M6-FEM-003 | J. A. Schönherr, P. Schneider, C. Mittelstedt, Robust hybrid/mixed finite elements for rubber-like materials under severe compression, Computational Mechanics 70, 2022 | Rubber-like quasi-incompressibility, volumetric locking and severe-distortion formulation behavior | https://doi.org/10.1007/s00466-022-02157-y | 2026-09-05 |
+| M6-WATCH-001 | A. Quiriny, J. Lambrechts, N. Moës, V. Kučera, J.-F. Remacle, Taming Slivers: A Robust TFEM Framework for Reliable Computations on Degenerate Tetrahedral Meshes, 2026 preprint | Recent solver-side sliver research; research-watch only, not architecture authority | https://arxiv.org/abs/2606.14301 | 2026-09-05 |
