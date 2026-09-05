@@ -3,6 +3,7 @@
 // Real application composition: Qt mouse/context events -> VTK provenance pick
 // -> one visible menu -> canonical document command. No bridge signals injected.
 #include "BoundarySelectionAuthoringAcceptance.h"
+#include "FinalShellAcceptance.h"
 #include <QAction>
 #include <QContextMenuEvent>
 #include <QMenu>
@@ -52,6 +53,7 @@ inline int runViewportInteractionAcceptance(QApplication &app, Dynamics26MainWin
     const auto baseline = temporary.filePath(QStringLiteral("interaction-baseline.json"));
     const auto saved = temporary.filePath(QStringLiteral("interaction-authored.json"));
     if (!temporary.isValid() || !window.saveProjectToPath(baseline)) return 1;
+    failures += runFinalShellAcceptance(app, window);
     window.selectObject(services.project->geometryNode());
     flush();
     window.selectObject(services.project->namedSelectionsNode()); flush();

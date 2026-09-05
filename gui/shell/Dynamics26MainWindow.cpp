@@ -340,12 +340,13 @@ void Dynamics26MainWindow::buildLayout()
 
     verticalSplitter_ = new QSplitter(Qt::Vertical, this);
     verticalSplitter_->setObjectName(QStringLiteral("Dynamics26VerticalSplitter"));
-    verticalSplitter_->setChildrenCollapsible(true);
-    verticalSplitter_->setCollapsible(0, false);
-    verticalSplitter_->setCollapsible(1, true);
+    verticalSplitter_->setChildrenCollapsible(false);
     verticalSplitter_->setHandleWidth(1);
     verticalSplitter_->addWidget(workspaceSplitter_);
     verticalSplitter_->addWidget(utility_);
+    // İndeksler ancak paneller eklendikten sonra geçerlidir. Viewport kapanmaz;
+    // yalnız Diagnostics sürükleme ile sıfıra kadar daraltılabilir.
+    verticalSplitter_->setCollapsible(1, true);
     verticalSplitter_->setStretchFactor(0, 1);
     verticalSplitter_->setStretchFactor(1, 0);
     // Alt yardımcı alan başlangıçta kapalıdır (§19).
@@ -474,6 +475,7 @@ void Dynamics26MainWindow::buildCommandSurface()
         auto *button = new QToolButton(mainToolBar_);
         button->setObjectName(objectName);
         button->setDefaultAction(commands_->action(commandId));
+        button->setAccessibleName(commands_->action(commandId)->text());
         button->setToolButtonStyle(Qt::ToolButtonIconOnly);
         button->setAutoRaise(true);
         button->setFocusPolicy(Qt::StrongFocus);
@@ -711,6 +713,12 @@ void Dynamics26MainWindow::wireSignals()
             [this](const bool visible) { setUtilityVisible(visible); });
     connect(utility_, &UtilityWorkspace::collapseRequested, this,
             [this] { setUtilityVisible(false); });
+    connect(verticalSplitter_, &QSplitter::splitterMoved, this, [this](int, int) {
+        // Sıfır yüksekliğe sürükleme, panel düğmesinden kapatma ile aynı
+        // görünürlük yolunu kullanır; ayrı bir toggle state üretmez.
+        if (utility_->isVisible() && verticalSplitter_->sizes().value(1) == 0)
+            setUtilityVisible(false);
+    }, Qt::QueuedConnection);
 }
 
 void Dynamics26MainWindow::handleCommand(const QString &id)
@@ -2133,6 +2141,7 @@ void Dynamics26MainWindow::showUtility(const UtilityWorkspace::Tab tab, const bo
 
 void Dynamics26MainWindow::setUtilityVisible(const bool visible)
 {
+    const bool alreadyOpen = utility_->isVisible() && verticalSplitter_->sizes().value(1) > 0;
     if (visible) {
         utility_->noteUserOpened();
     } else {
@@ -2142,6 +2151,9 @@ void Dynamics26MainWindow::setUtilityVisible(const bool visible)
     utility_->setVisible(visible);
     commands_->action(QStringLiteral("panel.diagnostics"))->setChecked(visible);
     engineeringStatus_->setDiagnosticsChecked(visible);
+
+    // Açık panelde sekme değiştirmek kullanıcının splitter boyutunu sıfırlamaz.
+    if (visible && alreadyOpen) return;
 
     const int available = qMax(1, verticalSplitter_->height());
     if (visible) {
