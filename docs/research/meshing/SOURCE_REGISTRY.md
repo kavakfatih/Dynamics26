@@ -57,7 +57,26 @@ These repositories are **study references, not code sources for Dynamics26 imple
 | OS-TET-001 | TetGen | Current README lists AGPLv3 for 1.5/1.6 and commercial dual-license path | CDT/refinement architecture and failure/test study only | https://github.com/TetGen/TetGen | 2026-09-05 |
 | OS-CGA-001 | CGAL Mesh_3 | Package documentation; package licensing must be checked independently | Restricted Delaunay, feature protection, refinement/optimization research map | https://doc.cgal.org/latest/Mesh_3/index.html | 2026-09-05 |
 
-## D. Dynamics26 internal sources
+## D. M1 robust-geometry / numerical-robustness sources
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M1-TH-001 | S. Fortune, *Numerical Stability of Algorithms for 2D Delaunay Triangulations*, SoCG 1992 / later journal version | Approximate arithmetic and Delaunay numerical-stability problem | https://doi.org/10.1145/142675.142695 | 2026-09-05 |
+| M1-TH-002 | S. Fortune, C. J. Van Wyk, *Efficient Exact Arithmetic for Computational Geometry*, SoCG 1993 | Exact arithmetic plus floating-point filters | https://doi.org/10.1145/160985.161015 | 2026-09-05 |
+| M1-TH-003 | O. Devillers, F. Preparata, *Further Results on Arithmetic Filters for Geometric Predicates*, Computational Geometry 13(2), 1999 | Certified filtering efficiency, especially cosphericity/insphere class | https://doi.org/10.1016/S0925-7721(99)00011-5 | 2026-09-05 |
+| M1-TH-004 | H. Edelsbrunner, E. P. Mücke, *Simulation of Simplicity*, SoCG 1988 | Deterministic symbolic treatment of degeneracy | https://doi.org/10.1145/73393.73406 | 2026-09-05 |
+| M1-DOC-001 | CGAL, *Predicates and Constructions* | Predicate correctness controls algorithm flow; construction/predicate separation | https://doc.cgal.org/Manual/3.1/doc_html/cgal_manual/Kernel_d/Chapter_predicates_constructions_d.html | 2026-09-05 |
+| M1-DOC-002 | CGAL, Exact Predicates / Inexact Constructions Kernel | Public example of exact predicate + inexact construction architecture | https://doc.cgal.org/latest/Kernel_23/classCGAL_1_1Exact__predicates__inexact__constructions__kernel.html | 2026-09-05 |
+| M1-DOC-003 | Clang Compiler User's Manual, floating-point / fast-math controls | Build-contract risk: reassociation, NaN assumptions, FP contraction | https://clang.llvm.org/docs/UsersManual.html | 2026-09-05 |
+| M1-DOC-004 | GCC Optimize Options, `-ffast-math` | Independent compiler documentation of unsafe FP transformations | https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html | 2026-09-05 |
+| M1-DOC-005 | OCCT `ShapeAnalysis_ShapeTolerance` | CAD B-Rep sub-shape tolerance inspection | https://dev.opencascade.org/doc/refman/html/class_shape_analysis___shape_tolerance.html | 2026-09-05 |
+| M1-DOC-006 | OCCT `ShapeFix_ShapeTolerance` | Explicit modification/limiting of CAD sub-shape tolerances | https://dev.opencascade.org/doc/refman/html/class_shape_fix___shape_tolerance.html | 2026-09-05 |
+| M1-CA-001 | COMSOL Default Repair Tolerances | Automatic/relative/absolute CAD repair tolerance semantics | https://doc.comsol.com/6.3/doc/com.comsol.help.comsol/comsol_api_geom.48.026.html | 2026-09-05 |
+| M1-CA-002 | ANSYS Mesh Defeaturing | Explicit defeature-size semantics | https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/wb_msh/msh_auto_defeat.html | 2026-09-05 |
+| M1-CA-003 | ANSYS Repair Topology | Explicit short-edge/thin-face repair and topology-protection controls | https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/wb_msh/msh_wrkflw_repairtopology.html | 2026-09-05 |
+| M1-CA-004 | Marc/Mentat 2020 Release Guide | Public evidence of auto-calculated tolerance / CAD tolerance behavior; no internal predicate disclosure | https://documentation-be.hexagon.com/bundle/Marc_2020-Release_Guide/raw/resource/enus/Marc_2020-Release_Guide.pdf | 2026-09-05 |
+
+## E. Dynamics26 internal sources
 
 | ID | Path | Relevance |
 |---|---|---|
@@ -68,7 +87,7 @@ These repositories are **study references, not code sources for Dynamics26 imple
 | D26-005 | \`src/meshing/StructuredHexMesher.cpp\` | Existing deterministic structured baseline |
 | D26-006 | \`gui/services/NamedSelectionService.*\` | Persistent geometry/mesh scope lifecycle |
 
-## E. Source-entry rules
+## F. Source-entry rules
 
 When adding a source:
 

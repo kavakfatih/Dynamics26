@@ -28,6 +28,11 @@ Exit:
 
 ### M1 — Robust predicates and geometry kernel utilities
 
+Status: **RESEARCHING**
+
+Research package:
+- `docs/research/meshing/m1-robust-geometry/`
+
 Deliver:
 
 - orient2d/orient3d,
@@ -278,7 +283,7 @@ Cross-code agreement is supporting evidence, not proof.
 | ID | Work package | State |
 |---|---|---|
 | M0 | Knowledge library | IN PROGRESS |
-| M1 | Robust predicates | NOT STARTED |
+| M1 | Robust predicates | RESEARCHING |
 | M2 | Point-cloud Delaunay tetra | NOT STARTED |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
@@ -303,9 +308,9 @@ BLOCKED
 
 ## 8. Immediate next research tasks
 
-1. robust-predicate implementation design from TH-006/TH-007,
-2. tetrahedral data-structure survey independent of external APIs,
-3. point-location strategy benchmark,
-4. Bowyer-Watson correctness specification,
-5. CAD face parameter-space surface-meshing research,
-6. mesh-quality metric definition and acceptance thresholds.
+1. independent exact-rational predicate oracle prototype/specification,
+2. derive and benchmark candidate fast-filter/error-bound strategies,
+3. compare adaptive expansion arithmetic against a deliberately slow exact-reference path,
+4. freeze exact-zero and symbolic tie-break boundary between M1 and M2,
+5. run first Apple Silicon compiler/optimization sensitivity experiment,
+6. after M1 evidence, begin M2 point-location and Bowyer-Watson correctness research.

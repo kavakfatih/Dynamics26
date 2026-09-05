@@ -97,3 +97,44 @@ The low-level meshing kernel receives resolved immutable geometry identities; it
 | ADR-MESH-0005 | Robust predicate implementation strategy | license/source-boundary review + M1 benchmark |
 | ADR-MESH-0006 | Quality metric release gates | nonlinear TET4 sensitivity study |
 | ADR-MESH-0007 | Curvature/proximity size-field formulas | M3/M5 experiments |
+
+
+---
+
+## ADR-MESH-0005 — Robust predicate implementation strategy
+
+**Status:** PROPOSED  
+**Date:** 2026-09-05
+
+### Research finding
+
+M1 establishes that CAD/modeling tolerance and topological predicate correctness are separate concerns. A fixed epsilon on determinant magnitude is not accepted as a general topology policy.
+
+### Leading design
+
+```text
+finite-input validation
+→ fast binary64 determinant
+→ certified error filter
+→ adaptive exact fallback when uncertain
+→ PredicateSign {Negative, Zero, Positive}
+```
+
+True exact degeneracy remains `Zero`. Symbolic perturbation/tie-breaking belongs to M2 or the consuming topology algorithm.
+
+### Verification authority
+
+An independent exact-rational oracle generated from the exact binary64 input values must exist before the production adaptive path can be qualified.
+
+### Compiler constraint
+
+The predicate target must not be compiled under floating-point modes that invalidate the arithmetic/error-bound assumptions. Fast-math is therefore disallowed for this target; FP contraction policy must match the eventual filter proof.
+
+### Why still PROPOSED
+
+The arithmetic implementation strategy is not accepted until:
+
+1. independent oracle fixtures exist,
+2. candidate filter/fallback designs are benchmarked,
+3. Apple Silicon Debug/Release behavior is tested,
+4. clean-room/source-boundary review is complete.
