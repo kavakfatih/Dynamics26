@@ -2,7 +2,7 @@
 
 Program: Dynamics26 Original Meshing Engine
 Work package: M2.0 — Delaunay Reference Architecture & Experiment Plan
-Status: RESEARCHING / IMPLEMENTATION NOT STARTED
+Status: M2.0 DESIGN FROZEN / M2.1-A NEXT; IMPLEMENTATION NOT QUALIFIED
 Date: 2026-09-05
 
 ## Purpose
@@ -42,6 +42,7 @@ be traceable to a committed derivation or contract. Chat history is not engineer
 - COMPLEXITY_AND_RESOURCE_MODEL.md — 3D worst-case output complexity, typed resource limits and growth telemetry
 - DETERMINISM_SCOPE_AND_POLICY_VERSIONING.md — reproducibility scope, transform semantics, policy IDs and fingerprint/replay versioning
 - PATCH_ORIENTATION_AND_STITCHING.md — finite/ghost cone construction, positive orientation and new-new/new-old neighbor pairing
+- M2_0_RESEARCH_FREEZE_AUDIT.md — closure matrix, frozen contracts, gate classification and M2.1 authorization boundary
 - EXPERIMENT_PLAN.md — golden cases, brute-force oracles, determinism gates, replay and telemetry
 
 ## Current leading decisions

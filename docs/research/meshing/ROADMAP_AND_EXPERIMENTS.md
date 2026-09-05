@@ -196,7 +196,7 @@ Mandatory before M2:
 
 ### M2 — Delaunay point-cloud tetrahedralization
 
-Status: **RESEARCHING — M2.0 REFERENCE ARCHITECTURE & EXPERIMENT PLAN**
+Status: **M2.0 DESIGN FROZEN — M2.1-A SEMANTIC PREDICATES NEXT**
 
 Deliver:
 
@@ -437,7 +437,7 @@ Cross-code agreement is supporting evidence, not proof.
 | M1.7 | Exact robust predicate kernel | QUALIFIED |
 | M1.8 | Certified fast predicate path | QUALIFIED |
 | M1.9 | Closeout hardening | QUALIFIED |
-| M2 | Point-cloud Delaunay tetra | RESEARCHING / M2.0 |
+| M2 | Point-cloud Delaunay tetra | M2.0 DESIGN FROZEN / M2.1-A NEXT |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
 | M5 | Size fields | NOT STARTED |
@@ -463,10 +463,10 @@ BLOCKED
 
 1. M1 is QUALIFIED; M2.0 research is active.
 2. Maintain the committed m2-delaunay mathematics/architecture package as implementation authority.
-3. Freeze ghost-hull, point-location, symbolic-tie and transactional-cavity contracts.
-4. Freeze M2-G01..G20 acceptance tests before production insertion.
-5. Then implement the serial correctness-first Bowyer-Watson reference path in auditable steps.
-6. Keep spatial ordering, hierarchy, packing and parallelism behind reference-oracle agreement.
+3. Treat the committed M2.0 research-freeze package as implementation authority; reopen it only with explicit evidence/ADR.
+4. Implement M2.1-A semantic Delaunay predicates first, with no cavity mutation yet.
+5. Continue M2.1-B..F sequentially behind their reference/oracle gates; M2 remains NOT QUALIFIED until executable mandatory gates close.
+6. Keep spatial ordering, hierarchy, slot reuse, packing and parallelism behind reference-oracle agreement.
 7. Continue commercial workflow/quality benchmarking in parallel; proprietary behavior is never predicate truth.
 
 ### M1.2 — Certified floating-point filters

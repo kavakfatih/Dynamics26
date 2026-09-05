@@ -685,3 +685,47 @@ vertex order and makes the commit phase predicate-free.
 ### Acceptance
 
 M2-G34..G36.
+
+
+---
+
+## ADR-MESH-0021 — M2.0 research design freeze
+
+**Status:** ACCEPTED (RESEARCH/DESIGN FREEZE)
+**Date:** 2026-09-05
+
+### Decision
+
+The M2.0 research package is frozen as the implementation authority for the first serial Dynamics26
+point-cloud Delaunay reference constructor.
+
+Frozen design areas:
+- ghost/infinite hull representation,
+- deterministic affine bootstrap,
+- finite/ghost conflict semantics,
+- lift-only exact tie policy,
+- point-location/reference-oracle architecture,
+- verified conflict seed,
+- cavity topology and transaction model,
+- finite/ghost storage semantics,
+- local/global correctness ladder,
+- deterministic fingerprint/policy versioning,
+- patch orientation/stitching,
+- complexity/resource semantics,
+- qualification experiment matrix.
+
+### Meaning of ACCEPTED
+
+This ADR accepts the **research architecture**, not the M2 implementation.
+
+M2 remains unqualified until executable mandatory gates pass.
+
+### Implementation authorization
+
+M2.1-A semantic predicate implementation is the next authorized stage. Full cavity construction is
+not the first coding task.
+
+### Reopen rule
+
+If executable evidence contradicts a frozen mathematical/architectural contract, reopen the relevant
+ADR and derivation explicitly. Do not patch around the contradiction inside production code.

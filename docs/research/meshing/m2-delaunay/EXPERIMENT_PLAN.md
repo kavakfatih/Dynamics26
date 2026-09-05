@@ -266,3 +266,15 @@ Metamorphic transform fixtures are a separate test class:
   old internal diagonal pattern if canonical symbolic priority changed.
 
 See DETERMINISM_SCOPE_AND_POLICY_VERSIONING.md.
+
+
+## Reference versus optimization gate classification
+
+Mandatory for the serial append-only reference constructor:
+- M2-G01..M2-G26,
+- M2-G28..M2-G36.
+
+M2-G27 is a post-reference optimization gate. It becomes mandatory only if deterministic slot reuse
+is enabled as a replacement for the append-only reference arena.
+
+No other gate is downgraded by this classification.
