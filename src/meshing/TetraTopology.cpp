@@ -12,6 +12,11 @@ namespace {
 
 using CanonicalTetKey = std::array<PointId, 4>;
 
+struct FaceIncidence {
+    TetHandle tetra;
+    std::size_t localFace{0};
+};
+
 CanonicalTetKey canonicalTetKey(const TetRecord& tet) {
     CanonicalTetKey key = tet.vertices;
     std::sort(key.begin(), key.end());
@@ -58,6 +63,7 @@ CanonicalFaceKey canonicalFaceKey(
 TopologyValidationReport validateTetTopology(std::span<const TetSlot> slots) {
     TopologyValidationReport report;
     std::map<CanonicalTetKey, TetHandle> seenTetrahedra;
+    std::map<CanonicalFaceKey, std::vector<FaceIncidence>> faceIncidences;
 
     for (std::size_t slotIndex = 0U; slotIndex < slots.size(); ++slotIndex) {
         const TetSlot& slot = slots[slotIndex];
@@ -82,7 +88,9 @@ TopologyValidationReport validateTetTopology(std::span<const TetSlot> slots) {
         }
 
         const CanonicalTetKey tetKey = canonicalTetKey(slot.record);
-        if (std::adjacent_find(tetKey.begin(), tetKey.end()) != tetKey.end()) {
+        const bool hasDuplicateVertex =
+            std::adjacent_find(tetKey.begin(), tetKey.end()) != tetKey.end();
+        if (hasDuplicateVertex) {
             addIssue(report, TopologyIssueCode::DuplicateVertex, self);
         }
 
@@ -91,9 +99,20 @@ TopologyValidationReport validateTetTopology(std::span<const TetSlot> slots) {
             addIssue(report, TopologyIssueCode::DuplicateTetrahedron, self);
         }
 
+        if (!hasInvalidVertex && !hasDuplicateVertex && slot.generation != 0U) {
+            for (std::size_t localFace = 0U; localFace < 4U; ++localFace) {
+                faceIncidences[canonicalFaceKey(slot.record, localFace)].push_back(
+                    FaceIncidence{self, localFace});
+            }
+        }
+
         for (std::size_t localFace = 0U; localFace < 4U; ++localFace) {
             const TetHandle neighbor = slot.record.neighbors[localFace];
+            if (neighbor == InvalidTetHandle) {
+                continue;
+            }
             if (!neighbor.isValid()) {
+                addIssue(report, TopologyIssueCode::InvalidNeighborHandle, self, localFace);
                 continue;
             }
             if (neighbor.slot >= slots.size()) {
@@ -131,6 +150,42 @@ TopologyValidationReport validateTetTopology(std::span<const TetSlot> slots) {
             const TetHandle reciprocal = neighborSlot.record.neighbors[matchingFace];
             if (reciprocal != self) {
                 addIssue(report, TopologyIssueCode::NonReciprocalNeighbor, self, localFace);
+            }
+        }
+    }
+
+    for (const auto& [face, incidences] : faceIncidences) {
+        (void)face;
+        if (incidences.size() > 2U) {
+            for (const FaceIncidence& incidence : incidences) {
+                addIssue(
+                    report,
+                    TopologyIssueCode::NonManifoldFace,
+                    incidence.tetra,
+                    incidence.localFace);
+            }
+            continue;
+        }
+
+        if (incidences.size() == 2U) {
+            const FaceIncidence& lhs = incidences[0];
+            const FaceIncidence& rhs = incidences[1];
+            const TetSlot& lhsSlot = slots[lhs.tetra.slot];
+            const TetSlot& rhsSlot = slots[rhs.tetra.slot];
+
+            if (lhsSlot.record.neighbors[lhs.localFace] != rhs.tetra) {
+                addIssue(
+                    report,
+                    TopologyIssueCode::MissingNeighborForSharedFace,
+                    lhs.tetra,
+                    lhs.localFace);
+            }
+            if (rhsSlot.record.neighbors[rhs.localFace] != lhs.tetra) {
+                addIssue(
+                    report,
+                    TopologyIssueCode::MissingNeighborForSharedFace,
+                    rhs.tetra,
+                    rhs.localFace);
             }
         }
     }

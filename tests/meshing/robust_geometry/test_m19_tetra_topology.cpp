@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -128,6 +129,50 @@ void verifyCorruptionCorpus() {
         require(hasIssue(report, TopologyIssueCode::NeighborOutOfRange),
                 "out-of-range neighbor was not detected");
     }
+    {
+        auto slots = validPair();
+        slots[0].record.neighbors[0] = TetHandle{1, 0};
+        const auto report = femcae::meshing::validateTetTopology(slots);
+        require(hasIssue(report, TopologyIssueCode::InvalidNeighborHandle),
+                "zero-generation malformed neighbor was treated as a boundary");
+    }
+    {
+        auto slots = validPair();
+        slots[0].record.neighbors[0] = TetHandle{
+            std::numeric_limits<std::uint32_t>::max(), 9};
+        const auto report = femcae::meshing::validateTetTopology(slots);
+        require(hasIssue(report, TopologyIssueCode::InvalidNeighborHandle),
+                "noncanonical invalid neighbor was treated as a boundary");
+    }
+    {
+        auto slots = validPair();
+        slots[0].record.neighbors[3] = femcae::meshing::InvalidTetHandle;
+        slots[1].record.neighbors[3] = femcae::meshing::InvalidTetHandle;
+        const auto report = femcae::meshing::validateTetTopology(slots);
+        require(hasIssue(report, TopologyIssueCode::MissingNeighborForSharedFace),
+                "shared face without adjacency was not detected");
+    }
+    {
+        auto slots = validPair();
+        slots.push_back(liveSlot(3, {1, 2, 3, 6}));
+        const auto report = femcae::meshing::validateTetTopology(slots);
+        require(hasIssue(report, TopologyIssueCode::NonManifoldFace),
+                "three tetrahedra sharing one face were not detected");
+    }
+    {
+        auto slots = validPair();
+        slots[0].record.vertices[0] = femcae::meshing::InvalidPointId;
+        const auto report = femcae::meshing::validateTetTopology(slots);
+        require(hasIssue(report, TopologyIssueCode::InvalidVertex),
+                "invalid vertex was not detected");
+    }
+    {
+        auto slots = validPair();
+        slots[0].generation = 0;
+        const auto report = femcae::meshing::validateTetTopology(slots);
+        require(hasIssue(report, TopologyIssueCode::LiveSlotZeroGeneration),
+                "live zero-generation slot was not detected");
+    }
 }
 
 void verifyHandleSemantics() {
@@ -146,7 +191,8 @@ int main() {
         verifyValidPair();
         verifyCorruptionCorpus();
         std::cout << "M1.9-C tetra topology PASS "
-                     "handles=yes opposite-face=yes reciprocal=yes corruption=yes\n";
+                     "handles=yes opposite-face=yes reciprocal=yes "
+                     "shared-face=yes nonmanifold=yes corruption=yes\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "M1.9-C tetra topology FAIL: " << error.what() << '\n';

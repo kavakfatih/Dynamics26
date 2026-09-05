@@ -52,11 +52,14 @@ enum class TopologyIssueCode : std::uint8_t {
     InvalidVertex,
     DuplicateVertex,
     DuplicateTetrahedron,
+    InvalidNeighborHandle,
     NeighborOutOfRange,
     NeighborDead,
     StaleNeighborGeneration,
     NeighborFaceMismatch,
-    NonReciprocalNeighbor
+    NonReciprocalNeighbor,
+    MissingNeighborForSharedFace,
+    NonManifoldFace
 };
 
 struct TopologyIssue {
