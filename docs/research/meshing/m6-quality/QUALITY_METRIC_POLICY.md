@@ -538,3 +538,60 @@ Exact integer fallback semantics must not depend on:
 A floating filter may depend on such properties only after they are explicitly qualified.
 
 Filter/compiler assumptions belong in reproducibility telemetry and CI, not implicit folklore.
+
+
+## 27. Filter hierarchy
+
+Leading reference hierarchy:
+
+    exact-positive validity
+      ->
+    optional certified fast filter
+      ->
+    exact D26QMR1 fallback.
+
+First fast-filter qualification candidate:
+
+    D26QMRF1
+      =
+    dynamic interval evaluation
+    of
+    D_A^2 S_B^3 - D_B^2 S_A^3.
+
+A future semi-static filter may sit before D26QMRF1 only after its arithmetic error bound is
+independently certified.
+
+## 28. Filter result semantics
+
+Fast filter results:
+
+    Less
+    Greater
+    Uncertain.
+
+Forbidden fast result:
+
+    Equal.
+
+Uncertain includes:
+- interval overlap,
+- range guard failure,
+- underflow/overflow concern,
+- unsupported floating environment,
+- non-certified compiler contraction path.
+
+Uncertain always means:
+
+    exact fallback required.
+
+## 29. Filter path is not quality truth
+
+The same tetra pair may:
+- certify in the fast path in one qualified build,
+- fall back in another qualified diagnostic build,
+
+while still producing the same exact D26QMR1 result.
+
+The authoritative engineering contract is the final comparison result.
+
+Filter-path telemetry is qualification/performance evidence, not a different quality policy.

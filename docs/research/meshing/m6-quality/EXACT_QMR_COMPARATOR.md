@@ -1058,3 +1058,69 @@ The next step is verification-design refinement and, only when implementation is
 exact-only reference comparator before any optimized filter.
 
 This document does not authorize production M6 code.
+
+
+## 37. Fast-filter research is split into its own contract
+
+The exact D26QMR1 oracle remains the authority.
+
+Fast-path research is now documented separately in:
+
+    FILTERED_QMR_COMPARATOR.md.
+
+The leading filtered comparison no longer forms two q_MR^3 ratios.
+
+Instead it evaluates the homogeneous cross-comparison polynomial:
+
+    F(A,B)
+      =
+    D_A^2 S_B^3
+      -
+    D_B^2 S_A^3.
+
+This avoids:
+- division,
+- cube roots,
+- denominator interval inversion.
+
+Because each term has degree six in tetra A and degree six in tetra B, independent positive
+power-of-two rescaling of A and B multiplies both terms by the same positive factor.
+
+Therefore filter normalization can be independent per tetra without changing the exact sign.
+
+## 38. Filter qualification order
+
+Current research order:
+
+    D26QMR1 exact oracle
+      ->
+    D26QMRF1 dynamic interval filter
+      ->
+    optional future D26QMRS1 semi-static filter.
+
+Reason:
+dynamic interval arithmetic naturally propagates subtraction, cancellation and range uncertainty.
+
+A semi-static filter can be faster, but hand-derived error constants are more sensitive to:
+- the exact expression tree,
+- underflow handling,
+- FMA contraction,
+- compiler transformations.
+
+No semi-static constant is frozen by this package.
+
+## 39. Equality remains exact-only
+
+D26QMRF1 may return:
+
+    Less
+    Greater
+    Uncertain.
+
+It may not return Equal.
+
+An interval containing zero means only:
+
+    cannot certify sign.
+
+D26QMR1 alone establishes exact equality.

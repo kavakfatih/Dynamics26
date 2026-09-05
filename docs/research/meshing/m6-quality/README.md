@@ -46,7 +46,8 @@ Dynamics26 solver benchmarks in M7.
 - NONLINEAR_RUBBER_MESH_QUALITY.md — reference/current configuration quality, deformation gradient and incompressibility separation
 - QUALITY_METRIC_POLICY.md — proposed Dynamics26 metric roles, aggregation and release-policy boundaries
 - QUALITY_ORDER_AND_ACCEPTANCE_POLICY.md — sorted mean-ratio acceptance order, local-to-global theorem and proposal/commit separation
-- EXACT_QMR_COMPARATOR.md — binary64 lattice oracle, primitive-integer normalization, bounded exact comparison and filtered-exact architecture
+- EXACT_QMR_COMPARATOR.md — binary64 lattice oracle, primitive-integer normalization and bounded exact comparison
+- FILTERED_QMR_COMPARATOR.md — dynamic interval cross-polynomial filter, power-of-two normalization, semi-static bound research and compiler/FP contract
 - LOCAL_TOPOLOGY_IMPROVEMENT.md — 2<->3, 3<->2, 4<->4, protected topology and deterministic quality reconnection
 - LOCAL_OPTIMIZATION_TRAPS_AND_STRONG_RECONNECTION.md — reachability/local-optimum theory, multi-face/SPR escalation, transactional valley crossing and termination
 - EDGE_REMOVAL_DYNAMIC_PROGRAMMING.md — general edge-star removal and original max-min link-polygon DP formulation
@@ -65,6 +66,7 @@ Dynamics26 solver benchmarks in M7.
 - one bad element can matter; report worst/low-percentile distributions rather than average alone,
 - optimizer commit acceptance now leads toward a sorted worst-to-best q_MR vector rather than pure max-min or an aggregate mean; smooth aggregate objectives remain proposal tools,
 - D26QMR1 is an exact **ordering** contract, not an exact irrational q_MR-value evaluator; binary64 coordinates reduce to a bounded integer-rational comparison with no quality epsilon,
+- D26QMRF1 now leads with a certified dynamic interval filter over the homogeneous comparison polynomial; semi-static magic-constant filters are deferred until their expression tree and floating environment are formally/auditably certified,
 - mesh grading, interpolation error, stiffness conditioning and nearly-incompressible formulation stability remain separate quality/evidence layers,
 - M2 D26LIFT1 infinitesimal symbolic perturbation is **not** sliver exudation,
 - large-deformation runtime distortion is separate from initial mesh quality,

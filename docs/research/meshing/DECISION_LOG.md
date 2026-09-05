@@ -1423,3 +1423,152 @@ selected for production.
 M6-R61..M6-R74.
 
 No production M6 code is authorized.
+
+
+---
+
+## ADR-MESH-0034 — D26QMRF1 first qualifies a dynamic interval cross-polynomial filter
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-06
+
+### Decision candidate
+
+The first accelerated Dynamics26 mean-ratio order path should be:
+
+    exact-positive validity
+      ->
+    D26QMRF1 dynamic interval filter
+      ->
+    D26QMR1 exact fallback.
+
+The filter evaluates:
+
+    F(A,B)
+      =
+    D_A^2 S_B^3
+      -
+    D_B^2 S_A^3.
+
+It returns only:
+
+    Less
+    Greater
+    Uncertain.
+
+Only exact D26QMR1 may return Equal.
+
+### Why the cross polynomial
+
+Compared with filtering:
+
+    D^2/S^3
+
+directly, F:
+- removes division,
+- removes denominator inversion,
+- removes cube-root concerns,
+- is polynomial in the geometric quantities.
+
+### Independent normalization theorem
+
+For positive independent scales alpha,beta:
+
+    F(alpha A,beta B)
+      =
+    alpha^6 beta^6
+    F(A,B).
+
+Therefore tetra A and B may be normalized independently by exact powers of two without changing the
+sign.
+
+This is the core range-control mechanism for the filter.
+
+### Qualified dynamic range
+
+If normalized anchor-relative scalar components satisfy:
+
+    |r| < 1,
+
+then:
+
+    D^2 < 27
+    S < 72
+
+and each cross term is below:
+
+    10,077,696.
+
+Hence:
+
+    |F| < 20,155,392.
+
+This eliminates ordinary mathematical overflow from the normalized comparison expression.
+
+It does not eliminate:
+- interval widening,
+- subnormal component risk,
+- floating-environment requirements.
+
+### Interval authority
+
+D26QMRF1 may certify a sign only if its interval enclosure excludes zero.
+
+If the interval:
+- overlaps zero,
+- encounters unsupported range,
+- encounters unsupported subnormal behavior,
+- cannot satisfy the frozen compiler/rounding contract,
+
+the result is Uncertain and exact fallback is mandatory.
+
+### Semi-static policy
+
+A future semi-static filter is desirable for performance but is **not** accepted first.
+
+Paper-analysis candidates such as:
+
+    gamma_10 * determinant permanent
+    gamma_20 * edge-sum scale
+
+must be independently/formally certified for the actual expression tree.
+
+No copied Orient3D/InSphere constant and no generic K*epsilon threshold is allowed.
+
+### FMA/compiler boundary
+
+FMA and non-contracted arithmetic are different expression contracts.
+
+The proof must match the code.
+
+Implicit compiler contraction may not alter a certified expression tree.
+
+Unsafe fast-math cannot be enabled for the filter unless a new proof explicitly supports it.
+
+### Repository observation
+
+At this research point, default-branch search found no occurrences of:
+- -ffast-math,
+- fast-math,
+- fp-contract,
+- FENV_ACCESS.
+
+This is not a permanent guarantee; future implementation must add explicit CI/compiler gates.
+
+### Long-term cascade
+
+Possible later optimized cascade:
+
+    optional D26QMRS1 semi-static filter
+      ->
+    D26QMRF1 dynamic interval filter
+      ->
+    D26QMR1 exact.
+
+First qualification remains the simpler two-stage filtered/exact path.
+
+### Evidence needed
+
+M6-R75..M6-R90.
+
+No production M6 filter code is authorized.

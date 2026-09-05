@@ -946,3 +946,200 @@ for identical ordered vertices.
 | M6-R74 | approximate displayed q_MR remains separate from authoritative exact ordering |
 
 No M6 production comparator is authorized by these gates.
+
+
+## Tier Q2-R — D26QMRF1 dynamic interval filter
+
+Reference:
+- exact D26QMR1 remains authority,
+- every fast result is cross-checked during qualification.
+
+### Cross-polynomial oracle
+
+For positive tetrahedra A,B verify:
+
+    F(A,B)
+      =
+    D_A^2 S_B^3
+      -
+    D_B^2 S_A^3
+
+has the same sign as:
+- exact D26QMR1 rational comparison,
+- independent high-precision q_MR comparison.
+
+Exercise:
+- ordinary random tetrahedra,
+- exact ties,
+- near-ties,
+- sliver/needle/wedge families.
+
+### Independent scale metamorphism
+
+Apply independent exact power-of-two scales:
+
+    A -> 2^i A
+    B -> 2^j B
+
+over broad safe exponent ranges.
+
+Require:
+
+    sign(F)
+      unchanged.
+
+This directly verifies the bi-homogeneous factor:
+
+    2^(6i+6j).
+
+## Tier Q2-S — normalization and dynamic-range bounds
+
+Using the certified interval upper bound M for one tetra:
+- choose power-of-two normalization,
+- verify normalized anchor-relative exact components remain within the documented bound,
+- verify interval containment remains valid.
+
+Independent exact reference must confirm:
+
+    D^2 < 27
+    S < 72
+    |F| < 20,155,392
+
+for successfully normalized mathematical inputs under the stated strict component bounds.
+
+Boundary/equality cases around the normalization exponent must be included.
+
+## Tier Q2-T — interval containment
+
+For every interval primitive and full expression:
+- reconstruct exact input values with arbitrary-precision rational arithmetic,
+- verify exact subtraction result is enclosed,
+- verify determinant D is enclosed,
+- verify edge sum S is enclosed,
+- verify comparison polynomial F is enclosed.
+
+Include:
+- cancellation-heavy coordinates,
+- large translations,
+- wide exponent spans,
+- near-degenerate determinants,
+- zero scalar edge components,
+- subnormal boundary cases.
+
+Any backend exception or unsupported range must return Uncertain.
+
+## Tier Q2-U — fast-sign safety
+
+For a large corpus:
+
+    if lower(F_I) > 0
+      fast result = Greater
+
+    if upper(F_I) < 0
+      fast result = Less
+
+    otherwise
+      fast result = Uncertain.
+
+Require:
+
+    every fast Less/Greater
+      ==
+    exact D26QMR1 result.
+
+Forbidden:
+- fast Equal,
+- guessed sign after interval overlap.
+
+Exact ties must reach fallback.
+
+## Tier Q2-V — semi-static research bounds
+
+For a frozen non-FMA expression tree and normal-range arithmetic, independently derive/check the
+candidate bounds:
+
+    determinant absolute error
+      ~ gamma_10 * P_D
+
+and:
+
+    edge-sum relative error
+      ~ gamma_20.
+
+These constants are research targets, not accepted truth.
+
+Qualification work must explicitly account for:
+- coordinate subtraction,
+- triple-product multiplication,
+- signed six-term determinant summation,
+- 18 squared scalar edge terms,
+- 17 additions,
+- underflow exclusions,
+- exact compiler expression tree.
+
+If the independent derivation gives a different safe bound, update the research document instead of
+forcing gamma_10/gamma_20.
+
+## Tier Q2-W — FMA/compiler contract matrix
+
+Build/test separate configurations:
+
+1. explicit non-contracted arithmetic,
+2. explicit FMA candidate where mathematically derived,
+3. unsafe-math negative control.
+
+Require:
+- exact fallback result identical in all safe configurations,
+- certified filter only enabled for configurations covered by its proof,
+- unsafe-math configuration cannot silently qualify.
+
+Track:
+- compiler version,
+- FP contraction policy,
+- rounding mode,
+- subnormal handling.
+
+## Tier Q2-X — fallback profile
+
+Record D26QMRF1 outcomes by workload:
+
+    CertifiedLess
+    CertifiedGreater
+    UncertainOverlap
+    UncertainRange
+    UncertainSubnormal
+    ExactFallback
+    ExactEqual.
+
+Stratify by:
+- 2->3,
+- 3->2,
+- edge removal,
+- smoothing acceptance,
+- SPR candidate search,
+- pathology family.
+
+Do not use one global fallback percentage as the only performance evidence.
+
+## Additional D26QMRF1 research gates
+
+| Gate | Requirement |
+|---|---|
+| M6-R75 | F sign agrees with exact D26QMR1 over analytic/random/adversarial fixtures |
+| M6-R76 | independent per-tetra power-of-two scaling preserves F sign |
+| M6-R77 | canonical filter vertex enumeration makes qualified telemetry replay-stable |
+| M6-R78 | interval normalization preserves containment and the documented local range |
+| M6-R79 | D, S and F intervals contain independent exact references |
+| M6-R80 | normalized D^2/S/F mathematical bounds pass exact oracle checks |
+| M6-R81 | every fast Less/Greater agrees with exact D26QMR1 |
+| M6-R82 | interval overlap returns only Uncertain |
+| M6-R83 | exact q_MR ties always reach exact fallback |
+| M6-R84 | subnormal/overflow/environment uncertainty falls back without a guessed sign |
+| M6-R85 | FMA and non-contracted paths are treated as distinct certified expression trees |
+| M6-R86 | future CI detects unsafe floating-compiler policy drift |
+| M6-R87 | candidate gamma_10/gamma_20 bounds are independently certified or corrected |
+| M6-R88 | no semi-static filter constant is accepted without an expression-specific proof |
+| M6-R89 | fallback telemetry is stratified by optimizer operation and pathology class |
+| M6-R90 | Debug/Release/replay preserve the final exact result and qualified filter semantics |
+
+These gates do not authorize production filter implementation.
