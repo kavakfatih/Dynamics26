@@ -41,6 +41,7 @@ public:
     [[nodiscard]] SelectionKind activeKind() const noexcept;
     void setSelection(const QVector<SelectionItem> &items);
     void setPreselection(std::optional<SelectionItem> item);
+    [[nodiscard]] std::optional<SelectionItem> pickAtGlobalPosition(const QPoint &position);
 
 signals:
     void selectionRequested(d26::SelectionKind kind, qint64 meshEntityId,

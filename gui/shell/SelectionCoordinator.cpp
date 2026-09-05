@@ -244,15 +244,14 @@ SelectionCoordinator::SelectionCoordinator(Dynamics26MainWindow *window, QObject
             this, &SelectionCoordinator::handleViewportSelection);
     connect(bridge_, &ViewportSelectionBridge::preselectionRequested,
             this, &SelectionCoordinator::handleViewportPreselection);
-    connect(bridge_, &ViewportSelectionBridge::contextMenuRequested,
-            this, &SelectionCoordinator::handleViewportContextMenu);
+    connect(graphics_->viewport(), &ViewportWidget::viewportContextMenuRequested,
+            this, &SelectionCoordinator::routeViewportContextMenu);
 
     connect(meshBridge_, &ViewportMeshSelectionBridge::selectionRequested,
             this, &SelectionCoordinator::handleMeshSelection);
     connect(meshBridge_, &ViewportMeshSelectionBridge::preselectionRequested,
             this, &SelectionCoordinator::handleMeshPreselection);
-    connect(meshBridge_, &ViewportMeshSelectionBridge::contextMenuRequested,
-            this, &SelectionCoordinator::handleMeshContextMenu);
+
 
     const auto clearSelection = [this] {
         cancelPendingWindowBatch(this);
@@ -775,16 +774,13 @@ bool SelectionCoordinator::selectionContains(const SelectionItem &item) const no
 void SelectionCoordinator::showSelectionContextMenu(const ObjectId objectId,
                                                      const QPoint &globalPosition)
 {
-    if (window_ == nullptr || objectId == InvalidObjectId) {
-        return;
-    }
-
-    QMenu *menu = window_->buildContextMenu(objectId, window_);
-    if (menu == nullptr) {
-        return;
-    }
-
-    const ScopeReferenceBuildResult scope = currentPersistentScope();
+    if (window_ == nullptr) return;
+    if (viewportMenu_) viewportMenu_->close();
+    auto *menu = new QMenu(window_);
+    menu->setObjectName(QStringLiteral("Dynamics26ViewportContextMenu"));
+    viewportMenu_ = menu;
+    const ScopeReferenceBuildResult scope = objectId != InvalidObjectId
+        ? currentPersistentScope() : ScopeReferenceBuildResult{};
     if (scope.success() && services_.namedSelections != nullptr && services_.commands != nullptr) {
         const bool geometryFaceScope = !scope.scope.entities.isEmpty()
             && std::all_of(scope.scope.entities.cbegin(), scope.scope.entities.cend(),
@@ -845,8 +841,33 @@ void SelectionCoordinator::showSelectionContextMenu(const ObjectId objectId,
         }
     }
 
-    menu->exec(globalPosition);
-    menu->deleteLater();
+    if (!menu->isEmpty()) menu->addSeparator();
+    const auto bounds = objectId != InvalidObjectId && currentGeometryScope().success()
+        ? bridge_->selectionDisplayBounds() : std::nullopt;
+    graphics_->viewport()->appendNavigationActions(menu, bounds);
+    connect(menu, &QMenu::aboutToHide, menu, &QObject::deleteLater);
+    menu->popup(globalPosition);
+}
+
+void SelectionCoordinator::routeViewportContextMenu(const QPoint &position)
+{
+    if (selection_ == nullptr || graphics_ == nullptr) return;
+    const auto context = graphics_->viewport()->context();
+    if (context == ViewportContext::Geometry) {
+        const auto hit = bridge_->pickAtGlobalPosition(position);
+        if (hit && selectionItemForHit(hit->kind, parentBodyFor(*hit), hit->geometryEntityId)) {
+            handleViewportContextMenu(hit->kind, parentBodyFor(*hit), hit->geometryEntityId, position);
+            return;
+        }
+    } else if (context == ViewportContext::Mesh) {
+        const auto hit = meshBridge_->pickAtGlobalPosition(position);
+        if (hit && meshSelectionItemForHit(hit->kind, hit->meshEntityId)) {
+            handleMeshContextMenu(hit->kind, hit->meshEntityId, position);
+            return;
+        }
+    }
+    // A miss must not reuse an unrelated current selection for engineering actions.
+    showSelectionContextMenu(InvalidObjectId, position);
 }
 
 void SelectionCoordinator::handleViewportSelection(const SelectionKind kind,

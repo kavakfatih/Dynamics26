@@ -686,6 +686,42 @@ void ViewportSelectionBridge::setPreselection(std::optional<SelectionItem> item)
 #endif
 }
 
+std::optional<SelectionItem> ViewportSelectionBridge::pickAtGlobalPosition(const QPoint &position)
+{
+#ifdef FEMCAE_GUI_HAS_VTK
+    if (impl_->widget != nullptr) {
+        return impl_->pick(impl_->widget->mapFromGlobal(position));
+    }
+#else
+    Q_UNUSED(position)
+#endif
+    return std::nullopt;
+}
+
+std::optional<std::array<double, 6>> ViewportSelectionBridge::selectionDisplayBounds() const
+{
+    // This is a camera operation, so display points with CAD provenance are
+    // appropriate. These bounds are never used as engineering Face area/normal.
+    std::optional<std::array<double, 6>> bounds;
+    const auto add = [&bounds](const femcae::geometry::Vec3 &p) {
+        if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z)) return;
+        if (!bounds) bounds = std::array<double, 6>{p.x, p.x, p.y, p.y, p.z, p.z};
+        const double xyz[] = {p.x, p.y, p.z};
+        for (int i = 0; i < 3; ++i) {
+            (*bounds)[2*i] = std::min((*bounds)[2*i], xyz[i]);
+            (*bounds)[2*i+1] = std::max((*bounds)[2*i+1], xyz[i]);
+        }
+    };
+    const auto &surface = impl_->scene.surface();
+    for (auto cell : surface.cellIndicesForSelection(impl_->selection))
+        for (auto point : surface.triangles()[cell]) add(surface.points()[point]);
+    for (auto line : impl_->scene.lineIndicesForSelection(impl_->selection))
+        for (auto point : impl_->scene.edgeLines()[line]) add(impl_->scene.edgePoints()[point]);
+    for (auto point : impl_->scene.pointIndicesForSelection(impl_->selection))
+        add(impl_->scene.vertexPoints()[point]);
+    return bounds;
+}
+
 bool ViewportSelectionBridge::eventFilter(QObject *watched, QEvent *event)
 {
 #ifdef FEMCAE_GUI_HAS_VTK
@@ -794,16 +830,9 @@ bool ViewportSelectionBridge::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     }
-    case SelectionInputActionType::ContextMenu: {
-        const auto hit = impl_->pick(action->position);
-        if (hit.has_value()) {
-            emit contextMenuRequested(hit->kind,
-                                      static_cast<quint64>(bodyIdFor(*hit)),
-                                      static_cast<quint64>(hit->geometryEntityId),
-                                      impl_->widget->mapToGlobal(action->position.toPoint()));
-        }
+    case SelectionInputActionType::ContextMenu:
+        // Qt QContextMenuEvent owns menu creation; release must never open another.
         break;
-    }
     }
 
     return QObject::eventFilter(watched, event);

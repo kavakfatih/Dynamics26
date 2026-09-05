@@ -23,6 +23,9 @@
 
 #include <memory>
 #include <array>
+#include <optional>
+
+class QMenu;
 
 namespace d26 {
 
@@ -82,6 +85,11 @@ public:
     // Seçili nesnenin kapsadığı CAD/kutu yüzünü vurgular.
     void setHighlightedGeometry(femcae::geometry::GeometryEntityId geometryId);
 
+    // Menu ownership application coordinator'dadır; viewport yalnız kamera
+    // eylemlerini ekler. Bounds transient selection display bounds'udur.
+    void appendNavigationActions(QMenu *menu,
+        std::optional<std::array<double, 6>> selectionBounds = std::nullopt);
+
     // View state only: these operations never enter the document undo stack.
     void fitView();
     void resetCamera(); // Compatibility wrapper for fitView().
@@ -108,6 +116,7 @@ public:
     void handlePick(int x, int y);
 
 signals:
+    void viewportContextMenuRequested(const QPoint &globalPosition);
     void geometryPicked(quint64 geometryId);
     // Rendering katmanı selection kararını vermez; yalnız pick edilen display
     // cell'in gerçek CAD Body/Face provenance'ini yayınlar.

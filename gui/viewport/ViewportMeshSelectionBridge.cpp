@@ -547,6 +547,18 @@ void ViewportMeshSelectionBridge::setPreselection(std::optional<SelectionItem> i
 #endif
 }
 
+std::optional<SelectionItem> ViewportMeshSelectionBridge::pickAtGlobalPosition(const QPoint &position)
+{
+#ifdef FEMCAE_GUI_HAS_VTK
+    if (impl_->widget != nullptr && inputEnabled_) {
+        return impl_->pick(impl_->widget->mapFromGlobal(position));
+    }
+#else
+    Q_UNUSED(position)
+#endif
+    return std::nullopt;
+}
+
 bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
 {
 #ifdef FEMCAE_GUI_HAS_VTK
@@ -674,14 +686,9 @@ bool ViewportMeshSelectionBridge::eventFilter(QObject *watched, QEvent *event)
             }
             break;
         }
-        case SelectionInputActionType::ContextMenu: {
-            const auto hit = impl_->pick(action->position);
-            if (hit.has_value()) {
-                emit contextMenuRequested(hit->kind, static_cast<qint64>(hit->meshEntityId),
-                                          impl_->widget->mapToGlobal(action->position.toPoint()));
-            }
+        case SelectionInputActionType::ContextMenu:
+            // Qt QContextMenuEvent owns menu creation; release must never open another.
             break;
-        }
         }
     }
 

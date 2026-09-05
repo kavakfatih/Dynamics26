@@ -18,6 +18,7 @@ name: macOS GUI application acceptance
       - "gui/shell/UtilityWorkspace.*"
       - "gui/widgets/ConvergencePlotWidget.*"
       - "gui/support/SelectionAcceptanceTest.h"
+      - "gui/support/ViewportInteractionAcceptance.h"
       - "gui/support/MaterialInspectorAcceptance.h"
       - "gui/support/MeshInspectorAcceptance.h"
       - "gui/support/AnalysisInspectorAcceptance.h"
@@ -139,6 +140,7 @@ jobs:
           printf '%s\n' "$output"
           test "$status" -eq 0
           grep -q "selection shell acceptance PASS" <<< "$output"
+          grep -q "Viewport interaction acceptance PASS" <<< "$output"
           grep -q "Material Inspector acceptance: 26/26 PASS" <<< "$output"
           grep -q "Mesh Inspector acceptance PASS" <<< "$output"
           grep -q "Analysis Inspector acceptance PASS" <<< "$output"

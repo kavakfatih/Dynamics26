@@ -429,29 +429,9 @@ ViewportWidget::ViewportWidget(QWidget *parent)
     impl_->widget->installEventFilter(impl_->inputRouter.get());
     impl_->widget->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(impl_->widget, &QWidget::customContextMenuRequested, this, [this](const QPoint &position) {
-        QMenu menu(impl_->widget);
-        QAction *fit = menu.addAction(tr("Fit View\tF"));
-        QMenu *views = menu.addMenu(tr("Standard View"));
-        const auto addView = [this, views](const QString &label, const StandardView view) {
-            QAction *action = views->addAction(label);
-            connect(action, &QAction::triggered, this, [this, view] { setStandardView(view); });
-        };
-        addView(tr("Isometric\t0"), StandardView::Isometric);
-        addView(tr("Front\t1"), StandardView::Front);
-        addView(tr("Back\tShift+1"), StandardView::Back);
-        addView(tr("Top\t2"), StandardView::Top);
-        addView(tr("Bottom\tShift+2"), StandardView::Bottom);
-        addView(tr("Right\t3"), StandardView::Right);
-        addView(tr("Left\tShift+3"), StandardView::Left);
-        menu.addSeparator();
-        QAction *pivotToSelection = menu.addAction(tr("Set Rotation Center to Selection"));
-        pivotToSelection->setEnabled(impl_->highlighted != InvalidGeometryId && impl_->surfaceActor != nullptr);
-        QAction *resetPivot = menu.addAction(tr("Reset Rotation Center to Model"));
-        connect(fit, &QAction::triggered, this, &ViewportWidget::fitView);
-        connect(pivotToSelection, &QAction::triggered, this,
-                [this] { (void)setRotationCenterToHighlightedGeometry(); });
-        connect(resetPivot, &QAction::triggered, this, [this] { (void)resetRotationCenter(); });
-        menu.exec(impl_->widget->mapToGlobal(position));
+        // Qt platform context event is the sole menu request. In particular,
+        // macOS may send it on press, before the selection release intent.
+        emit viewportContextMenuRequested(impl_->widget->mapToGlobal(position));
     });
 
     impl_->palette = ViewportPalette::forAppearance(systemPrefersDark());
@@ -465,6 +445,36 @@ ViewportWidget::ViewportWidget(QWidget *parent)
     impl_->placeholder->setAlignment(Qt::AlignCenter);
     layout->addWidget(impl_->placeholder);
 #endif
+}
+
+void ViewportWidget::appendNavigationActions(
+    QMenu *menu, const std::optional<std::array<double, 6>> selectionBounds)
+{
+    if (menu == nullptr) return;
+    auto *fit = menu->addAction(tr("Fit View\tF"));
+    fit->setObjectName(QStringLiteral("viewport.fit"));
+    connect(fit, &QAction::triggered, this, &ViewportWidget::fitView);
+    auto *views = menu->addMenu(tr("Standard View"));
+    const auto addView = [this, views](const QString &label, const StandardView view) {
+        connect(views->addAction(label), &QAction::triggered, this,
+                [this, view] { setStandardView(view); });
+    };
+    addView(tr("Isometric\t0"), StandardView::Isometric);
+    addView(tr("Front\t1"), StandardView::Front);
+    addView(tr("Back\tShift+1"), StandardView::Back);
+    addView(tr("Top\t2"), StandardView::Top);
+    addView(tr("Bottom\tShift+2"), StandardView::Bottom);
+    addView(tr("Right\t3"), StandardView::Right);
+    addView(tr("Left\tShift+3"), StandardView::Left);
+    if (selectionBounds.has_value()) {
+        auto *pivot = menu->addAction(tr("Set Rotation Center to Selection"));
+        pivot->setObjectName(QStringLiteral("viewport.selectionPivot"));
+        connect(pivot, &QAction::triggered, this, [this, selectionBounds] {
+            (void)setRotationCenterToBounds(*selectionBounds);
+        });
+    }
+    auto *reset = menu->addAction(tr("Reset Rotation Center to Model"));
+    connect(reset, &QAction::triggered, this, [this] { (void)resetRotationCenter(); });
 }
 
 ViewportWidget::~ViewportWidget() = default;

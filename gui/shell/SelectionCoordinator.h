@@ -27,6 +27,8 @@
 #include <QMetaObject>
 #include <QObject>
 #include <QPoint>
+#include <QPointer>
+#include <QMenu>
 #include <QString>
 
 #include <optional>
@@ -678,6 +680,7 @@ private:
     void refreshSelectionScene();
     void handleNavigatorSelection(ObjectId id);
     void showSelectionContextMenu(ObjectId objectId, const QPoint &globalPosition);
+    void routeViewportContextMenu(const QPoint &globalPosition);
 
     void handleViewportSelection(SelectionKind kind, quint64 bodyId, quint64 geometryId,
                                  SelectionOperation operation);
@@ -715,6 +718,7 @@ private:
     SelectionManager *selection_{nullptr};
     ViewportSelectionBridge *bridge_{nullptr};
     ViewportMeshSelectionBridge *meshBridge_{nullptr};
+    QPointer<QMenu> viewportMenu_;
 
     ObjectId editingNamedSelection_{InvalidObjectId};
     ObjectId editingContact_{InvalidObjectId};

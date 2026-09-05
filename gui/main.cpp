@@ -36,6 +36,7 @@
 #include "support/PreflightAcceptance.h"
 #include "support/ScreenshotDriver.h"
 #include "support/SelectionAcceptanceTest.h"
+#include "support/ViewportInteractionAcceptance.h"
 #include "support/SelfTest.h"
 #include "support/SolverCoupledDiagnosticsAcceptance.h"
 #include "support/SolverDiagnosticsAcceptance.h"
@@ -241,6 +242,8 @@ int main(int argc, char *argv[])
         // Inspector/solver-workspace acceptance'ları yalnız görünür/current
         // application state'i düzenler; hidden widget state'i veya ikinci engineering
         // state kullanılmaz. Fiziksel pointer/mouse/trackpad kabulünün yerine geçmez.
+        const int interactionStatus = d26::runViewportInteractionAcceptance(app, window);
+        if (interactionStatus != 0) return interactionStatus;
         const int selectionStatus = d26::runSelectionAcceptanceTest(app, window);
         if (selectionStatus != 0) {
             return selectionStatus;
