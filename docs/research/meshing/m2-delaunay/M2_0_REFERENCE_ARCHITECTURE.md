@@ -208,3 +208,24 @@ M2.1 reference storage is append-only/tombstoned after capacity reservation. Slo
 layout are optimization experiments after correctness qualification.
 
 See CELL_STORAGE_AND_MUTATION_MODEL.md.
+
+
+## Replacement-patch orientation
+
+Each validated cavity-boundary facet creates exactly one candidate cell by coning to the inserted
+site.
+
+- three finite boundary vertices -> finite candidate,
+- Infinite + two finite boundary vertices -> ghost candidate.
+
+Finite candidates are independently normalized to exact positive Orient3D. Ghost candidates place
+Infinite at local slot 0 and orient their finite triple outward after the candidate finite neighbor
+across face 0 is known.
+
+The original boundary facet is the candidate base face and reconnects to the old outside neighbor.
+The other three lateral faces contain the inserted point and pair new-new by canonical keys.
+
+Because every edge of the cavity boundary 2-sphere has exactly two incident triangles, every lateral
+face key must occur exactly twice.
+
+See PATCH_ORIENTATION_AND_STITCHING.md.

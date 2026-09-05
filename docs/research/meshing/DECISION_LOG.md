@@ -653,3 +653,35 @@ degenerate topology must survive model transforms. It is not part of M2.0 defaul
 ### Acceptance
 
 M2-G30..G33.
+
+
+---
+
+## ADR-MESH-0020 — Boundary-cone patch orientation and stitching
+
+**Status:** PROPOSED
+**Date:** 2026-09-05
+
+### Decision candidate
+
+Each cavity-boundary facet creates exactly one replacement cell by coning to the inserted point.
+
+- finite boundary facet -> finite cell normalized to positive Orient3D,
+- Infinite boundary facet -> ghost cell with Infinite fixed at slot 0.
+
+The original boundary facet reconnects to the old outside neighbor. The three point-containing
+lateral faces pair new-new through canonical face keys.
+
+The closed 2-manifold boundary guarantees every boundary edge, and therefore every lateral face, has
+exactly two owners.
+
+Ghost finite face 0 is oriented outward after its finite neighbor/opposite vertex is identified.
+
+### Rationale
+
+This separates face identity from geometric orientation, removes reliance on incidental owner-cell
+vertex order and makes the commit phase predicate-free.
+
+### Acceptance
+
+M2-G34..G36.

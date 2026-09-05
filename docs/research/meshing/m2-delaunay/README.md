@@ -41,6 +41,7 @@ be traceable to a committed derivation or contract. Chat history is not engineer
 - CELL_STORAGE_AND_MUTATION_MODEL.md — typed finite/infinite cell storage, face conventions, handle and commit-barrier policy
 - COMPLEXITY_AND_RESOURCE_MODEL.md — 3D worst-case output complexity, typed resource limits and growth telemetry
 - DETERMINISM_SCOPE_AND_POLICY_VERSIONING.md — reproducibility scope, transform semantics, policy IDs and fingerprint/replay versioning
+- PATCH_ORIENTATION_AND_STITCHING.md — finite/ghost cone construction, positive orientation and new-new/new-old neighbor pairing
 - EXPERIMENT_PLAN.md — golden cases, brute-force oracles, determinism gates, replay and telemetry
 
 ## Current leading decisions

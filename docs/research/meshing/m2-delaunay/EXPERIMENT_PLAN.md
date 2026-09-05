@@ -174,6 +174,9 @@ This separates weak-Delaunay geometric truth from symbolic topology choice.
 | M2-G31 | repeated/Debug/Release/supported insertion-order runs under one policy give identical fingerprints |
 | M2-G32 | fingerprint and replay record site/symbolic/schema policy versions |
 | M2-G33 | metamorphic transform suite distinguishes non-degenerate mapped invariance from degenerate policy-dependent ties |
+| M2-G34 | every finite boundary facet produces one exact-positive finite candidate or typed degeneracy failure |
+| M2-G35 | every Infinite boundary facet produces one normalized ghost with finite face 0 paired to a finite cell |
+| M2-G36 | every new lateral face key has exactly two candidate owners and every base face has exactly one outside patch |
 
 M2 is not QUALIFIED until mandatory gates are executable evidence.
 

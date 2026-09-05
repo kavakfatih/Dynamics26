@@ -261,3 +261,24 @@ For hull faces, small-N validation checks exact convex-hull support. Coplanar ad
 also pass the projected InCircle + symbolic InCircle legality rule.
 
 See LOCAL_CORRECTNESS_AND_SEED_CONTRACT.md.
+
+
+## Replacement-patch construction rule
+
+The cavity boundary itself decides candidate kind:
+- finite boundary triangle -> finite tetra candidate,
+- boundary triangle containing Infinite -> ghost candidate.
+
+Do not use sorted boundary-key order as a geometric orientation. Every finite candidate is separately
+normalized to positive exact Orient3D.
+
+Each candidate base face is the original cavity boundary and patches exactly one old outside
+neighbor. Its three lateral faces contain the inserted point.
+
+Since every boundary edge has incidence two, every lateral face occurs exactly twice and must pair
+two candidate cells. This is the reference new-new adjacency proof.
+
+Ghost candidates fix Infinite at local slot 0. Their finite face 0 must pair a finite cell and is
+oriented outward using that finite neighbor's opposite vertex.
+
+See PATCH_ORIENTATION_AND_STITCHING.md for the full sign/local-index contract.
