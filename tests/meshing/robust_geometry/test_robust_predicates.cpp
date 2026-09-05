@@ -107,7 +107,9 @@ PredicateEvaluation evaluate(
 
 std::size_t verifyFile(
     const std::filesystem::path& path,
-    const std::string& predicate) {
+    const std::string& predicate,
+    std::size_t& fastCount,
+    std::size_t& exactCount) {
     std::ifstream input(path);
     require(input.good(), "cannot open fixture " + path.string());
 
@@ -140,9 +142,13 @@ std::size_t verifyFile(
                 " expected=" + std::to_string(expected) +
                 " actual=" + std::to_string(toInt(result.sign)));
         }
-        require(
-            result.path == PredicateEvaluationPath::ExactDyadic,
-            predicate + "/" + caseId + " did not use M1.7 exact path");
+        if (result.path == PredicateEvaluationPath::FastCertified) {
+            ++fastCount;
+        } else if (result.path == PredicateEvaluationPath::ExactDyadic) {
+            ++exactCount;
+        } else {
+            fail(predicate + "/" + caseId + " returned an unknown evaluation path");
+        }
         ++caseCount;
     }
     require(caseCount > 0U, "fixture file contains no cases");
@@ -182,14 +188,21 @@ int main(int argc, char** argv) {
         require(argc == 2, "fixture directory argument required");
         const std::filesystem::path directory(argv[1]);
         std::size_t total = 0;
-        total += verifyFile(directory / "orient2d.d26pred", "orient2d");
-        total += verifyFile(directory / "orient3d.d26pred", "orient3d");
-        total += verifyFile(directory / "incircle.d26pred", "incircle");
-        total += verifyFile(directory / "insphere.d26pred", "insphere");
+        std::size_t fastCount = 0;
+        std::size_t exactCount = 0;
+        total += verifyFile(directory / "orient2d.d26pred", "orient2d", fastCount, exactCount);
+        total += verifyFile(directory / "orient3d.d26pred", "orient3d", fastCount, exactCount);
+        total += verifyFile(directory / "incircle.d26pred", "incircle", fastCount, exactCount);
+        total += verifyFile(directory / "insphere.d26pred", "insphere", fastCount, exactCount);
         verifyInvalidInput();
 
-        std::cout << "M1.7 robust-predicates PASS cases=" << total
-                  << " exact_dyadic=yes invalid_input=yes\n";
+        require(fastCount > 0U, "M1.8 fast filter never certified a case");
+        require(exactCount > 0U, "M1.8 exact fallback coverage missing");
+
+        std::cout << "M1.8 robust-predicates PASS cases=" << total
+                  << " fast=" << fastCount
+                  << " exact=" << exactCount
+                  << " mismatch=0 invalid_input=yes\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "M1.7 robust-predicates FAIL: " << error.what() << '\n';

@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -316,6 +317,234 @@ BigInt determinant(const Matrix& matrix) {
     return result;
 }
 
+bool fastValueAllowed(double value) noexcept {
+    return std::isfinite(value) &&
+           (value == 0.0 || std::fpclassify(value) == FP_NORMAL);
+}
+
+bool safeMultiply(double lhs, double rhs, double& result) noexcept {
+    result = lhs * rhs;
+    if (!std::isfinite(result)) {
+        return false;
+    }
+    if (result != 0.0 && std::fpclassify(result) != FP_NORMAL) {
+        return false;
+    }
+    if (result == 0.0 && lhs != 0.0 && rhs != 0.0) {
+        return false;
+    }
+    return true;
+}
+
+bool safeAdd(double lhs, double rhs, double& result) noexcept {
+    result = lhs + rhs;
+    if (!std::isfinite(result)) {
+        return false;
+    }
+    if (result != 0.0 && std::fpclassify(result) != FP_NORMAL) {
+        return false;
+    }
+    if (result == 0.0 && lhs != -rhs) {
+        return false;
+    }
+    return true;
+}
+
+bool safeLift2(double x, double y, double& lift) noexcept {
+    if (!fastValueAllowed(x) || !fastValueAllowed(y)) {
+        return false;
+    }
+    double xx = 0.0;
+    double yy = 0.0;
+    if (!safeMultiply(x, x, xx) || !safeMultiply(y, y, yy)) {
+        return false;
+    }
+    return safeAdd(xx, yy, lift);
+}
+
+bool safeLift3(double x, double y, double z, double& lift) noexcept {
+    if (!fastValueAllowed(x) || !fastValueAllowed(y) || !fastValueAllowed(z)) {
+        return false;
+    }
+    double xx = 0.0;
+    double yy = 0.0;
+    double zz = 0.0;
+    double partial = 0.0;
+    if (!safeMultiply(x, x, xx) ||
+        !safeMultiply(y, y, yy) ||
+        !safeMultiply(z, z, zz) ||
+        !safeAdd(xx, yy, partial)) {
+        return false;
+    }
+    return safeAdd(partial, zz, lift);
+}
+
+int permutationParity(const std::vector<std::size_t>& permutation) noexcept {
+    std::size_t inversions = 0U;
+    for (std::size_t i = 0; i < permutation.size(); ++i) {
+        for (std::size_t j = i + 1U; j < permutation.size(); ++j) {
+            if (permutation[i] > permutation[j]) {
+                ++inversions;
+            }
+        }
+    }
+    return (inversions & 1U) == 0U ? 1 : -1;
+}
+
+std::optional<PredicateEvaluation> tryFastDeterminant(
+    const std::vector<std::vector<double>>& matrix) {
+    const std::size_t size = matrix.size();
+    if (size < 2U || size > 5U) {
+        return std::nullopt;
+    }
+    for (const auto& row : matrix) {
+        if (row.size() != size) {
+            return std::nullopt;
+        }
+        for (double value : row) {
+            if (!fastValueAllowed(value)) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    std::vector<std::size_t> permutation(size);
+    for (std::size_t i = 0; i < size; ++i) {
+        permutation[i] = i;
+    }
+
+    double determinantValue = 0.0;
+    double permanent = 0.0;
+
+    do {
+        double term = 1.0;
+        for (std::size_t row = 0; row < size; ++row) {
+            double product = 0.0;
+            if (!safeMultiply(term, matrix[row][permutation[row]], product)) {
+                return std::nullopt;
+            }
+            term = product;
+        }
+
+        if (permutationParity(permutation) < 0) {
+            term = -term;
+        }
+
+        double updatedDeterminant = 0.0;
+        if (!safeAdd(determinantValue, term, updatedDeterminant)) {
+            return std::nullopt;
+        }
+        determinantValue = updatedDeterminant;
+
+        double updatedPermanent = 0.0;
+        if (!safeAdd(permanent, std::abs(term), updatedPermanent)) {
+            return std::nullopt;
+        }
+        permanent = updatedPermanent;
+    } while (std::next_permutation(permutation.begin(), permutation.end()));
+
+    if (permanent == 0.0 || determinantValue == 0.0) {
+        return std::nullopt;
+    }
+
+    // M1.8 F0 uniform envelope.
+    //
+    // For every supported determinant (up to lifted 5x5 insphere), one
+    // permutation term contains at most one rounded lift plus four rounded
+    // multiplications. The term and 120-term accumulation error is bounded by
+    // the M1.8 gamma-model derivation well below 1024*u times the computed
+    // absolute-term sum. 1024*u = 2^-43 is exactly representable in binary64.
+    //
+    // This deliberately trades additional exact fallbacks for a simple,
+    // independently auditable no-false-certification envelope.
+    constexpr double conservativeCoefficient = 0x1p-43;
+    double errorBound = 0.0;
+    if (!safeMultiply(permanent, conservativeCoefficient, errorBound) ||
+        errorBound == 0.0) {
+        return std::nullopt;
+    }
+
+    if (determinantValue > errorBound) {
+        return PredicateEvaluation{
+            PredicateSign::Positive, PredicateEvaluationPath::FastCertified};
+    }
+    if (determinantValue < -errorBound) {
+        return PredicateEvaluation{
+            PredicateSign::Negative, PredicateEvaluationPath::FastCertified};
+    }
+    return std::nullopt;
+}
+
+std::optional<PredicateEvaluation> tryFastOrient2d(
+    const geometry::Vec2& a,
+    const geometry::Vec2& b,
+    const geometry::Vec2& c) {
+    return tryFastDeterminant({
+        {a.x, a.y, 1.0},
+        {b.x, b.y, 1.0},
+        {c.x, c.y, 1.0}});
+}
+
+std::optional<PredicateEvaluation> tryFastOrient3d(
+    const geometry::Vec3& a,
+    const geometry::Vec3& b,
+    const geometry::Vec3& c,
+    const geometry::Vec3& d) {
+    return tryFastDeterminant({
+        {a.x, a.y, a.z, 1.0},
+        {b.x, b.y, b.z, 1.0},
+        {c.x, c.y, c.z, 1.0},
+        {d.x, d.y, d.z, 1.0}});
+}
+
+std::optional<PredicateEvaluation> tryFastIncircle(
+    const geometry::Vec2& a,
+    const geometry::Vec2& b,
+    const geometry::Vec2& c,
+    const geometry::Vec2& d) {
+    double alift = 0.0;
+    double blift = 0.0;
+    double clift = 0.0;
+    double dlift = 0.0;
+    if (!safeLift2(a.x, a.y, alift) ||
+        !safeLift2(b.x, b.y, blift) ||
+        !safeLift2(c.x, c.y, clift) ||
+        !safeLift2(d.x, d.y, dlift)) {
+        return std::nullopt;
+    }
+    return tryFastDeterminant({
+        {a.x, a.y, alift, 1.0},
+        {b.x, b.y, blift, 1.0},
+        {c.x, c.y, clift, 1.0},
+        {d.x, d.y, dlift, 1.0}});
+}
+
+std::optional<PredicateEvaluation> tryFastInsphere(
+    const geometry::Vec3& a,
+    const geometry::Vec3& b,
+    const geometry::Vec3& c,
+    const geometry::Vec3& d,
+    const geometry::Vec3& e) {
+    double alift = 0.0;
+    double blift = 0.0;
+    double clift = 0.0;
+    double dlift = 0.0;
+    double elift = 0.0;
+    if (!safeLift3(a.x, a.y, a.z, alift) ||
+        !safeLift3(b.x, b.y, b.z, blift) ||
+        !safeLift3(c.x, c.y, c.z, clift) ||
+        !safeLift3(d.x, d.y, d.z, dlift) ||
+        !safeLift3(e.x, e.y, e.z, elift)) {
+        return std::nullopt;
+    }
+    return tryFastDeterminant({
+        {a.x, a.y, a.z, alift, 1.0},
+        {b.x, b.y, b.z, blift, 1.0},
+        {c.x, c.y, c.z, clift, 1.0},
+        {d.x, d.y, d.z, dlift, 1.0},
+        {e.x, e.y, e.z, elift, 1.0}});
+}
+
 PredicateSign predicateSign(int sign) noexcept {
     if (sign < 0) {
         return PredicateSign::Negative;
@@ -336,6 +565,10 @@ PredicateEvaluation orient2d(
     const geometry::Vec2& a,
     const geometry::Vec2& b,
     const geometry::Vec2& c) {
+    if (const auto fast = tryFastOrient2d(a, b, c)) {
+        return *fast;
+    }
+
     const std::vector<BigInt> p = exactIntegerCoordinates({
         a.x, a.y, b.x, b.y, c.x, c.y});
 
@@ -351,6 +584,10 @@ PredicateEvaluation orient3d(
     const geometry::Vec3& b,
     const geometry::Vec3& c,
     const geometry::Vec3& d) {
+    if (const auto fast = tryFastOrient3d(a, b, c, d)) {
+        return *fast;
+    }
+
     const std::vector<BigInt> p = exactIntegerCoordinates({
         a.x, a.y, a.z,
         b.x, b.y, b.z,
@@ -370,6 +607,10 @@ PredicateEvaluation incircle(
     const geometry::Vec2& b,
     const geometry::Vec2& c,
     const geometry::Vec2& d) {
+    if (const auto fast = tryFastIncircle(a, b, c, d)) {
+        return *fast;
+    }
+
     const std::vector<BigInt> p = exactIntegerCoordinates({
         a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y});
 
@@ -390,6 +631,10 @@ PredicateEvaluation insphere(
     const geometry::Vec3& c,
     const geometry::Vec3& d,
     const geometry::Vec3& e) {
+    if (const auto fast = tryFastInsphere(a, b, c, d, e)) {
+        return *fast;
+    }
+
     const std::vector<BigInt> p = exactIntegerCoordinates({
         a.x, a.y, a.z,
         b.x, b.y, b.z,

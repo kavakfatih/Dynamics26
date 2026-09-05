@@ -76,6 +76,15 @@ set(FEMCAE_MESHING_SOURCES
     src/meshing/SurfaceLoadAssembler.cpp
 )
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
+    set_property(
+        SOURCE src/meshing/RobustPredicates.cpp
+        APPEND PROPERTY COMPILE_OPTIONS
+        "-fno-fast-math"
+        "-ffp-contract=off"
+    )
+endif()
+
 set(FEMCAE_APPLICATION_SOURCES
     src/application/AnalysisSnapshot.cpp
     src/application/SolverInputBuilder.cpp
