@@ -433,3 +433,114 @@ avoid attributing all global linear-system behavior to element shape.
 | M6-R29 | M6 geometry families are crossed with TET4 formulation/compressibility evidence in T4-R09/T4-G09 |
 
 These remain research/verification-design gates, not implementation authorization.
+
+
+## Tier Q1-C — classical pathology taxonomy and angle conditions
+
+Build deterministic coordinate fixtures for:
+
+    spire/needle
+    splinter
+    spindle
+    spear
+    spike
+    wedge
+    spade
+    cap
+    sliver.
+
+For each fixture record:
+
+    q_MR
+    q_kappa
+    q_RR
+    rho_RE
+    theta_min/max
+    face_angle_min/max
+    solid_angle_min/max.
+
+No pathology name is inferred from one threshold.
+
+### Maximum-angle split
+
+Verify separately:
+- all triangular face angles bounded away from pi,
+- all dihedral angles bounded away from pi.
+
+Include families demonstrating:
+- needle/splinter/wedge can satisfy both,
+- spike can violate face-angle while retaining a dihedral upper bound,
+- cap/sliver can retain acceptable face maxima while dihedral angles approach pi,
+- spindle/spear/spade can violate both.
+
+Purpose:
+reproduce the interpolation-theory distinction without turning it into a mesher acceptance threshold.
+
+## Tier Q1-D — spectral collapse classification
+
+### Flat spectrum
+
+    Sigma_F = diag(1,1,epsilon)
+
+Expected:
+
+    q_MR
+      = 3 epsilon^(2/3)/(2+epsilon^2).
+
+### Needle spectrum
+
+    Sigma_N = diag(1,epsilon,epsilon)
+
+Expected:
+
+    q_MR
+      = 3 epsilon^(4/3)/(1+2 epsilon^2).
+
+Require both to produce the identical:
+
+    q_kappa
+      = 3 epsilon
+        /sqrt((2+epsilon^2)(1+2epsilon^2)).
+
+Also require:
+
+    q_MR_inv(F) = q_MR(N)
+    q_MR_inv(N) = q_MR(F).
+
+Purpose:
+prove that condition score alone cannot identify the collapse dimension.
+
+## Tier Q1-E — fixed-spectrum orientation sweep
+
+Use:
+
+    Sigma = diag(3.0,1.2,0.4)
+    T(phi) = Sigma R_z(phi).
+
+Sweep phi deterministically.
+
+Require:
+- q_MR invariant,
+- q_kappa invariant,
+- at least one of q_RR / dihedral / face-angle / solid-angle observations changes away from tetrahedral
+  symmetry rotations.
+
+Committed research goldens include phi=0 and phi=30 degrees from
+TETRA_PATHOLOGY_AND_ANGLE_CONDITIONS.md.
+
+Purpose:
+prove singular-value metrics do not encode all five tetra shape DOFs.
+
+## Additional M6 pathology research gates
+
+| Gate | Requirement |
+|---|---|
+| M6-R30 | classical skinny/flat pathology fixture library exists with quantitative metrics |
+| M6-R31 | face-angle and dihedral maximum-angle conditions are verified as separate observables |
+| M6-R32 | flat/needle spectral families have identical q_kappa and analytically distinct q_MR asymptotics |
+| M6-R33 | q_MR_inv duality oracle swaps flat/needle canonical spectra |
+| M6-R34 | fixed-spectrum right-rotation sweep preserves q_MR/q_kappa but changes non-spectral geometry diagnostics |
+| M6-R35 | face/dihedral atan2 and solid-angle formulas pass regular/pathology golden checks |
+| M6-R36 | named pathology labels remain explanatory and never bypass quantitative/solver acceptance evidence |
+
+These gates extend M6-R22..R29 and remain research-only.

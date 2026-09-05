@@ -230,6 +230,10 @@ TH-016 (TetGen) and the commercial quality-reporting references in M1.5.
 | M6-FEM-004 | M. Křížek, *On the Maximum Angle Condition for Linear Tetrahedral Elements*, SIAM J. Numer. Anal. 29(2), 1992 | Tetrahedral maximum-angle condition; certain degenerating families retain standard linear interpolation-error order | https://doi.org/10.1137/0729031 | 2026-09-05 |
 | M6-FEM-005 | R. E. Bank, L. R. Scott, *On the Conditioning of Finite Element Equations with Highly Refined Meshes*, SIAM J. Numer. Anal. 26(6), 1989 | Local refinement, nondegenerate meshes, natural basis scaling and global condition-number bounds | https://doi.org/10.1137/0726080 | 2026-09-05 |
 | M6-FEM-006 | Q. Du, D. Wang, L. Zhu, *On Mesh Geometry and Stiffness Matrix Conditioning for General Finite Element Spaces*, SIAM J. Numer. Anal. 47(2), 2009 | Refined mesh-geometry/stiffness-conditioning relations for simplicial finite-element spaces | https://doi.org/10.1137/080718486 | 2026-09-05 |
+| M6-ANG-001 | A. Hannukainen, S. Korotov, M. Křížek, *On Synge-type angle condition for d-simplices*, Applications of Mathematics 62(1), 2017 | Skinny/flat tetra taxonomy; face/dihedral angle-condition separation; degenerating needle/splinter/wedge interpolation examples | https://doi.org/10.21136/AM.2017.0132-16 | 2026-09-06 |
+| M6-ANG-002 | S. Korotov, M. Křížek, V. Kučera, *On degenerating finite element tetrahedral partitions*, Numerische Mathematik 152, 2022 | Pathology-by-pathology maximum-angle behavior; interpolation counterexamples for spike/cap families | https://doi.org/10.1007/s00211-022-01317-9 | 2026-09-06 |
+| M6-GEO-001 | A. Van Oosterom, J. Strackee, *The Solid Angle of a Plane Triangle*, IEEE Trans. Biomedical Engineering BME-30(2), 1983 | Robust atan2-style solid-angle formula for tetra vertex diagnostics | https://doi.org/10.1109/TBME.1983.325207 | 2026-09-06 |
+| M6-TH-008 | H. Edelsbrunner, *Triangulations and meshes in computational geometry*, Acta Numerica 9, 2000 | Classical tetra mesh/pathology taxonomy and computational-geometry context | https://doi.org/10.1017/S0962492900001331 | 2026-09-06 |
 
 
 ## M6 local optimization / reconnection sources

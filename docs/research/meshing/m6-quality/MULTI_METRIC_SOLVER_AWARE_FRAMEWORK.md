@@ -1,7 +1,7 @@
 # M6 Research — Multi-Metric, Solver-Aware Tetra Quality Framework
 
 Status: RESEARCHING / engineering-contract candidate
-Date: 2026-09-05
+Date: 2026-09-06
 
 ## 1. Research question
 
@@ -680,3 +680,56 @@ Add executable/oracle research gates for:
 - M6 geometry x TET4 formulation cross-correlation.
 
 These are research gates only. They do not authorize M6 implementation.
+
+
+## 21. Spectral metrics do not encode all tetra morphology
+
+The weighted affine map has five continuous shape DOFs after physical rotation and uniform scale are
+removed.
+
+The singular-value spectrum carries only two of those DOFs.
+
+Therefore q_MR and q_kappa, both functions of the singular values, cannot identify every tetra
+morphology.
+
+A fixed-spectrum family:
+
+    T(phi) = Sigma R(phi)
+
+keeps q_MR/q_kappa unchanged while angle and radius diagnostics can vary.
+
+This is why the Layer-1 diagnostic set must retain geometry outside the singular spectrum.
+
+See TETRA_PATHOLOGY_AND_ANGLE_CONDITIONS.md.
+
+## 22. Angle telemetry must distinguish face and dihedral angles
+
+For tetrahedral linear interpolation, maximum-angle theory has two independent components:
+- triangular face angles,
+- dihedral angles.
+
+Therefore the research telemetry is extended conceptually with:
+
+    face_angle_min
+    face_angle_max.
+
+Existing:
+
+    theta_min
+    theta_max
+
+remains the dihedral pair.
+
+Do not combine these into one undocumented "angle quality" value.
+
+## 23. Solid angles are pathology telemetry
+
+Research also tracks:
+
+    solid_angle_min
+    solid_angle_max
+
+because cap/spike/needle morphology can contain solid-angle information not visible from a simple
+dihedral-extrema report.
+
+Solid angles are diagnostic only; they are not selected as the M6 primary optimization objective.

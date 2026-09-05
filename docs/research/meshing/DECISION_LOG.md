@@ -1017,3 +1017,71 @@ Each implication requires its own evidence layer.
 ### Evidence needed
 
 M6-R22..M6-R29 and T4-G09.
+
+
+---
+
+## ADR-MESH-0030 — Spectral shape scores and angle morphology remain separate diagnostics
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-06
+
+### Decision candidate
+
+Dynamics26 shall not infer complete tetra morphology from q_MR and q_kappa.
+
+Reason:
+
+    T = U Sigma V^T
+
+has five similarity-shape DOFs after physical rotation and scale are removed.
+
+The normalized singular spectrum Sigma contributes only two.
+
+Therefore Layer-1 research telemetry is extended with:
+
+    face_angle_min / face_angle_max
+    dihedral theta_min / theta_max
+    solid_angle_min / solid_angle_max
+
+in addition to q_MR, q_kappa and q_RR.
+
+The pathology names:
+
+    sliver, wedge, cap, spire/needle, splinter, spindle, spear, spike, spade
+
+are explanatory metadata/fixture classes, not acceptance authority.
+
+### Spectral-duality evidence
+
+The canonical families:
+
+    Sigma_F = diag(1,1,epsilon)
+    Sigma_N = diag(1,epsilon,epsilon)
+
+have different q_MR asymptotics but exactly identical q_kappa.
+
+The research-only diagnostic:
+
+    q_MR_inv = q_kappa^2/q_MR
+
+swaps these two spectra.
+
+A fixed-spectrum right-rotation family additionally preserves q_MR/q_kappa while changing
+angle/radius diagnostics.
+
+### FEM interpolation consequence
+
+Tetrahedral maximum-angle theory has independent:
+- triangular-face maximum-angle,
+- dihedral maximum-angle
+
+conditions.
+
+Therefore dihedral-only quality telemetry cannot stand in for interpolation suitability.
+
+### Acceptance evidence
+
+M6-R30..M6-R36.
+
+No production metric threshold or optimizer implementation is authorized by this ADR.

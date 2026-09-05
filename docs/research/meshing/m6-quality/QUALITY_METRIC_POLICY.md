@@ -1,7 +1,7 @@
 # Dynamics26 Tetra Quality Metric Policy — Early Research
 
 Status: PROPOSED / thresholds not accepted
-Date: 2026-09-05
+Date: 2026-09-06
 
 ## 1. Quality layers
 
@@ -311,3 +311,79 @@ Do not compare it numerically across different:
 - BC/norm conventions,
 
 without recording that context.
+
+
+## 16. Extended angle/pathology telemetry
+
+M6 research now distinguishes:
+
+### Dihedral-angle diagnostics
+
+    theta_min
+    theta_max
+
+Role:
+- sliver/flatness interpretation,
+- stiffness/pathology correlation.
+
+### Face-angle diagnostics
+
+    face_angle_min
+    face_angle_max
+
+Role:
+- independent tetrahedral maximum-angle interpolation condition,
+- spike/spear/spade-type morphology research.
+
+### Solid-angle diagnostics
+
+    solid_angle_min
+    solid_angle_max
+
+Role:
+- cap/spike/needle morphology interpretation,
+- independent geometry telemetry.
+
+None of these is currently a universal release gate.
+
+## 17. Spectral-duality diagnostic
+
+Optional research-only:
+
+    q_MR_inv = q_kappa^2/q_MR.
+
+For canonical spectral families:
+
+    diag(1,1,epsilon)
+    diag(1,epsilon,epsilon)
+
+q_kappa is identical while q_MR and q_MR_inv swap roles.
+
+This is useful for analytic classification of flat versus needle-like spectral collapse.
+
+Do not expose q_MR_inv as an independent quality vote.
+
+## 18. Pathology labels are explanatory metadata
+
+Names such as:
+
+    sliver
+    wedge
+    cap
+    spire
+    needle
+    splinter
+    spindle
+    spear
+    spike
+    spade
+
+may be used in research fixtures and diagnostics.
+
+They must not become the authority for acceptance.
+
+Production decisions remain based on:
+- exact validity,
+- quantitative metric vector,
+- CAD/sizing constraints,
+- solver/formulation evidence.
