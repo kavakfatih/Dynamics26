@@ -46,6 +46,7 @@ Dynamics26 solver benchmarks in M7.
 - NONLINEAR_RUBBER_MESH_QUALITY.md — reference/current configuration quality, deformation gradient and incompressibility separation
 - QUALITY_METRIC_POLICY.md — proposed Dynamics26 metric roles, aggregation and release-policy boundaries
 - LOCAL_TOPOLOGY_IMPROVEMENT.md — 2<->3, 3<->2, 4<->4, protected topology and deterministic quality reconnection
+- LOCAL_OPTIMIZATION_TRAPS_AND_STRONG_RECONNECTION.md — reachability/local-optimum theory, multi-face/SPR escalation, transactional valley crossing and termination
 - EDGE_REMOVAL_DYNAMIC_PROGRAMMING.md — general edge-star removal and original max-min link-polygon DP formulation
 - SMOOTHING_UNTANGLING_AND_CAD_CONSTRAINTS.md — smart smoothing, feasible region, untangling separation and CAD mobility
 - EXPERIMENT_PLAN.md — analytic shape families and solver-correlation campaign
@@ -86,7 +87,7 @@ It does not authorize:
 Current evidence favors a **combined** quality strategy rather than a single operation:
 - connectivity changes remove bad local topology,
 - smoothing improves vertex positions,
-- stronger edge/cavity reconnection can escape elementary-flip local maxima,
+- stronger edge/cavity reconnection can escape elementary-flip local maxima; fixed-cavity optimality must remain separate from cavity-selection and global-mesh optimality,
 - sliver-specific finite-weight methods remain a separate later policy.
 
 The first implementation candidate remains interior-only until CAD boundary/provenance motion is

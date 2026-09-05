@@ -1,7 +1,7 @@
 # M6 Early Research — Smoothing, Untangling and CAD-Constrained Motion
 
 Status: RESEARCHING / implementation not started
-Date: 2026-09-05
+Date: 2026-09-06
 
 ## 1. Smoothing changes geometry, not connectivity
 
@@ -287,3 +287,40 @@ Research candidate:
 
 Parallel smoothing is later research; it must specify conflict coloring/independent sets and
 reproducibility policy explicitly.
+
+
+## 17. Alternating optimization and local traps
+
+Smoothing and connectivity optimization act on different variables:
+
+    smoothing:
+      coordinates change, connectivity fixed
+
+    reconnection:
+      connectivity changes, coordinates fixed.
+
+A connectivity state that is locally optimal before smoothing can become improvable after smoothing.
+
+A smoothing star that is locally stuck can become improvable after reconnection.
+
+Therefore the M6 search should be researched as alternating optimization rather than a single pass of
+one operation class.
+
+## 18. Smoothing termination is not implied by finite topology
+
+Connectivity-only strict hill climbing on a fixed finite point set has a finite-state termination
+argument.
+
+Smoothing does not.
+
+Coordinates vary continuously, so an unbounded sequence of arbitrarily small improvements is
+conceptually possible.
+
+Future smoothing convergence policy must explicitly define combinations of:
+- minimum accepted quality gain,
+- minimum displacement,
+- line-search limit,
+- pass/effort limit,
+- active-set stall.
+
+These are optimizer-policy values, not geometric tolerances.

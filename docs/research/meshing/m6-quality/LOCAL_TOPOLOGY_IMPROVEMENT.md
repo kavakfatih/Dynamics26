@@ -1,7 +1,7 @@
 # M6 Early Research — Local Topology Improvement
 
 Status: RESEARCHING / implementation not started
-Date: 2026-09-05
+Date: 2026-09-06
 
 ## 1. Engineering question
 
@@ -243,3 +243,60 @@ Not part of the first M6 implementation candidate:
 - anisotropic metric-space reconnection.
 
 They remain high-value research tracks.
+
+
+## 13. Reachability definition of a local optimum
+
+For operation family O:
+
+    N_O(M)
+      = one-operation legal neighbors of M.
+
+A mesh is O-locally optimal when no M' in N_O(M) strictly improves the versioned quality order.
+
+Expanding the operation family enlarges the reachable neighborhood.
+
+Therefore:
+
+    elementary-flip local optimum
+    != edge-removal local optimum
+    != general-cavity local optimum.
+
+See LOCAL_OPTIMIZATION_TRAPS_AND_STRONG_RECONNECTION.md.
+
+## 14. Composite operations must be transactional
+
+A final 4->4 or stronger reconnection can be representable as a sequence of elementary flips while
+requiring a non-improving intermediate state.
+
+Dynamics26 must not commit such an intermediate state.
+
+Strong/composite search follows:
+
+    Plan -> Search -> Validate -> Compare final -> Commit/Discard.
+
+This preserves monotone committed mesh quality while permitting non-monotone private exploration.
+
+## 15. Multi-face / SPR research position
+
+Multi-face removal is the inverse family of edge removal and adds connectivity moves not covered by
+edge removal alone.
+
+Small Polyhedron Reconnection searches a much larger fixed-cavity triangulation space and can subsume
+edge/multi-face final states for the same cavity.
+
+Current direction:
+- keep multi-face removal as a research oracle/middle-tier candidate,
+- use bounded SPR only as a later last-resort experiment,
+- do not implement either before elementary/edge/smoothing gates exist.
+
+## 16. Termination distinction
+
+For fixed coordinates and a fixed finite point set, strictly improving point-set-preserving
+connectivity mutations terminate because only finitely many tetrahedralizations exist.
+
+This proof does not extend directly to:
+- smoothing, because coordinates vary continuously,
+- unrestricted point insertion/deletion, because the point set changes.
+
+Those paths require separate convergence/resource stop policies.

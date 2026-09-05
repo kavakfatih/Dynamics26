@@ -544,3 +544,118 @@ prove singular-value metrics do not encode all five tetra shape DOFs.
 | M6-R36 | named pathology labels remain explanatory and never bypass quantitative/solver acceptance evidence |
 
 These gates extend M6-R22..R29 and remain research-only.
+
+
+## Tier Q2-D — local-optimum and valley-crossing fixtures
+
+### 4->4 valley fixture
+
+Construct a four-tetra interior edge cavity where:
+- the alternate 4->4 connectivity improves the primary quality objective,
+- every elementary sequence realizing that 4->4 requires at least one first step that is not accepted
+  by strict hill climbing.
+
+Require:
+- elementary strict hill climber stalls,
+- direct edge-removal cavity search finds the improved final state,
+- no non-improving intermediate state is committed.
+
+### Operation-neighborhood nesting
+
+For deterministic small point sets enumerate:
+- 2<->3 candidates,
+- edge-removal candidates,
+- multi-face candidates,
+- all legal fixed-cavity triangulations where tractable.
+
+Record which operation family first reaches an improved state.
+
+Purpose:
+make "local optimum" relative to an explicit operation neighborhood.
+
+## Tier Q2-E — fixed-cavity SPR oracle
+
+For small cavities with independent exhaustive enumeration:
+
+    q*_C
+      =
+    max_T min_t q_MR(t).
+
+Verify:
+- branch-and-bound result equals exhaustive oracle,
+- positive orientation/intersection/protected constraints agree,
+- pruning with the partial minimum never removes the true optimum,
+- canonical tie result is deterministic.
+
+Do not use copied external cavity lookup tables.
+
+## Tier Q2-F — cavity-selection versus retriangulation optimality
+
+Create nested cavities:
+
+    C4 subset C5 subset ... subset Ck
+
+around one poor tetrahedron.
+
+Require cases where:
+- the smallest cavity has exhaustive no-improvement,
+- a larger cavity admits strict improvement.
+
+Record separately:
+
+    cavity_selection_result
+    fixed_cavity_search_result.
+
+Purpose:
+prove that optimal retriangulation of one cavity is not global-mesh optimality.
+
+## Tier Q2-G — strong-search effort semantics
+
+Run bounded fixed-cavity search with deterministic count budgets:
+- candidate tetra evaluations,
+- branch nodes,
+- cavity vertex count.
+
+Require three distinct outcomes:
+
+    Improved
+    ExhaustiveNoImprovement
+    BudgetExhausted.
+
+BudgetExhausted must never be reported as proof of local optimality.
+
+Wall-clock limits are excluded from deterministic reference qualification.
+
+## Tier Q2-H — topology/smoothing alternation
+
+Construct stars where:
+1. edge removal fails before smoothing but succeeds after accepted smoothing,
+2. smoothing stalls before reconnection but succeeds after connectivity change.
+
+Compare:
+- topology-only,
+- smoothing-only,
+- one-shot topology then smoothing,
+- alternating topology/smoothing.
+
+Purpose:
+verify that the two search variables unlock one another.
+
+## Additional M6 strong-reconnection research gates
+
+| Gate | Requirement |
+|---|---|
+| M6-R37 | O-local optimum definition represented in deterministic reachability fixtures |
+| M6-R38 | 4->4 valley fixture proves direct cavity operation can cross an elementary hill-climbing barrier transactionally |
+| M6-R39 | edge-removal DP optimum is cross-checked against exhaustive link-polygon enumeration beyond N=3..7 spot cases |
+| M6-R40 | multi-face removal small-cavity oracle demonstrates connectivity states unavailable to edge removal alone |
+| M6-R41 | fixed-cavity SPR branch-and-bound matches exhaustive tetrahedralization oracle for tractable cavities |
+| M6-R42 | branch-and-bound partial-minimum pruning never removes the true max-min optimum |
+| M6-R43 | nested-cavity fixture separates ExhaustiveNoImprovement in C from improvement in a larger C' |
+| M6-R44 | strong-search BudgetExhausted is distinct from ExhaustiveNoImprovement |
+| M6-R45 | fixed-point connectivity-only accepted mutation sequence is cycle-free and terminates |
+| M6-R46 | smoothing convergence policy closes continuous-state stalls independently of topology termination |
+| M6-R47 | alternating smoothing/reconnection outperforms or equals one-shot schedules on unlock fixtures |
+| M6-R48 | successful strong reconnection restarts cheap local passes and preserves exact boundary/provenance/size acceptance |
+
+These are research/verification-design gates only.

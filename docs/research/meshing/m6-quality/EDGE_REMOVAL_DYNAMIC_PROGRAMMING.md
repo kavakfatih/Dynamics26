@@ -1,7 +1,7 @@
 # M6 Early Research — General Edge Removal by Link-Polygon Optimization
 
 Status: RESEARCHING / mathematical algorithm candidate
-Date: 2026-09-05
+Date: 2026-09-06
 
 ## 1. Why general edge removal matters
 
@@ -218,3 +218,51 @@ Use q_MR floating calculations only for:
 - ranking already-valid candidates.
 
 This separation is essential to preserve M1/M2 robustness contracts.
+
+
+## 12. Exact scope of the DP optimum
+
+Let T_e be the set of all geometrically valid cavity retriangulations that remove one selected edge e.
+
+The DP solves:
+
+    max_{R in T_e}
+      min_{t in R} q_MR(t).
+
+This is an exact optimum over T_e when:
+- all legal link-polygon triangulations are represented,
+- invalid triangle contributions are rejected correctly,
+- reconstructed candidates pass the generic cavity validator.
+
+It is not an optimum over every triangulation of the surrounding mesh.
+
+That scope distinction is now an explicit M6 research contract.
+
+## 13. Why multi-face removal is not redundant
+
+Edge removal asks whether one edge should disappear.
+
+Its inverse family, multi-face removal, asks whether a connected family of sandwiched faces should
+disappear and the complementary edge should appear.
+
+An m-face removal replaces:
+
+    2m -> m+2
+
+tetrahedra.
+
+The 2->3 flip is the m=1 special case.
+
+Therefore edge removal alone does not span the entire point-set-preserving local reconnection
+neighborhood.
+
+## 14. DP versus general cavity search
+
+The edge-link structure reduces the candidate problem to a polygon triangulation and enables:
+
+    O(N^3) time
+    O(N^2) memory.
+
+A general SPR cavity lacks this one-dimensional cyclic-link reduction.
+
+That is why edge removal should remain a cheap strong local primitive even if SPR is researched later.

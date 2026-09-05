@@ -1085,3 +1085,95 @@ Therefore dihedral-only quality telemetry cannot stand in for interpolation suit
 M6-R30..M6-R36.
 
 No production metric threshold or optimizer implementation is authorized by this ADR.
+
+
+---
+
+## ADR-MESH-0031 — Strong reconnection is a bounded transactional escape from local optimization traps
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-06
+
+### Decision candidate
+
+Dynamics26 defines local optimality relative to an explicit operation family O:
+
+    M is O-local optimum
+    iff
+    no one-operation legal neighbor in N_O(M)
+    strictly improves the versioned quality order.
+
+Therefore:
+- elementary-flip local optimum,
+- edge-removal local optimum,
+- fixed-cavity retriangulation optimum
+
+are different statements.
+
+The leading M6 architecture uses cheap operations first and reserves general fixed-cavity strong
+reconnection for residual low-tail traps.
+
+### Transaction rule
+
+Composite/strong search may cross non-improving intermediate states only in private temporary state.
+
+Committed mesh history remains:
+- exact-valid,
+- provenance-safe,
+- strictly quality improving.
+
+Pattern:
+
+    Plan
+    -> Search
+    -> Validate
+    -> Compare final
+    -> Commit or Discard.
+
+### Fixed-cavity SPR research objective
+
+First reference strong-search objective:
+
+    maximize over legal triangulations
+      minimum q_MR.
+
+Reason:
+the partial minimum of a branch is an admissible upper bound for max-min branch-and-bound pruning.
+
+Secondary aggregate objectives are deferred until their pruning/correctness semantics are derived.
+
+### Cavity-selection boundary
+
+An exhaustive optimum for a fixed cavity does not imply global mesh optimality.
+
+Report separately:
+- cavity-selection policy,
+- fixed-cavity search completeness,
+- effort-budget result.
+
+### Termination boundary
+
+For fixed coordinates, fixed finite sites and point-set-preserving connectivity operations, strict
+quality improvement is cycle-free because the legal connectivity state space is finite.
+
+This proof does not cover:
+- smoothing,
+- point insertion/deletion.
+
+Those need explicit convergence/resource policies.
+
+### First implementation implication
+
+This ADR does not authorize SPR implementation.
+
+Before strong reconnection production work, Dynamics26 should qualify:
+- elementary/edge reconnection,
+- smoothing,
+- exact cavity validation,
+- deterministic QualityKey behavior.
+
+SPR/multi-face remain research and oracle tracks.
+
+### Evidence needed
+
+M6-R37..M6-R48.
