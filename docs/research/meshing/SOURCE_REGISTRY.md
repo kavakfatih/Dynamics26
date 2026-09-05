@@ -170,3 +170,24 @@ When adding a source:
 | M1.4-COM-002 | COMSOL 6.4 Free Tetrahedral | Domain-scoped tetra meshing and sizing controls | https://doc.comsol.com/6.4/doc/com.comsol.help.comsol/comsol_ref_mesh.24.64.html | 2026-09-05 |
 | M1.4-MAR-001 | Marc 2024.2 Program Input — ADAPT GLOBAL | Mesh density fields, hard/soft topology and remeshing controls | https://documentation-be.hexagon.com/bundle/Marc_2024.2-Volume_C_Program_Input/raw/resource/enus/Marc_2024.2-Volume_C_Program_Input.pdf | 2026-09-05 |
 | M1.4-MAR-002 | Hexagon Nexus Marc 2026.1 | Current Mentat meshing improvements | https://nexus.hexagon.com/home/product/marc/ | 2026-09-05 |
+
+
+## M1.5 verification-harness / commercial-quality sources
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M1.5-DOC-001 | CMake `add_test` | Native CTest executable integration | https://cmake.org/cmake/help/latest/command/add_test.html | 2026-09-05 |
+| M1.5-DOC-002 | CTest `LABELS` | Test grouping/filtering for meshing gates | https://cmake.org/cmake/help/latest/prop_test/LABELS.html | 2026-09-05 |
+| M1.5-DOC-003 | CTest `FIXTURES_REQUIRED` | Generated-corpus setup dependency option | https://cmake.org/cmake/help/latest/prop_test/FIXTURES_REQUIRED.html | 2026-09-05 |
+| M1.5-DOC-004 | CTest `RESOURCE_LOCK` | Shared-resource serialization if later needed | https://cmake.org/cmake/help/latest/prop_test/RESOURCE_LOCK.html | 2026-09-05 |
+| M1.5-ANS-001 | ANSYS 2026 R1 Mesh Evaluation | Mesh statistics and multiple quality metrics | https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/discovery/UDA/user_manual/meshing/topics/c_mesh_evaluation.html | 2026-09-05 |
+| M1.5-ANS-002 | ANSYS 2026 R1 Element Quality | Composite quality definition and tetra constant | https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/discovery/UDA/user_manual/meshing/topics/c_mesh_element_quality.html | 2026-09-05 |
+| M1.5-ANS-003 | ANSYS 2026 R1 Orthogonal Quality | 0–1 cell quality definition | https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/wb_msh/msh_orthogonal_quality.html | 2026-09-05 |
+| M1.5-ANS-004 | ANSYS Meshing User Guide — quality worksheet | Average/worst/warning/error/failed-count workflow | https://ansyshelp.ansys.com/public/Views/Secured/corp/v251/en/pdf/ANSYS_Meshing_Users_Guide.pdf | 2026-09-05 |
+| M1.5-COM-001 | COMSOL 6.4 Mesh Information and Statistics | min/mean quality, counts, volume | https://doc.comsol.com/6.4/doc/com.comsol.help.comsol/application_programming_guide.15.79.html | 2026-09-05 |
+| M1.5-COM-002 | COMSOL 6.4 `mphmeshstats` | quality distributions, growth, element types | https://doc.comsol.com/6.4/doc/com.comsol.help.llmatlab/llmatlab_ug_ref.9.46.html | 2026-09-05 |
+| M1.5-COM-003 | COMSOL 6.4 Inspecting/Troubleshooting Meshes | mesh statistics, plots, warnings/errors | https://doc.comsol.com/6.4/doc/com.comsol.help.comsol/comsol_ref_mesh.24.23.html | 2026-09-05 |
+| M1.5-COM-004 | COMSOL 6.4 Free Tetrahedral | quality optimization levels and minimum-quality targets | https://doc.comsol.com/6.4/doc/com.comsol.help.comsol/comsol_ref_mesh.24.64.html | 2026-09-05 |
+| M1.5-MAR-001 | Hexagon Nexus Marc 2026.1 | Current Mentat meshing improvements | https://nexus.hexagon.com/home/product/marc/ | 2026-09-05 |
+| M1.5-MAR-002 | Marc Community — mesh size / strain localization | Hexagon support guidance on refinement and local adaptive remeshing | https://nexus.hexagon.com/community/public/marc/f/marc-community-forum/143880/how-to-decide-proper-mesh-size-and-avoid-strain-localization-in-elements | 2026-09-05 |
+| M1.5-MAR-003 | Marc Community — global remeshing / local adaptivity | Distinct remeshing workflows | https://nexus.hexagon.com/community/public/marc/f/marc-community-forum/149663/can-i-do-remeshing-in-marc-mentat | 2026-09-05 |

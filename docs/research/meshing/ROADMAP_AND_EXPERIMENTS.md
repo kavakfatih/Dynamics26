@@ -116,6 +116,28 @@ Exit:
 - memory telemetry defined,
 - serial M2 implementation can start without external mesher data structures.
 
+#### M1.5 — Executable verification harness
+
+Status: **RESEARCHING**
+
+Research package:
+- `docs/research/meshing/m1-robust-geometry/m1.5-verification-harness/`
+
+Deliver:
+- bit-exact predicate fixture schema,
+- dual exact-oracle generation pipeline,
+- committed + generated corpus policy,
+- test tier / CTest integration plan,
+- failure replay contract,
+- topology/point-location reference verification,
+- ANSYS / COMSOL / Marc mesh-verification benchmark.
+
+Exit:
+- fixture/oracle contracts frozen,
+- every generated failure replayable,
+- CI tiers and labels frozen,
+- first executable M1 oracle/predicate harness can be implemented without architecture ambiguity.
+
 ### M2 — Delaunay point-cloud tetrahedralization
 
 Deliver:
@@ -352,6 +374,7 @@ Cross-code agreement is supporting evidence, not proof.
 | M1 | Robust predicates | RESEARCHING |
 | M1.3 | Degeneracy / symbolic perturbation | RESEARCHING |
 | M1.4 | Spatial search / tetra topology | RESEARCHING |
+| M1.5 | Verification harness | RESEARCHING |
 | M2 | Point-cloud Delaunay tetra | NOT STARTED |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |

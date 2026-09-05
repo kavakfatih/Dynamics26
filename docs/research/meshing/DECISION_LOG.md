@@ -242,3 +242,45 @@ Acceptance requires executable evidence from M1.4/M2:
 4. insertion-order benchmark,
 5. memory profile,
 6. cavity rollback validation.
+
+
+---
+
+## ADR-MESH-0010 — Meshing verification harness architecture
+
+**Status:** PROPOSED  
+**Date:** 2026-09-05
+
+### Leading design
+
+- use existing CMake/CTest infrastructure,
+- no new C++ unit-test framework for M1/M2,
+- exact oracle remains test-only Python standard library,
+- predicate fixture coordinates use raw binary64 bit-pattern serialization,
+- Fraction and dyadic-integer oracle paths must agree before fixture generation,
+- permanent golden/regression fixtures are committed,
+- larger deterministic corpora are generated from fixed seeds,
+- every mismatch emits a standalone replay record,
+- optimized production paths are always compared to an independent slow/reference path.
+
+### Commercial benchmark findings
+
+ANSYS and COMSOL publicly expose multi-metric mesh verification, statistics/distributions and warning/error workflows. Marc public material strongly connects mesh refinement/remeshing with nonlinear solution adequacy but does not provide a current public internal quality-metric specification suitable as an oracle.
+
+Therefore Dynamics26 will distinguish:
+- topology validity,
+- geometric mesh quality,
+- sizing conformity,
+- provenance,
+- reproducibility,
+- solver/analysis qualification.
+
+### Why PROPOSED
+
+Acceptance requires executable evidence:
+1. dual oracle prototype,
+2. bit-exact Python/C++ round-trip,
+3. deterministic corpus regeneration,
+4. committed golden corpus,
+5. CTest integration,
+6. failure replay proof.

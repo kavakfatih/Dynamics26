@@ -78,3 +78,8 @@ M1 research can move to implementation when:
 ## M1.4 subprogram
 
 `m1.4-spatial-topology/` defines the serial M2 point-location and tetra-combinatorics foundation: generation-checked handles, opposite-face neighbor convention, walk-first location with typed states, cavity buffers, spatial insertion ordering and performance/memory experiments.
+
+
+## M1.5 subprogram
+
+`m1.5-verification-harness/` converts M1 theory into an executable evidence architecture: dual exact oracles, raw-bit fixtures, CTest tiers, deterministic generated corpora, failure replay, topology reference checks and commercial mesh-quality/reporting benchmarks.

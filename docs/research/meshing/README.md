@@ -150,3 +150,8 @@ This directory is intended to remain useful after individual chat or coding sess
 - M1.4 spatial search / point location / tetra topology
 
 These research packages are prerequisites for the first original serial 3D Delaunay prototype.
+
+
+- M1.5 verification harness / exact corpus / CI architecture
+
+M1.5 is the bridge from research documents to executable evidence. The next coding step is the test-only exact oracle and fixture reader, not yet the production Delaunay mesher.
