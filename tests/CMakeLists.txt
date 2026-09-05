@@ -389,3 +389,11 @@ if(Python3_Interpreter_FOUND)
         LABELS "unit;meshing;robust-geometry;degeneracy;symbolic-oracle;determinism;m1.9"
     )
 endif()
+
+
+# M1.9-C — tetra primitive / handle / face-key validator foundation
+add_femcae_meshing_test(
+    unit_m19_tetra_topology
+    meshing/robust_geometry/test_m19_tetra_topology.cpp
+    "unit;meshing;robust-geometry;tet-topology;handle;validator;corruption;determinism;m1.9"
+)
