@@ -12,6 +12,7 @@
 #include "../details/MeshDetails.h"
 #include "../details/ObjectDetails.h"
 #include "../details/ResultDetails.h"
+#include "../details/SelectionDetails.h"
 
 #include <QFont>
 #include <QFrame>
@@ -95,6 +96,8 @@ DetailsHost::DetailsHost(const ServiceContext &services, QWidget *parent)
     connections_ = new ConnectionsDetails(services_, stack_);
     contact_ = new ContactDetails(services_, stack_);
     result_ = new ResultDetails(services_, stack_);
+    selection_ = new SelectionDetails(services_, stack_);
+    stack_->addWidget(selection_);
     object_ = new ObjectDetails(services_, stack_);
     for (DetailsPage *page : {static_cast<DetailsPage *>(geometry_), static_cast<DetailsPage *>(mesh_),
                               static_cast<DetailsPage *>(material_), static_cast<DetailsPage *>(analysis_),
@@ -157,6 +160,17 @@ void DetailsHost::showObject(const ObjectId id)
     page->setObject(id);
     stack_->setCurrentWidget(page);
     scroll_->verticalScrollBar()->setValue(0);
+}
+
+void DetailsHost::showSelection(const QVector<SelectionItem> &items, CommandRegistry *commands)
+{
+    if (items.isEmpty() || items.front().domain != SelectionDomain::Geometry
+        || items.front().kind == SelectionKind::Body) {
+        if (stack_->currentWidget() == selection_) showObject(current_);
+        return;
+    }
+    selection_->showSelection(items, commands);
+    stack_->setCurrentWidget(selection_);
 }
 
 void DetailsHost::setSelectionSummary(const QString &text)

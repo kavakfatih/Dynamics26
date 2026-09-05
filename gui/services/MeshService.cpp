@@ -343,6 +343,34 @@ GeometryEntityId MeshService::geometryIdFor(const BoxFace face) const
     return InvalidGeometryId;
 }
 
+std::optional<MeshService::FaceMeasurement> MeshService::selectionFaceMeasurement(
+    const GeometryEntityId faceId) const
+{
+    const auto *entity = selectionGeometryDocument().find(faceId);
+    if (!entity || entity->kind != femcae::geometry::GeometryEntityKind::Face) return std::nullopt;
+    auto boundary = parametricBoundary_;
+    std::array<double, 3> lengths{definition_.lengthMm, definition_.widthMm, definition_.heightMm};
+    if (hasImportedGeometry()) {
+        const auto box = geometry_->boxDescriptor(entity->parentId);
+        if (!box) return std::nullopt;
+        boundary = BoxBoundaryGeometry{box->bodyId, box->xMinFace, box->xMaxFace,
+            box->yMinFace, box->yMaxFace, box->zMinFace, box->zMaxFace};
+        lengths = {box->max.x - box->min.x, box->max.y - box->min.y, box->max.z - box->min.z};
+    }
+    const std::array<GeometryEntityId, 6> ids{boundary.xMin, boundary.xMax,
+        boundary.yMin, boundary.yMax, boundary.zMin, boundary.zMax};
+    for (int i = 0; i < 6; ++i) {
+        if (ids[i] != faceId) continue;
+        FaceMeasurement result;
+        const int axis = i / 2;
+        // CAD/authoring uzunlukları mm; alan SI m² olarak saklanır.
+        result.areaM2 = lengths[(axis + 1) % 3] * lengths[(axis + 2) % 3] * 1.0e-6;
+        result.outwardNormal[axis] = i % 2 == 0 ? -1.0 : 1.0;
+        return result;
+    }
+    return std::nullopt;
+}
+
 int MeshService::facetCountFor(const BoxFace face) const
 {
     const GeometryEntityId id = geometryIdFor(face);

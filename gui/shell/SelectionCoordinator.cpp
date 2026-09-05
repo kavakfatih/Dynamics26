@@ -810,6 +810,12 @@ void SelectionCoordinator::showSelectionContextMenu(const ObjectId objectId,
 void SelectionCoordinator::routeViewportContextMenu(const QPoint &position)
 {
     if (selection_ == nullptr || graphics_ == nullptr) return;
+    // Edit scope oturumunda sağ tık Navigator/Details bağlamını değiştirmez.
+    // Yeni kalıcı nesne yalnız oturum tamamlandıktan sonra oluşturulabilir.
+    if (editingNamedSelection_ != InvalidObjectId || editingContact_ != InvalidObjectId) {
+        showSelectionContextMenu(InvalidObjectId, position);
+        return;
+    }
     const auto context = graphics_->viewport()->context();
     if (context == ViewportContext::Geometry) {
         const auto hit = bridge_->pickAtGlobalPosition(position);
@@ -954,6 +960,8 @@ void SelectionCoordinator::handleSelectionChanged()
     // Aynı Body üzerindeki ikinci Face seçimi Navigator'ı değiştirmez; komutların
     // etkinliği yine de güncel transient scope'tan hesaplanmalıdır.
     if (window_) window_->syncCommandStates();
+    if (window_ && details_ && editingNamedSelection_ == InvalidObjectId && editingContact_ == InvalidObjectId)
+        details_->showSelection(selection_->items(), window_->commandRegistry());
     updateFeedback();
 }
 

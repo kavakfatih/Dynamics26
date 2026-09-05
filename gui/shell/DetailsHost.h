@@ -8,6 +8,7 @@
 // gömülmez — her sayfa kendi kompakt müfettişidir.
 
 #include "../core/ProjectTypes.h"
+#include "../core/SelectionTypes.h"
 #include "../core/ServiceContext.h"
 
 #include <QFrame>
@@ -29,6 +30,8 @@ class ConnectionsDetails;
 class ContactDetails;
 class ResultDetails;
 class ObjectDetails;
+class SelectionDetails;
+class CommandRegistry;
 
 class DetailsHost final : public QFrame
 {
@@ -37,6 +40,7 @@ public:
     explicit DetailsHost(const ServiceContext &services, QWidget *parent = nullptr);
 
     void showObject(ObjectId id);
+    void showSelection(const QVector<SelectionItem> &items, CommandRegistry *commands);
     // Committed CAD selection transient view state'tir; document object başlığını
     // değiştirmez. Inspector başlığında yalnız ikincil bir seçim özeti gösterilir.
     void setSelectionSummary(const QString &text);
@@ -76,6 +80,7 @@ private:
     ContactDetails *contact_{nullptr};
     ResultDetails *result_{nullptr};
     ObjectDetails *object_{nullptr};
+    SelectionDetails *selection_{nullptr};
 };
 
 } // namespace d26

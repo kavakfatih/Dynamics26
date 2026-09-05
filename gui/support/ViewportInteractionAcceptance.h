@@ -11,6 +11,8 @@
 #include <QSet>
 #include <QPushButton>
 #include <QToolBar>
+#include <QLabel>
+#include <cmath>
 #include "../shell/CommandRegistry.h"
 #ifdef FEMCAE_GUI_HAS_VTK
 #include <QVTKOpenGLNativeWidget.h>
@@ -135,6 +137,28 @@ inline int runViewportInteractionAcceptance(QApplication &app, Dynamics26MainWin
         visibleCommand |= toolbar->isVisible() && toolbar->actions().contains(createCommand);
     check(createCommand && createCommand->isEnabled() && visibleCommand,
           "Face selection enables visible shared Create Named Selection command");
+    auto *inspector = window.detailsHost()->findChild<QWidget *>(QStringLiteral("Dynamics26SelectionDetails"));
+    auto *entityCount = inspector ? inspector->findChild<QLabel *>(QStringLiteral("SelectionEntityCount")) : nullptr;
+    check(inspector && inspector->isVisible() && entityCount && entityCount->text() == QStringLiteral("1"),
+          "real Face pick displays transient Selection Inspector instead of Body fields");
+    double measuredArea = 0.0;
+    std::array<double, 3> integratedNormal{};
+    const auto &geometryDocument = services.mesh->selectionGeometryDocument();
+    const auto geometryFaces = geometryDocument.entitiesOfKind(femcae::geometry::GeometryEntityKind::Face);
+    bool measurementsValid = geometryFaces.size() == 6;
+    for (auto face : geometryFaces) {
+        const auto m = services.mesh->selectionFaceMeasurement(face);
+        measurementsValid &= m && std::isfinite(m->areaM2) && m->areaM2 > 0;
+        if (!m) continue;
+        measuredArea += m->areaM2;
+        for (int axis = 0; axis < 3; ++axis) integratedNormal[axis] += m->areaM2 * m->outwardNormal[axis];
+    }
+    const auto &dimensions = services.mesh->definition();
+    const double expectedArea = 2.0e-6 * (dimensions.lengthMm * dimensions.widthMm
+        + dimensions.widthMm * dimensions.heightMm + dimensions.heightMm * dimensions.lengthMm);
+    check(measurementsValid && std::abs(measuredArea - expectedArea) < 1.0e-10
+              && std::abs(integratedNormal[0]) + std::abs(integratedNormal[1]) + std::abs(integratedNormal[2]) < 1.0e-10,
+          "analytic/CAD box Face measures reproduce exact total area and closed-surface normal balance");
     const int before = undo->index();
     auto menu = secondaryClick(positions[0]);
     check(action(menu, "Create Named Selection") && action(menu, "Fixed Support from Selection")
@@ -169,6 +193,15 @@ inline int runViewportInteractionAcceptance(QApplication &app, Dynamics26MainWin
         check(services.namedSelections->byId(created)
                   && services.namedSelections->validate(created) == ScopeReferenceValidationError::None,
               "save/reopen preserves selected Face identities");
+        const int beforeEdit = undo->index();
+        check(coordinator->beginNamedSelectionEdit(created), "authored Named Selection opens explicit scope edit");
+        flush();
+        menu = secondaryClick(positions[0]);
+        check(coordinator->editingNamedSelection() == created && window.detailsHost()->currentObject() == created
+                  && !action(menu, "Create Named Selection") && undo->index() == beforeEdit,
+              "secondary click during scope edit preserves the active Inspector and document transaction");
+        if (menu) menu->close();
+        coordinator->cancelNamedSelectionEdit(); flush();
     }
     window.selectObject(services.project->geometryNode()); flush();
     graphics->setSelectionFilter(SelectionFilter::Face);

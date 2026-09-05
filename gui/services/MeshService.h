@@ -70,6 +70,14 @@ public:
     // topology kimliği yerine kullanılmaz; bu document kararlı Body/Face/Edge/
     // Vertex persistentKey'leri ve ayrı bir revision guard taşır.
     [[nodiscard]] const femcae::geometry::GeometryDocument &selectionGeometryDocument() const;
+    struct FaceMeasurement {
+        double areaM2{0.0};
+        std::array<double, 3> outwardNormal{};
+    };
+    // Yalnız analytic box veya doğrulanmış CAD boxDescriptor. Display
+    // üçgenleri measurement kaynağı değildir; diğer CAD yüzleri Unavailable.
+    [[nodiscard]] std::optional<FaceMeasurement> selectionFaceMeasurement(
+        femcae::geometry::GeometryEntityId faceId) const;
     [[nodiscard]] QVector<femcae::geometry::TopologyTessellation>
         displaySelectionTopologyScene(double linearDeflection = 0.15) const;
     [[nodiscard]] QVector<femcae::geometry::EdgeDisplayTessellation>

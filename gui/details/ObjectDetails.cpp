@@ -111,7 +111,15 @@ void ObjectDetails::buildBody()
     auto *definition = addSection(tr("Definition"));
     definition->addValueRow(tr("Name"), object != nullptr ? object->name : tr("Body"));
     definition->addValueRow(tr("Source"), geometry.hasGeometry ? geometry.sourceFileName : tr("Parametrik kutu"));
-    definition->addValueRow(tr("Persistent ID"), object != nullptr ? QString::number(object->tag) : tr("—"));
+    const auto &document = services_.mesh->selectionGeometryDocument();
+    auto bodyId = object && object->tag > 0 ? static_cast<femcae::geometry::GeometryEntityId>(object->tag)
+                                           : femcae::geometry::InvalidGeometryId;
+    if (bodyId == femcae::geometry::InvalidGeometryId && !services_.mesh->hasImportedGeometry()) {
+        const auto bodies = document.entitiesOfKind(femcae::geometry::GeometryEntityKind::Body);
+        if (bodies.size() == 1) bodyId = bodies.front();
+    }
+    const auto *body = document.find(bodyId);
+    definition->addValueRow(tr("Persistent ID"), body ? QString::number(body->id) : tr("—"));
 
     auto *material = addSection(tr("Material"));
     const MaterialDefinition *assigned = services_.materials->assigned();
