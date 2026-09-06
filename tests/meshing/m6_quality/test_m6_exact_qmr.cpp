@@ -237,6 +237,62 @@ void verifyInvalidInputs(ExactMeanRatioTelemetry& telemetry) {
     require(rejected, "non-finite tetra entered D26QMR1 comparison");
 }
 
+void verifyBinary64Decode() {
+    using femcae::meshing::internal::exact::decodeBinary64;
+    using femcae::meshing::internal::exact::exactIntegerCoordinates;
+
+    const auto requireDecoded = [](
+        std::uint64_t bits,
+        int expectedSign,
+        std::uint64_t expectedSignificand,
+        int expectedExponent,
+        std::string_view label) {
+        const auto decoded = decodeBinary64(std::bit_cast<double>(bits));
+        require(decoded.sign == expectedSign, std::string(label) + " sign mismatch");
+        require(
+            decoded.significand == expectedSignificand,
+            std::string(label) + " significand mismatch");
+        require(
+            decoded.exponent == expectedExponent,
+            std::string(label) + " exponent mismatch");
+    };
+
+    requireDecoded(0x0000000000000000ULL, 0, 0U, 0, "+0 decode");
+    requireDecoded(0x8000000000000000ULL, 0, 0U, 0, "-0 decode");
+    requireDecoded(0x0000000000000001ULL, 1, 1U, -1074, "min subnormal decode");
+    requireDecoded(0x8000000000000001ULL, -1, 1U, -1074, "negative min subnormal decode");
+    requireDecoded(
+        0x0010000000000000ULL,
+        1,
+        (1ULL << 52U),
+        -1074,
+        "min normal decode");
+    requireDecoded(
+        0x3ff0000000000000ULL,
+        1,
+        (1ULL << 52U),
+        -52,
+        "one decode");
+    requireDecoded(
+        0x7fefffffffffffffULL,
+        1,
+        (1ULL << 53U) - 1ULL,
+        971,
+        "max finite decode");
+
+    const double minSubnormal =
+        std::bit_cast<double>(0x0000000000000001ULL);
+    const std::vector<femcae::meshing::internal::exact::BigInt> lattice =
+        exactIntegerCoordinates({minSubnormal, 1.0, -0.0});
+    require(lattice.size() == 3U, "common-lattice decode size mismatch");
+    require(lattice[0].sign() == 1 && lattice[0].bitLength() == 1U,
+            "min subnormal lattice integer mismatch");
+    require(lattice[1].sign() == 1 && lattice[1].bitLength() == 1075U,
+            "1.0 common-lattice scaling mismatch");
+    require(lattice[2].sign() == 0 && lattice[2].bitLength() == 0U,
+            "signed zero must canonicalize to exact lattice zero");
+}
+
 void verifyWidthBounds(const ExactMeanRatioTelemetry& telemetry) {
     require(
         telemetry.maxDeterminantBits <= 6300U,
@@ -259,6 +315,7 @@ int main(int argc, char** argv) {
         require(argc == 2, "generated D26QMR1 fixture path required");
 
         ExactMeanRatioTelemetry telemetry;
+        verifyBinary64Decode();
         const std::size_t cases = verifyFixture(argv[1], telemetry);
         verifyAllPermutations(telemetry);
         verifyInvalidInputs(telemetry);

@@ -178,6 +178,28 @@ def fixed_cases():
     scale_hi = [tuple(math.ldexp(x, 500) for x in p) for p in base]
     scale_lo = [tuple(math.ldexp(x, -500) for x in p) for p in base]
 
+    min_subnormal = math.ldexp(1.0, -1074)
+    subnormal_scale = [
+        (0.0, 0.0, 0.0),
+        (min_subnormal, 0.0, 0.0),
+        (0.0, min_subnormal, 0.0),
+        (0.0, 0.0, min_subnormal),
+    ]
+    signed_zero = [
+        (-0.0, 0.0, -0.0),
+        (1.0, -0.0, 0.0),
+        (-0.0, 1.0, 0.0),
+        (0.0, -0.0, 1.0),
+    ]
+    max_finite = float.fromhex("0x1.fffffffffffffp+1023")
+    scale_max = [tuple(max_finite * x for x in p) for p in base]
+    extreme_span = [
+        (-max_finite, 0.0, min_subnormal),
+        (max_finite, 0.0, 0.0),
+        (0.0, max_finite, 0.0),
+        (0.0, 0.0, max_finite),
+    ]
+
     perturb_down = list(base)
     perturb_down[3] = (0.0, 0.0, math.nextafter(1.0, 0.0))
     perturb_up = list(base)
@@ -196,6 +218,10 @@ def fixed_cases():
         ("scale_hi_equal", base, scale_hi),
         ("scale_lo_equal", base, scale_lo),
         ("scale_hi_lo_equal", scale_hi, scale_lo),
+        ("signed_zero_equal", base, signed_zero),
+        ("subnormal_scale_equal", base, subnormal_scale),
+        ("scale_max_equal", base, scale_max),
+        ("extreme_span_tie", extreme_span, extreme_span),
         ("pert_down_vs_base", perturb_down, base),
         ("pert_up_vs_base", perturb_up, base),
     ]
