@@ -13,6 +13,8 @@
 
 namespace femcae::meshing::m2 {
 
+struct DelaunayTransactionAccess;
+
 struct InfiniteVertexTag {
     friend bool operator==(const InfiniteVertexTag&, const InfiniteVertexTag&) = default;
 };
@@ -127,14 +129,20 @@ public:
     [[nodiscard]] const DelaunayCellRecord& cell(DelaunayCellHandle handle) const;
     [[nodiscard]] std::span<const DelaunayCellSlot> slots() const noexcept;
     [[nodiscard]] std::size_t liveCount() const noexcept;
+    [[nodiscard]] std::size_t capacity() const noexcept;
+    [[nodiscard]] std::uint64_t topologyVersion() const noexcept;
 
 private:
     friend struct DelaunayBootstrapBuilderAccess;
+    friend struct DelaunayTransactionAccess;
 
     [[nodiscard]] DelaunayCellRecord& mutableCell(DelaunayCellHandle handle);
 
     std::vector<DelaunayCellSlot> slots_;
     std::size_t liveCount_{0};
+    // Snapshot identity for P1D transaction plans. Reserve/capacity changes are
+    // not topology changes; append/committed mutation advances this monotonically.
+    std::uint64_t topologyVersion_{1};
 };
 
 enum class DelaunayBootstrapStatus : std::uint8_t {

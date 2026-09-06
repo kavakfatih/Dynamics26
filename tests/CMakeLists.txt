@@ -477,6 +477,27 @@ add_test(NAME unit_m21c_delaunay_location COMMAND unit_m21c_delaunay_location)
 set_tests_properties(unit_m21c_delaunay_location PROPERTIES
     LABELS "unit;meshing;m2;delaunay;location;exact-oracle;determinism")
 
+# M2.1-D — all-cell conflict oracle + transactional cavity patch
+add_executable(
+    unit_m21d_delaunay_transaction
+    meshing/m2_delaunay/test_m21d_delaunay_transaction.cpp
+)
+target_link_libraries(unit_m21d_delaunay_transaction PRIVATE femcae_meshing)
+target_include_directories(
+    unit_m21d_delaunay_transaction
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m21d_delaunay_transaction)
+add_test(
+    NAME unit_m21d_delaunay_transaction
+    COMMAND unit_m21d_delaunay_transaction
+)
+set_tests_properties(
+    unit_m21d_delaunay_transaction
+    PROPERTIES
+    LABELS "unit;meshing;m2;delaunay;cavity;transaction;determinism"
+)
+
 # M6 I1 — exact D26QMR1 comparator + independent Python exact oracle
 add_executable(
     unit_m6_exact_qmr

@@ -68,6 +68,7 @@ set(FEMCAE_MESHING_SOURCES
     src/meshing/m2/DelaunayPredicates.cpp
     src/meshing/m2/DelaunayTopology.cpp
     src/meshing/m2/DelaunayLocation.cpp
+    src/meshing/m2/DelaunayTransaction.cpp
     src/meshing/m6/quality/MeanRatioExact.cpp
     src/meshing/m6/quality/IntervalArithmetic.cpp
     src/meshing/m6/quality/MeanRatioFilter.cpp

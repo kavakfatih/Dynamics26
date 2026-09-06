@@ -346,6 +346,9 @@ DelaunayCellHandle DelaunayReferenceArena::appendCell(
         static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
         throw std::length_error("M2 reference arena exhausted 32-bit slot domain");
     }
+    if (topologyVersion_ == std::numeric_limits<std::uint64_t>::max()) {
+        throw std::overflow_error("M2 topology version exhausted");
+    }
 
     const DelaunayCellHandle handle{
         static_cast<std::uint32_t>(slots_.size()),
@@ -356,6 +359,7 @@ DelaunayCellHandle DelaunayReferenceArena::appendCell(
     slot.record = record;
     slots_.push_back(std::move(slot));
     ++liveCount_;
+    ++topologyVersion_;
     return handle;
 }
 
@@ -381,6 +385,14 @@ std::span<const DelaunayCellSlot> DelaunayReferenceArena::slots() const noexcept
 
 std::size_t DelaunayReferenceArena::liveCount() const noexcept {
     return liveCount_;
+}
+
+std::size_t DelaunayReferenceArena::capacity() const noexcept {
+    return slots_.capacity();
+}
+
+std::uint64_t DelaunayReferenceArena::topologyVersion() const noexcept {
+    return topologyVersion_;
 }
 
 DelaunayFaceKey canonicalDelaunayFaceKey(
