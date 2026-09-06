@@ -647,7 +647,7 @@ verify that the two search variables unlock one another.
 |---|---|
 | M6-R37 | O-local optimum definition represented in deterministic reachability fixtures |
 | M6-R38 | 4->4 valley fixture proves direct cavity operation can cross an elementary hill-climbing barrier transactionally |
-| M6-R39 | edge-removal DP optimum is cross-checked against exhaustive link-polygon enumeration beyond N=3..7 spot cases |
+| M6-R39 | full-D26QV1 edge-removal DP optimum is cross-checked against exhaustive link-polygon triangulation enumeration; historical max-min agrees on the first vector component |
 | M6-R40 | multi-face removal small-cavity oracle demonstrates connectivity states unavailable to edge removal alone |
 | M6-R41 | fixed-cavity SPR branch-and-bound matches exhaustive tetrahedralization oracle for tractable cavities |
 | M6-R42 | branch-and-bound partial-minimum pruning never removes the true max-min optimum |
@@ -1898,7 +1898,7 @@ Require:
 | M6-R159 | targeted activation scopes local-optimum claims correctly |
 | M6-R160 | Debug/Release and 1/N-thread rounds preserve global monotonicity |
 | M6-R161 | O1/O2/O3/O4 family order is deterministic under target-enumeration permutations |
-| M6-R162 | edge-removal DP N=3/N=4 cases agree with independent 3->2/4->4 oracles |
+| M6-R162 | full-D26QV1 edge-removal DP N=3/N=4 cases agree with independent 3->2/4->4 exhaustive oracles |
 | M6-R163 | every O1..O5 commit is strict local/global D26QV1 improvement |
 | M6-R164 | successful bounded SPR returns scheduling to O1 and exposes unlock fixtures |
 | M6-R165 | strong-reconnection fixtures escape cheap-cycle local optima |

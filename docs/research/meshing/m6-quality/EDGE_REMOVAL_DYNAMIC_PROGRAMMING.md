@@ -1,6 +1,6 @@
 # M6 Early Research — General Edge Removal by Link-Polygon Optimization
 
-Status: RESEARCHING / mathematical algorithm candidate
+Status: DESIGN FROZEN / D26OPS1-O3 algorithm contract
 Date: 2026-09-06
 
 ## 1. Why general edge removal matters
@@ -90,77 +90,135 @@ Not every combinatorial triangulation is a geometrically valid 3D edge-removal p
 A candidate link triangle is invalid if either of its associated pole tetrahedra is flat/inverted or
 if the assembled patch fails the generic cavity validator.
 
-## 5. Triangle contribution quality
+## 5. Link-triangle exact quality contribution
 
-For a proposed link triangle tau=(v_i,v_k,v_j), define its two pole cells:
+For proposed link triangle:
+
+    tau=(v_i,v_k,v_j)
+
+define the two pole tetrahedra:
 
     T_a(tau)
     T_b(tau).
 
 First exact-validity gate:
-- both cells have distinct vertices,
-- exact Orient3D != Zero,
-- both can be oriented positive.
+- distinct vertices,
+- exact Orient3D non-zero,
+- local ordering normalized positive,
+- protected/boundary legality satisfied.
 
-Then define candidate triangle score:
+Define the exact two-element contribution:
 
-    w(i,k,j)
-      = min(
-          q_MR(T_a),
-          q_MR(T_b)
-        ).
+    W(i,k,j)
+      =
+    sort_ascending(
+      q_MR(T_a),
+      q_MR(T_b)
+    )
 
-If either cell is invalid:
+under D26QMR1.
 
-    w(i,k,j) = -infinity / invalid.
+If either pole tetra is invalid:
 
-The use of q_MR is a current M6 research candidate, not a production threshold.
+    W(i,k,j)=Invalid.
 
-## 6. Max-min dynamic programming
+No floating q_MR threshold or approximate equality enters the authoritative DP.
 
-We want the polygon triangulation whose worst generated tetrahedron is as good as possible.
+## 6. Frozen D26QV1 dynamic programming recurrence
+
+The historical scalar max-min recurrence is retained only as an independent first-component oracle.
+
+Authoritative O3 must optimize the full D26QV1 quality multiset.
 
 Let:
 
-    Q[i,j]
+    V[i,j]
 
-be the best achievable worst quality for the polygon chain from v_i to v_j.
+be the best achievable sorted exact q_MR multiset for triangulating polygon chain:
 
-Base:
-- adjacent polygon vertices contain no triangle, so treat their neutral score as +infinity.
+    v_i,...,v_j.
+
+Base for adjacent vertices:
+
+    V[i,i+1]
+      =
+    empty multiset.
+
+For split i<k<j, define candidate:
+
+    C(i,k,j)
+      =
+    merge_sorted(
+      V[i,k],
+      V[k,j],
+      W(i,k,j)
+    ).
+
+If:
+- W is invalid,
+- either subproblem is invalid,
+
+the split is invalid.
 
 Recurrence:
 
-    Q[i,j]
-      = max_{i<k<j}
-          min(
-              Q[i,k],
-              Q[k,j],
-              w(i,k,j)
-          ).
+    V[i,j]
+      =
+    max_D26QV1 over valid k
+      C(i,k,j).
 
-Store the maximizing split k for reconstruction.
+Store the deterministic maximizing split k for reconstruction.
 
-Complexity:
+### Optimal-substructure proof
 
-    time  O(N^3)
-    space O(N^2).
+D26QV1 has union compatibility:
 
-This is a standard polygon-triangulation dynamic-programming structure applied to a Dynamics26
-max-min tetra quality objective.
+    A > B
+      =>
+    A union C > B union C.
 
-It avoids copying implementation tables from external meshers and naturally covers arbitrary
-reasonable edge valence.
+Therefore for a fixed split k:
+- replacing a subpolygon completion by a strictly better D26QV1 subcompletion can never make the
+  complete candidate worse after union with the unchanged other subpolygon and W contribution.
 
-## 7. Deterministic tie handling
+Hence each subproblem may safely retain only its D26QV1-optimal completion.
 
-If multiple k values give numerically equal accepted quality under the M6 comparison policy:
-- compare the complete canonical diagonal set / resulting canonical tetra connectivity,
-- select the lexicographically smallest versioned candidate.
+This proves the recurrence optimizes the full quality vector over the edge-removal triangulation space.
 
-Do not use hash iteration order.
+### Complexity
 
-This gives reproducible local topology for a fixed site set and M6 quality policy.
+There are O(N^2) subproblems and O(N) splits each.
+
+With a transparent vector representation:
+- sorted-vector merge/compare costs O(N),
+- reference worst-case time is O(N^4),
+- stored vector payload is O(N^3) in the simplest table representation.
+
+Typical edge valence is expected to be small, but no production bound is assumed.
+
+A later compact/persistent representation may recover lower practical cost without changing the
+D26QV1 recurrence semantics.
+
+## 7. Deterministic exact tie handling
+
+If two complete split candidates have exactly equal D26QV1 vectors:
+- compare their complete canonical diagonal/connectivity representation,
+- choose the lexicographically smallest versioned canonical candidate.
+
+This tie chooses a proposal representation only.
+
+Commit still requires:
+
+    new cavity D26QV1
+      >
+    old cavity D26QV1.
+
+An exact quality tie versus the old cavity never mutates authoritative topology.
+
+Do not use:
+- floating tolerance,
+- hash iteration,
+- allocation order.
 
 ## 8. Candidate patch validation remains mandatory
 
@@ -207,36 +265,42 @@ Dynamics26 should defer these until:
 
 have executable quality/solver evidence.
 
-## 11. Exact topology versus quality arithmetic
+## 11. Exact topology versus exact quality ordering
 
 Use M1 exact predicates for:
 - candidate orientation,
 - flatness,
-- local geometric legality.
+- cavity/topology legality.
 
-Use q_MR floating calculations only for:
-- ranking already-valid candidates.
+Use D26QMR1 for:
+- exact ordering of already-valid tetra qualities.
 
-This separation is essential to preserve M1/M2 robustness contracts.
+Use D26QV1 for:
+- exact local patch/cavity quality-vector ordering.
 
+Displayed q_MR may be floating diagnostic data only.
 
-## 12. Exact scope of the DP optimum
+This preserves the M1/M6 ownership boundary without approximate optimizer equality.
 
-Let T_e be the set of all geometrically valid cavity retriangulations that remove one selected edge e.
+## 12. Exact scope of the D26QV1 DP optimum
 
-The DP solves:
+Let T_e be all geometrically/constraint-valid cavity retriangulations that remove selected edge e.
 
-    max_{R in T_e}
-      min_{t in R} q_MR(t).
+The frozen DP solves:
 
-This is an exact optimum over T_e when:
-- all legal link-polygon triangulations are represented,
-- invalid triangle contributions are rejected correctly,
-- reconstructed candidates pass the generic cavity validator.
+    max_D26QV1 over R in T_e
+      QMRVector(R).
+
+This is an exact D26QV1 optimum over T_e when:
+- every legal link-polygon triangulation is represented,
+- invalid W contributions are rejected correctly,
+- subproblem recurrence uses exact D26QV1 ordering,
+- reconstructed candidate passes the generic cavity validator.
 
 It is not an optimum over every triangulation of the surrounding mesh.
 
-That scope distinction is now an explicit M6 research contract.
+Historical max-min DP remains an independent oracle for the first vector component and must agree with
+the first element of the D26QV1 optimum where applicable.
 
 ## 13. Why multi-face removal is not redundant
 

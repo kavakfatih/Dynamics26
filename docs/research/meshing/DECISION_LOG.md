@@ -2197,3 +2197,112 @@ Proceed to:
 - qualification-harness implementation,
 - serial reference implementation before parallel optimization,
 - M7 solver-correlation evidence for numeric product thresholds.
+
+
+---
+
+## ADR-MESH-0041 — O3 edge removal optimizes full D26QV1 by union-compatible polygon DP
+
+**Status:** ACCEPTED (M6 DESIGN-FREEZE CLARIFICATION)  
+**Date:** 2026-09-06
+
+### Context
+
+Implementation-spec audit found a historical mismatch:
+- frozen D26OPS1 requires O3 to find the best legal edge-removal triangulation under D26QV1,
+- EDGE_REMOVAL_DYNAMIC_PROGRAMMING.md still described the earlier scalar max-min recurrence as the
+  main algorithm.
+
+### Decision
+
+For link-polygon subproblem [i,j]:
+
+    V[i,i+1] = empty
+
+and for split i<k<j:
+
+    C(i,k,j)
+      =
+    merge_sorted(
+      V[i,k],
+      V[k,j],
+      W(i,k,j)
+    )
+
+where W contains the exact D26QMR1 qualities of the two pole tetrahedra.
+
+Then:
+
+    V[i,j]
+      =
+    max_D26QV1 over valid k
+      C(i,k,j).
+
+### Why optimal substructure holds
+
+D26QV1 is compatible with multiset union:
+
+    A > B
+      =>
+    A union C > B union C.
+
+Therefore replacing either subpolygon by its D26QV1-better completion cannot worsen the complete
+candidate for a fixed split.
+
+### Max-min role
+
+The historical max-min recurrence remains:
+- first-vector-component oracle,
+- qualification cross-check,
+- optional performance diagnostic.
+
+It is not authoritative O3 proposal selection.
+
+### Qualification
+
+M6-R39 and M6-R162 are clarified accordingly.
+
+---
+
+## ADR-MESH-0042 — First M6 implementation remains a private femcae_meshing subsystem
+
+**Status:** ACCEPTED (IMPLEMENTATION SPEC)  
+**Date:** 2026-09-06
+
+### Decision
+
+Before M6 Q9 qualification:
+- M6 exact arithmetic, quality keys, optimizer proposals, scheduler and caches remain private to
+  femcae_meshing,
+- private headers live under src/meshing/internal and src/meshing/m6,
+- no SignedBigInt/Dyadic internal type is installed,
+- no new GUI/SimulationMesh optimizer authority is introduced.
+
+### Exact arithmetic extraction
+
+The existing M1 BigInt/dyadic mechanism is extracted as a shared internal mechanism only.
+
+Policy ownership remains:
+- M1 RobustPredicates owns predicate semantics,
+- M6 owns quality-order semantics.
+
+### Tetra state boundary
+
+The first M6 reference state is derived from:
+- CanonicalSite / PointId coordinates,
+- TetSlot topology,
+- explicit fixed/protected constraint input.
+
+It does not use current Hex8/Quad4-oriented SimulationMesh as authoritative tetra optimizer storage.
+
+### Public API timing
+
+A public/install quality/optimizer facade may be designed only after deterministic/reference
+qualification and requires a separate API review.
+
+### Implementation authority
+
+Detailed repository mapping:
+
+    M6_IMPLEMENTATION_SPEC.md
+    M6_IMPLEMENTATION_SEQUENCE.md.

@@ -42,7 +42,7 @@ This document groups the gates; it does not mark unimplemented gates as passed.
       ->
     Q3 D26QV1/D26QACC1
       ->
-    Q4 O1/O2/O3/O4 serial reference operations
+    Q4 O1/O2/O3/O4 serial reference operations, including full-D26QV1 O3 edge DP
       ->
     Q5 bounded O5 SPR
       ->
@@ -73,7 +73,17 @@ BigInt mechanism and robust-predicate replay infrastructure.
 M6 may reuse mechanisms, but every new M6 expression/cache/schedule/mutation path requires M6-specific
 qualification.
 
-## 6. Maintenance
+## 6. Implementation mapping
+
+Repository-specific implementation ownership and phase exits are frozen in:
+
+    M6_IMPLEMENTATION_SPEC.md
+    M6_IMPLEMENTATION_SEQUENCE.md.
+
+These documents map the existing femcae_meshing/M1/M2 foundation to the gate groups without changing
+M6 mathematical semantics.
+
+## 7. Maintenance
 
 No gate may be silently removed or weakened.
 

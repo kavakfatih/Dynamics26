@@ -230,6 +230,19 @@ If O5 commits, return to O1. Otherwise stop with explicit result/status.
 
 General edge removal covers N=3 -> 3->2, N=4 -> 4->4 and larger legal edge stars.
 
+O3 authoritative dynamic programming optimizes the **full D26QV1 vector**, not only scalar max-min:
+
+    V[i,j]
+      =
+    max_D26QV1 over valid k
+      merge(
+        V[i,k],
+        V[k,j],
+        W(i,k,j)
+      ).
+
+Max-min remains an independent first-component oracle.
+
 O5 is transactional: private exploration may cross non-improving states; only a final exact-valid
 strict D26QV1 improvement commits. Full D26QV1 is authoritative; max-min remains a first-component
 verification oracle.
@@ -297,5 +310,4 @@ M6 status:
     DESIGN FROZEN
     IMPLEMENTATION NOT STARTED / NOT QUALIFIED.
 
-Next action is implementation specification and qualification-harness planning, not unconstrained M6
-architecture research.
+Next action follows M6_IMPLEMENTATION_SPEC.md and M6_IMPLEMENTATION_SEQUENCE.md: shared exact-arithmetic extraction, qualification harness, then serial reference implementation before parallel optimization.

@@ -71,6 +71,8 @@ Dynamics26 solver benchmarks in M7.
 - OPTIMIZER_OPERATION_SCHEDULE.md — frozen D26OPS1 first schedule: cheap smoothing/topology cycle, edge-removal DP, optimization smoothing and bounded SPR escalation
 - M6_DESIGN_FREEZE.md — authoritative frozen architecture, supersession rules, deferred scope and implementation boundary
 - M6_QUALIFICATION_GATE_MATRIX.md — complete M6-R01..M6-R170 qualification-contract grouping and pending-evidence status
+- M6_IMPLEMENTATION_SPEC.md — repository-specific private module/API/CMake/state/operation contract for executable M6 reference implementation
+- M6_IMPLEMENTATION_SEQUENCE.md — I0..I10 phased implementation and qualification order
 - FILTERED_QMR_COMPARATOR.md — dynamic interval cross-polynomial filter, power-of-two normalization, semi-static bound research and compiler/FP contract
 - INTERVAL_ARITHMETIC_BACKEND.md — C++20/macOS arm64 outward interval primitives, adjacent-representable widening, fenv/FMA/subnormal contract and backend ranking
 - LOCAL_TOPOLOGY_IMPROVEMENT.md — 2<->3, 3<->2, 4<->4, protected topology and deterministic quality reconnection
