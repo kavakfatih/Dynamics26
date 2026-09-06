@@ -264,7 +264,7 @@ Verification:
 
 ### M6 — Quality optimization
 
-Status: **RESEARCHING (EARLY) — IMPLEMENTATION NOT STARTED**
+Status: **DESIGN FROZEN — PARTIAL EXECUTABLE RESEARCH EVIDENCE EXISTS; PRODUCTION P5 NOT STARTED**
 
 Early research package:
 - `docs/research/meshing/m6-quality/`
@@ -446,7 +446,7 @@ Cross-code agreement is supporting evidence, not proof.
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
 | M5 | Size fields | NOT STARTED |
-| M6 | Quality optimization | RESEARCHING (EARLY) / IMPLEMENTATION NOT STARTED |
+| M6 | Quality optimization | DESIGN FROZEN / RESEARCH EVIDENCE EXISTS / PRODUCTION P5 NOT STARTED |
 | M7 | TET4 product qualification | NOT STARTED |
 | M8 | TET10 | NOT STARTED |
 | M9 | Adaptation/remeshing | RESEARCH LATER |
@@ -464,15 +464,23 @@ PRODUCT
 BLOCKED
 \`\`\`
 
-## 8. Immediate next research tasks
+## 8. Immediate program tasks
 
-1. M1 is QUALIFIED; M2.0 research is active.
-2. Maintain the committed m2-delaunay mathematics/architecture package as implementation authority.
-3. Treat the committed M2.0 research-freeze package as implementation authority; reopen it only with explicit evidence/ADR.
-4. Implement M2.1-A semantic Delaunay predicates first, with no cavity mutation yet.
-5. Continue M2.1-B..F sequentially behind their reference/oracle gates; M2 remains NOT QUALIFIED until executable mandatory gates close.
-6. Keep spatial ordering, hierarchy, slot reuse, packing and parallelism behind reference-oracle agreement.
-7. Continue commercial workflow/quality benchmarking in parallel; proprietary behavior is never predicate truth.
+Research-package numbering is no longer used as the production implementation sequence. See:
+
+- `docs/research/meshing/RESEARCH_TO_DEVELOPMENT_HANDOFF.md`,
+- `docs/planning/V1.2_ORIGINAL_MESHING_DEVELOPMENT_PLAN.md`.
+
+Current sequence:
+
+1. close DEV-MESH-P0 research consolidation / development handoff,
+2. preserve M1 qualified evidence,
+3. use M2.0 as the first production implementation authority,
+4. start DEV-MESH-P1A semantic Delaunay predicates, with no cavity mutation in that subphase,
+5. continue P1 point location -> cavity transaction -> serial insertion -> deterministic qualification,
+6. research P2/P3/P4 questions just in time while implementing the critical path,
+7. preserve M6 design/prototypes as future P5 inputs; do not treat them as proof of a production volume mesher,
+8. continue commercial/open-source benchmarking in parallel; proprietary behavior is never predicate truth.
 
 ### M1.2 — Certified floating-point filters
 Status: **QUALIFIED**

@@ -4,8 +4,9 @@
 **Owner repository:** \`kavakfatih/Dynamics26\`  
 **Platform:** macOS / Apple Silicon  
 **Research baseline:** 2026-09-05  
-**Status:** ACTIVE RESEARCH  
-**Implementation policy:** original Dynamics26 implementation; no external meshing-engine product dependency is assumed.
+**Status:** ACTIVE RESEARCH + DEVELOPMENT HANDOFF  
+**Implementation policy:** original Dynamics26 implementation; no external meshing-engine product dependency is assumed.  
+**Production development status:** DEV-MESH-P0 research consolidation; P1 production tetrahedralizer not yet started.
 
 ## 1. Purpose
 
@@ -190,3 +191,15 @@ and nearly-incompressible/rubber suitability before quality algorithms or releas
 chosen.
 
 This early research does not change the M2.1 implementation sequence.
+
+
+## Development-plan boundary
+
+The R&D labels `M0..M10` classify research domains and preserve historical traceability. They are
+not the production implementation schedule.
+
+Production development is tracked by `DEV-MESH-P0..P7` in
+`docs/planning/V1.2_ORIGINAL_MESHING_DEVELOPMENT_PLAN.md`.
+
+In particular, M6 design/prototype evidence that exists ahead of M2-M5 remains valid research
+evidence, but it does not mean the production volume mesher or production optimizer is complete.

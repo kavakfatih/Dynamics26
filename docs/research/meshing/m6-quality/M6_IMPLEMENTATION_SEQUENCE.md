@@ -1,8 +1,15 @@
 # M6 Implementation and Qualification Sequence
 
-**Status:** FROZEN EXECUTION PLAN / CODE NOT STARTED  
+**Status:** FROZEN EXECUTION PLAN / PARTIAL RESEARCH IMPLEMENTATION EVIDENCE EXISTS / PRODUCT P5 NOT STARTED  
 **Applies to:** D26-M6-FREEZE-1  
 **Date:** 2026-09-06
+
+> Status clarification: I0-I4a research/qualification implementation evidence now exists in
+> `src/meshing/internal/exact` and `src/meshing/m6`. This does not declare the V1.2 production
+> quality-optimizer milestone complete. Formal product integration is DEV-MESH-P5, after the
+> qualified P1-P4 mesh/provenance foundation exists. D26-M6-FREEZE-1 mathematics and semantics are
+> unchanged by this clarification.
+
 
 ## 1. Rule
 

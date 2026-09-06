@@ -333,6 +333,19 @@ USER VALIDATED additionally tests real pointer/trackpad/keyboard/Light/Dark work
 
 # 3. V1.2.0 — Geometry-Aware Meshing + Scalable Nonlinear Foundation
 
+V1.2 meshing execution is now separated into production milestones `DEV-MESH-P0..P7`.
+The existing `M0..M10` names remain research/work-package identifiers, not implementation order.
+
+Authoritative execution documents:
+
+- `docs/planning/V1.2_ORIGINAL_MESHING_DEVELOPMENT_PLAN.md`,
+- `docs/research/meshing/RESEARCH_TO_DEVELOPMENT_HANDOFF.md`.
+
+Current state is **DEV-MESH-P0 — research consolidation/development handoff**. M1 qualified robust
+geometry and partial M6 executable research evidence are inputs; the first formal production mesher
+implementation after P0 is P1A/M2 semantic Delaunay predicates.
+
+
 V1.2 begins with the blocker that currently prevents real arbitrary-part workflows.
 
 ## M1 — Original Dynamics26 Meshing Engine Foundation
