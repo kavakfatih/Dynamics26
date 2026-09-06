@@ -1845,3 +1845,154 @@ Microbenchmark speed alone is insufficient.
 M6-R109..M6-R124.
 
 No production refactor or M6 exact comparator implementation is authorized.
+
+
+---
+
+## ADR-MESH-0037 — Quality keys are coordinate-state artifacts; parallel M6 uses deterministic snapshot rounds
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-06
+
+### Decision candidate
+
+Dynamics26 separates:
+- exact q_MR numeric identity,
+- topology-storage identity,
+- constraint legality,
+- optimizer scheduling state.
+
+Research placeholders:
+
+    D26QKEY1
+      QualityKey lifecycle/cache domain
+
+    D26QSCHED1
+      deterministic round scheduler.
+
+### QualityKey identity
+
+For fixed coordinate state:
+
+    CanonicalTetKey
+      =
+    sorted four PointIds
+
+is sufficient tetra identity for q_MR caching inside the same coordinate/snapshot domain.
+
+Quality identity does not include:
+- TetHandle slot,
+- TetHandle generation,
+- visitEpoch,
+- adjacency.
+
+A same-four-point tetra recreated in another slot has the same numeric q_MR key if point coordinates
+are unchanged.
+
+### Coordinate invalidation
+
+Accepted smoothing changes the numeric geometry.
+
+Every tetra containing the moved point has stale q_MR cache state.
+
+First implementation need not introduce per-point coordinate generations:
+- keep connectivity-phase caches local,
+- use proposal-local caches for smoothing,
+- rebuild affected-star keys after accepted motion.
+
+Future coordinateGeneration(PointId) is an optimization candidate.
+
+### Constraint separation
+
+Changing protected/CAD/size legality without changing coordinates:
+- does not change numeric q_MR,
+- does invalidate operation proposals/legality caches.
+
+Therefore a combined "quality + legality" cache is forbidden as the first design.
+
+### Parallel scheduling
+
+First parallel optimizer architecture:
+
+    immutable round snapshot
+      ->
+    parallel private proposal planning
+      ->
+    explicit semantic read/write footprints
+      ->
+    deterministic total ScheduleKey
+      ->
+    deterministic conflict-free winner set
+      ->
+    ordered revalidation/commit
+      ->
+    affected-neighborhood rebuild.
+
+The first performance target is parallel evaluation/search, not simultaneous authoritative mutation.
+
+### Conflict rule
+
+Proposals conflict on:
+- write/write overlap,
+- write/read overlap.
+
+Read/read overlap is allowed.
+
+Topology write footprints include outside neighbor records patched by commit.
+
+False conflicts only reduce performance.
+
+False non-conflicts threaten correctness and are unacceptable.
+
+### Deterministic reference selection
+
+Reference winner selection is deterministic greedy MIS under the total ScheduleKey.
+
+The ScheduleKey excludes:
+- thread id,
+- completion time,
+- pointer address,
+- hash iteration,
+- wall time.
+
+### Serializability boundary
+
+Pairwise non-conflicting proposals planned on one immutable snapshot commute over their declared
+semantic state.
+
+This supports a serializable selected round.
+
+It does not prove equivalence to a different serial optimizer that regenerates all proposals after
+every individual commit.
+
+D26QSCHED1 is a versioned round-based algorithm and must be tested as such.
+
+### Commit policy
+
+First qualification commits selected winners in canonical ScheduleKey order.
+
+Reason:
+- semantic operations may commute while storage allocation/order effects do not,
+- M2 already values deterministic append/write ordering.
+
+Future parallel commit requires deterministic slot/range preassignment and canonical-fingerprint
+equivalence.
+
+### Cache concurrency
+
+First mutable quality caches are:
+- proposal local,
+- cavity local,
+- worker local where safe.
+
+Shared immutable coordinate/dyadic tables are acceptable.
+
+A shared mutable global QualityKey cache is deferred until telemetry proves value.
+
+Cache hits/misses must never affect semantic result.
+
+### Evidence needed
+
+M6-R125..M6-R146.
+
+No production cache, scheduler or parallel M6 implementation is authorized.

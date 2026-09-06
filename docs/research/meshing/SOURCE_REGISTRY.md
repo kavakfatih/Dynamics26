@@ -280,3 +280,13 @@ This section extends the M6 metric sources with operation/scheduling research.
 
 | M6-NUM-013 | Boost.Multiprecision 1.92 documentation, cpp_int integer backend | Independent arbitrary-precision C++ integer alternative/benchmark; header-oriented Boost-licensed backend without GMP requirement | https://www.boost.org/doc/libs/latest/libs/multiprecision/doc/html/boost_multiprecision/tut/ints/cpp_int.html | 2026-09-06 |
 | M6-NUM-014 | Boost.Multiprecision integer backend comparison | Documents cpp_int / GMP / TomMath backend dependency-performance tradeoffs; used only for alternative-backend research, not Dynamics26 truth | https://www.boost.org/doc/libs/latest/libs/multiprecision/doc/html/boost_multiprecision/tut/ints.html | 2026-09-06 |
+
+
+## M6 cache lifecycle / deterministic parallel scheduling sources
+
+| ID | Source | Relevance | URL | Reviewed |
+|---|---|---|---|---|
+| M6-PAR-001 | Y. Wang, J. Wang, B. Wang, Y. Wang, J. Chen, *Multi-threaded parallel tetrahedral mesh improvement by combining atomic operation and graph coloring*, Advances in Engineering Software 198 (2024) 103782 | Current shared-memory tetra-improvement evidence: local cavities, conflict/ownership management, graph coloring and operation-level parallelism | https://doi.org/10.1016/j.advengsoft.2024.103782 | 2026-09-06 |
+| M6-PAR-002 | M. Shang et al., *A Parallel Local Reconnection Approach for Tetrahedral Mesh Improvement*, Procedia Engineering 163 (2016) 289-301 | Local-reconnection parallelism and spatial ordering/partitioning to reduce interference among operation regions | https://doi.org/10.1016/j.proeng.2016.11.062 | 2026-09-06 |
+| M6-PAR-003 | D. Nguyen, A. Lenharth, K. Pingali, *Deterministic Galois: On-demand, Portable and Parameterless*, ASPLOS 2014, pp. 499-512 | Portable deterministic execution for irregular/conflicting tasks; supports round-based deterministic scheduling as architecture evidence | https://doi.org/10.1145/2541940.2541964 | 2026-09-06 |
+| M6-PAR-004 | Galois current tutorial, deterministic loop iterator | Documentation evidence: deterministic execution proceeds in rounds selecting conflict-free active elements; architecture reference only | https://iss.oden.utexas.edu/projects/galois/api/current/tutorial.html | 2026-09-06 |

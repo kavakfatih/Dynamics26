@@ -365,3 +365,40 @@ The second worst improves, so the lexicographic low tail improves, while arithme
 decrease.
 
 These fixtures prove proposal and commit objectives must remain distinct.
+
+
+## 21. Smoothing cache/scheduling update
+
+A smoothing proposal changes one PointId's coordinate while preserving connectivity.
+
+Therefore:
+- every q_MR key of a tetra incident to the moved point becomes stale,
+- PointId-only quality caching is invalid across an accepted move,
+- TetHandle generation does not detect this coordinate change.
+
+Leading first policy:
+- proposal-local exact-key cache during one candidate move,
+- discard/rebuild affected-star keys after accepted motion,
+- no persistent PointId-only quality cache across smoothing.
+
+A future optimized implementation may add a per-point coordinate generation and key tetra quality by
+the four (PointId, coordinateGeneration) pairs.
+
+That optimization is not required for first qualification.
+
+### Parallel smoothing
+
+Classical graph coloring can expose independent smoothing vertices.
+
+Dynamics26 generalizes the concept through proposal read/write footprints:
+- a smoothing proposal writes one point coordinate,
+- it reads neighboring point coordinates,
+- it invalidates quality of its incident tetra star.
+
+Two smoothing proposals are first-version compatible only if these semantic footprints do not
+conflict.
+
+A deterministic coloring/independent-set schedule may later accelerate selection, but color number or
+thread id must not affect the accepted mesh state.
+
+See QUALITY_KEY_LIFECYCLE_AND_DETERMINISTIC_SCHEDULING.md.

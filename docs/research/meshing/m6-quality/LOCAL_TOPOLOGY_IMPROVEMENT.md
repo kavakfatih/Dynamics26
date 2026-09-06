@@ -334,3 +334,82 @@ For canonical binary64 coordinates all factors admit exact dyadic evaluation.
 
 This is the leading research path for a deterministic quality comparator without pairwise epsilon
 equality.
+
+
+## 18. Deterministic parallel scheduling research update
+
+Parallel optimization is path-dependent, so thread scheduling must not become an implicit quality
+policy.
+
+Leading first parallel architecture:
+
+    immutable optimization-round snapshot
+      ->
+    build active items in canonical order
+      ->
+    plan/evaluate proposals in parallel
+      ->
+    record explicit read/write footprints
+      ->
+    select a deterministic conflict-free winner set
+      ->
+    commit winners in canonical order
+      ->
+    invalidate affected active items
+      ->
+    begin next round.
+
+The first version deliberately parallelizes expensive proposal work before parallelizing topology
+mutation.
+
+### Conflict rule
+
+For proposals A and B with semantic read/write sets:
+
+    conflict(A,B)
+
+when either proposal writes state read or written by the other.
+
+Conceptually:
+
+    W_A intersects (R_B union W_B)
+      or
+    W_B intersects (R_A union W_A).
+
+The write set includes not only cavity cells but any outside neighbor record that commit must patch.
+
+For first qualification, over-approximating the footprint is preferred to a false non-conflict.
+
+### Deterministic winner selection
+
+Reference scheduling uses a total ScheduleKey and deterministic greedy conflict selection.
+
+Candidate ScheduleKey components:
+1. source poor-tet key,
+2. fixed operation-family rank,
+3. canonical cavity/footprint key,
+4. canonical candidate-connectivity key.
+
+Do not use:
+- thread id,
+- completion time,
+- pointer address,
+- hash iteration,
+- wall-clock budget
+
+as semantic priority.
+
+### Serializability boundary
+
+If selected proposal read/write footprints are pairwise non-conflicting and all proposals were planned
+against the same immutable snapshot, their semantic mutations commute over the declared state.
+
+However Dynamics26 does **not** yet claim that one round is identical to the fully sequential
+algorithm that regenerates the entire proposal set after every single commit.
+
+The first guarantee target is:
+- deterministic round output,
+- serializable conflict-free selected mutations,
+- thread-count-independent final result for the frozen D26QSCHED1 round algorithm.
+
+See QUALITY_KEY_LIFECYCLE_AND_DETERMINISTIC_SCHEDULING.md.

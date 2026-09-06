@@ -1560,3 +1560,203 @@ This tier is not an implementation prerequisite.
 | M6-R124 | Debug/Release/replay preserve exact result and cache semantics |
 
 These gates do not authorize production exact-backend refactoring.
+
+
+## Tier Q2-AP — QualityKey lifecycle oracle
+
+For a fixed coordinate state:
+- construct exact q_MR keys for tetrahedra,
+- delete/recreate identical canonical tetra connectivity under different TetHandle slots/generations,
+- verify identical exact quality order.
+
+Separately mutate:
+- visitEpoch,
+- adjacency only,
+- unrelated topology.
+
+Require no change in the exact numeric key for the same four coordinates.
+
+## Tier Q2-AQ — coordinate invalidation
+
+For one interior PointId p:
+1. cache exact keys for every incident tetra,
+2. apply one accepted binary64 coordinate move to p,
+3. recompute exact keys,
+4. verify all incident cached entries are treated stale.
+
+Include a negative-control PointId-only cache that intentionally reuses the old value.
+
+Require the negative control to disagree on a generated fixture.
+
+Unrelated tetra keys may remain mathematically valid.
+
+## Tier Q2-AR — constraint versus numeric cache separation
+
+Hold all coordinates fixed.
+
+Change only:
+- protected face/edge state,
+- CAD/provenance legality state,
+- size/operation permission metadata.
+
+Require:
+- exact numeric q_MR key remains unchanged,
+- old proposal legality/search result is invalidated/replanned.
+
+Purpose:
+prove one cache cannot safely mix geometry score and operation permission.
+
+## Tier Q2-AS — proposal footprint oracle
+
+For each operation family:
+- 2->3,
+- 3->2,
+- edge removal,
+- smoothing,
+- bounded SPR fixture,
+
+enumerate independent semantic read/write resources.
+
+Require topology proposals to include:
+- cavity records,
+- every outside neighbor record patched on commit,
+- relevant coordinates/constraints.
+
+Generate pairwise proposal fixtures with:
+- read-read overlap only,
+- write-read overlap,
+- write-write overlap,
+- disjoint footprints.
+
+Require conflict classification matches the independent oracle.
+
+## Tier Q2-AT — deterministic winner selection
+
+Generate one proposal set with a fixed total ScheduleKey.
+
+Randomly permute:
+- proposal enumeration order,
+- worker assignment,
+- completion order.
+
+Reference greedy selection:
+
+    sort by ScheduleKey
+      ->
+    select proposal iff it conflicts with no already-selected proposal.
+
+Require identical winner set and order.
+
+Forbidden negative controls:
+- completion-time priority,
+- thread-id priority,
+- unordered-map traversal priority.
+
+Require at least one fixture where each negative control can change the chosen conflict winner.
+
+## Tier Q2-AU — serializability of selected winners
+
+For small pairwise non-conflicting proposal sets:
+- commit in every permutation,
+- compare canonical semantic mesh fingerprint.
+
+Require identical fingerprint.
+
+Then introduce one deliberately omitted outside-neighbor write resource.
+
+Require:
+- conflict oracle or post-commit topology validator detects the unsafe overlap.
+
+This validates the declared-footprint model.
+
+## Tier Q2-AV — ordered versus future parallel commit
+
+Reference:
+- plan in parallel,
+- deterministic winner selection,
+- commit winners in ScheduleKey order.
+
+Future research variant:
+- preassign deterministic append/slot ranges,
+- parallel commit pairwise non-conflicting winners.
+
+Require identical:
+- canonical topology fingerprint,
+- quality vector,
+- constraint/provenance result.
+
+Raw transient thread timing is not compared.
+
+## Tier Q2-AW — smoothing scheduler
+
+For a fixed topology:
+- derive smoothing proposal footprints from moved vertex stars,
+- compare against a deterministic vertex-coloring oracle.
+
+Require:
+- same-color/selected proposals do not write coordinates read by each other,
+- affected tetra quality sets do not conflict under the frozen policy.
+
+After any topology mutation:
+- recompute or revalidate coloring/footprints before reuse.
+
+## Tier Q2-AX — cache concurrency semantics
+
+Compare:
+1. no cache,
+2. proposal-local cache,
+3. worker-local cache,
+4. optional shared pure memoization experiment.
+
+Require identical:
+- exact q_MR comparisons,
+- proposal validity,
+- selected winner set,
+- final topology.
+
+Cache hit/miss telemetry may vary by thread count unless a deterministic telemetry mode is explicitly
+enabled.
+
+## Tier Q2-AY — deterministic budget policy
+
+Use count-based limits:
+- candidates,
+- branch nodes,
+- exact comparisons,
+- local iterations.
+
+Run Debug/Release and multiple thread counts.
+
+Require identical result for the same count budgets.
+
+A wall-clock abort negative control may terminate at different locations and must not be reported as
+ExhaustiveNoImprovement.
+
+## Additional QualityKey/scheduler research gates
+
+| Gate | Requirement |
+|---|---|
+| M6-R125 | CanonicalTetKey q_MR identity survives TetHandle slot/generation changes for fixed coordinates |
+| M6-R126 | visitEpoch never enters exact quality identity |
+| M6-R127 | connectivity-only mutation preserves reusable same-four-point quality keys |
+| M6-R128 | accepted smoothing invalidates every incident tetra quality key |
+| M6-R129 | constraint-only changes separate numeric-key validity from proposal-legality validity |
+| M6-R130 | cache-enabled and cache-disabled runs produce identical exact results/topology |
+| M6-R131 | cache allocation failure cannot become geometry/quality truth |
+| M6-R132 | OptimizationRoundSnapshot freezes all proposal-relevant semantic state |
+| M6-R133 | every operation proposal declares complete semantic read/write footprints |
+| M6-R134 | footprint conflict oracle catches every write-read/write-write fixture |
+| M6-R135 | ScheduleKey is independent of thread/pointer/hash/completion order |
+| M6-R136 | deterministic greedy winner selection is invariant to proposal enumeration permutations |
+| M6-R137 | selected non-conflicting proposal commits are serializable in fixture oracle |
+| M6-R138 | round algorithm does not claim regenerate-after-each-commit serial equivalence without proof |
+| M6-R139 | ordered commit preserves canonical output across supported thread counts |
+| M6-R140 | smoothing conflict footprints agree with affected-star/coordinate-read oracle |
+| M6-R141 | topology-changing write footprints include all exterior adjacency patches |
+| M6-R142 | old-round loser/deferred proposals are replanned rather than blindly carried forward |
+| M6-R143 | proposal-local exact-key caches are race-free and semantically pure |
+| M6-R144 | deterministic qualification budgets use count units, not wall time |
+| M6-R145 | 1/N-thread Debug/Release runs preserve final canonical optimizer fingerprint |
+| M6-R146 | any future deterministic parallel commit matches ordered-commit reference |
+
+These gates do not authorize production parallel M6 optimization.

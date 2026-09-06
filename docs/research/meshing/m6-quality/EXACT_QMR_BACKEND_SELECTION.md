@@ -821,3 +821,30 @@ Key refinements:
 - external multiprecision is a benchmark/oracle candidate, not a first dependency.
 
 No production refactor or M6 implementation is authorized by this document.
+
+
+## 27. Quality-key lifecycle is now a separate contract
+
+The arithmetic backend does not own cache lifetime or optimizer scheduling.
+
+Those semantics are documented in:
+
+    QUALITY_KEY_LIFECYCLE_AND_DETERMINISTIC_SCHEDULING.md.
+
+Leading separation:
+
+    D26QMRB1
+      owns exact key construction/comparison
+
+    D26QKEY1
+      owns key validity/cache identity
+
+    D26QSCHED1
+      owns deterministic optimizer rounds.
+
+Important consequences:
+- TetHandle slot/generation is not the mathematical identity of a q_MR key,
+- visitEpoch never enters quality identity,
+- coordinate mutation invalidates quality keys,
+- constraint/provenance mutation may leave numeric q_MR valid while invalidating operation proposals,
+- first shared caches are local/proposal scoped, not permanent global mesh authority.
