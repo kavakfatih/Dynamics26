@@ -3,20 +3,9 @@
 #include "IntervalArithmetic.h"
 #include "MeanRatioExact.h"
 
-#include "femcae/meshing/RobustGeometry.h"
-
-#include <array>
 #include <cstdint>
 
 namespace femcae::meshing::m6::quality {
-
-// D26QMRF1 private filter girisi. pointIds siralama/replay authority'sidir;
-// coordinates ise frozen binary64 geometry state'idir. Incoming tetra exact
-// validity katmaninda Positive olarak dogrulanmis olmalidir.
-struct IndexedTetraCoordinates {
-    std::array<PointId, 4> pointIds{};
-    TetraCoordinates coordinates{};
-};
 
 enum class MeanRatioEvaluationPath : std::uint8_t {
     IntervalCertified = 0,

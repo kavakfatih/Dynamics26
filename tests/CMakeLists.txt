@@ -515,3 +515,48 @@ if(Python3_Interpreter_FOUND)
         FIXTURES_REQUIRED d26_m6_filter_corpus
     )
 endif()
+
+# M6 I3 — D26QV1 exact quality vector + D26QACC1 strict acceptance
+add_executable(
+    unit_m6_quality_vector_acceptance
+    meshing/m6_quality/test_m6_quality_vector_acceptance.cpp
+)
+target_link_libraries(unit_m6_quality_vector_acceptance PRIVATE femcae_meshing)
+target_include_directories(
+    unit_m6_quality_vector_acceptance
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m6_quality_vector_acceptance)
+
+if(Python3_Interpreter_FOUND)
+    set(
+        FEMCAE_M6_QV_CORPUS
+        "${CMAKE_BINARY_DIR}/m6-quality-vector-corpus.d26qv"
+    )
+
+    add_test(
+        NAME unit_m6_generate_quality_vector_corpus
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/meshing_oracle/generate_m6_quality_vector_corpus.py
+                --output ${FEMCAE_M6_QV_CORPUS}
+    )
+    set_tests_properties(
+        unit_m6_generate_quality_vector_corpus
+        PROPERTIES
+        LABELS "unit;meshing;m6;quality;vector;exact-oracle;determinism"
+        FIXTURES_SETUP d26_m6_quality_vector_corpus
+    )
+
+    add_test(
+        NAME unit_m6_quality_vector_acceptance_generated
+        COMMAND
+            unit_m6_quality_vector_acceptance
+            ${FEMCAE_M6_QV_CORPUS}
+    )
+    set_tests_properties(
+        unit_m6_quality_vector_acceptance_generated
+        PROPERTIES
+        LABELS "unit;meshing;m6;quality;vector;acceptance;exact;monotonicity;determinism"
+        FIXTURES_REQUIRED d26_m6_quality_vector_corpus
+    )
+endif()

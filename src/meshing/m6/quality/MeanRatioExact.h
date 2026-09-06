@@ -3,6 +3,7 @@
 #include "../../internal/exact/ExactDyadicArithmetic.h"
 
 #include "femcae/geometry/GeometryTypes.h"
+#include "femcae/meshing/RobustGeometry.h"
 
 #include <array>
 #include <cstddef>
@@ -11,6 +12,13 @@
 namespace femcae::meshing::m6::quality {
 
 using TetraCoordinates = std::array<geometry::Vec3, 4>;
+
+// D26QMR1/D26QMRF1/D26QV1 ortak private tetra girisi.
+// PointId kalite scalar'inin parcasi degildir; identity/replay zincirini tasir.
+struct IndexedTetraCoordinates {
+    std::array<PointId, 4> pointIds{};
+    TetraCoordinates coordinates{};
+};
 
 enum class MeanRatioOrder : std::int8_t {
     Less = -1,

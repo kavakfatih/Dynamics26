@@ -68,6 +68,8 @@ set(FEMCAE_MESHING_SOURCES
     src/meshing/m6/quality/MeanRatioExact.cpp
     src/meshing/m6/quality/IntervalArithmetic.cpp
     src/meshing/m6/quality/MeanRatioFilter.cpp
+    src/meshing/m6/quality/QualityVector.cpp
+    src/meshing/m6/quality/QualityAcceptance.cpp
     src/meshing/RobustGeometry.cpp
     src/meshing/TetraTopology.cpp
     src/meshing/MeshTypes.cpp
