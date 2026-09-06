@@ -14,11 +14,13 @@ P1D production development began after the Phase-A research-closeout hardening b
 - starting source baseline: `5c3cd085f22321b850eacc38975ea2da8792d880`,
 - pre-final P1D qualification baseline: `dfbaa1472520d3345daa031a5f6d81241b1ca205`,
   macOS arm64 workflow #310, SUCCESS,
-- final hardened/qualified source: `8d0f7d6e3d685b5b4a9e13cc3a9ffbfda78fc3d3`,
+- exact-site/oracle hardening source: `8d0f7d6e3d685b5b4a9e13cc3a9ffbfda78fc3d3`,
+  workflow #311 SUCCESS,
+- final qualification-evidence source: `f5ab7e8dfcad9e6cd731722c2a1cc9c47c26f915`,
 - exact-head macOS arm64 workflow:
-  [#311](https://github.com/kavakfatih/Dynamics26/actions/runs/34059005490), completed/success.
+  [#313](https://github.com/kavakfatih/Dynamics26/actions/runs/34062158920), completed/success.
 
-Workflow #311 evidence on the exact qualified source SHA:
+Workflow #313 evidence on the exact qualified source SHA:
 
 - Debug full CTest: **161/161 PASS**,
 - Release full CTest: **161/161 PASS**,
@@ -279,7 +281,82 @@ Qualified fixtures include:
 
 P1A/P1B/P1C regression targets pass alongside P1D on both Debug and Release exact-head CI.
 
-## 10. Gate mapping
+## 10. Final G26/G29 executable evidence closeout
+
+### M2-G26 — post-barrier predicate/allocation prohibition
+
+The commit barrier is now executable-observable at the exact production boundary. A private,
+thread-local, default-null `DelaunayCommitBarrierAuditHooks` observer brackets only:
+
+```text
+COMMIT BARRIER
+-> DelaunayTransactionAccess::applyPreparedCommit(...)
+-> mechanical commit completed
+```
+
+It does not enter installed/public headers, topology fingerprints or production semantic identity.
+
+Predicate evidence reuses the existing `PredicateTelemetry::calls` mechanism through a private
+`src/meshing/internal/PredicateCallAudit.h` sink. Every RobustPredicates entry records into the
+armed thread-local qualification sink even when the ordinary optional telemetry parameter is null.
+The P1D test arms this sink at the production barrier and disarms it immediately after the
+mechanical commit.
+
+Allocation evidence is independent of arena capacity. The dedicated P1D test executable replaces
+the normal/aligned global `operator new/new[]` families with wrappers that count allocation attempts
+only while the same exact barrier window is armed. This instrumentation exists only in the test
+executable; production allocation behavior is unchanged.
+
+Executable negative controls prove the observers are live:
+
+- armed allocation tracker + controlled direct `operator new` -> exactly one detected attempt,
+- armed predicate sink + controlled `orient3d` -> exactly one detected predicate call.
+
+A successful production P1D commit then proves:
+
+```text
+commitBarrierCrossed = true
+postBarrierPredicateCalls = 0
+postBarrierAllocationAttempts = 0
+arena.capacity before == arena.capacity after
+typed topology post-state = valid
+```
+
+Both Debug and Release full CTest/meshing runs passed on workflow #313. This closes M2-G26 with
+runtime evidence rather than source inspection alone.
+
+### M2-G29 — checked slot arithmetic/resource failure
+
+The former translation-unit-local boolean arithmetic check was replaced by the pure private helper:
+
+```text
+detail::checkedDelaunayRequiredSlots(current, additional)
+-> {None, required}
+or
+-> {CapacityOverflow, 0}
+```
+
+Production candidate planning and untrusted-plan validation both use this exact helper.
+
+Executable boundary fixtures derive limits from `std::numeric_limits` and prove:
+
+- `UINT32_MAX - 1 + 1 -> SUCCESS, required = UINT32_MAX`,
+- `UINT32_MAX + 1 -> CapacityOverflow`,
+- `SIZE_MAX + 1 -> CapacityOverflow` without arithmetic wraparound or large allocation.
+
+The existing production-path resource fixture remains in place and now explicitly proves:
+
+```text
+configured ResourceLimit
+-> typed ResourceLimit
+-> commitBarrierCrossed = false
+-> exactStateFingerprint(before) == exactStateFingerprint(after)
+```
+
+Therefore M2-G29 has both executable checked-arithmetic boundary evidence and production
+pre-commit/non-mutation resource evidence in Debug and Release.
+
+## 11. Gate mapping
 
 Repository `EXPERIMENT_PLAN.md` definitions are authoritative.
 
@@ -291,8 +368,8 @@ Repository `EXPERIMENT_PLAN.md` definitions are authoritative.
 | M2-G14 | **PASS** | controlled invalid/stale/tampered plans preserve exact pre-state fingerprint and never cross commit barrier |
 | M2-G15 | **PASS** | interior, shared face, finite edge, hull facet and strict exterior insertion fixtures |
 | M2-G25 | **PARTIAL** | typed finite/Infinite validator + ghost convention pass bootstrap and P1D one-step mutation/corruption states; full serial-constructor state-family qualification remains P1F work |
-| M2-G26 | **PASS** | append-only pre-reserved path; commit barrier calls only prepared `noexcept` mutation; capacity unchanged after barrier |
-| M2-G29 | **PASS** | checked slot arithmetic/resource-limit rejection with old topology unchanged |
+| M2-G26 | **PASS** | exact production barrier observer + live negative controls; post-barrier RobustPredicates calls=0, global allocation attempts=0, capacity unchanged, typed post-state valid in Debug/Release #313 |
+| M2-G29 | **PASS** | pure production-used checked helper passes UINT32 upper-bound and rejects handle-domain/SIZE_MAX overflow as `CapacityOverflow`; ResourceLimit is pre-barrier and exact-state non-mutating in Debug/Release #313 |
 | M2-G34 | **PASS** | every finite base cones to exact-positive candidate or typed degeneracy/orientation failure |
 | M2-G35 | **PASS** | Infinite base cones to slot-0 ghost; finite face 0 pairing and exact outward witness verified; negative orientation fixture |
 | M2-G36 | **PASS** | lateral face-key pairing is exactly two-owner; candidate base set equals boundary set; each base has one surviving outside patch |
@@ -303,7 +380,7 @@ complete serial-reference-constructor CI + telemetry gate and is not closed by a
 P1F/final-constructor gates M2-G16..G24 and M2-G30..G33 are not promoted by this record. A single
 co-spherical P1D fixture is not the required 120/5!/40,320 permutation qualification program.
 
-## 11. Qualification boundary
+## 12. Qualification boundary
 
 The following claim is authorized:
 
@@ -313,8 +390,8 @@ QUALIFIED IN DECLARED SUBSCOPE
 ```
 
 Specifically, the P1D cavity oracle and transactional replacement patch are qualified against the
-frozen reference contract on exact source `8d0f7d6e3d685b5b4a9e13cc3a9ffbfda78fc3d3` and workflow
-#311.
+frozen reference contract on exact source `f5ab7e8dfcad9e6cd731722c2a1cc9c47c26f915` and workflow
+#313.
 
 This does **not** mean:
 
@@ -329,7 +406,7 @@ This does **not** mean:
 M2 OVERALL = NOT QUALIFIED
 ```
 
-## 12. Next development target
+## 13. Next development target
 
 Only after this qualification documentation receives its own exact-head CI evidence, the next
 development target is:

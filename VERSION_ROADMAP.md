@@ -343,11 +343,12 @@ Authoritative execution documents:
 - `docs/planning/V1.2_ORIGINAL_MESHING_DEVELOPMENT_PLAN.md`,
 - `docs/research/meshing/RESEARCH_TO_DEVELOPMENT_HANDOFF.md`.
 
-Current state: **DEV-MESH-P0 COMPLETE; P1A/P1B/P1C QUALIFIED IN DECLARED SUBSCOPES**.
-P1C source `9d6809cd19c2e71c7a6fc3f25a88d0f4ea21efe8` passed
-[macOS arm64 #302](https://github.com/kavakfatih/Dynamics26/actions/runs/34052456277),
-Debug/Release 160/160. M2 overall remains **NOT QUALIFIED**; next is P1D cavity
-oracle + transactional patch. This is not a CAD-conforming tetra mesher or product TET4 claim.
+Current state: **DEV-MESH-P0 COMPLETE; P1A/P1B/P1C/P1D QUALIFIED IN DECLARED SUBSCOPES**.
+P1D final evidence source `f5ab7e8dfcad9e6cd731722c2a1cc9c47c26f915` passed
+[macOS arm64 #313](https://github.com/kavakfatih/Dynamics26/actions/runs/34062158920),
+Debug/Release 161/161 full CTest and 38/38 meshing CTest. M2 overall remains
+**NOT QUALIFIED**; next is P1E deterministic adjacency walk. This is not a
+complete serial Delaunay constructor, CAD-conforming tetra mesher or product TET4 claim.
 
 
 V1.2 begins with the blocker that currently prevents real arbitrary-part workflows.
@@ -369,7 +370,7 @@ Güncel gate durumu:
 - M1 robust geometry foundation: **QUALIFIED**,
 - exact predicates / certified fast path / deterministic degeneracy foundation: qualified M1 evidence,
 - tetra topology primitives/validator: qualified M1 scope,
-- M2: **DESIGN FROZEN; P1A/P1B/P1C QUALIFIED IN SUBSCOPE; OVERALL NOT QUALIFIED**.
+- M2: **DESIGN FROZEN; P1A/P1B/P1C/P1D QUALIFIED IN DECLARED SUBSCOPES; P1E/P1F PENDING; OVERALL NOT QUALIFIED**.
 
 Gmsh, Netgen, TetGen, CGAL, MMG ve benzeri projeler teori, architecture,
 failure-mode ve benchmark araştırma kaynağı olarak kullanılabilir; kaynak kodu
@@ -610,7 +611,7 @@ RESEARCHED
 
 Research state:
 - M1 QUALIFIED,
-- M2 DESIGN FROZEN; P1A/P1B/P1C qualified in declared subscopes; P1D next; M2 OVERALL NOT QUALIFIED,
+- M2 DESIGN FROZEN; P1A/P1B/P1C/P1D qualified in declared subscopes; P1E/P1F pending; M2 OVERALL NOT QUALIFIED,
 - M3 D26-M3-FREEZE-1,
 - M4 D26-M4-FREEZE-1,
 - M5 D26-M5-FREEZE-1,
@@ -627,4 +628,4 @@ DEV-MESH-P1 -> P2 -> P3 -> P4 -> P5 -> P6
 -> P7
 ```
 
-The immediate next coding target is DEV-MESH-P1D only.
+The immediate next coding target is DEV-MESH-P1E only. P1E is not implemented by the P1D closeout.

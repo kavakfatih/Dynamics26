@@ -5,6 +5,13 @@ Date: 2026-09-06
 Scope: **RESEARCH CONSOLIDATION + DESIGN FREEZE + DEVELOPMENT HANDOFF**  
 Implementation changes in this closeout: **NONE**
 
+> **Post-closeout implementation status (2026-09-07):** P1D is now
+> **QUALIFIED IN DECLARED CAVITY-TRANSACTION SUBSCOPE** on source
+> `f5ab7e8dfcad9e6cd731722c2a1cc9c47c26f915`, macOS arm64 workflow #313 SUCCESS.
+> P1E is the next development target and is not implemented. M2 OVERALL remains
+> **NOT QUALIFIED**. Historical baseline statements below are retained only where
+> explicitly labeled as the original research-closeout snapshot.
+
 ## 1. Meaning of development ready
 
 The Original Meshing Engine research program is **DEVELOPMENT READY** only in this narrow sense:
@@ -28,7 +35,7 @@ It does **not** mean:
 |---|---|
 | M0 | STANDING KNOWLEDGE / CONTRACT LIBRARY |
 | M1 | QUALIFIED robust-geometry foundation |
-| M2 | DESIGN FROZEN; P1A/P1B/P1C qualified in declared subscopes; P1D+ pending; **M2 OVERALL NOT QUALIFIED** |
+| M2 | DESIGN FROZEN; P1A/P1B/P1C/P1D qualified in declared subscopes; P1E/P1F pending; **M2 OVERALL NOT QUALIFIED** |
 | M3 | RESEARCH COMPLETE / DESIGN FROZEN — D26-M3-FREEZE-1; implementation not started |
 | M4 | RESEARCH COMPLETE / DESIGN FROZEN — D26-M4-FREEZE-1; implementation not started |
 | M5 | RESEARCH COMPLETE / DESIGN FROZEN — D26-M5-FREEZE-1; implementation not started |
@@ -38,21 +45,33 @@ It does **not** mean:
 | M9 | DEFERRED — adaptation/remeshing |
 | M10 | DEFERRED — sweep/hex/hybrid |
 
-## 3. Current P1/M2 executable baseline
+## 3. P1/M2 executable status
 
-At the closeout starting baseline:
+### Historical research-closeout starting baseline
+
+At the original research-closeout baseline:
 - P1A semantic Delaunay predicates: **QUALIFIED IN DECLARED SUBSCOPE**,
 - P1B typed finite/infinite bootstrap: **QUALIFIED IN BOOTSTRAP SUBSCOPE**,
 - P1C brute-force exact point location: **QUALIFIED IN LOCATION SUBSCOPE**,
-- P1D cavity oracle + transactional patch: **NOT IMPLEMENTED / NEXT DEVELOPMENT TARGET**.
+- P1D cavity oracle + transactional patch: **not yet implemented**.
 
-Current gate truth:
+That list is a historical snapshot, not current status.
 
-**PASS:** M2-G02, M2-G03, M2-G04, M2-G05, M2-G06, M2-G08, M2-G09, M2-G10  
+### Current post-closeout implementation truth
+
+- P1A semantic Delaunay predicates: **QUALIFIED IN DECLARED SUBSCOPE**,
+- P1B typed finite/infinite bootstrap: **QUALIFIED IN BOOTSTRAP SUBSCOPE**,
+- P1C brute-force exact point location: **QUALIFIED IN LOCATION SUBSCOPE**,
+- P1D cavity oracle + transactional patch: **QUALIFIED IN DECLARED CAVITY-TRANSACTION SUBSCOPE**,
+- P1E deterministic adjacency walk: **NEXT DEVELOPMENT TARGET / NOT IMPLEMENTED**.
+
+Current P1D-owned gate truth:
+
+**PASS:** M2-G11, M2-G12, M2-G13, M2-G14, M2-G15, M2-G26, M2-G29, M2-G34, M2-G35, M2-G36  
 **PARTIAL:** M2-G25  
-**DEFERRED:** M2-G07, P1D+ gates, M2-G20 complete-constructor qualification
+**DEFERRED:** M2-G20 and P1F/final-constructor gates
 
-No closeout wording promotes M2 overall beyond **NOT QUALIFIED**.
+No wording promotes M2 overall beyond **NOT QUALIFIED**.
 
 ADR-MESH-0043 remains authoritative for oblique coplanar ghost-circle 3D Euclidean lift semantics and is neither overwritten nor renumbered.
 
@@ -101,7 +120,7 @@ Research M-numbers and development P-numbers are separate namespaces.
 DEV-MESH-P1
 M1 + M2
 serial point-cloud Delaunay
-current: P1A PASS / P1B PASS / P1C PASS / P1D NEXT
+current: P1A PASS / P1B PASS / P1C PASS / P1D PASS / P1E NEXT
     |
     v
 DEV-MESH-P2
@@ -169,8 +188,8 @@ M7 selects no solver formulation.
 
 ## 10. Closeout self-audit
 
-- [x] P1A/P1B/P1C current qualification truth preserved.
-- [x] P1D remains not implemented.
+- [x] Historical P1A/P1B/P1C research-closeout truth is preserved and clearly labeled.
+- [x] Current post-closeout status records P1D qualified in its declared cavity-transaction subscope and P1E next.
 - [x] ADR-MESH-0043 preserved.
 - [x] M3 FaceUse/pcurve ownership and chart aliases are explicit.
 - [x] M4 subcomplex coverage and exact constructed sites are explicit.
