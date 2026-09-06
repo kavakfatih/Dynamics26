@@ -33,3 +33,7 @@ compile_commands.json
 *.key
 .env
 .env.*
+
+# Python bytecode caches (oracle generators run during ctest)
+__pycache__/
+*.py[cod]
