@@ -468,6 +468,15 @@ set_tests_properties(
     LABELS "unit;meshing;m2;delaunay;bootstrap;ghost;topology;determinism"
 )
 
+# M2.1-C — exhaustive exact location oracle, private to the meshing subsystem
+add_executable(unit_m21c_delaunay_location meshing/m2_delaunay/test_m21c_delaunay_location.cpp)
+target_link_libraries(unit_m21c_delaunay_location PRIVATE femcae_meshing)
+target_include_directories(unit_m21c_delaunay_location PRIVATE "${CMAKE_SOURCE_DIR}/src")
+femcae_enable_warnings(unit_m21c_delaunay_location)
+add_test(NAME unit_m21c_delaunay_location COMMAND unit_m21c_delaunay_location)
+set_tests_properties(unit_m21c_delaunay_location PROPERTIES
+    LABELS "unit;meshing;m2;delaunay;location;exact-oracle;determinism")
+
 # M6 I1 — exact D26QMR1 comparator + independent Python exact oracle
 add_executable(
     unit_m6_exact_qmr

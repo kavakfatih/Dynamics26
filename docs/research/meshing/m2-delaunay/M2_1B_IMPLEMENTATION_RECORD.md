@@ -3,7 +3,10 @@
 **Date:** 2026-09-06  
 **Development milestone:** DEV-MESH-P1B  
 **Research authority:** M2.0 DESIGN FROZEN  
-**Status at commit creation:** IMPLEMENTATION CANDIDATE / EXACT-HEAD QUALIFICATION PENDING
+**Status:** QUALIFIED IN P1B BOOTSTRAP SUBSCOPE  
+**Source:** `6c626f3884aeedcda727f93fc1a4b174cad12d51`  
+**CI:** [macOS arm64 #299](https://github.com/kavakfatih/Dynamics26/actions/runs/34038076186), completed/success; Debug/Release 159/159 CTest, gui-fast success.  
+**Gates:** M2-G03/G04/G05 PASS; M2-G25 bootstrap-only PARTIAL.
 
 ## Scope
 
@@ -106,8 +109,8 @@ slots, direct stale arena handle access, near-maximum PointIds, scales 2^-500/1/
 and independent enumeration of every actual two-owner reciprocal face.
 
 The constructor's one-finite/four-ghost output remains unchanged. M1 and public
-installed headers remain unchanged. P1B hardening source qualification is pending
-its own exact-head macOS arm64 Debug/Release workflow.
+installed headers remain unchanged. P1B hardening source qualification passed its own exact-head macOS arm64
+Debug/Release workflow #299, identified above.
 
 **Qualification boundary:** Euler and face incidence are necessary corruption
 checks, not a proof that an arbitrary complex is S³. P1B constructs the explicit
