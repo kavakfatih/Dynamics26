@@ -113,7 +113,7 @@ const std::array<q::TetraCoordinates, 4>& alphabet() {
 
 std::vector<q::IndexedTetraCoordinates> cellsFromSymbols(
     const std::vector<int>& symbols,
-    q::PointId identityBase = 1U) {
+    femcae::meshing::PointId identityBase = 1U) {
     std::vector<q::IndexedTetraCoordinates> cells;
     cells.reserve(symbols.size());
 
@@ -124,9 +124,9 @@ std::vector<q::IndexedTetraCoordinates> cellsFromSymbols(
                 symbol < static_cast<int>(alphabet().size()),
             "quality-vector symbol out of range");
 
-        const q::PointId first =
+        const femcae::meshing::PointId first =
             identityBase +
-            static_cast<q::PointId>(i) * 10U;
+            static_cast<femcae::meshing::PointId>(i) * 10U;
 
         cells.push_back({
             {first, first + 1U, first + 2U, first + 3U},
@@ -138,7 +138,7 @@ std::vector<q::IndexedTetraCoordinates> cellsFromSymbols(
 
 q::QualityVector buildFromSymbols(
     const std::vector<int>& symbols,
-    q::PointId identityBase = 1U) {
+    femcae::meshing::PointId identityBase = 1U) {
     const auto cells =
         cellsFromSymbols(symbols, identityBase);
     return q::buildQualityVector(cells);
@@ -512,7 +512,7 @@ int main(int argc, char** argv) {
                 buildFromSymbols(
                     oracle.definitions[i],
                     1U +
-                        static_cast<q::PointId>(i) *
+                        static_cast<femcae::meshing::PointId>(i) *
                             100U));
         }
 
