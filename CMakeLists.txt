@@ -72,6 +72,7 @@ set(FEMCAE_MESHING_SOURCES
     src/meshing/m6/quality/QualityAcceptance.cpp
     src/meshing/m6/state/ConstraintView.cpp
     src/meshing/m6/state/TetraOptimizationState.cpp
+    src/meshing/m6/optimizer/SmartSmoothing.cpp
     src/meshing/RobustGeometry.cpp
     src/meshing/TetraTopology.cpp
     src/meshing/MeshTypes.cpp
@@ -92,6 +93,7 @@ set(FEMCAE_CERTIFIED_FP_SOURCES
     src/meshing/RobustPredicates.cpp
     src/meshing/m6/quality/IntervalArithmetic.cpp
     src/meshing/m6/quality/MeanRatioFilter.cpp
+    src/meshing/m6/optimizer/SmartSmoothing.cpp
 )
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")

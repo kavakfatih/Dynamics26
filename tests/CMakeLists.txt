@@ -582,3 +582,25 @@ set_tests_properties(
     PROPERTIES
     LABELS "unit;meshing;m6;optimizer;state;constraints;pointid;determinism"
 )
+
+# M6 I4a — deterministic smart interior smoothing proposal
+add_executable(
+    unit_m6_smart_smoothing
+    meshing/m6_quality/test_m6_smart_smoothing.cpp
+)
+target_link_libraries(unit_m6_smart_smoothing PRIVATE femcae_meshing)
+target_include_directories(
+    unit_m6_smart_smoothing
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m6_smart_smoothing)
+
+add_test(
+    NAME unit_m6_smart_smoothing
+    COMMAND unit_m6_smart_smoothing
+)
+set_tests_properties(
+    unit_m6_smart_smoothing
+    PROPERTIES
+    LABELS "unit;meshing;m6;optimizer;smoothing;quality;acceptance;determinism;replay"
+)
