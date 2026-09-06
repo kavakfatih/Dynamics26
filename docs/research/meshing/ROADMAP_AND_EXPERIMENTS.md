@@ -196,7 +196,7 @@ Mandatory before M2:
 
 ### M2 — Delaunay point-cloud tetrahedralization
 
-Status: **DESIGN FROZEN — P1A/P1B/P1C QUALIFIED IN DECLARED SUBSCOPES; P1D NEXT; M2 OVERALL NOT QUALIFIED**
+Status: **DESIGN FROZEN — P1A/P1B/P1C/P1D QUALIFIED IN DECLARED SUBSCOPES; P1E NEXT; M2 OVERALL NOT QUALIFIED**
 
 Deliver:
 
@@ -442,7 +442,7 @@ Cross-code agreement is supporting evidence, not proof.
 | M1.7 | Exact robust predicate kernel | QUALIFIED |
 | M1.8 | Certified fast predicate path | QUALIFIED |
 | M1.9 | Closeout hardening | QUALIFIED |
-| M2 | Point-cloud Delaunay tetra | DESIGN FROZEN / P1A-P1C QUALIFIED IN DECLARED SUBSCOPES / P1D NEXT / OVERALL NOT QUALIFIED |
+| M2 | Point-cloud Delaunay tetra | DESIGN FROZEN / P1A-P1D QUALIFIED IN DECLARED SUBSCOPES / P1E NEXT / OVERALL NOT QUALIFIED |
 | M3 | CAD surface meshing | NOT STARTED |
 | M4 | Boundary recovery / volume mesh | NOT STARTED |
 | M5 | Size fields | NOT STARTED |
@@ -480,7 +480,7 @@ Current sequence:
 1. close DEV-MESH-P0 research consolidation / development handoff,
 2. preserve M1 qualified evidence,
 3. use M2.0 as the first production implementation authority,
-4. continue DEV-MESH-P1 with **P1D cavity oracle + transactional patch** as the next coding target,
+4. continue DEV-MESH-P1 with **P1E deterministic adjacency walk** as the next coding target,
 5. continue P1 point location -> cavity transaction -> serial insertion -> deterministic qualification,
 6. research P2/P3/P4 questions just in time while implementing the critical path,
 7. preserve M6 design/prototypes as future P5 inputs; do not treat them as proof of a production volume mesher,
@@ -504,7 +504,7 @@ Exit:
 The broad Original Meshing Engine research architecture is closed at development-ready level. This is a research/design statement, not an implementation qualification claim.
 
 - M1: QUALIFIED.
-- M2: DESIGN FROZEN; P1A/P1B/P1C qualified in declared subscopes; P1D+ pending; M2 OVERALL NOT QUALIFIED.
+- M2: DESIGN FROZEN; P1A/P1B/P1C/P1D qualified in declared subscopes; P1E/P1F pending; M2 OVERALL NOT QUALIFIED.
 - M3: D26-M3-FREEZE-1.
 - M4: D26-M4-FREEZE-1.
 - M5: D26-M5-FREEZE-1.

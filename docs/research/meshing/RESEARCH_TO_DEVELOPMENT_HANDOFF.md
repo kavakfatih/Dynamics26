@@ -57,7 +57,7 @@ Development reuse:
 
 ### M2 — Delaunay point-cloud tetrahedralization research
 
-Status: M2.0 DESIGN FROZEN; P1A/P1B/P1C QUALIFIED IN DECLARED SUBSCOPES.
+Status: M2.0 DESIGN FROZEN; P1A/P1B/P1C/P1D QUALIFIED IN DECLARED SUBSCOPES; M2 OVERALL NOT QUALIFIED.
 M2 OVERALL NOT QUALIFIED; serial insertion/constructor qualification remains open.
 See `m2-delaunay/M2_1C_IMPLEMENTATION_RECORD.md` for source SHA and macOS CI evidence.
 
@@ -78,8 +78,8 @@ Development reuse:
 - P1A semantic Delaunay predicates (qualified; oblique metric correction ADR-MESH-0043),
 - P1B typed finite/ghost bootstrap (qualified in bootstrap scope),
 - P1C brute-force exact point location (qualified; M2-G06),
-- P1D cavity oracle + Plan -> Validate -> Commit transactional patch (next),
-- P1E deterministic adjacency walk,
+- P1D cavity oracle + Plan -> Validate -> reserve -> Commit transactional patch (qualified in declared subscope),
+- P1E deterministic adjacency walk (next),
 - P1F serial constructor determinism / fingerprint / replay.
 
 This sequence supersedes the earlier abbreviated handoff list and matches the
@@ -235,15 +235,16 @@ These are development inputs unless superseded by explicit ADR:
 
 ## 5. Current production-development scope
 
-P0 has closed and P1A/P1B/P1C have passed their declared qualification gates.
+P0 has closed and P1A/P1B/P1C/P1D have passed their declared qualification gates.
 The next single implementation target is:
 
 ```text
-DEV-MESH-P1D
-Cavity oracle + transactional patch
+DEV-MESH-P1E
+Deterministic adjacency walk
 ```
 
-P1D is not implemented by the P1C closeout. M2 overall remains NOT QUALIFIED.
+P1D is qualified only against its declared cavity/transaction reference contract. P1E/P1F and
+complete serial-constructor qualification remain pending; M2 overall remains NOT QUALIFIED.
 
 Reason:
 
@@ -309,4 +310,4 @@ P1 / M1+M2
 
 M8 is a future curved-boundary/TET10 direction and does not block the TET4 path. M9/M10 remain deferred.
 
-The next coding-agent target after this documentation closeout is only **DEV-MESH-P1D — cavity oracle + transactional patch**.
+The next coding-agent target after this documentation closeout is only **DEV-MESH-P1E — deterministic adjacency walk**. P1E is not implemented by this closeout.

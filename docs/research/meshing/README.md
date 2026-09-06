@@ -6,7 +6,7 @@
 **Research baseline:** 2026-09-05  
 **Status:** RESEARCH CLOSEOUT / DEVELOPMENT HANDOFF ACTIVE  
 **Implementation policy:** original Dynamics26 implementation; no external meshing-engine product dependency is assumed.  
-**Production development status:** DEV-MESH-P0 COMPLETE; P1A/P1B/P1C qualified in declared subscopes; P1D is the next development target; M2 overall is NOT QUALIFIED.
+**Production development status:** DEV-MESH-P0 COMPLETE; P1A/P1B/P1C/P1D qualified in declared subscopes; P1E is the next development target; M2 overall is NOT QUALIFIED.
 
 ## 1. Purpose
 
