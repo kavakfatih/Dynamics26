@@ -236,7 +236,8 @@ def verify_finite_and_ghost_semantics():
 
 
 def main():
-    verify_finite_and_ghost_semantics()\n    insphere_count = verify_insphere()
+    verify_finite_and_ghost_semantics()
+    insphere_count = verify_insphere()
     incircle_count = verify_incircle()
     print(
         "M2.1-A symbolic polynomial oracle PASS "
