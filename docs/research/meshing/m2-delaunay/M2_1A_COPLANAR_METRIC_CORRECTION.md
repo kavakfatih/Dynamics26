@@ -3,7 +3,12 @@
 Date: 2026-09-06  
 Audit baseline: `d2163476bd52d085e2efc0680ec1e5b4899b8460`  
 Decision: ADR-MESH-0043  
-Status: FIX CANDIDATE / corrected-source exact-head CI pending
+Status: CORRECTED P1A SUBSCOPE QUALIFIED  
+Source HEAD: `6962866dde18fa5dc17c48f49212594b091c2e32`  
+CI: [macOS arm64 #298](https://github.com/kavakfatih/Dynamics26/actions/runs/34037763796)
+completed/success; Debug and Release full CTest, M1/M2 tests and gui-fast passed.
+Local supplementary GCC O0/O2 and address/undefined sanitizers passed (leak
+checking disabled in the container). These local runs are not Mac qualification.
 
 ## Reproduced defect
 

@@ -82,3 +82,35 @@ PASS claims require exact-head macOS arm64 Debug/Release evidence.
 After exact-head qualification:
 
 `DEV-MESH-P1C / M2.1-C — brute-force exact point location`.
+
+
+## Independent P1B audit and hardening — 2026-09-06
+
+Baseline `d2163476bd52d085e2efc0680ec1e5b4899b8460` passed existing tests
+(macOS workflow 34036613946; Debug 159/159). Independent negative controls
+nevertheless reproduced three validator defects:
+
+1. Two ghost lateral faces replaced with reciprocal **self** links were accepted.
+   Require the two actual face-incidence owners to point at each other.
+2. Two copies of one finite tetra with reciprocal links passed all incidence
+   counts and Euler=0. Reject duplicate canonical cell connectivity explicitly.
+3. A missing finite-neighbor opposite PointId threw during ghost orientation
+   lookup after already being classified as invalid. Return MissingFinitePoint
+   evidence without dereferencing an absent coordinate.
+
+The ghost-orientation negative test now swaps the corresponding neighbor slots
+too and requires **only** GhostHullOrientationInvalid. It can no longer pass
+merely because adjacency was broken. Corruption tests check specific typed codes;
+new coverage includes invalid Infinite patterns, dead/out-of-range/zero-generation
+slots, direct stale arena handle access, near-maximum PointIds, scales 2^-500/1/2^500
+and independent enumeration of every actual two-owner reciprocal face.
+
+The constructor's one-finite/four-ghost output remains unchanged. M1 and public
+installed headers remain unchanged. P1B hardening source qualification is pending
+its own exact-head macOS arm64 Debug/Release workflow.
+
+**Qualification boundary:** Euler and face incidence are necessary corruption
+checks, not a proof that an arbitrary complex is S³. P1B constructs the explicit
+boundary-of-a-4-simplex bootstrap; general embedding, links and mutation-state
+qualification are later obligations. M2-G25 remains bootstrap-only PARTIAL;
+M2 OVERALL = NOT QUALIFIED. No cavity or walk is introduced here.

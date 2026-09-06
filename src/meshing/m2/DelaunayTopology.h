@@ -89,7 +89,9 @@ enum class DelaunayTopologyIssueCode : std::uint8_t {
     GhostFiniteNeighborMissing,
     GhostLateralNeighborNotGhost,
     GhostHullOrientationInvalid,
-    EulerCharacteristicMismatch
+    EulerCharacteristicMismatch,
+    DuplicateCell,
+    FaceAdjacencyMismatch
 };
 
 struct DelaunayTopologyIssue {

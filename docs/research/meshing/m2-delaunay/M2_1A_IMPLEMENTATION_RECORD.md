@@ -2,9 +2,10 @@
 
 
 > 2026-09-06 independent audit: ADR-MESH-0043 corrects the oblique coplanar
-> circle metric. M2-G09 / coplanar G10 are REOPENED pending corrected-source
-> exact-head CI. See `M2_1A_COPLANAR_METRIC_CORRECTION.md` in the M2 research package.
-> Historical PASS statements below do not cover this newly reproduced defect.
+> circle metric. Corrected source `6962866dde18fa5dc17c48f49212594b091c2e32`
+> passed macOS arm64 workflow [#298](https://github.com/kavakfatih/Dynamics26/actions/runs/34037763796).
+> M2-G09 / coplanar G10 are requalified for the expanded P1A corpus.
+> Historical evidence below remains scoped to its original commit.
 
 **Date:** 2026-09-06  
 **Development milestone:** DEV-MESH-P1A  

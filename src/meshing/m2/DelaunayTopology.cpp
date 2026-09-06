@@ -475,6 +475,7 @@ DelaunayTopologyValidationReport validateDelaunayTopology(
     const auto points = pointMap(sites);
 
     std::map<DelaunayFaceKey, std::vector<FaceIncidence>> faceIncidences;
+    std::set<std::array<DelaunayVertexRef, 4>> cellKeys;
 
     for (std::size_t slotIndex = 0U; slotIndex < slots.size(); ++slotIndex) {
         const DelaunayCellSlot& slot = slots[slotIndex];
@@ -495,6 +496,12 @@ DelaunayTopologyValidationReport validateDelaunayTopology(
         if (hasDuplicateFiniteVertex(slot.record)) {
             addIssue(report, DelaunayTopologyIssueCode::DuplicateFiniteVertex, self);
             continue;
+        }
+
+        auto cellKey = slot.record.vertices;
+        std::sort(cellKey.begin(), cellKey.end());
+        if (!cellKeys.insert(cellKey).second) {
+            addIssue(report, DelaunayTopologyIssueCode::DuplicateCell, self);
         }
 
         bool missingPoint = false;
@@ -607,7 +614,12 @@ DelaunayTopologyValidationReport validateDelaunayTopology(
                     const auto oppositeId =
                         finiteCell.vertices[*finiteFace].finitePointId();
                     const auto hull = ghostHullPointIds(slot.record);
-                    if (!oppositeId.has_value() ||
+                    // Komsu hucrenin eksik koordinati daha once raporlanmis
+                    // olabilir. Bozuk topoloji raporu burada exception'a donusmez.
+                    if (!oppositeId.has_value() || !points.contains(*oppositeId)) {
+                        addIssue(report, DelaunayTopologyIssueCode::MissingFinitePoint,
+                                 finiteNeighbor, *finiteFace);
+                    } else if (
                         predicates::orient3d(
                             lookupPoint(points, hull[0]),
                             lookupPoint(points, hull[1]),
@@ -646,6 +658,17 @@ DelaunayTopologyValidationReport validateDelaunayTopology(
                     DelaunayTopologyIssueCode::FaceIncidenceNotTwo,
                     incidence.cell,
                     incidence.localFace);
+            }
+        } else {
+            // Karsiliklilik tek basina yeterli degildir: self-link kendisine
+            // karsilikli olabilir. Yuzun iki gercek sahibi birbirine baglanmali.
+            for (std::size_t i = 0; i < 2; ++i) {
+                const auto& owner = incidences[i];
+                const auto& other = incidences[1-i];
+                if (slots[owner.cell.slot].record.neighbors[owner.localFace] != other.cell) {
+                    addIssue(report, DelaunayTopologyIssueCode::FaceAdjacencyMismatch,
+                             owner.cell, owner.localFace);
+                }
             }
         }
     }

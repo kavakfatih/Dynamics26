@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cmath>
+#include <limits>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -228,38 +230,124 @@ void verifyInputValidation() {
     require(rejected, "non-canonical duplicate coordinate entered M2 bootstrap");
 }
 
+using Issue = femcae::meshing::m2::DelaunayTopologyIssueCode;
+using Handle = femcae::meshing::m2::DelaunayCellHandle;
+
+bool hasIssue(const femcae::meshing::m2::DelaunayTopologyValidationReport& report,
+              Issue code) {
+    return std::any_of(report.issues.begin(), report.issues.end(),
+                       [code](const auto& issue) { return issue.code == code; });
+}
+
 void verifyValidatorNegativeControls() {
-    const std::vector<CanonicalSite> sites = basisFixture();
-    const auto bootstrap =
-        femcae::meshing::m2::buildDelaunayBootstrap(sites);
-
-    std::vector<DelaunayCellSlot> stale(
-        bootstrap.arena.slots().begin(),
-        bootstrap.arena.slots().end());
+    const auto sites = basisFixture();
+    const auto bootstrap = femcae::meshing::m2::buildDelaunayBootstrap(sites);
+    const auto copy = [&] {
+        return std::vector<DelaunayCellSlot>(bootstrap.arena.slots().begin(),
+                                           bootstrap.arena.slots().end());
+    };
+    const auto expect = [&](const auto& slots, Issue code) {
+        require(hasIssue(femcae::meshing::m2::validateDelaunayTopology(slots, sites), code),
+                "validator omitted expected issue " + std::to_string(static_cast<int>(code)));
+    };
+    auto stale = copy();
     stale[0].record.neighbors[0].generation += 1U;
-    require(
-        !femcae::meshing::m2::validateDelaunayTopology(stale, sites).ok(),
-        "validator accepted stale neighbor generation");
+    expect(stale, Issue::StaleNeighborGeneration);
 
-    std::vector<DelaunayCellSlot> wrongOrientation(
-        bootstrap.arena.slots().begin(),
-        bootstrap.arena.slots().end());
-    std::swap(
-        wrongOrientation[1].record.vertices[1],
-        wrongOrientation[1].record.vertices[2]);
-    require(
-        !femcae::meshing::m2::validateDelaunayTopology(
-            wrongOrientation, sites).ok(),
-        "validator accepted inward ghost hull orientation");
+    auto orientation = copy();
+    std::swap(orientation[1].record.vertices[1], orientation[1].record.vertices[2]);
+    std::swap(orientation[1].record.neighbors[1], orientation[1].record.neighbors[2]);
+    const auto report = femcae::meshing::m2::validateDelaunayTopology(orientation, sites);
+    require(report.issues.size() == 1 && hasIssue(report, Issue::GhostHullOrientationInvalid),
+            "orientation test must fail ONLY for inward ghost orientation");
 
-    std::vector<DelaunayCellSlot> wrongInfinite(
-        bootstrap.arena.slots().begin(),
-        bootstrap.arena.slots().end());
-    wrongInfinite[1].record.vertices[0] = DelaunayVertexRef::finite(30);
-    require(
-        !femcae::meshing::m2::validateDelaunayTopology(
-            wrongInfinite, sites).ok(),
-        "validator accepted ghost without typed Infinite slot zero");
+    // Iki gercek ghost-face owner'in her birini kendisine bagla.
+    // Eski validator reciprocal self-links + Euler=0 kompleksini kabul ediyordu.
+    auto self = copy();
+    const auto other = self[1].record.neighbors[1];
+    const auto key = femcae::meshing::m2::canonicalDelaunayFaceKey(self[1].record, 1);
+    for (std::size_t f = 0; f < 4; ++f) {
+        if (femcae::meshing::m2::canonicalDelaunayFaceKey(self[other.slot].record, f) == key)
+            self[other.slot].record.neighbors[f] = other;
+    }
+    self[1].record.neighbors[1] = Handle{1, self[1].generation};
+    expect(self, Issue::FaceAdjacencyMismatch);
+
+    std::vector<DelaunayCellSlot> duplicate{copy()[0], copy()[0]};
+    for (std::size_t i = 0; i < 2; ++i)
+        for (auto& n : duplicate[i].record.neighbors)
+            n = Handle{static_cast<std::uint32_t>(1-i), 1};
+    require(femcae::meshing::m2::computeDelaunayComplexStats(duplicate).eulerCharacteristic == 0,
+            "duplicate-cell counterexample must have Euler zero");
+    expect(duplicate, Issue::DuplicateCell);
+
+    auto missing = copy();
+    missing[0].record.vertices[0] = DelaunayVertexRef::finite(999);
+    expect(missing, Issue::MissingFinitePoint); // must return a report, not throw
+
+    for (unsigned mask = 2; mask < 16; ++mask) {
+        auto pattern = copy();
+        for (unsigned i = 0; i < 4; ++i)
+            if (mask & (1U << i)) pattern[0].record.vertices[i] = DelaunayVertexRef::infinite();
+        expect(pattern, Issue::InvalidCellVertexPattern);
+    }
+    auto duplicateVertex = copy();
+    duplicateVertex[0].record.vertices[1] = duplicateVertex[0].record.vertices[0];
+    expect(duplicateVertex, Issue::DuplicateFiniteVertex);
+    auto dead = copy(); dead[1].live = false;
+    expect(dead, Issue::NeighborDead);
+    auto out = copy(); out[0].record.neighbors[0].slot = 999;
+    expect(out, Issue::NeighborOutOfRange);
+    auto zeroGeneration = copy(); zeroGeneration[0].generation = 0;
+    expect(zeroGeneration, Issue::LiveSlotZeroGeneration);
+    for (Handle h : {Handle{}, Handle{999, 1}, Handle{0, 2}}) {
+        bool rejected = false;
+        try { (void)bootstrap.arena.cell(h); }
+        catch (const std::out_of_range&) { rejected = true; }
+        require(rejected, "arena accepted stale/invalid handle");
+    }
+}
+
+void verifyScaleAndIndependentIncidence() {
+    for (int exponent : {-500, 0, 500}) {
+        auto sites = basisFixture();
+        for (auto& site : sites) {
+            site.id = std::numeric_limits<PointId>::max() - site.id;
+            site.point.x = std::ldexp(site.point.x, exponent);
+            site.point.y = std::ldexp(site.point.y, exponent);
+            site.point.z = std::ldexp(site.point.z, exponent);
+        }
+        const auto result = femcae::meshing::m2::buildDelaunayBootstrap(sites);
+        const auto slots = result.arena.slots();
+        // Validator sonucunu tekrar sormak yerine tum komsuluklari bagimsiz tara.
+        for (std::size_t i = 0; i < slots.size(); ++i) {
+            for (std::size_t f = 0; f < 4; ++f) {
+                const auto n = slots[i].record.neighbors[f];
+                require(n.slot != i && n.slot < slots.size(), "invalid neighbor owner");
+                std::vector<DelaunayVertexRef> face;
+                for (std::size_t v = 0; v < 4; ++v)
+                    if (v != f) face.push_back(slots[i].record.vertices[v]);
+                std::sort(face.begin(), face.end());
+                std::size_t owners = 0;
+                for (std::size_t j = 0; j < slots.size(); ++j) {
+                    for (std::size_t g = 0; g < 4; ++g) {
+                        std::vector<DelaunayVertexRef> other;
+                        for (std::size_t v = 0; v < 4; ++v)
+                            if (v != g) other.push_back(slots[j].record.vertices[v]);
+                        std::sort(other.begin(), other.end());
+                        if (face != other) continue;
+                        ++owners;
+                        if (j != i)
+                            require(n == Handle{static_cast<std::uint32_t>(j), slots[j].generation} &&
+                                    slots[j].record.neighbors[g] ==
+                                        Handle{static_cast<std::uint32_t>(i), slots[i].generation},
+                                    "actual face owners are not reciprocal");
+                    }
+                }
+                require(owners == 2, "unified face must have exactly two owners");
+            }
+        }
+    }
 }
 
 } // namespace
@@ -271,6 +359,7 @@ int main() {
         verifyLowerDimensionalOutcomes();
         verifyInputValidation();
         verifyValidatorNegativeControls();
+        verifyScaleAndIndependentIncidence();
 
         std::cout
             << "M2.1-B typed bootstrap PASS"
