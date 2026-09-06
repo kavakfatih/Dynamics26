@@ -33,6 +33,28 @@ MeanRatioOrder compareEntries(
         ++telemetry->entryComparisons;
     }
 
+    // D26QMRF1 first. It can only return a strict order it has proven, so a
+    // certified answer is the answer D26QMRB1 would have produced; anything it
+    // cannot prove -- including every exact tie -- falls through to the exact
+    // backend below.
+    if (lhs.filterReady && rhs.filterReady) {
+        MeanRatioOrder certified{MeanRatioOrder::Equal};
+        if (compareMeanRatioIntervalKeys(
+                lhs.filter,
+                rhs.filter,
+                certified) ==
+            MeanRatioIntervalStatus::Ready) {
+            if (telemetry != nullptr) {
+                ++telemetry->intervalCertifiedComparisons;
+            }
+            return certified;
+        }
+    }
+
+    if (telemetry != nullptr) {
+        ++telemetry->exactComparisons;
+    }
+
     const MeanRatioOrder result =
         compareExactMeanRatioKeys(
             lhs.quality,
@@ -121,11 +143,22 @@ QualityVector buildQualityVector(
                 "D26QV1 requires exact-positive finite TET4 input");
         }
 
-        result.entries.push_back({
+        QualityVectorEntry entry{
             canonicalQualityTetKey(tetra),
             buildExactMeanRatioKey(
                 tetra.coordinates,
-                exactTelemetry)});
+                exactTelemetry),
+            {},
+            false};
+
+        entry.filterReady =
+            buildMeanRatioIntervalKey(tetra, entry.filter) ==
+            MeanRatioIntervalStatus::Ready;
+        if (!entry.filterReady && telemetry != nullptr) {
+            ++telemetry->filterUnavailableCells;
+        }
+
+        result.entries.push_back(std::move(entry));
     }
 
     std::sort(

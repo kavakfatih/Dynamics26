@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MeanRatioExact.h"
+#include "MeanRatioFilter.h"
 
 #include <array>
 #include <cstddef>
@@ -15,6 +16,14 @@ using CanonicalQualityTetKey = std::array<PointId, 4>;
 struct QualityVectorEntry {
     CanonicalQualityTetKey tetra{};
     ExactMeanRatioKey quality{};
+
+    // D26QMRF1 certificate material, built once per cell alongside the exact key.
+    // `quality` stays the sole authority: `filter` may only prove a strict order
+    // that D26QMRB1 would also reach, and proves nothing when `filterReady` is
+    // false. Entry order and acceptance therefore do not depend on whether the
+    // filter happened to certify.
+    MeanRatioIntervalKey filter{};
+    bool filterReady{false};
 };
 
 // D26QV1 irrasyonel qMR scalar'i saklamaz.
@@ -37,6 +46,13 @@ struct QualityVectorTelemetry {
     std::uint64_t prefixDecisions{0};
     std::uint64_t mergeCalls{0};
     std::uint64_t mergedEntries{0};
+
+    // Backend split over entryComparisons. These always sum to entryComparisons,
+    // so a qualification run can show how much of the exact backend the filter
+    // actually displaced.
+    std::uint64_t intervalCertifiedComparisons{0};
+    std::uint64_t exactComparisons{0};
+    std::uint64_t filterUnavailableCells{0};
 };
 
 [[nodiscard]] bool isExactPositiveQualityCell(

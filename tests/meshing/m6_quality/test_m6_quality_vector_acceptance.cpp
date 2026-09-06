@@ -492,6 +492,54 @@ void verifyAcceptance(
         "D26QACC1 telemetry partition mismatch");
 }
 
+// D26QMRF1 is a backend, never a semantic. Whatever the filter certifies must be
+// what the exact backend alone would have said, so the same comparison is run
+// twice: once as built, and once with every filter certificate stripped so the
+// exact path is forced. Any disagreement means the fast path changed an answer.
+q::QualityVector withoutFilter(const q::QualityVector& source) {
+    q::QualityVector stripped = source;
+    for (q::QualityVectorEntry& entry : stripped.entries) {
+        entry.filterReady = false;
+        entry.filter = {};
+    }
+    return stripped;
+}
+
+void verifyFilterBackendAgreement(
+    const std::vector<q::QualityVector>& vectors) {
+    q::QualityVectorTelemetry filtered{};
+    q::QualityVectorTelemetry exactOnly{};
+
+    for (const q::QualityVector& lhs : vectors) {
+        for (const q::QualityVector& rhs : vectors) {
+            const q::QualityVectorOrder viaFilter =
+                q::compareQualityVectors(lhs, rhs, &filtered);
+            const q::QualityVectorOrder viaExact =
+                q::compareQualityVectors(
+                    withoutFilter(lhs),
+                    withoutFilter(rhs),
+                    &exactOnly);
+
+            require(
+                viaFilter == viaExact,
+                "certified filter result disagrees with the exact backend");
+        }
+    }
+
+    require(
+        filtered.intervalCertifiedComparisons +
+                filtered.exactComparisons ==
+            filtered.entryComparisons,
+        "filter/exact backend split does not account for every comparison");
+
+    require(
+        exactOnly.intervalCertifiedComparisons == 0U,
+        "stripped vectors must not produce interval certificates");
+    require(
+        exactOnly.exactComparisons == exactOnly.entryComparisons,
+        "stripped vectors must route every comparison to the exact backend");
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -520,6 +568,7 @@ int main(int argc, char** argv) {
         verifyUnionOracle(oracle, vectors);
         verifyIdentityIsNotQuality();
         verifyAcceptance(oracle);
+        verifyFilterBackendAgreement(vectors);
 
         std::cout
             << "M6 I3 D26QV1/D26QACC1 PASS"

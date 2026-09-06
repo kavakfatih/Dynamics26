@@ -274,6 +274,76 @@ MeanRatioIntervalStatus makeNormalizedRelativeTetra(
     return MeanRatioIntervalStatus::Ready;
 }
 
+// Frozen polynomial, evaluated in exactly one place:
+// F = D_A^2 S_B^3 - D_B^2 S_A^3.
+MeanRatioIntervalStatus crossPolynomial(
+    const MeanRatioIntervalKey& lhs,
+    const MeanRatioIntervalKey& rhs,
+    Interval& output) noexcept {
+    const IntervalResult lhsD2 =
+        interval::square(lhs.determinant);
+    const IntervalResult rhsD2 =
+        interval::square(rhs.determinant);
+    const IntervalResult lhsS3 =
+        interval::cubePositive(lhs.edgeSum);
+    const IntervalResult rhsS3 =
+        interval::cubePositive(rhs.edgeSum);
+
+    if (!lhsD2.ok()) {
+        return statusFrom(lhsD2);
+    }
+    if (!rhsD2.ok()) {
+        return statusFrom(rhsD2);
+    }
+    if (!lhsS3.ok()) {
+        return statusFrom(lhsS3);
+    }
+    if (!rhsS3.ok()) {
+        return statusFrom(rhsS3);
+    }
+
+    const IntervalResult left =
+        interval::multiplyNonNegative(
+            lhsD2.value,
+            rhsS3.value);
+    const IntervalResult right =
+        interval::multiplyNonNegative(
+            rhsD2.value,
+            lhsS3.value);
+
+    if (!left.ok()) {
+        return statusFrom(left);
+    }
+    if (!right.ok()) {
+        return statusFrom(right);
+    }
+
+    const IntervalResult cross =
+        interval::subtract(left.value, right.value);
+    if (!cross.ok()) {
+        return statusFrom(cross);
+    }
+
+    output = cross.value;
+    return MeanRatioIntervalStatus::Ready;
+}
+
+// Sign decision, evaluated in exactly one place. There is no fast Equal: any F
+// interval that contains zero is an exact-authority question.
+MeanRatioIntervalStatus certifyCrossPolynomial(
+    const Interval& cross,
+    MeanRatioOrder& order) noexcept {
+    if (cross.lo > 0.0) {
+        order = MeanRatioOrder::Greater;
+        return MeanRatioIntervalStatus::Ready;
+    }
+    if (cross.hi < 0.0) {
+        order = MeanRatioOrder::Less;
+        return MeanRatioIntervalStatus::Ready;
+    }
+    return MeanRatioIntervalStatus::Overlap;
+}
+
 MeanRatioFallbackReason reasonFrom(
     MeanRatioIntervalStatus status) noexcept {
     switch (status) {
@@ -411,57 +481,31 @@ MeanRatioIntervalStatus buildMeanRatioPairIntervals(
         return rhsStatus;
     }
 
-    const IntervalResult lhsD2 =
-        interval::square(lhsKey.determinant);
-    const IntervalResult rhsD2 =
-        interval::square(rhsKey.determinant);
-    const IntervalResult lhsS3 =
-        interval::cubePositive(lhsKey.edgeSum);
-    const IntervalResult rhsS3 =
-        interval::cubePositive(rhsKey.edgeSum);
-
-    if (!lhsD2.ok()) {
-        return statusFrom(lhsD2);
-    }
-    if (!rhsD2.ok()) {
-        return statusFrom(rhsD2);
-    }
-    if (!lhsS3.ok()) {
-        return statusFrom(lhsS3);
-    }
-    if (!rhsS3.ok()) {
-        return statusFrom(rhsS3);
-    }
-
-    const IntervalResult left =
-        interval::multiplyNonNegative(
-            lhsD2.value,
-            rhsS3.value);
-    const IntervalResult right =
-        interval::multiplyNonNegative(
-            rhsD2.value,
-            lhsS3.value);
-
-    if (!left.ok()) {
-        return statusFrom(left);
-    }
-    if (!right.ok()) {
-        return statusFrom(right);
-    }
-
-    // Frozen polynomial:
-    // F = D_A^2 S_B^3 - D_B^2 S_A^3.
-    const IntervalResult cross =
-        interval::subtract(left.value, right.value);
-    if (!cross.ok()) {
-        return statusFrom(cross);
+    Interval cross{};
+    const MeanRatioIntervalStatus crossStatus =
+        crossPolynomial(lhsKey, rhsKey, cross);
+    if (crossStatus != MeanRatioIntervalStatus::Ready) {
+        return crossStatus;
     }
 
     output = {
         lhsKey,
         rhsKey,
-        cross.value};
+        cross};
     return MeanRatioIntervalStatus::Ready;
+}
+
+MeanRatioIntervalStatus compareMeanRatioIntervalKeys(
+    const MeanRatioIntervalKey& lhs,
+    const MeanRatioIntervalKey& rhs,
+    MeanRatioOrder& order) noexcept {
+    Interval cross{};
+    const MeanRatioIntervalStatus crossStatus =
+        crossPolynomial(lhs, rhs, cross);
+    if (crossStatus != MeanRatioIntervalStatus::Ready) {
+        return crossStatus;
+    }
+    return certifyCrossPolynomial(cross, order);
 }
 
 MeanRatioEvaluation compareFilteredMeanRatio(
@@ -489,33 +533,31 @@ MeanRatioEvaluation compareFilteredMeanRatio(
             exactTelemetry);
     }
 
-    if (intervals.crossPolynomial.lo > 0.0) {
-        if (telemetry != nullptr) {
-            ++telemetry->intervalCertifiedGreater;
-        }
-        return {
-            MeanRatioOrder::Greater,
-            MeanRatioEvaluationPath::IntervalCertified,
-            MeanRatioFallbackReason::None};
+    MeanRatioOrder certified{MeanRatioOrder::Equal};
+    if (certifyCrossPolynomial(
+            intervals.crossPolynomial,
+            certified) !=
+        MeanRatioIntervalStatus::Ready) {
+        // Fast Equal yoktur. Sifiri kapsayan her F intervali exact authority'ye gider.
+        return exactFallback(
+            lhs,
+            rhs,
+            MeanRatioFallbackReason::IntervalOverlap,
+            telemetry,
+            exactTelemetry);
     }
 
-    if (intervals.crossPolynomial.hi < 0.0) {
-        if (telemetry != nullptr) {
+    if (telemetry != nullptr) {
+        if (certified == MeanRatioOrder::Greater) {
+            ++telemetry->intervalCertifiedGreater;
+        } else {
             ++telemetry->intervalCertifiedLess;
         }
-        return {
-            MeanRatioOrder::Less,
-            MeanRatioEvaluationPath::IntervalCertified,
-            MeanRatioFallbackReason::None};
     }
-
-    // Fast Equal yoktur. Sifiri kapsayan her F intervali exact authority'ye gider.
-    return exactFallback(
-        lhs,
-        rhs,
-        MeanRatioFallbackReason::IntervalOverlap,
-        telemetry,
-        exactTelemetry);
+    return {
+        certified,
+        MeanRatioEvaluationPath::IntervalCertified,
+        MeanRatioFallbackReason::None};
 }
 
 } // namespace femcae::meshing::m6::quality
