@@ -1,8 +1,12 @@
 #include "meshing/m6/state/TetraOptimizationState.h"
 #include "meshing/m6/quality/QualityVector.h"
 
+#include "femcae/meshing/RobustPredicates.h"
+
 #include <algorithm>
 #include <array>
+#include <map>
+#include <cstdint>
 #include <iostream>
 #include <stdexcept>
 #include <utility>
@@ -27,6 +31,30 @@ void require(bool condition, const char* message) {
     if (!condition) {
         fail(message);
     }
+}
+
+// The linear scan the incidence index replaced, kept as the reference the index
+// must reproduce exactly -- including handle order, which commitSmartSmoothing
+// compares element-wise.
+std::vector<femcae::meshing::TetHandle> scanIncident(
+    const std::vector<TetSlot>& tetraSlots,
+    PointId id) {
+    std::vector<femcae::meshing::TetHandle> result;
+    for (std::size_t slot = 0; slot < tetraSlots.size(); ++slot) {
+        const TetSlot& tetra = tetraSlots[slot];
+        if (!tetra.live) {
+            continue;
+        }
+        if (std::find(
+                tetra.record.vertices.begin(),
+                tetra.record.vertices.end(),
+                id) != tetra.record.vertices.end()) {
+            result.push_back({
+                static_cast<std::uint32_t>(slot),
+                tetra.generation});
+        }
+    }
+    return result;
 }
 
 std::vector<CanonicalSite> sites() {
@@ -240,6 +268,134 @@ int main() {
                     std::move(stale));
             },
             "constraint referencing unknown PointId was accepted");
+
+        // --- incidence index ---------------------------------------------
+        //
+        // A star of four tetrahedra around an interior point, plus a point no
+        // live tetra references. Every point is cross-checked against the scan
+        // the index replaced.
+        {
+            const std::vector<CanonicalSite> starSites{
+                {10U, {0.05, 0.05, 0.05}, {}},
+                {30U, {1.0, 0.0, 0.0}, {}},
+                {50U, {0.0, 1.0, 0.0}, {}},
+                {70U, {0.0, 0.0, 1.0}, {}},
+                {90U, {-1.0, -1.0, -1.0}, {}},
+                {110U, {5.0, 5.0, 5.0}, {}},
+            };
+
+            std::vector<std::array<PointId, 4>> cells{
+                {10U, 30U, 50U, 70U},
+                {10U, 30U, 90U, 50U},
+                {10U, 30U, 70U, 90U},
+                {10U, 50U, 90U, 70U},
+            };
+
+            std::map<PointId, femcae::geometry::Vec3> coordinates;
+            for (const CanonicalSite& site : starSites) {
+                coordinates.emplace(site.id, site.point);
+            }
+
+            std::vector<TetSlot> starSlots(cells.size());
+            for (std::size_t index = 0; index < cells.size(); ++index) {
+                auto& vertices = cells[index];
+                const auto orientation = [&]() {
+                    return femcae::meshing::predicates::orient3d(
+                        coordinates.at(vertices[0]),
+                        coordinates.at(vertices[1]),
+                        coordinates.at(vertices[2]),
+                        coordinates.at(vertices[3]));
+                };
+                if (orientation().sign ==
+                    femcae::meshing::predicates::PredicateSign::Negative) {
+                    std::swap(vertices[2], vertices[3]);
+                }
+                starSlots[index].generation =
+                    static_cast<std::uint32_t>(index + 11U);
+                starSlots[index].live = true;
+                starSlots[index].record.vertices = vertices;
+                starSlots[index].record.neighbors = {
+                    InvalidTetHandle,
+                    InvalidTetHandle,
+                    InvalidTetHandle,
+                    InvalidTetHandle};
+            }
+
+            // validateTetTopology requires reciprocal neighbours on every
+            // shared face, so the star has to be wired before it is accepted.
+            for (std::size_t lhs = 0; lhs < starSlots.size(); ++lhs) {
+                for (std::size_t rhs = lhs + 1U; rhs < starSlots.size(); ++rhs) {
+                    for (std::size_t lhsFace = 0; lhsFace < 4U; ++lhsFace) {
+                        for (std::size_t rhsFace = 0; rhsFace < 4U; ++rhsFace) {
+                            if (!(femcae::meshing::canonicalFaceKey(
+                                      starSlots[lhs].record, lhsFace) ==
+                                  femcae::meshing::canonicalFaceKey(
+                                      starSlots[rhs].record, rhsFace))) {
+                                continue;
+                            }
+                            starSlots[lhs].record.neighbors[lhsFace] = {
+                                static_cast<std::uint32_t>(rhs),
+                                starSlots[rhs].generation};
+                            starSlots[rhs].record.neighbors[rhsFace] = {
+                                static_cast<std::uint32_t>(lhs),
+                                starSlots[lhs].generation};
+                        }
+                    }
+                }
+            }
+
+            std::vector<s::PointMobilityEntry> mobility;
+            for (const CanonicalSite& site : starSites) {
+                mobility.push_back({
+                    site.id,
+                    site.id == 10U
+                        ? s::PointMobility::InteriorFree
+                        : s::PointMobility::Fixed});
+            }
+
+            const auto starState =
+                s::TetraOptimizationState::fromCanonicalSites(
+                    starSites,
+                    starSlots,
+                    s::ConstraintView(mobility));
+
+            for (const CanonicalSite& site : starSites) {
+                const auto actual =
+                    starState.incidentTetrahedra(site.id);
+                const auto expected =
+                    scanIncident(starSlots, site.id);
+                require(
+                    actual == expected,
+                    "incidence index disagrees with the reference scan");
+
+                for (std::size_t i = 1; i < actual.size(); ++i) {
+                    require(
+                        actual[i - 1U].slot < actual[i].slot,
+                        "incidence row is not ascending by slot");
+                }
+            }
+
+            require(
+                starState.incidentTetrahedra(110U).empty(),
+                "a known point with no incident live tetra must return empty");
+
+            bool threw = false;
+            try {
+                (void)starState.incidentTetrahedra(999U);
+            } catch (const std::out_of_range&) {
+                threw = true;
+            }
+            require(
+                threw,
+                "an unknown PointId must stay distinguishable from an empty star");
+
+            // The star of the interior point is exactly the live set here, so
+            // the index must reproduce liveTetrahedra() order as well.
+            require(
+                starState.incidentTetrahedra(10U) ==
+                    starState.liveTetrahedra(),
+                "interior star lost the live-slot ordering");
+        }
 
         std::cout
             << "M6 I4 foundation optimizer state PASS\n";
