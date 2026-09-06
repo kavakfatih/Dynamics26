@@ -2326,3 +2326,180 @@ Authority, proof, counterexample and executable symbols:
 Reopen M2-G09 and the coplanar portion of M2-G10 until the corrected source HEAD
 passes macOS arm64 Debug/Release. Old evidence remains historical and cannot
 qualify oblique hulls. P1C must wait for prerequisite repairs and qualification.
+
+
+## ADR-MESH-0044 — Physical CAD edge chains are shared; pcurves belong to FaceUse
+
+**Status:** ACCEPTED (M3 RESEARCH/DESIGN FREEZE)  
+**Date:** 2026-09-06
+
+### Decision
+
+A physical CAD Edge is discretized once into one ordered 3D `PhysicalEdgeChain` with Edge `GeometryEntityId` provenance. Each incident Face consumes that physical chain through a distinct FaceUse/coedge that owns orientation and face-specific pcurve/UV representation.
+
+The architecture `CAD Edge -> one universal UV polyline` is rejected.
+
+### Rationale
+
+One edge may be used by several Faces, reversed per use, or appear as a seam with more than one pcurve on one Face. Physical conformity and chart representation therefore require separate identities.
+
+### Consequence
+
+Adjacent Faces cannot independently recreate shared-edge physical nodes. M3-G02..G05 qualify this contract.
+
+## ADR-MESH-0045 — Chart aliases may map many-to-one to physical MeshNode identity
+
+**Status:** ACCEPTED (M3 RESEARCH/DESIGN FREEZE)  
+**Date:** 2026-09-06
+
+### Decision
+
+`ChartVertexId -> MeshNodeId` may be many-to-one for seams, periodic surfaces, poles and degenerated edges. Final physical TRI3 acceptance requires three distinct `MeshNodeId` values.
+
+Face-local CAD-tolerance reconciliation may canonicalize pcurve endpoints before triangulation; that tolerance is not a general FEM topology epsilon.
+
+### Rationale
+
+Distinct parameter-space points can represent one physical CAD point. Conflating chart identity with physical mesh identity either tears shared geometry or creates invalid zero-area physical triangles.
+
+## ADR-MESH-0046 — M4 recovers constraints as exact subcomplex coverage
+
+**Status:** ACCEPTED (M4 RESEARCH/DESIGN FREEZE)  
+**Date:** 2026-09-06
+
+### Decision
+
+Recovery does not require one input segment/facet to remain one output segment/facet. An original constraint is satisfied when the union of its recovered child subcomplex equals the original constraint, with complete coverage, no gaps, no illegal overlap or leakage, and inherited provenance.
+
+### Rationale
+
+Robust boundary recovery may require Steiner subdivision. One-to-one facet preservation would reject valid conforming recovery strategies.
+
+### Consequence
+
+Segment and facet coverage proofs are first-class M4 qualification gates.
+
+## ADR-MESH-0047 — SegmentLNC is the first exact constructed-point representation
+
+**Status:** ACCEPTED (M4 RESEARCH/DESIGN FREEZE)  
+**Date:** 2026-09-06
+
+### Decision
+
+The first M4 constructed site is:
+
+```text
+P = A + t(B-A)
+```
+
+A/B are authoritative constraint endpoints and t is an exact canonical dyadic parameter. Construction identity and exact dyadic value are authoritative; binary64 Vec3 is realization/cache only. Endpoint values t=0 and t=1 canonicalize to the corresponding `ExplicitSite`.
+
+### Rationale
+
+Binary64 endpoints are exact dyadics, so dyadic segment interpolation remains inside the existing BigInt/dyadic exact arithmetic domain. Rounded Steiner coordinates therefore need not become topology authority.
+
+### Future extension
+
+General homogeneous implicit points may be added as a separate research/oracle extension without changing SegmentLNC semantics.
+
+## ADR-MESH-0048 — Constructed sites use versioned D26SITE2 / D26LIFT2 symbolic identity
+
+**Status:** ACCEPTED (M4 RESEARCH/DESIGN FREEZE)  
+**Date:** 2026-09-06
+
+### Decision
+
+D26LIFT1 is not silently extended. The constructed-site domain introduces:
+- `D26SITE2`: canonical total site identity/order,
+- `D26LIFT2`: symbolic Delaunay degeneracy policy over D26SITE2.
+
+Keys distinguish:
+
+```text
+ExplicitSite
+  -> canonical explicit-site identity
+
+ConstructedSegmentSite
+  -> canonical source constraint-segment identity
+  -> exact canonical dyadic t
+```
+
+The first versioned kind order is `ExplicitSite < ConstructedSegmentSite`; order within a kind is lexicographic over its canonical fields.
+
+### Determinism
+
+The order is independent of pointer, allocation order, arena slot, thread, task completion order and wall-clock insertion time.
+
+### Predicate rule
+
+D26LIFT2 participates only when the exact geometric predicate is genuinely zero. It never overrides a nonzero exact sign.
+
+## ADR-MESH-0049 — M5 scalar sizing criteria compose by mathematical minimum
+
+**Status:** ACCEPTED (M5 RESEARCH/DESIGN FREEZE)  
+**Date:** 2026-09-06
+
+### Decision
+
+The first M5 physical size request is scalar/isotropic and composes as the pointwise minimum of global, scoped, curvature, proximity and future scalar criteria. Overlapping rule enumeration order cannot change the result.
+
+Named Selection scopes resolve to `GeometryEntityId` before kernel evaluation.
+
+### Consequence
+
+Anisotropic tensor sizing is not part of this policy and remains deferred to M9.
+
+## ADR-MESH-0050 — M5 gradation is the greatest k-Lipschitz minorant
+
+**Status:** ACCEPTED (M5 RESEARCH/DESIGN FREEZE)  
+**Date:** 2026-09-06
+
+### Decision
+
+The authoritative gradated field is:
+
+```text
+h(x) = inf_y [ h_req(y) + k ||x-y|| ]
+```
+
+This is the greatest k-Lipschitz function not exceeding `h_req`.
+
+### Consequence
+
+Implementation may change, but the semantics may not. Any GUI growth-ratio representation maps to k through a versioned policy included in the settings fingerprint.
+
+## ADR-MESH-0051 — Minimum size is a typed limitation, not silent criterion satisfaction
+
+**Status:** ACCEPTED (M5 RESEARCH/DESIGN FREEZE)  
+**Date:** 2026-09-06
+
+### Decision
+
+When geometry or another criterion requires `h < h_min`, a protection clamp may stop refinement but cannot yield `CriteriaSatisfied`. The result must expose `MinimumSizeLimited` (or a versioned equivalent) and the unsatisfied criteria/features.
+
+### Rationale
+
+Minimum size protects resources; it is not evidence that CAD deviation, proximity or other requested criteria were met.
+
+## ADR-MESH-0052 — Product TET4 requires a versioned data-contract migration
+
+**Status:** ACCEPTED (M7 RESEARCH/DESIGN FREEZE)  
+**Date:** 2026-09-06
+
+### Decision
+
+TET4 product support is a cross-layer data-contract migration, not one `MeshTopology` enum addition. `SimulationMesh`, TRI3 boundary facets, Fortran topology/reference metadata, `AnalysisSnapshot`, `SolverInputBuilder`, ABI/schema, result handling, surface integration and persistence may all require versioned migration.
+
+```text
+TET4 topology != TET4 mechanical formulation
+```
+
+remains mandatory.
+
+### Current repository evidence
+
+At closeout baseline `60275d9430b13a3cf3b3fdd26709dee11e3d7f8b`, product contracts remain HEX8/QUAD4-oriented and the solver-input/product bridge remains HEX8-specific.
+
+### Consequence
+
+DEV-MESH-P6 owns product integration after P1-P5 dependencies. Dedicated TET4 formulation qualification remains under `docs/research/fem/tet4-nearly-incompressible/`.

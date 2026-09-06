@@ -4,9 +4,9 @@
 **Owner repository:** \`kavakfatih/Dynamics26\`  
 **Platform:** macOS / Apple Silicon  
 **Research baseline:** 2026-09-05  
-**Status:** ACTIVE RESEARCH + DEVELOPMENT HANDOFF  
+**Status:** RESEARCH CLOSEOUT / DEVELOPMENT HANDOFF ACTIVE  
 **Implementation policy:** original Dynamics26 implementation; no external meshing-engine product dependency is assumed.  
-**Production development status:** DEV-MESH-P0 research consolidation; P1 production tetrahedralizer not yet started.
+**Production development status:** DEV-MESH-P0 COMPLETE; P1A/P1B/P1C qualified in declared subscopes; P1D is the next development target; M2 overall is NOT QUALIFIED.
 
 ## 1. Purpose
 
@@ -203,3 +203,18 @@ Production development is tracked by `DEV-MESH-P0..P7` in
 
 In particular, M6 design/prototype evidence that exists ahead of M2-M5 remains valid research
 evidence, but it does not mean the production volume mesher or production optimizer is complete.
+
+
+## Research closeout authorities
+
+`MESHING_RESEARCH_CLOSEOUT.md` is the umbrella record **D26-MESH-RESEARCH-CLOSEOUT-1**.
+
+Frozen research package map:
+- M3: `m3-surface/` — D26-M3-FREEZE-1,
+- M4: `m4-boundary-recovery/` — D26-M4-FREEZE-1,
+- M5: `m5-sizing/` — D26-M5-FREEZE-1,
+- M6: `m6-quality/` — existing D26-M6-FREEZE-1 remains authoritative,
+- M7: `m7-product-tet4/` — D26-M7-FREEZE-1,
+- M8: `m8-tet10/` — D26-M8-DIRECTION-1.
+
+“Development ready” means architecture, versioned policies and gates are sufficiently defined to continue implementation. It does not mean M2 overall or any unimplemented M3/M4/M5/M7/M8 package is qualified.

@@ -1,6 +1,6 @@
 # Dynamics26 Original Mesher — Proposed Architecture
 
-**Status:** research architecture, not yet production API.
+**Status:** research architecture DESIGN-FROZEN by package for development handoff; not yet a production API.
 
 ## 1. Design objective
 
@@ -343,3 +343,23 @@ Project/Geometry/NamedSelection state
 \`\`\`
 
 The meshing core should remain Qt-independent.
+
+
+## 19. Closeout freeze map — 2026-09-06
+
+The architecture is governed by:
+- `D26-M3-FREEZE-1`: authoritative B-Rep surface meshing, one physical shared-edge chain, FaceUse-specific pcurves, chart aliases and physical 3D acceptance;
+- `D26-M4-FREEZE-1`: constraint-as-subcomplex recovery, exact SegmentLNC constructed sites, D26SITE2/D26LIFT2, shell-aware domain classification and realization revalidation;
+- `D26-M5-FREEZE-1`: scalar minimum-composed size field, greatest-k-Lipschitz gradation, typed minimum-size/resource outcomes;
+- existing `D26-M6-FREEZE-1`: unchanged tetra quality/optimizer mathematics;
+- `D26-M7-FREEZE-1`: TET4 product data-contract migration, provenance and Named Selection lifecycle;
+- `D26-M8-DIRECTION-1`: future continuous curved-element Jacobian-validity direction.
+
+The persistent identity boundary remains:
+
+```text
+CAD / B-Rep -> GeometryEntityId -> provenance -> GeometryAssociationMap
+             -> Named Selection -> BC/Load -> Solver -> Results
+```
+
+Display tessellation is never promoted to persistent CAD or FEM identity.

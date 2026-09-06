@@ -87,7 +87,7 @@ frozen M2 phase boundaries and current development plan; no phase is skipped.
 
 ### M3 — CAD curve/surface meshing research
 
-Status: not yet mature enough for production implementation.
+Status: RESEARCH COMPLETE / DESIGN FROZEN under `D26-M3-FREEZE-1`; implementation not started.
 
 Known direction:
 
@@ -108,7 +108,7 @@ Research required during P2:
 
 ### M4 — Boundary recovery and volume meshing research
 
-Status: development concept defined; detailed production research still required.
+Status: RESEARCH COMPLETE / DESIGN FROZEN under `D26-M4-FREEZE-1`; implementation not started.
 
 Known direction:
 
@@ -129,7 +129,7 @@ Research required during P3:
 
 ### M5 — Size-field research
 
-Status: scoped, not implemented as original unstructured mesher capability.
+Status: RESEARCH COMPLETE / DESIGN FROZEN under `D26-M5-FREEZE-1`; implementation not started.
 
 Known direction:
 
@@ -290,3 +290,23 @@ For each unresolved implementation question:
 10. record what remains unknown.
 
 This is the default Dynamics26 meshing workflow from P1 onward.
+
+
+## 8. Research closeout and frozen dependency chain
+
+Umbrella closeout: `D26-MESH-RESEARCH-CLOSEOUT-1`.
+
+```text
+P1 / M1+M2
+-> P2 / M3
+-> P3 / M4
+-> P4 / M5
+-> P5 / M6
+-> P6 / M7
+-> dedicated TET4 solver/formulation qualification
+-> P7 / M8
+```
+
+M8 is a future curved-boundary/TET10 direction and does not block the TET4 path. M9/M10 remain deferred.
+
+The next coding-agent target after this documentation closeout is only **DEV-MESH-P1D — cavity oracle + transactional patch**.

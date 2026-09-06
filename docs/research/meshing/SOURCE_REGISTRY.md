@@ -303,3 +303,61 @@ This section extends the M6 metric sources with operation/scheduling research.
 
 ADR-MESH-0043 derives the actual determinant independently from the Euclidean
 circle equation. Commercial/library behavior is not the proof.
+
+
+## M3 CAD B-Rep / pcurve / surface-meshing closeout sources
+
+| ID | Source | Research use | Clean-room note |
+|---|---|---|---|
+| M3-SRC-01 | Open CASCADE Technology Reference Manual, `BRep_CurveOnSurface`, https://dev.opencascade.org/doc/refman/html/class_b_rep___curve_on_surface.html | pcurve is a curve in surface parametric space; supports face-specific chart representation | API/behavior study only |
+| M3-SRC-02 | Open CASCADE Technology Reference Manual, `BRep_TEdge`, https://dev.opencascade.org/doc/occt-7.9.0/refman/html/class_b_rep___t_edge.html | edge tolerance, SameParameter/SameRange, Degenerated state and curve-representation list | API/behavior study only |
+| M3-SRC-03 | OCCT `Approx_SameParameter` and `BRepMesh_EdgeParameterProvider`, https://dev.opencascade.org/doc/refman/html/_approx___same_parameter_8hxx.html and https://dev.opencascade.org/doc/refman/html/class_b_rep_mesh___edge_parameter_provider.html | relationship between 3D edge parameterization and face pcurves; informs reconciliation/ownership | no OCCT mesher implementation copied |
+| M3-SRC-04 | CGAL 2D Triangulations User Manual / constrained Delaunay, https://doc.cgal.org/latest/Triangulation_2/index.html | independent constrained-Delaunay theory and subconstraint behavior | theory/benchmark only |
+| M3-SRC-05 | L. P. Chew, “Guaranteed-Quality Mesh Generation for Curved Surfaces,” SoCG 1993 | curved-surface meshing comparison reference | paper-level theory only |
+
+## M4 constrained tetra / recovery / exact-construction closeout sources
+
+| ID | Source | Research use | Clean-room note |
+|---|---|---|---|
+| M4-SRC-01 | J. R. Shewchuk, “Constrained Delaunay Tetrahedralizations and Provably Good Boundary Recovery,” 11th International Meshing Roundtable, 2002; index https://www.cs.cmu.edu/~quake/papers.html | constrained-Delaunay and boundary-recovery theory | paper theory only |
+| M4-SRC-02 | Hang Si, “TetGen, a Delaunay-Based Quality Tetrahedral Mesh Generator,” ACM TOMS 41(2), 2015, DOI 10.1145/2629697; manual https://wias-berlin.de/software/tetgen/1.5/doc/manual/manual.html | PLC/CDT behavior, boundary preservation and benchmark reference | behavior/benchmark only; no source transcription |
+| M4-SRC-03 | H. Si and K. Gärtner, “3D boundary recovery by constrained Delaunay tetrahedralization,” metadata https://oa.tib.eu/renate/items/a9e9b0c4-ab69-4b48-b862-73d281712bee | independent facet/segment recovery strategy evidence | paper theory only |
+| M4-SRC-04 | Marco Attene, “Indirect Predicates for Geometric Constructions,” arXiv:2105.09772, https://arxiv.org/abs/2105.09772 | exact predicate decisions for constructed/implicit points without rounded intermediate authority | theory/oracle architecture only |
+| M4-SRC-05 | Dynamics26 M1 exact dyadic/BigInt predicate documents and M2 Delaunay freeze | authoritative internal arithmetic and symbolic-degeneracy base for SegmentLNC and D26SITE2/D26LIFT2 | internal source |
+
+## M5 sizing / refinement / gradation closeout sources
+
+| ID | Source | Research use | Clean-room note |
+|---|---|---|---|
+| M5-SRC-01 | J. R. Shewchuk, *Delaunay Refinement Mesh Generation*, CMU-CS-97-137, 1997, https://www.cs.cmu.edu/~quake-papers/delaunay-refinement.pdf | Delaunay refinement, sizing/quality/termination foundation | paper theory only |
+| M5-SRC-02 | J. R. Shewchuk, “Tetrahedral Mesh Generation by Delaunay Refinement,” SoCG 1998; index https://www.cs.cmu.edu/~quake/papers.html | 3D refinement and control-spacing reference | paper theory only |
+| M5-SRC-03 | P. Alliez, D. Cohen-Steiner, M. Yvinec, M. Desbrun, “Variational Tetrahedral Meshing,” ACM TOG 24(3), 2005, preprint https://inria.hal.science/inria-00226418/PDF/tetmeshing.pdf | independent reference for maximal K-Lipschitz sizing-field construction | paper theory only |
+| M5-SRC-04 | CGAL Mesh_3 User Manual, https://doc.cgal.org/latest/Mesh_3/index.html | external behavior benchmark for 3D sizing/refinement and quality post-processing | behavior benchmark only |
+| M5-SRC-05 | Triangle research pages, https://www.cs.cmu.edu/~quake/triangle.research.html | practical/theoretical Delaunay-refinement criteria and termination reference | no source-code transcription |
+
+## M7 product TET4 integration closeout sources
+
+| ID | Source | Research use | Clean-room note |
+|---|---|---|---|
+| M7-SRC-01 | Dynamics26 `include/femcae/meshing/MeshTypes.h`, `src/application/AnalysisSnapshot.cpp`, `src/application/SolverInputBuilder.cpp`, `src/model/fem_mesh.f90` | authoritative current product-contract audit: HEX8/QUAD4-oriented topology and solver handoff | internal source |
+| M7-SRC-02 | `docs/research/fem/tet4-nearly-incompressible/` | separation of TET4 mesh topology from compressible/mixed/stabilized formulation qualification | internal source |
+| M7-SRC-03 | existing Dynamics26 GeometryEntityId / GeometryAssociationMap / Named Selection contracts | persistent CAD-to-mesh provenance and remesh-scope lifecycle | internal source |
+
+## M8 curved/high-order validity closeout sources
+
+| ID | Source | Research use | Clean-room note |
+|---|---|---|---|
+| M8-SRC-01 | A. Johnen, J.-F. Remacle, C. Geuzaine, “Geometrical Validity of Curvilinear Finite Elements,” https://gmsh.info/doc/preprints/gmsh_curved_preprint.pdf | Jacobian-sign validity and Bernstein/Bézier bounds for curvilinear elements | paper theory only |
+| M8-SRC-02 | “The Generation of Valid Curvilinear Meshes,” https://people.montefiore.uliege.be/geuzaine/preprints/curvilinear_preprint.pdf | curved-mesh validity/optimization reference | paper theory only |
+| M8-SRC-03 | “High-Order Continuous Geometrical Validity,” 2025, https://dl.acm.org/doi/10.1145/3745763 | continuous-validity/subdivision reference across high-order element families | paper theory only |
+
+### Closeout clean-room rule
+
+All M3/M4/M5/M7/M8 external entries are research inputs for theory, behavior, API semantics or benchmark evidence.
+
+```text
+external source = theory / behavior / benchmark evidence
+external implementation source != Dynamics26 production code
+```
+
+No external mesher source-code transcription is authorized by D26-MESH-RESEARCH-CLOSEOUT-1.

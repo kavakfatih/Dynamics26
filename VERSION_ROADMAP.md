@@ -333,6 +333,8 @@ USER VALIDATED additionally tests real pointer/trackpad/keyboard/Light/Dark work
 
 # 3. V1.2.0 — Geometry-Aware Meshing + Scalable Nonlinear Foundation
 
+**Meshing research closeout:** D26-MESH-RESEARCH-CLOSEOUT-1. Research-package IDs M0..M10 and production IDs DEV-MESH-P1..P7 are separate namespaces. The V1.2 release-milestone headings below are product-planning labels, not aliases for meshing research package numbers.
+
 V1.2 meshing execution is now separated into production milestones `DEV-MESH-P0..P7`.
 The existing `M0..M10` names remain research/work-package identifiers, not implementation order.
 
@@ -602,3 +604,27 @@ RESEARCHED
 ```
 
 `FEATURE WORKS` applies only to the documented capability envelope. Verification-only consumers never become general product capability by implication.
+
+
+# 10. Original Meshing Engine research closeout synchronization
+
+Research state:
+- M1 QUALIFIED,
+- M2 DESIGN FROZEN; P1A/P1B/P1C qualified in declared subscopes; P1D next; M2 OVERALL NOT QUALIFIED,
+- M3 D26-M3-FREEZE-1,
+- M4 D26-M4-FREEZE-1,
+- M5 D26-M5-FREEZE-1,
+- M6 D26-M6-FREEZE-1 retained,
+- M7 D26-M7-FREEZE-1 with solver formulation qualification separate,
+- M8 D26-M8-DIRECTION-1 and non-blocking for TET4,
+- M9/M10 deferred.
+
+Frozen implementation dependency:
+
+```text
+DEV-MESH-P1 -> P2 -> P3 -> P4 -> P5 -> P6
+-> dedicated TET4 formulation qualification
+-> P7
+```
+
+The immediate next coding target is DEV-MESH-P1D only.
