@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -859,7 +860,11 @@ void ViewportWidget::showModelWithBoundaryConditions(const SimulationMesh &mesh,
         const double norm = std::hypot(glyph.dx, glyph.dy, glyph.dz);
         // Sıfır/geçersiz yük geçerli bir resultant oku gibi gösterilemez.
         if (!std::isfinite(norm) || norm <= 1.0e-12) continue;
-        std::vector<std::array<double, 3>> centres;
+        struct FaceSeeds {
+            std::vector<std::array<double,3>> centres;
+            std::array<double,3> u{}, v{};
+        };
+        std::map<GeometryEntityId,FaceSeeds> faces;
         vtkNew<vtkPoints> points;
         points->SetDataTypeToDouble();
         for (const auto &facet : mesh.boundaryFacets) {
@@ -882,10 +887,23 @@ void ViewportWidget::showModelWithBoundaryConditions(const SimulationMesh &mesh,
             if (found != static_cast<int>(facet.nodeIds.size())) {
                 continue;
             }
-            centres.push_back({centre[0] / found, centre[1] / found, centre[2] / found});
+            if (found != 4) continue;
+            auto &face = faces[facet.sourceGeometryId];
+            if (face.centres.empty()) {
+                const auto &p = mesh.findNode(facet.nodeIds[0])->x;
+                const auto &q = mesh.findNode(facet.nodeIds[1])->x;
+                const auto &r = mesh.findNode(facet.nodeIds[3])->x;
+                face.u = {q.x-p.x,q.y-p.y,q.z-p.z};
+                face.v = {r.x-p.x,r.y-p.y,r.z-p.z};
+            }
+            face.centres.push_back({centre[0] / found, centre[1] / found, centre[2] / found});
         }
-        if (centres.empty()) continue;
-        const auto placements = boundaryGlyphLayout(centres, {glyph.dx, glyph.dy, glyph.dz}, glyph.isLoad);
+        std::vector<BoundaryGlyphPlacement> placements;
+        for (const auto &[id,face] : faces) {
+            const auto facePlacements = boundaryGlyphLayout(face.centres,
+                {glyph.dx,glyph.dy,glyph.dz},glyph.isLoad,face.u,face.v);
+            placements.insert(placements.end(),facePlacements.begin(),facePlacements.end());
+        }
         vtkNew<vtkDoubleArray> scales;
         for (const auto &placement : placements) {
             points->InsertNextPoint(placement.origin.data());
@@ -921,7 +939,8 @@ void ViewportWidget::showModelWithBoundaryConditions(const SimulationMesh &mesh,
             cone->SetRadius(0.42);
             glyphFilter->SetSourceConnection(cone->GetOutputPort());
         }
-        glyphFilter->SetScaleFactor(bounds.span * (glyph.isLoad ? 0.10 : 0.055));
+        const double glyphLength = bounds.span * (glyph.isLoad ? 0.04 : 0.055);
+        glyphFilter->SetScaleFactor(glyphLength);
         glyphFilter->ScalingOn();
         glyphFilter->SetScaleModeToScaleByScalar();
         // Her sembol kendi seed konumunda yönlenir. Actor'u dünya orijini
@@ -947,7 +966,7 @@ void ViewportWidget::showModelWithBoundaryConditions(const SimulationMesh &mesh,
             vtkNew<vtkDoubleArray> lengths;
             lengths->SetName("D26LoadGlyphLengths");
             for (const auto &placement : placements)
-                lengths->InsertNextValue(bounds.span * 0.10 * placement.scale);
+                lengths->InsertNextValue(glyphLength * placement.scale);
             glyphData->GetFieldData()->AddArray(lengths);
         }
         impl_->addActor(glyphData,

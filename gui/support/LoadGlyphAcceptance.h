@@ -4,6 +4,7 @@
 #include "../commands/DomainCommands.h"
 #include "../shell/GraphicsWorkspace.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #ifdef FEMCAE_GUI_HAS_VTK
 #include <QVTKOpenGLNativeWidget.h>
@@ -48,9 +49,9 @@ inline int runLoadGlyphAcceptance(QApplication &app, Dynamics26MainWindow &windo
     const auto loadId = loads.first();
     for (const auto id : loads) window.setObjectSuppressed(id, id != loadId);
     auto *renderer = widget->renderWindow()->GetRenderers()->GetFirstRenderer();
-    for (int divisions : {1, 4}) {
+    for (const auto divisions : std::array<std::array<int,2>,3>{{{1,1},{4,4},{20,4}}}) {
         const auto before = services.mesh->definition();
-        auto after = before; after.nx = after.ny = divisions; after.nz = 1;
+        auto after = before; after.nx = divisions[0]; after.ny = divisions[1]; after.nz = 1;
         commands->push(new commands::SetMeshDefinitionCommand(services, before, after, QStringLiteral("Glyph test mesh")));
         check(window.runCommand(QStringLiteral("mesh.generate")) && services.mesh->hasMesh(),
               "glyph acceptance uses actual application mesh generation");
@@ -96,6 +97,7 @@ inline int runLoadGlyphAcceptance(QApplication &app, Dynamics26MainWindow &windo
                     }
                     valid &= onFacet;
                     const double length = lengths->GetComponent(i,0);
+                    valid &= std::abs(length-lengths->GetComponent(0,0)) < 1e-12;
                     double lo = 1e30, hi = -1e30;
                     for (vtkIdType p = i*pointsPerGlyph; p < (i+1)*pointsPerGlyph; ++p) {
                         double local[4]{0,0,0,1}, world[4]; data->GetPoint(p,local);
@@ -111,9 +113,9 @@ inline int runLoadGlyphAcceptance(QApplication &app, Dynamics26MainWindow &windo
                     valid &= std::abs(lo) < 1e-8 && std::abs(hi-length) < 1e-8;
                 }
             }
-            check(valid && renderedGlyphs > 0 && renderedGlyphs <= 5
+            check(valid && renderedGlyphs == divisions[0]*divisions[1]
                       && renderedGlyphs == viewport->displayedLoadGlyphCount() && undo->index() == beforeView,
-                  "actual signed XYZ arrow vertices stay at scoped top-face seeds with correct length/direction; no display Undo");
+                  "regular dense equal-length signed XYZ arrows cover all coarse top-face facets; correct vertices and no display Undo");
         }
     }
     auto load = *services.analysis->load(loadId);

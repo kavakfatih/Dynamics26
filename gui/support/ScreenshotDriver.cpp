@@ -563,8 +563,8 @@ int runScreenshotDriver(QApplication &app, Dynamics26MainWindow &window, const Q
             window.selectObject(force);
             settle(320);
             auto *viewport = window.graphics()->viewport();
-            if (viewport->displayedLoadGlyphCount() < 1 || viewport->displayedLoadGlyphCount() > 5) {
-                std::cerr << "FAILED   surface force capture requires sparse resultant arrows\n";
+            if (viewport->displayedLoadGlyphCount() < 40 || viewport->displayedLoadGlyphCount() > 400) {
+                std::cerr << "FAILED   surface force capture requires a dense regular arrow field\n";
                 ++failures;
             }
             shot(QStringLiteral("20-force-z"));
