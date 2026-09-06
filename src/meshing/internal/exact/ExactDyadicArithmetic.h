@@ -42,6 +42,14 @@ public:
         return sign_;
     }
 
+    [[nodiscard]] std::size_t bitLength() const noexcept {
+        if (limbs_.empty()) {
+            return 0U;
+        }
+        return (limbs_.size() - 1U) * 32U +
+               static_cast<std::size_t>(std::bit_width(limbs_.back()));
+    }
+
     [[nodiscard]] BigInt negated() const {
         BigInt result(*this);
         result.sign_ = -result.sign_;

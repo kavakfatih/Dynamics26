@@ -409,3 +409,39 @@ add_femcae_meshing_test(
     meshing/robust_geometry/test_m19_predicate_telemetry.cpp
     "unit;meshing;robust-geometry;predicate;telemetry;performance;m1.9"
 )
+
+
+# M6 I1 — exact D26QMR1 comparator + independent Python exact oracle
+add_executable(
+    unit_m6_exact_qmr
+    meshing/m6_quality/test_m6_exact_qmr.cpp
+)
+target_link_libraries(unit_m6_exact_qmr PRIVATE femcae_meshing)
+target_include_directories(unit_m6_exact_qmr PRIVATE "${CMAKE_SOURCE_DIR}/src")
+femcae_enable_warnings(unit_m6_exact_qmr)
+
+if(Python3_Interpreter_FOUND)
+    set(FEMCAE_M6_QMR_CORPUS "${CMAKE_BINARY_DIR}/m6-qmr-corpus.d26qmr")
+
+    add_test(
+        NAME unit_m6_generate_qmr_corpus
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/meshing_oracle/generate_m6_qmr_corpus.py
+                --output ${FEMCAE_M6_QMR_CORPUS}
+                --random-cases 128
+                --seed 260906
+    )
+    set_tests_properties(unit_m6_generate_qmr_corpus PROPERTIES
+        LABELS "unit;meshing;m6;quality;exact-oracle;determinism"
+        FIXTURES_SETUP d26_m6_qmr_corpus
+    )
+
+    add_test(
+        NAME unit_m6_exact_qmr_generated
+        COMMAND unit_m6_exact_qmr ${FEMCAE_M6_QMR_CORPUS}
+    )
+    set_tests_properties(unit_m6_exact_qmr_generated PROPERTIES
+        LABELS "unit;meshing;m6;quality;exact;determinism"
+        FIXTURES_REQUIRED d26_m6_qmr_corpus
+    )
+endif()
