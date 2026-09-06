@@ -239,10 +239,15 @@ SmartSmoothingProposal planSmartSmoothing(
                 exactTelemetry,
                 {&result.oldQuality, &candidateQuality});
 
+        // Only a decision that actually compared quality counts as
+        // non-improving. Every other non-Accept outcome is a sample that never
+        // got that far, so it is counted as invalid rather than folded into
+        // "evaluated, not better" -- including outcomes added to D26QACC1
+        // later, which must not silently land in the wrong bucket.
         if (acceptance.decision ==
-            quality::AcceptanceDecision::InvalidCandidate) {
+            quality::AcceptanceDecision::NoImprovement) {
             if (telemetry != nullptr) {
-                ++telemetry->invalidSamples;
+                ++telemetry->nonImprovingSamples;
             }
             continue;
         }
@@ -250,7 +255,7 @@ SmartSmoothingProposal planSmartSmoothing(
         if (acceptance.decision !=
             quality::AcceptanceDecision::Accept) {
             if (telemetry != nullptr) {
-                ++telemetry->nonImprovingSamples;
+                ++telemetry->invalidSamples;
             }
             continue;
         }

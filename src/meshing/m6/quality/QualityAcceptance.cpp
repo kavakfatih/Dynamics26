@@ -16,6 +16,16 @@ AcceptanceEvaluation invalidCandidate(
         QualityVectorOrder::Equal};
 }
 
+AcceptanceEvaluation invalidPriorState(
+    AcceptanceTelemetry* telemetry) noexcept {
+    if (telemetry != nullptr) {
+        ++telemetry->invalidPriorState;
+    }
+    return {
+        AcceptanceDecision::InvalidPriorState,
+        QualityVectorOrder::Equal};
+}
+
 } // namespace
 
 AcceptanceEvaluation evaluateReplacement(
@@ -31,12 +41,30 @@ AcceptanceEvaluation evaluateReplacement(
     }
 
     // Frozen D26QACC1 sequence:
-    // structural assumptions -> exact-positive new TET4 -> cavity equivalence
-    // -> constraints/provenance -> strict D26QV1 -> commit.
+    // old/new structural assumptions -> exact-positive new TET4 -> cavity
+    // equivalence -> constraints/provenance -> strict D26QV1 -> commit.
     if (!evidence.structuralAssumptionsValid ||
         oldCells.empty() ||
         newCells.empty()) {
         return invalidCandidate(telemetry);
+    }
+
+    // The old side is part of step 1, not an implicit consequence of step 5.
+    // Before this check the only thing that noticed an invalid prior cell was
+    // buildQualityVector throwing further down, caught at the bottom and
+    // reported as InvalidCandidate -- so "your replacement is bad" and "the
+    // mesh you gave me was already bad" were the same answer with the same
+    // counter, and the second one was attributed to the first.
+    //
+    // Skipped when the caller supplies a prepared old-side vector: building it
+    // ran this very check, and re-running it per candidate is the per-sample
+    // cost the reuse hook exists to remove.
+    if (reuse.preparedOld == nullptr) {
+        for (const IndexedTetraCoordinates& tetra : oldCells) {
+            if (!isExactPositiveQualityCell(tetra)) {
+                return invalidPriorState(telemetry);
+            }
+        }
     }
 
     for (const IndexedTetraCoordinates& tetra : newCells) {

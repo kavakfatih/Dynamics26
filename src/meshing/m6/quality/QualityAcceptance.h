@@ -21,7 +21,19 @@ enum class AcceptanceDecision : std::uint8_t {
     Accept = 0,
     NoImprovement,
     InvalidCandidate,
-    ConstraintBlocked
+    ConstraintBlocked,
+
+    // The cells being replaced were already invalid, so there was nothing to
+    // improve on. This is not a rejected proposal: it says the mesh handed in
+    // was broken before the operator ran.
+    //
+    // Refusing here is deliberate. SMOOTHING_UNTANGLING_AND_CAD_CONSTRAINTS.md
+    // section 5 puts untangling outside the normal M6 path -- an invalid mesh
+    // from M2/M4 is a construction failure and must not be silently healed --
+    // and requires that its failure semantics be explicit. Reporting it as
+    // InvalidCandidate, as this used to, is exactly the confusion that rule
+    // exists to prevent: it blames the proposal for the prior state.
+    InvalidPriorState
 };
 
 struct AcceptanceEvaluation {
@@ -36,6 +48,7 @@ struct AcceptanceTelemetry {
     std::uint64_t exactQualityTie{0};
     std::uint64_t invalidCandidate{0};
     std::uint64_t constraintBlocked{0};
+    std::uint64_t invalidPriorState{0};
 };
 
 // Optional reuse hooks for a caller that evaluates several candidates against

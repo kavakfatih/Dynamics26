@@ -420,6 +420,38 @@ Acceptance must be side-effect free.
 
 Mutation occurs only after a positive decision.
 
+### Decision outcomes
+
+    Accept
+    NoImprovement
+    InvalidCandidate
+    ConstraintBlocked
+    InvalidPriorState
+
+`InvalidPriorState` reports that the cells being replaced were already invalid,
+and is step 1's answer for the old side. Before it existed, an invalid prior
+cell was noticed only when the D26QV1 build threw at step 5; that throw was
+caught and reported as `InvalidCandidate`, so "your replacement is bad" and "the
+mesh handed in was already bad" were one answer under one counter, with the
+second attributed to the first.
+
+Refusing either way is the frozen policy — SMOOTHING_UNTANGLING_AND_CAD_CONSTRAINTS.md
+section 5 keeps untangling outside the normal M6 path, so an invalid mesh from
+M2/M4 is a construction failure and is not silently healed — but that same
+section requires its provenance and failure semantics to be explicit, and one
+shared outcome does not satisfy that. This follows the M6_DESIGN_FREEZE.md
+section 14 rule that a failure of one kind is never reported as a failure of
+another.
+
+When both sides are invalid the prior state is reported, because it names the
+condition that has to be fixed first.
+
+Old-side validation is skipped when the caller supplies an already-built
+old-side D26QV1 vector: constructing that vector performed the same check, and
+re-running it per candidate is the per-sample cost the reuse path exists to
+remove. Supplying a prepared vector therefore transfers this validation duty to
+the caller.
+
 ## 13. O1 smart smoothing
 
 Reference O1 proposal generator:

@@ -485,6 +485,67 @@ void verifyAcceptance(
             q::AcceptanceDecision::InvalidCandidate,
         "non-positive TET4 entered D26QACC1");
 
+    // An invalid cell on the OLD side is a different answer from an invalid
+    // candidate. Refusing is the policy -- M6 does not silently heal a mesh
+    // M2/M4 produced broken -- but the refusal must say which side was broken,
+    // otherwise the operator is blamed for the prior state.
+    auto invertedOld = oldCells;
+    require(!invertedOld.empty(), "prior-state fixture missing");
+    std::swap(
+        invertedOld[0].coordinates[2],
+        invertedOld[0].coordinates[3]);
+
+    q::AcceptanceTelemetry priorTelemetry;
+    const q::AcceptanceEvaluation priorState =
+        q::evaluateReplacement(
+            invertedOld,
+            newCells,
+            valid,
+            &priorTelemetry);
+    require(
+        priorState.decision ==
+            q::AcceptanceDecision::InvalidPriorState,
+        "invalid prior cells were reported as an invalid candidate");
+    require(
+        priorTelemetry.invalidPriorState == 1U &&
+            priorTelemetry.invalidCandidate == 0U,
+        "prior-state refusal was counted against the candidate");
+
+    // Both sides broken still reports the prior state: it names the condition
+    // that has to be fixed first.
+    auto invertedNew = newCells;
+    std::swap(
+        invertedNew[0].coordinates[2],
+        invertedNew[0].coordinates[3]);
+    require(
+        q::evaluateReplacement(
+            invertedOld,
+            invertedNew,
+            valid).decision ==
+            q::AcceptanceDecision::InvalidPriorState,
+        "a broken prior state must be reported before the candidate");
+
+    // Supplying a prepared old-side vector transfers that validation to the
+    // caller, which is what keeps it off the per-candidate path. The vector
+    // here was built from valid cells, so the evaluation proceeds normally.
+    const q::QualityVector preparedOld =
+        q::buildQualityVector(oldCells);
+    q::AcceptanceTelemetry reuseTelemetry;
+    require(
+        q::evaluateReplacement(
+            oldCells,
+            newCells,
+            valid,
+            &reuseTelemetry,
+            nullptr,
+            nullptr,
+            {&preparedOld, nullptr}).decision ==
+            q::AcceptanceDecision::Accept,
+        "prepared old-side vector changed the acceptance outcome");
+    require(
+        reuseTelemetry.invalidPriorState == 0U,
+        "prepared old-side vector still paid for prior-state revalidation");
+
     require(
         telemetry.accepted == 1U &&
             telemetry.exactQualityTie == 1U &&
