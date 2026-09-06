@@ -1,6 +1,6 @@
 # M6 Research — Parallel-Round Monotonicity, Active Sets and Termination
 
-Status: PRE-FREEZE RESEARCH
+Status: DESIGN FROZEN / round monotonicity and termination contract
 Date: 2026-09-06
 
 ## 1. Goal

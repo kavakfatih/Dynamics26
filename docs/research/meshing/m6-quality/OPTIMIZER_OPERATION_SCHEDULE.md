@@ -1,6 +1,6 @@
 # M6 Research — D26OPS1 Optimizer Operation Schedule
 
-Status: PRE-FREEZE RESEARCH
+Status: DESIGN FROZEN / D26OPS1 first implementation schedule
 Date: 2026-09-06
 
 ## 1. Goal

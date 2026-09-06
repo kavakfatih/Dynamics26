@@ -1,6 +1,6 @@
 # M6 Early Research — Quality / Solver Correlation Experiment Plan
 
-Status: PROPOSED
+Status: QUALIFICATION CONTRACT FROZEN / EXECUTABLE M6 EVIDENCE PENDING
 Date: 2026-09-05
 
 ## 1. Goal
@@ -654,7 +654,7 @@ verify that the two search variables unlock one another.
 | M6-R43 | nested-cavity fixture separates ExhaustiveNoImprovement in C from improvement in a larger C' |
 | M6-R44 | strong-search BudgetExhausted is distinct from ExhaustiveNoImprovement |
 | M6-R45 | fixed-point connectivity-only accepted mutation sequence is cycle-free and terminates |
-| M6-R46 | smoothing convergence policy closes continuous-state stalls independently of topology termination |
+| M6-R46 | historical continuum-smoothing convergence fixture remains as proposal-search evidence; authoritative binary64 termination is governed by M6-R153..R156 |
 | M6-R47 | alternating smoothing/reconnection outperforms or equals one-shot schedules on unlock fixtures |
 | M6-R48 | successful strong reconnection restarts cheap local passes and preserves exact boundary/provenance/size acceptance |
 
@@ -836,7 +836,9 @@ Independent oracle must reconstruct:
 
     x = I 2^-1074.
 
-### Primitive gcd normalization
+### Optional primitive gcd normalization oracle
+
+This is a reference/compactness oracle, not a required D26QMRB1 production step.
 
 For tetra lattice coordinates:
 - compute all pairwise integer component differences,
@@ -935,7 +937,7 @@ for identical ordered vertices.
 | Gate | Requirement |
 |---|---|
 | M6-R61 | binary64 bit patterns decode exactly to the common 2^-1074 integer lattice |
-| M6-R62 | primitive gcd normalization is anchor- and permutation-invariant |
+| M6-R62 | optional primitive-gcd oracle normalization is anchor- and permutation-invariant; D26QMRB1 correctness does not depend on gcd/division |
 | M6-R63 | q_MR^3 = 432 d^2/s^3 passes an independent rational oracle |
 | M6-R64 | derived bigint-width bounds are never exceeded by the adversarial corpus |
 | M6-R65 | exact D26QMR1 comparator matches independent arbitrary-precision ordering |

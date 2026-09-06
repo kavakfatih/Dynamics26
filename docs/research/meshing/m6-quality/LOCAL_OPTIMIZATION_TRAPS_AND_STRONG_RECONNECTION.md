@@ -1,6 +1,6 @@
 # M6 Research — Local Optimization Traps and Strong Reconnection
 
-Status: RESEARCHING / architecture-and-verification candidate
+Status: DESIGN FROZEN INPUT / strong-reconnection architecture
 Date: 2026-09-06
 
 ## 1. Engineering question
@@ -357,36 +357,23 @@ Important later research update:
 
 See QUALITY_ORDER_AND_ACCEPTANCE_POLICY.md for the stronger lexicographic bound.
 
-## 9. Why the first SPR objective should remain max-min
+## 9. Historical max-min SPR objective — superseded by full D26QV1
 
-The current M6 local QualityKey research includes possible secondary terms such as:
-- harmonic mean q_MR,
-- arithmetic mean q_MR,
-- cell count.
+Early SPR research used max-min because its first branch-and-bound bound is simple.
 
-Those are useful for local hill-climbing experiments.
+Final M6 quality-order research established D26QV1: sorted exact q_MR multiset order with
+shorter-wins exact-prefix semantics.
 
-But a branch-and-bound proof is simplest for:
+For a partial SPR triangulation P:
 
-    maximize minimum q_MR.
+    Q_upper(P) = QMRVector(P) padded with +infinity
 
-If the search immediately uses a multi-component QualityKey, pruning requires an admissible bound for
-every lexicographic component.
+is an admissible optimistic lexicographic upper bound.
 
-That is possible in principle but creates unnecessary research complexity.
+Therefore full lexicographic branch-and-bound is the frozen target for authoritative O5 acceptance.
 
-### Leading research candidate
-
-For first SPR experiments:
-
-1. maximize worst q_MR exactly within the cavity,
-2. among equal-primary optima, use a deterministic canonical topology tie,
-3. evaluate aggregate/angle diagnostics after the primary optimum,
-4. research secondary objective optimization separately.
-
-This preserves a transparent correctness oracle.
-
-No production choice is frozen yet.
+Max-min remains the first D26QV1 component and an independent verification oracle. It is not the final
+SPR commit objective.
 
 ## 10. Search optimality and cavity selection are separate problems
 
@@ -464,67 +451,27 @@ for every element.
 
 This naturally motivates a cheap-to-expensive escalation ladder.
 
-## 13. Dynamics26 escalation ladder — research candidate
+## 13. Escalation ladder — superseded by frozen D26OPS1
 
-Not frozen for implementation.
+The earlier tiered research candidate is superseded by OPTIMIZER_OPERATION_SCHEDULE.md.
 
-For a low-tail interior tetrahedron in deterministic order:
+Frozen schedule:
 
-### Tier 0 — hard guards
+    O1 smart interior smoothing
+      ->
+    O2 2->3
+      ->
+    O3 general edge-removal DP
+      ->
+    O4 optimization smoothing
+      ->
+    repeat cheap/local cycle while progress
+      ->
+    O5 bounded SPR on stall
+      ->
+    if O5 succeeds, return to O1.
 
-Require:
-- valid current topology,
-- exact positive orientation,
-- unprotected interior scope,
-- resolved provenance.
-
-### Tier 1 — cheap geometry/connectivity
-
-Try:
-- smart Laplacian proposals on free incident vertices,
-- elementary 2->3 where useful,
-- edge removal on incident interior edges.
-
-If any strict improvement commits:
-- update the affected neighborhood,
-- return to Tier 1 locally.
-
-### Tier 2 — stronger local optimization
-
-Try:
-- optimization-based smoothing,
-- edge removal again after coordinates changed,
-- research multi-face removal / multi-face retriangulation.
-
-Why repeat edge removal?
-
-Because smoothing changes the candidate tetra qualities and can make a previously rejected
-reconnection beneficial.
-
-### Tier 3 — bounded strong cavity reconnection
-
-For residual bad elements:
-- construct a deterministic growing cavity,
-- invoke bounded SPR branch-and-bound,
-- accept only a final validated strict improvement.
-
-After a successful strong reconnection:
-- restart cheap smoothing/reconnection on the affected neighborhood.
-
-### Tier 4 — deferred point-changing operations
-
-Only after M5/M7 contracts exist:
-- vertex insertion,
-- vertex deletion/contraction,
-- boundary changes.
-
-These can escape fixed-point-set traps, but they also change:
-- size-field realization,
-- node identity,
-- solver DOF count,
-- provenance.
-
-They are explicitly outside the first M6 implementation candidate.
+Point-changing and boundary-moving operations remain deferred.
 
 ## 14. Why smoothing must be interleaved with topology
 
@@ -606,26 +553,21 @@ This is a mathematical termination argument, not a performance bound.
 
 The number of possible states can still be enormous.
 
-## 17. Termination — smoothing breaks the finite-state proof
+## 17. Mathematical-continuum note versus authoritative binary64 state
 
-Vertex smoothing changes floating coordinates continuously.
+For an idealized real-coordinate smoother, the coordinate state is continuous and a finite-state proof
+does not apply.
 
-Therefore the connectivity-only finite-state argument no longer applies.
+For frozen first Dynamics26 scope:
+- committed coordinates are finite canonical binary64,
+- PointIds are fixed,
+- connectivity is finite,
+- every accepted commit is strict exact D26QV1 improvement.
 
-An infinite sequence of ever-smaller accepted improvements is conceptually possible.
+Therefore the authoritative accepted state history is finite.
 
-Smoothing needs explicit optimizer stop semantics, such as versioned combinations of:
-- minimum quality improvement,
-- minimum coordinate displacement,
-- maximum line-search iterations,
-- maximum local/global passes,
-- stalled active set.
-
-No numerical value is accepted yet.
-
-These are optimizer convergence controls.
-
-They are not geometry predicates.
+Private proposal search still requires explicit finite/count-bounded line-search, smoothing iterations
+and strong-cavity branch limits.
 
 ## 18. Termination — point insertion/deletion changes the state space again
 
@@ -665,25 +607,19 @@ That rank must itself be:
 
 Do not use container iteration order as a tie breaker.
 
-## 20. Floating quality comparison and strictness
+## 20. Exact quality comparison and strictness
 
-Exact predicates decide:
-- orientation,
-- intersection/topological legality,
-- cavity validity.
+Exact predicates decide geometric/topological legality.
 
-Floating q_MR decides:
-- optimization ranking.
+D26QMR1/D26QV1 decide authoritative quality ordering exactly from the canonical binary64 model.
 
-If two quality values are nearly indistinguishable, the optimizer may use a versioned comparison
-margin or no-op tie policy.
+There is no pairwise q_MR epsilon and no approximate quality equality.
 
-That margin:
-- must be dimensionless for q_MR,
-- must never leak into Orient3D/topology truth,
-- must be tested for deterministic Debug/Release behavior.
+If exact old/new D26QV1 vectors are equal:
+- no mutation.
 
-No margin value is selected here.
+Floating q_MR remains display/reporting, proposal-objective support where appropriate and
+non-authoritative telemetry.
 
 ## 21. Active-set scheduling
 
@@ -838,33 +774,34 @@ Therefore the architecture remains:
 
 D26LIFT1 remains unrelated to quality weights.
 
-## 28. Proposed Dynamics26 research architecture
+## 28. Frozen Dynamics26 first architecture
 
-The leading non-production architecture is:
+The frozen first non-production implementation contract is:
 
     valid fixed-boundary mesh
       ->
-    deterministic low-tail active set
+    D26OPS1 O1..O4 cheap/local cycle
       ->
-    cheap smoothing + elementary/edge reconnection
+    exact D26QACC1 commit acceptance
       ->
-    optimization smoothing
+    D26QSCHED1 deterministic rounds
       ->
-    repeat cheap reconnection
+    bounded O5 SPR on stall
       ->
-    bounded strong cavity reconnection for residual traps
+    return to O1 after strong success
       ->
-    restart cheap local passes after every strong success
+    exact final topology/quality validation
       ->
-    final exact topology validation
-      ->
-    quality-vector / solver-correlation report.
+    solver-correlation reporting.
 
 Deferred:
 - point insertion/deletion,
 - boundary modification,
 - finite weighted regular triangulation,
-- parallel strong search.
+- anisotropic metric-space optimization,
+- simultaneous authoritative parallel commit.
+
+Parallel/private proposal planning is part of frozen scheduler architecture.
 
 ## 29. Verification questions before any implementation freeze
 

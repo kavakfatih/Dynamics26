@@ -1,6 +1,6 @@
 # M6 Early Research — Local Topology Improvement
 
-Status: RESEARCHING / implementation not started
+Status: DESIGN FROZEN INPUT / implementation not started
 Date: 2026-09-06
 
 ## 1. Engineering question
@@ -161,22 +161,22 @@ objectives, but they are not the leading commit-acceptance order.
 
 See QUALITY_ORDER_AND_ACCEPTANCE_POLICY.md.
 
-## 8. Numerical quality comparison is not a geometric predicate
+## 8. Quality ordering is exact but remains separate from geometric validity
 
-The exact predicate contract remains:
+M1 exact predicates decide Orient3D validity, degeneracy and topology/cavity truth.
 
-    Orient3D / topology truth -> filtered-exact M1 decision.
+M6 D26QMR1 decides only tetra mean-ratio ordering for already-valid positive tetrahedra.
 
-Quality values such as q_MR use floating arithmetic and are optimization scores.
+Authoritative quality order is not an approximate floating epsilon test. D26QMR1 reduces the canonical
+binary64 model to exact dyadic/integer comparison.
 
-If two candidate quality scores are too close to distinguish robustly under the chosen numerical
-policy:
-- do not invent a geometry epsilon,
-- treat the quality decision as an optimization tie,
-- prefer no-op or a deterministic canonical candidate according to the versioned M6 policy.
+Displayed/reporting q_MR values may remain floating diagnostics.
 
-A quality-comparison tolerance/margin, if later used, is an optimizer policy parameter and must never
-be reused for orientation, manifoldness or CAD identity.
+Therefore:
+- geometry truth remains M1-owned,
+- quality ordering is exact M6-owned,
+- exact quality ties produce no mutation under D26QACC1,
+- no q_MR comparison tolerance leaks into topology predicates.
 
 ## 9. Protected topology policy
 
@@ -197,55 +197,65 @@ A future surface optimizer may allow a boundary 2->2 triangle diagonal change on
 
 This is separate future research.
 
-## 10. Deterministic operation scheduling
+## 10. Deterministic operation scheduling — superseded by D26QSCHED1
 
-Local optimization is path-dependent: two legal quality-improving flips applied in a different order
-can lead to different local maxima.
+The earlier serial active-queue candidate is superseded by the frozen scheduler contracts:
 
-M6 therefore needs deterministic scheduling independent of container iteration.
+    QUALITY_KEY_LIFECYCLE_AND_DETERMINISTIC_SCHEDULING.md
+    PARALLEL_ROUND_MONOTONICITY_AND_TERMINATION.md
+    OPTIMIZER_OPERATION_SCHEDULE.md.
 
-Research candidate:
-1. active poor-tet queue ordered by (q_MR ascending, CanonicalTetKey),
-2. generate legal local operations in a fixed operation-type order,
-3. compare candidate QualityKey,
-4. break exact/optimization ties by canonical connectivity key,
-5. after commit, invalidate/recompute only the affected neighborhood,
-6. repeat until no strict accepted improvement or a versioned pass/effort budget is reached.
+Frozen first semantics:
+- immutable round snapshot,
+- parallel/private proposal evaluation,
+- explicit semantic read/write footprints,
+- deterministic ScheduleKey,
+- deterministic conflict-free winner set,
+- ordered authoritative commit,
+- dependency-based active invalidation/rebuild.
 
-Parallel M6 optimization must preserve a separately specified deterministic policy or explicitly carry
-a different algorithm version.
+Thread completion order, pointer identity and hash iteration never define operation priority.
 
-## 11. Research candidate schedule
+## 11. Historical schedule — superseded
 
-Not accepted as production yet:
+The earlier flip/edge/smoothing ordering is superseded by frozen D26OPS1.
 
-    valid M2/M4 mesh
-      -> interior 2<->3 quality flips
-      -> general edge removal on worst edge stars
-      -> smart interior smoothing
-      -> optimization-based smoothing on remaining low-tail stars
-      -> repeat local topology + smoothing
-      -> optional later sliver-specific finite-weight/cavity treatment
-      -> final validator + quality distribution
+Authoritative first order:
 
-Why interleave?
-- smoothing cannot fix bad connectivity,
-- connectivity changes cannot optimize vertex positions,
-- literature repeatedly reports better results from combinations than either mechanism alone.
+    O1 smart interior smoothing
+      ->
+    O2 2->3 face flips
+      ->
+    O3 general edge-removal DP
+      ->
+    O4 optimization-based interior smoothing
+      ->
+    repeat cheap/local cycle while progress
+      ->
+    O5 bounded SPR on stall
+      ->
+    if O5 succeeds, return to O1
+      ->
+    otherwise stop/status.
 
-## 12. Operations deliberately deferred
+See OPTIMIZER_OPERATION_SCHEDULE.md.
 
-Not part of the first M6 implementation candidate:
+## 12. Operations deliberately deferred after Design Freeze
+
+Outside the first frozen D26OPS1 scope:
 - point insertion/deletion for quality,
 - edge contraction,
-- surface movement,
-- weighted sliver exudation,
-- Small Polyhedron Reconnection / exhaustive large cavity search,
-- parallel quality optimization,
-- anisotropic metric-space reconnection.
+- boundary/CAD surface vertex motion,
+- weighted/regular-Delaunay sliver exudation,
+- anisotropic metric-space reconnection,
+- unrestricted large-cavity exhaustive reconnection,
+- simultaneous authoritative parallel mesh mutation.
 
-They remain high-value research tracks.
+Not deferred anymore:
+- bounded fixed-cavity SPR is O5,
+- parallel proposal planning/evaluation is part of D26QSCHED1.
 
+Parallel authoritative commit may be researched later with deterministic slot/range preassignment.
 
 ## 13. Reachability definition of a local optimum
 
@@ -279,30 +289,35 @@ Strong/composite search follows:
 
 This preserves monotone committed mesh quality while permitting non-monotone private exploration.
 
-## 15. Multi-face / SPR research position
+## 15. Multi-face / SPR final position
 
-Multi-face removal is the inverse family of edge removal and adds connectivity moves not covered by
-edge removal alone.
+Multi-face removal remains a useful independent oracle/middle-tier experiment.
 
-Small Polyhedron Reconnection searches a much larger fixed-cavity triangulation space and can subsume
-edge/multi-face final states for the same cavity.
+Frozen D26OPS1 does not add it as a separate first operation tier.
 
-Current direction:
-- keep multi-face removal as a research oracle/middle-tier candidate,
-- use bounded SPR only as a later last-resort experiment,
-- do not implement either before elementary/edge/smoothing gates exist.
+Instead:
 
-## 16. Termination distinction
+    O5 = bounded fixed-cavity SPR
 
-For fixed coordinates and a fixed finite point set, strictly improving point-set-preserving
-connectivity mutations terminate because only finitely many tetrahedralizations exist.
+is the strong last-resort operator after O1..O4 stall.
 
-This proof does not extend directly to:
-- smoothing, because coordinates vary continuously,
-- unrestricted point insertion/deletion, because the point set changes.
+SPR searches privately and transactionally, commits only a final exact-valid strict D26QV1
+improvement, and returns scheduling to O1 after success.
 
-Those paths require separate convergence/resource stop policies.
+Unrestricted/exhaustive large-cavity search remains deferred.
 
+## 16. Termination — final frozen distinction
+
+For fixed finite PointIds and finite canonical binary64 stored coordinates:
+- connectivity state is finite,
+- coordinate state is finite,
+- every accepted O1..O5 commit is strict exact global D26QV1 improvement.
+
+Therefore accepted authoritative topology+smoothing mutation history is finite.
+
+Private proposal routines still require finite/count-bounded search semantics.
+
+Point insertion/deletion remains outside this theorem because it changes the fixed point set.
 
 ## 17. Exact mean-ratio ordering update
 

@@ -1,6 +1,6 @@
 # M6 Research — Quality Order and Acceptance Policy
 
-Status: RESEARCHING / engineering-contract candidate
+Status: DESIGN FROZEN / authoritative D26QV1-D26QACC1 contract
 Date: 2026-09-06
 
 ## 1. Research question
@@ -511,20 +511,24 @@ If each accepted mutation strictly improves exact QMRVector:
 
 This is a termination proof, not a useful complexity bound.
 
-## 20. Smoothing termination remains separate
+## 20. Smoothing termination — continuum note superseded for authoritative binary64 state
 
-Smoothing changes coordinates continuously.
+The mathematical real-coordinate smoothing problem has a continuous feasible region, so a private
+continuous optimizer still needs bounded/convergent search semantics.
 
-Exact QMRVector improvement alone does not exclude arbitrarily small infinite improvement sequences.
+The authoritative Dynamics26 mesh state is different:
+- fixed finite PointIds in first M6 scope,
+- stored coordinates are finite canonical binary64,
+- connectivity state is finite,
+- every accepted topology/smoothing commit must be strict exact D26QV1 improvement.
 
-Smoothing therefore still needs convergence/effort controls such as:
-- minimum accepted gain,
-- minimum displacement,
-- line-search limit,
-- pass limit,
-- active-set stall.
+Therefore the accepted authoritative mutation history is finite and cycle-free without a pairwise
+quality epsilon.
 
-These values do not define q_MR equality.
+Private proposal generation still requires finite/count-bounded line-search evaluations, optimizer
+iterations, SPR branch nodes and explicit resource handling.
+
+See PARALLEL_ROUND_MONOTONICITY_AND_TERMINATION.md.
 
 ## 21. Max-min is the first vector component
 

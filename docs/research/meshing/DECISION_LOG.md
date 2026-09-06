@@ -735,7 +735,7 @@ ADR and derivation explicitly. Do not patch around the contradiction inside prod
 
 ## ADR-MESH-0022 — Separate tetra validity, shape quality and analysis suitability
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-05
 
 ### Decision candidate
@@ -772,7 +772,7 @@ M6-R01..M6-R11.
 
 ## ADR-MESH-0023 — Symbolic Delaunay lift and quality weights are different policies
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-05
 
 ### Decision candidate
@@ -797,7 +797,7 @@ M6-R12 and a future weighted-quality research package before implementation.
 
 ## ADR-MESH-0024 — Nonlinear distortion and incompressibility are not initial mesh quality
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-05
 
 ### Decision candidate
@@ -830,7 +830,7 @@ M6-R09..M6-R11 plus M7 formulation-specific tests.
 
 ## ADR-MESH-0025 — Combined interior reconnection and smoothing is the leading M6 optimizer architecture
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** SUPERSEDED BY ADR-MESH-0039
 **Date:** 2026-09-05
 
 ### Decision candidate
@@ -862,7 +862,7 @@ The exact QualityKey, pass schedule and activation thresholds require M6-R13..R2
 
 ## ADR-MESH-0026 — General interior edge removal uses an original link-polygon DP reference
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-05
 
 ### Decision candidate
@@ -896,7 +896,7 @@ M6-R14 and M6-R15.
 
 ## ADR-MESH-0027 — Mesh untangling is explicit recovery, not a normal post-hoc construction fix
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-05
 
 ### Decision candidate
@@ -922,7 +922,7 @@ M6-R17 plus explicit result/provenance semantics before any implementation.
 
 ## ADR-MESH-0028 — CAD boundary vertices have constrained mobility dimensions
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 DESIGN PRINCIPLE; M3/M4 BOUNDARY IMPLEMENTATION DEFERRED)
 **Date:** 2026-09-05
 
 ### Decision candidate
@@ -948,7 +948,7 @@ M6-R20.
 
 ## ADR-MESH-0029 — TET4 quality is a layered vector, not a composite scalar
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-05
 
 ### Decision candidate
@@ -1023,7 +1023,7 @@ M6-R22..M6-R29 and T4-G09.
 
 ## ADR-MESH-0030 — Spectral shape scores and angle morphology remain separate diagnostics
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-06
 
 ### Decision candidate
@@ -1091,7 +1091,7 @@ No production metric threshold or optimizer implementation is authorized by this
 
 ## ADR-MESH-0031 — Strong reconnection is a bounded transactional escape from local optimization traps
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-06
 
 ### Decision candidate
@@ -1183,7 +1183,7 @@ M6-R37..M6-R48.
 
 ## ADR-MESH-0032 — Commit acceptance uses exact sorted mean-ratio order; aggregate objectives generate proposals
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-06
 
 ### Decision candidate
@@ -1305,7 +1305,7 @@ No production M6 implementation is authorized.
 
 ## ADR-MESH-0033 — D26QMR1 uses exact binary64-lattice ordering with certified filtered fallback
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-06
 
 ### Decision candidate
@@ -1429,7 +1429,7 @@ No production M6 code is authorized.
 
 ## ADR-MESH-0034 — D26QMRF1 first qualifies a dynamic interval cross-polynomial filter
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-06
 
 ### Decision candidate
@@ -1578,7 +1578,7 @@ No production M6 filter code is authorized.
 
 ## ADR-MESH-0035 — D26INT1 uses RN per-primitive adjacent-representable widening
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-06
 
 ### Decision candidate
@@ -1727,7 +1727,7 @@ No production interval implementation is authorized.
 
 ## ADR-MESH-0036 — D26QMRB1 reuses the qualified M1 dyadic BigInt mechanism
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-06
 
 ### Decision candidate
@@ -1851,7 +1851,7 @@ No production refactor or M6 exact comparator implementation is authorized.
 
 ## ADR-MESH-0037 — Quality keys are coordinate-state artifacts; parallel M6 uses deterministic snapshot rounds
 
-**Status:** PROPOSED / M6 EARLY RESEARCH
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-06
 
 ### Decision candidate
@@ -2002,7 +2002,7 @@ No production cache, scheduler or parallel M6 implementation is authorized.
 
 ## ADR-MESH-0038 — Non-conflicting strict local winners make every non-empty round globally strict-monotone
 
-**Status:** PROPOSED / M6 PRE-FREEZE
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-06
 
 ### Decision candidate
@@ -2069,7 +2069,7 @@ No production scheduler implementation is authorized.
 
 ## ADR-MESH-0039 — D26OPS1 freezes a cheap-cycle-first point-set-preserving optimizer schedule
 
-**Status:** PROPOSED / M6 PRE-FREEZE
+**Status:** ACCEPTED (M6 RESEARCH/DESIGN FREEZE)
 **Date:** 2026-09-06
 
 ### Decision candidate
@@ -2150,3 +2150,50 @@ No resource limit is converted into a geometry/quality conclusion.
 M6-R161..M6-R170.
 
 No production optimizer implementation is authorized.
+
+
+---
+
+## ADR-MESH-0040 — M6 tetra-quality / deterministic-optimizer research design freeze
+
+**Status:** ACCEPTED (RESEARCH/DESIGN FREEZE)
+**Date:** 2026-09-06
+
+### Decision
+
+M6 research is closed under freeze identifier:
+
+    D26-M6-FREEZE-1.
+
+Authoritative closeout:
+
+    docs/research/meshing/m6-quality/M6_DESIGN_FREEZE.md
+
+with qualification grouping:
+
+    docs/research/meshing/m6-quality/M6_QUALIFICATION_GATE_MATRIX.md.
+
+### Meaning
+
+Accepted:
+- M6 mathematical and architecture contracts are frozen for first implementation,
+- superseded candidate text is non-authoritative,
+- M6-R01..M6-R170 define the complete qualification contract.
+
+Not claimed:
+- production M6 optimizer implemented,
+- M6 executable gates passed,
+- generic q_MR FEM/rubber threshold validated.
+
+### Change control
+
+Any change to frozen D26QMR1, D26QV1, D26QACC1, D26QMRF1, D26INT1, D26QMRB1, D26QKEY1,
+D26QSCHED1, D26ACTREF1 or D26OPS1 semantics requires a new ADR and affected-gate update.
+
+### Next phase
+
+Proceed to:
+- implementation specification,
+- qualification-harness implementation,
+- serial reference implementation before parallel optimization,
+- M7 solver-correlation evidence for numeric product thresholds.

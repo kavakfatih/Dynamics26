@@ -1,6 +1,6 @@
 # M6 Early Research — Smoothing, Untangling and CAD-Constrained Motion
 
-Status: RESEARCHING / implementation not started
+Status: DESIGN FROZEN INPUT / implementation not started
 Date: 2026-09-06
 
 ## 1. Smoothing changes geometry, not connectivity
@@ -306,25 +306,21 @@ A smoothing star that is locally stuck can become improvable after reconnection.
 Therefore the M6 search should be researched as alternating optimization rather than a single pass of
 one operation class.
 
-## 18. Smoothing termination is not implied by finite topology
+## 18. Smoothing termination — continuum versus stored binary64
 
-Connectivity-only strict hill climbing on a fixed finite point set has a finite-state termination
-argument.
+Finite topology alone is not enough for an idealized real-coordinate smoothing problem.
 
-Smoothing does not.
+The frozen first Dynamics26 state adds:
+- fixed finite PointIds,
+- finite canonical binary64 committed coordinates,
+- strict exact D26QV1 acceptance.
 
-Coordinates vary continuously, so an unbounded sequence of arbitrarily small improvements is
-conceptually possible.
+Hence the authoritative accepted topology+smoothing state sequence is finite.
 
-Future smoothing convergence policy must explicitly define combinations of:
-- minimum accepted quality gain,
-- minimum displacement,
-- line-search limit,
-- pass/effort limit,
-- active-set stall.
+Private smoothing search still requires finite/count-bounded optimization iterations, line-search
+samples and explicit resource/abort semantics.
 
-These are optimizer-policy values, not geometric tolerances.
-
+A minimum q_MR epsilon is not used as equality or cycle prevention.
 
 ## 19. Proposal objective versus authoritative acceptance
 

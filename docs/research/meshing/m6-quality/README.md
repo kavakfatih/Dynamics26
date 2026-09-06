@@ -1,9 +1,27 @@
 # M6 — Tetrahedral Quality & FEM Suitability Research
 
 Program: Dynamics26 Original Meshing Engine
-Work package: M6 early research — quality mathematics before optimization implementation
-Status: RESEARCHING / IMPLEMENTATION NOT STARTED
+Work package: M6 tetra quality / optimizer research closeout
+Status: RESEARCH COMPLETE / DESIGN FROZEN / IMPLEMENTATION NOT QUALIFIED
 Date: 2026-09-06
+
+## Freeze authority
+
+The authoritative M6 research closeout is:
+
+    M6_DESIGN_FREEZE.md.
+
+Qualification planning is summarized by:
+
+    M6_QUALIFICATION_GATE_MATRIX.md.
+
+If an older research-candidate paragraph conflicts with the freeze document, the freeze document and
+accepted M6 ADRs take precedence.
+
+Design freeze means:
+- mathematics/architecture/verification contracts are frozen for first implementation,
+- production M6 code is not yet implemented/qualified,
+- M6-R01..M6-R170 are qualification contracts, not a claim of passed executable evidence.
 
 ## Purpose
 
@@ -50,7 +68,9 @@ Dynamics26 solver benchmarks in M7.
 - EXACT_QMR_BACKEND_SELECTION.md — M1 BigInt reuse, no-GCD exact construction, expansion/Boost alternatives and local exact-key caching policy
 - QUALITY_KEY_LIFECYCLE_AND_DETERMINISTIC_SCHEDULING.md — exact-key validity domain, cache invalidation, proposal footprints, conflict-free rounds and deterministic parallel planning
 - PARALLEL_ROUND_MONOTONICITY_AND_TERMINATION.md — batch-union quality theorem, binary64 finite-state termination and active-set reference semantics
-- OPTIMIZER_OPERATION_SCHEDULE.md — D26OPS1 pre-freeze schedule: cheap smoothing/topology cycle, edge-removal DP, optimization smoothing and bounded SPR escalation
+- OPTIMIZER_OPERATION_SCHEDULE.md — frozen D26OPS1 first schedule: cheap smoothing/topology cycle, edge-removal DP, optimization smoothing and bounded SPR escalation
+- M6_DESIGN_FREEZE.md — authoritative frozen architecture, supersession rules, deferred scope and implementation boundary
+- M6_QUALIFICATION_GATE_MATRIX.md — complete M6-R01..M6-R170 qualification-contract grouping and pending-evidence status
 - FILTERED_QMR_COMPARATOR.md — dynamic interval cross-polynomial filter, power-of-two normalization, semi-static bound research and compiler/FP contract
 - INTERVAL_ARITHMETIC_BACKEND.md — C++20/macOS arm64 outward interval primitives, adjacent-representable widening, fenv/FMA/subnormal contract and backend ranking
 - LOCAL_TOPOLOGY_IMPROVEMENT.md — 2<->3, 3<->2, 4<->4, protected topology and deterministic quality reconnection
