@@ -1996,3 +1996,157 @@ Cache hits/misses must never affect semantic result.
 M6-R125..M6-R146.
 
 No production cache, scheduler or parallel M6 implementation is authorized.
+
+
+---
+
+## ADR-MESH-0038 — Non-conflicting strict local winners make every non-empty round globally strict-monotone
+
+**Status:** PROPOSED / M6 PRE-FREEZE
+**Date:** 2026-09-06
+
+### Decision candidate
+
+D26QV1 is compatible with multiset union:
+
+    B > A
+      =>
+    B union C > A union C.
+
+Therefore for a conflict-free selected round:
+
+    A_i -> B_i
+    with
+    B_i > A_i
+
+for every committed winner, repeated union compatibility and transitivity give:
+
+    GlobalNew > GlobalOld.
+
+This is the authoritative parallel-round progress invariant.
+
+### Scheduler dependency
+
+The proof requires each local old/new comparison to remain valid through the selected batch.
+
+D26QSCHED1 provides this by:
+- immutable planning snapshot,
+- complete semantic read/write footprints,
+- pairwise non-conflicting winners,
+- ordered validated commit.
+
+### Binary64 termination refinement
+
+For first-scope fixed finite PointIds:
+- coordinates are finite canonical binary64,
+- connectivity state is finite,
+- every accepted topology/smoothing commit strictly improves global D26QV1.
+
+Therefore the accepted authoritative state sequence is finite.
+
+This strengthens the earlier continuum-only smoothing discussion.
+
+Private search routines still require:
+- finite enumeration,
+- or count-bounded iterations/branch search.
+
+### Active-set reference
+
+D26ACTREF1 globally rebuilds eligible active targets after each committed round.
+
+Incremental invalidation is an optimization and must match the reference.
+
+No fixed one-ring/two-ring radius is frozen as architecture truth; semantic dependency footprints own
+invalidation correctness.
+
+### Evidence needed
+
+M6-R147..M6-R160.
+
+No production scheduler implementation is authorized.
+
+---
+
+## ADR-MESH-0039 — D26OPS1 freezes a cheap-cycle-first point-set-preserving optimizer schedule
+
+**Status:** PROPOSED / M6 PRE-FREEZE
+**Date:** 2026-09-06
+
+### Decision candidate
+
+First Dynamics26 M6 operation order:
+
+    O1 Smart interior smoothing
+      ->
+    O2 2->3 face flips
+      ->
+    O3 general edge-removal DP
+      ->
+    O4 optimization-based interior smoothing
+      ->
+    repeat cheap/local cycle while progress
+      ->
+    O5 bounded SPR on stall
+      ->
+    if O5 succeeds, return to O1
+      ->
+    otherwise stop/status.
+
+General edge removal includes:
+- N=3 -> 3->2,
+- N=4 -> 4->4,
+- larger legal edge-star reconnections.
+
+### Why this order
+
+Literature consistently supports combining smoothing and topology.
+
+HXT specifically prioritizes smoothing and edge removal, then invokes Growing SPR as a slower
+last-resort escape from local maxima.
+
+Klingner/Shewchuk likewise combine smoothing/topological transformations and reserve stronger
+composite operations for difficult local optima.
+
+Dynamics26 adds exact D26QV1 commit acceptance and deterministic round scheduling.
+
+### Scope
+
+First D26OPS1 is:
+- fixed point set,
+- fixed CAD/boundary coordinates,
+- point-set-preserving topology,
+- interior smoothing,
+- bounded fixed-cavity SPR.
+
+Deferred:
+- point insertion/deletion,
+- edge contraction,
+- boundary smoothing/projection,
+- weighted sliver exudation,
+- anisotropic metric-space optimization.
+
+### Threshold boundary
+
+D26OPS1 does not freeze a universal q_MR cutoff.
+
+Target activation is separate.
+
+Reference exhaustive mode may examine every finite tetrahedron.
+
+Targeted/product modes must scope their local-optimum claims to the activated set.
+
+### Status boundary
+
+Bounded strong search distinguishes:
+- ExhaustiveNoImprovement,
+- SearchBudgetExhausted,
+- ResourceFailure,
+- ConstraintBlocked.
+
+No resource limit is converted into a geometry/quality conclusion.
+
+### Evidence needed
+
+M6-R161..M6-R170.
+
+No production optimizer implementation is authorized.

@@ -971,3 +971,139 @@ An uncertain filter result must fall back to exact arithmetic.
 No approximate-only quality decision is permitted.
 
 See EXACT_QMR_COMPARATOR.md for the detailed interval candidate and qualification rules.
+
+
+## 37. Batch-union monotonicity theorem
+
+Let the quality-multiset order be ascending lexicographic D26QV1 with the shorter-wins exact-prefix
+rule, equivalently conceptual +infinity padding.
+
+The already-established union compatibility states:
+
+    B > A
+      =>
+    B union C > A union C
+
+for any common multiset C.
+
+Now consider m selected local replacements:
+
+    A_i -> B_i
+
+with:
+
+    QMRVector(B_i)
+      >
+    QMRVector(A_i)
+
+for every i.
+
+Assume the selected round admits a valid decomposition of the mesh into:
+- unchanged multiset U,
+- pairwise distinct old changed-cell multisets A_i,
+- pairwise distinct new changed-cell multisets B_i.
+
+Define intermediate global quality multisets:
+
+    M_0
+      =
+    U union A_1 union ... union A_m
+
+    M_k
+      =
+    U
+    union B_1 ... union B_k
+    union A_(k+1) ... union A_m.
+
+For step k, all terms except A_k/B_k are one common multiset C_k.
+
+Therefore:
+
+    B_k > A_k
+      =>
+    M_k > M_(k-1).
+
+By transitivity:
+
+    M_m > M_0.
+
+Hence a non-empty batch of strict local improvements is a strict global improvement.
+
+## 38. Parallel-round consequence
+
+For D26QSCHED1 selected winners:
+- all proposals were evaluated on one immutable snapshot,
+- semantic footprints are pairwise non-conflicting,
+- each proposal passed exact validity/constraint checks,
+- each proposal is a strict D26QV1 improvement.
+
+Non-conflict guarantees that committing one selected winner does not change the quality inputs used by
+another selected winner.
+
+Therefore the batch-union theorem applies to the whole selected round:
+
+    GlobalQMRVector(after round)
+      >
+    GlobalQMRVector(before round).
+
+Thread count and worker completion order do not enter this proof.
+
+## 39. Empty round
+
+If deterministic selection produces no legal strict-improvement winner:
+
+    global quality does not change.
+
+The round scheduler must either:
+- escalate to the next operation tier,
+- or stop according to D26OPS1.
+
+It must not spin indefinitely on an unchanged snapshot.
+
+## 40. Binary64 finite-state termination refinement
+
+Earlier research separated connectivity termination from smoothing because continuous real-coordinate
+smoothing has an infinite state space.
+
+Dynamics26 production state is more specific.
+
+Assume:
+- fixed finite PointId set,
+- no point insertion/deletion,
+- every stored coordinate is a finite canonical binary64 value,
+- topology belongs to the finite valid tetrahedralization state space for those sites/boundary rules,
+- every accepted topology or smoothing commit strictly improves global D26QV1.
+
+Then the authoritative mesh state space is finite:
+- finitely many coordinate bit patterns per scalar,
+- finitely many point-coordinate tuples,
+- finitely many valid connectivity states for a fixed finite point set.
+
+Every accepted commit gives a strict global QMRVector increase.
+
+Therefore:
+- no accepted state can repeat,
+- no accepted global quality vector can repeat,
+- the accepted mutation sequence is finite.
+
+This applies to actual binary64 smoothing commits as well as connectivity changes.
+
+## 41. What still needs bounded termination
+
+Finite accepted state does not make every proposal generator automatically terminating.
+
+Each private search must terminate independently.
+
+Examples:
+- line search,
+- optimization-smoothing iterations,
+- edge-removal DP,
+- SPR branch-and-bound.
+
+Reference qualification uses finite/count-based limits or finite exact enumeration.
+
+A resource/budget stop is reported explicitly and is not equivalent to:
+
+    ExhaustiveNoImprovement.
+
+No minimum pairwise q_MR epsilon is required for the global no-cycle proof.

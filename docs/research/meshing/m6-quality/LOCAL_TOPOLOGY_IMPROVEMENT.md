@@ -413,3 +413,49 @@ The first guarantee target is:
 - thread-count-independent final result for the frozen D26QSCHED1 round algorithm.
 
 See QUALITY_KEY_LIFECYCLE_AND_DETERMINISTIC_SCHEDULING.md.
+
+
+## 19. D26OPS1 operation schedule pre-freeze
+
+The earlier research-candidate schedule is refined/superseded by the dedicated:
+
+    OPTIMIZER_OPERATION_SCHEDULE.md.
+
+Leading first implementation schedule for fixed point set and fixed CAD boundary coordinates:
+
+    cheap cycle
+      1. smart interior smoothing
+      2. elementary 2->3 face-flip proposals
+      3. general edge-removal DP
+           - N=3 covers 3->2
+           - N=4 covers 4->4
+           - larger legal edge stars use the same exact DP semantics
+      4. optimization-based interior smoothing
+
+    repeat cheap cycles while any strict commit occurs
+
+    if cheap cycle stalls:
+      5. bounded SPR / strong fixed-cavity reconnection on unresolved targets
+
+    if bounded SPR commits:
+      return to cheap cycle
+
+    otherwise:
+      stop.
+
+Every committed operation:
+- passes exact validity,
+- respects protected/CAD/provenance rules,
+- strictly improves D26QV1.
+
+Private composite/SPR exploration may traverse non-improving intermediate states but only the final
+transaction can commit.
+
+Deferred from first D26OPS1:
+- point insertion/deletion,
+- edge contraction,
+- boundary/CAD surface motion,
+- weighted sliver exudation,
+- anisotropic metric-space optimization.
+
+Numeric activation thresholds are not frozen by D26OPS1.

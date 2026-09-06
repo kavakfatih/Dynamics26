@@ -402,3 +402,35 @@ A deterministic coloring/independent-set schedule may later accelerate selection
 thread id must not affect the accepted mesh state.
 
 See QUALITY_KEY_LIFECYCLE_AND_DETERMINISTIC_SCHEDULING.md.
+
+
+## 22. Termination refinement for stored binary64 smoothing
+
+The mathematical real-coordinate smoother has a continuous feasible region, so an unconstrained
+continuous optimization proof still needs convergence reasoning.
+
+The authoritative Dynamics26 mesh, however, stores finite canonical binary64 coordinates.
+
+For the first M6 contract:
+- proposal search uses finite/count-bounded iterations,
+- the resulting candidate coordinate is one finite binary64 value,
+- commit requires strict local D26QV1 improvement,
+- local-to-global composition makes the whole mesh QualityVector strict-improving.
+
+With:
+- fixed finite PointIds,
+- no insertion/deletion,
+- finite binary64 coordinate state,
+- finite connectivity state,
+
+the accepted topology+smoothing mutation sequence is finite.
+
+Therefore a minimum q_MR epsilon is not required to prevent accepted-state cycles.
+
+Practical stop/performance controls may still include:
+- maximum proposal iterations,
+- maximum line-search samples,
+- bounded SPR nodes,
+- explicit external abort.
+
+Such limits are resource/search policy and do not redefine exact quality equality.

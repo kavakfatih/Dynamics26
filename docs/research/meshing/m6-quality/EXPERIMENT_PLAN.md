@@ -1760,3 +1760,150 @@ ExhaustiveNoImprovement.
 | M6-R146 | any future deterministic parallel commit matches ordered-commit reference |
 
 These gates do not authorize production parallel M6 optimization.
+
+
+## Tier Q2-AZ — batch-union global monotonicity
+
+Construct finite exact q_MR multisets:
+
+    U
+    A_1..A_m
+    B_1..B_m
+
+with every:
+
+    B_i > A_i
+
+under D26QV1.
+
+Require:
+
+    U union B_1 ... B_m
+      >
+    U union A_1 ... A_m.
+
+Cross-check:
+- exhaustive small rational quality alphabets,
+- random exact dyadic quality keys,
+- variable vector lengths,
+- exact-prefix shorter-wins cases.
+
+Repeat by applying replacements in every permutation.
+
+Require identical final multiset order.
+
+## Tier Q2-BA — conflict-free mesh round monotonicity
+
+On small tetra meshes:
+1. enumerate legal strict local proposals,
+2. choose pairwise non-conflicting sets,
+3. plan all proposals on one immutable snapshot,
+4. commit winners in every serial order.
+
+Require:
+- every intermediate commit remains legal,
+- final canonical semantic fingerprint identical,
+- every non-empty round is strict global D26QV1 improvement.
+
+## Tier Q2-BB — binary64 finite-state termination
+
+For small fixed-point-set fixture families:
+- enumerate finite candidate coordinate subsets,
+- enumerate legal topology states where tractable,
+- allow strict D26QV1 topology/smoothing transitions.
+
+Require:
+- no accepted cycle,
+- no repeated accepted global QualityVector,
+- all maximal strict-improvement paths terminate.
+
+Negative control:
+- permit exact-equal commits,
+- demonstrate the strict no-cycle proof no longer applies.
+
+## Tier Q2-BC — active-set reference oracle
+
+Reference:
+
+    D26ACTREF1
+      =
+    global active-target rebuild after every committed round.
+
+Compare candidate incremental invalidation:
+- topology cavity update,
+- smoothing point move,
+- constraint-only update.
+
+Require incremental result to contain/match every target that the reference says must be reconsidered.
+
+Over-invalidation is allowed.
+
+Under-invalidation fails qualification.
+
+## Tier Q2-BD — D26OPS1 schedule
+
+Run fixed fixture corpus with:
+
+    O1 SmartSmoothing
+    O2 Flip23
+    O3 EdgeRemovalDP
+    O4 OptimizationSmoothing
+    O5 BoundedSPR.
+
+Require:
+- exact operation-family order,
+- strict D26QV1 acceptance for every commit,
+- return O5-success -> O1,
+- no deferred operator mutates point count/boundary state.
+
+Include unlock fixtures where:
+- O1 alone stalls,
+- O2/O3 unlock improvement,
+- O4 unlocks later topology,
+- O1..O4 stall but O5 succeeds.
+
+## Tier Q2-BE — stop/status semantics
+
+Exercise terminal states:
+
+    CheapCycleStalled
+    ExhaustiveNoImprovement
+    SearchBudgetExhausted
+    ResourceFailure
+    ConstraintBlocked.
+
+Require:
+- BudgetExhausted != ExhaustiveNoImprovement,
+- ResourceFailure != NoImprovement,
+- targeted activation does not claim global local optimality.
+
+## Additional round/schedule pre-freeze gates
+
+| Gate | Requirement |
+|---|---|
+| M6-R147 | D26QV1 union compatibility passes exhaustive finite-multiset oracle |
+| M6-R148 | multiple strict local replacements imply strict global union improvement |
+| M6-R149 | every non-empty conflict-free D26QSCHED1 round is strict global D26QV1 improvement |
+| M6-R150 | commit permutation of selected winners preserves canonical semantic fingerprint |
+| M6-R151 | empty selected round escalates/stops and cannot repeat unchanged forever |
+| M6-R152 | connectivity-only finite-state strict-improvement paths are cycle-free |
+| M6-R153 | fixed-PointId finite-binary64 topology+smoothing authoritative state space is finite |
+| M6-R154 | strict exact smoothing commits cannot repeat an accepted global QualityVector |
+| M6-R155 | exact-equal D26QV1 topology/smoothing candidates never commit |
+| M6-R156 | proposal search/resource limits remain distinct from no-improvement status |
+| M6-R157 | incremental invalidation matches D26ACTREF1 global rebuild oracle |
+| M6-R158 | deliberate under-invalidation is detected |
+| M6-R159 | targeted activation scopes local-optimum claims correctly |
+| M6-R160 | Debug/Release and 1/N-thread rounds preserve global monotonicity |
+| M6-R161 | O1/O2/O3/O4 family order is deterministic under target-enumeration permutations |
+| M6-R162 | edge-removal DP N=3/N=4 cases agree with independent 3->2/4->4 oracles |
+| M6-R163 | every O1..O5 commit is strict local/global D26QV1 improvement |
+| M6-R164 | successful bounded SPR returns scheduling to O1 and exposes unlock fixtures |
+| M6-R165 | strong-reconnection fixtures escape cheap-cycle local optima |
+| M6-R166 | SPR budget exhaustion is never labeled exhaustive no-improvement |
+| M6-R167 | exhaustive versus targeted activation produces correctly scoped optimum claims |
+| M6-R168 | deferred point-count/boundary-changing operators cannot silently execute |
+| M6-R169 | D26OPS1 final fingerprint is invariant across qualified thread counts |
+| M6-R170 | reference D26OPS1 terminates on fixed-point-set finite-binary64 fixture corpus |
+
+No production optimizer is authorized by these gates.

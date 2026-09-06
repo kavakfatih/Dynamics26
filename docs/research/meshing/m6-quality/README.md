@@ -49,6 +49,8 @@ Dynamics26 solver benchmarks in M7.
 - EXACT_QMR_COMPARATOR.md — binary64 lattice oracle, exact order identity and bounded integer comparison
 - EXACT_QMR_BACKEND_SELECTION.md — M1 BigInt reuse, no-GCD exact construction, expansion/Boost alternatives and local exact-key caching policy
 - QUALITY_KEY_LIFECYCLE_AND_DETERMINISTIC_SCHEDULING.md — exact-key validity domain, cache invalidation, proposal footprints, conflict-free rounds and deterministic parallel planning
+- PARALLEL_ROUND_MONOTONICITY_AND_TERMINATION.md — batch-union quality theorem, binary64 finite-state termination and active-set reference semantics
+- OPTIMIZER_OPERATION_SCHEDULE.md — D26OPS1 pre-freeze schedule: cheap smoothing/topology cycle, edge-removal DP, optimization smoothing and bounded SPR escalation
 - FILTERED_QMR_COMPARATOR.md — dynamic interval cross-polynomial filter, power-of-two normalization, semi-static bound research and compiler/FP contract
 - INTERVAL_ARITHMETIC_BACKEND.md — C++20/macOS arm64 outward interval primitives, adjacent-representable widening, fenv/FMA/subnormal contract and backend ranking
 - LOCAL_TOPOLOGY_IMPROVEMENT.md — 2<->3, 3<->2, 4<->4, protected topology and deterministic quality reconnection
@@ -73,6 +75,8 @@ Dynamics26 solver benchmarks in M7.
 - D26QMRF1 now leads with a certified dynamic interval filter over the homogeneous comparison polynomial; semi-static magic-constant filters are deferred until their expression tree and floating environment are formally/auditably certified,
 - D26INT1 now leads with round-to-nearest primitive evaluation plus adjacent-representable outward widening; directed-rounding and EFT/FMA backends remain secondary research paths,
 - exact quality caches are coordinate-state artifacts rather than TetHandle artifacts; first parallelism should evaluate immutable-snapshot proposals concurrently but select/commit a deterministic conflict-free round,
+- a non-empty conflict-free round of strict local D26QV1 improvements is globally strict-monotone; with fixed finite PointIds and finite canonical binary64 coordinates this also gives finite accepted-mutation history,
+- D26OPS1 now leads toward smart smoothing -> 2-to-3 -> general edge-removal DP -> optimization smoothing, repeating cheap cycles before bounded SPR escalation; numeric activation thresholds remain unfrozen,
 - mesh grading, interpolation error, stiffness conditioning and nearly-incompressible formulation stability remain separate quality/evidence layers,
 - M2 D26LIFT1 infinitesimal symbolic perturbation is **not** sliver exudation,
 - large-deformation runtime distortion is separate from initial mesh quality,

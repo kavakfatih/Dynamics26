@@ -1102,3 +1102,78 @@ This keeps:
 as separate engineering concerns.
 
 No production M6 optimizer or cache implementation is authorized by this document.
+
+
+## 42. Active-set invalidation is dependency-based, not radius folklore
+
+A committed mutation has a semantic write set:
+
+    W_commit.
+
+A previously planned item/proposal is stale when its semantic state depends on a changed resource.
+
+Reference invalidation oracle:
+
+    stale(i)
+
+if:
+
+    R_i intersects W_commit
+
+or:
+
+    W_i intersects W_commit.
+
+This is the same dependency logic used by conflict detection.
+
+It avoids encoding an unproved geometric rule such as:
+- always one ring,
+- always two rings.
+
+A local star/ring implementation is allowed only as a conservative realization of the semantic
+dependency oracle.
+
+## 43. Reference active-set rebuild
+
+For qualification, define an expensive but simple oracle:
+
+    D26ACTREF1
+      =
+    rebuild eligible active targets from all live finite tetrahedra
+    after every committed round.
+
+This is deterministic and independent of an incremental invalidation implementation.
+
+A production incremental active-set strategy must match D26ACTREF1 in:
+- eligible target set,
+- canonical target ordering,
+- final optimizer result
+
+for the same activation/schedule policy.
+
+Over-invalidation is allowed.
+
+Under-invalidation is a correctness bug.
+
+## 44. Activation threshold boundary
+
+Operation scheduling and target activation are separate policies.
+
+D26OPS1 defines:
+- operation order/escalation.
+
+It does not freeze a universal numeric statement such as:
+
+    q_MR < 0.2 => bad.
+
+Reference exhaustive qualification may activate all finite tetrahedra.
+
+Product/solver-aware low-tail activation thresholds remain future evidence-driven policy.
+
+If a targeted activation policy is used, the final claim is:
+
+    no accepted improvement among activated targets under D26OPS1,
+
+not necessarily:
+
+    globally locally optimal over every tetrahedron.
