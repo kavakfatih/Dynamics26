@@ -661,3 +661,43 @@ set_tests_properties(
     PROPERTIES
     LABELS "unit;meshing;m6;optimizer;smoothing;quality;acceptance;determinism;replay"
 )
+
+# D26INT1-E1 — subnormal downscale policy experiment.
+# Measures certificate coverage under the frozen policy against a proposed
+# outward-step policy, and asserts only that the proposal stays in agreement
+# with D26QMRB1. Production code is unchanged; this exists so the policy
+# decision can be taken on measurement.
+add_executable(
+    experiment_m6_interval_downscale
+    meshing/m6_quality/experiment_m6_interval_downscale.cpp
+)
+target_link_libraries(
+    experiment_m6_interval_downscale
+    PRIVATE femcae_meshing
+)
+target_include_directories(
+    experiment_m6_interval_downscale
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(experiment_m6_interval_downscale)
+
+# The experiment mirrors a frozen floating expression contract, so it inherits
+# the same contraction/reassociation guarantees as the sources it mirrors.
+if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
+    set_property(
+        SOURCE meshing/m6_quality/experiment_m6_interval_downscale.cpp
+        APPEND PROPERTY COMPILE_OPTIONS
+        "-fno-fast-math"
+        "-ffp-contract=off"
+    )
+endif()
+
+add_test(
+    NAME experiment_m6_interval_downscale
+    COMMAND experiment_m6_interval_downscale
+)
+set_tests_properties(
+    experiment_m6_interval_downscale
+    PROPERTIES
+    LABELS "experiment;meshing;m6;quality;interval;filtered;coverage"
+)

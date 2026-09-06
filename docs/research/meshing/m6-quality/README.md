@@ -75,6 +75,7 @@ Dynamics26 solver benchmarks in M7.
 - M6_IMPLEMENTATION_SEQUENCE.md — I0..I10 phased implementation and qualification order
 - FILTERED_QMR_COMPARATOR.md — dynamic interval cross-polynomial filter, power-of-two normalization, semi-static bound research and compiler/FP contract
 - INTERVAL_ARITHMETIC_BACKEND.md — C++20/macOS arm64 outward interval primitives, adjacent-representable widening, fenv/FMA/subnormal contract and backend ranking
+- INTERVAL_DOWNSCALE_POLICY_EXPERIMENT.md — D26INT1-E1 measured certificate coverage of the frozen subnormal downscale policy against an outward-step proposal; policy decision open
 - LOCAL_TOPOLOGY_IMPROVEMENT.md — 2<->3, 3<->2, 4<->4, protected topology and deterministic quality reconnection
 - LOCAL_OPTIMIZATION_TRAPS_AND_STRONG_RECONNECTION.md — reachability/local-optimum theory, multi-face/SPR escalation, transactional valley crossing and termination
 - EDGE_REMOVAL_DYNAMIC_PROGRAMMING.md — general edge-star removal and original max-min link-polygon DP formulation
