@@ -91,15 +91,33 @@ void verifyFiniteConflictSemantic() {
             PredicateSign::Positive,
         "finite semantic fixture tetra is not positive");
 
+    const IndexedPoint3 inside = p3(5, 0.25, 0.25, 0.25);
+    const IndexedPoint3 outside = p3(6, 2.0, 2.0, 2.0);
+
     require(
-        femcae::meshing::m2::classifyFiniteCellConflict(
-            tetra, p3(5, 0.25, 0.25, 0.25)) ==
+        femcae::meshing::predicates::insphere(
+            tetra[0].point,
+            tetra[1].point,
+            tetra[2].point,
+            tetra[3].point,
+            inside.point).sign == PredicateSign::Positive,
+        "Dynamics26 positive-cell interior InSphere sign convention mismatch");
+    require(
+        femcae::meshing::predicates::insphere(
+            tetra[0].point,
+            tetra[1].point,
+            tetra[2].point,
+            tetra[3].point,
+            outside.point).sign == PredicateSign::Negative,
+        "Dynamics26 positive-cell outside InSphere sign convention mismatch");
+
+    require(
+        femcae::meshing::m2::classifyFiniteCellConflict(tetra, inside) ==
             DelaunayConflict::Conflict,
         "positive-cell interior InSphere did not conflict");
 
     require(
-        femcae::meshing::m2::classifyFiniteCellConflict(
-            tetra, p3(6, 2.0, 2.0, 2.0)) ==
+        femcae::meshing::m2::classifyFiniteCellConflict(tetra, outside) ==
             DelaunayConflict::NoConflict,
         "positive-cell outside InSphere conflicted");
 }

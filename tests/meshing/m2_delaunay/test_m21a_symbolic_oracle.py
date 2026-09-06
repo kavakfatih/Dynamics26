@@ -63,6 +63,37 @@ def leading_sign(polynomial):
     return 1 if coefficient > 0 else -1
 
 
+def numeric_determinant_sign(rows):
+    polynomial_rows = [
+        [constant(value) for value in row]
+        for row in rows
+    ]
+    return leading_sign(determinant(polynomial_rows))
+
+
+def orient3d_sign(a, b, c, d):
+    return numeric_determinant_sign([
+        [*a, 1],
+        [*b, 1],
+        [*c, 1],
+        [*d, 1],
+    ])
+
+
+def insphere_sign(a, b, c, d, query):
+    rows = []
+    for x, y, z in (a, b, c, d, query):
+        rows.append([x, y, z, x * x + y * y + z * z, 1])
+    return numeric_determinant_sign(rows)
+
+
+def incircle_sign(a, b, c, query):
+    rows = []
+    for x, y in (a, b, c, query):
+        rows.append([x, y, x * x + y * y, 1])
+    return numeric_determinant_sign(rows)
+
+
 def lift_rank(points):
     ids = sorted(point[0] for point in points)
     return {point_id: rank + 1 for rank, point_id in enumerate(ids)}
@@ -158,8 +189,54 @@ def verify_incircle():
     return count
 
 
+def verify_finite_and_ghost_semantics():
+    tetra = [
+        (Fraction(1), Fraction(0), Fraction(0)),
+        (Fraction(0), Fraction(1), Fraction(0)),
+        (Fraction(0), Fraction(0), Fraction(1)),
+        (Fraction(0), Fraction(0), Fraction(0)),
+    ]
+    inside = (Fraction(1, 4), Fraction(1, 4), Fraction(1, 4))
+    outside = (Fraction(2), Fraction(2), Fraction(2))
+
+    if orient3d_sign(*tetra) != 1:
+        raise AssertionError("positive tetra orientation oracle mismatch")
+    if insphere_sign(*tetra, inside) != 1:
+        raise AssertionError("positive tetra interior InSphere oracle mismatch")
+    if insphere_sign(*tetra, outside) != -1:
+        raise AssertionError("positive tetra exterior InSphere oracle mismatch")
+
+    facet = [
+        (Fraction(0), Fraction(0), Fraction(0)),
+        (Fraction(1), Fraction(0), Fraction(0)),
+        (Fraction(0), Fraction(1), Fraction(0)),
+    ]
+    inside_witness = (Fraction(0), Fraction(0), Fraction(1))
+    exterior_query = (Fraction(1, 4), Fraction(1, 4), Fraction(-1))
+    interior_query = (Fraction(1, 4), Fraction(1, 4), Fraction(1, 4))
+
+    if orient3d_sign(*facet, inside_witness) != -1:
+        raise AssertionError("outward hull-facet orientation oracle mismatch")
+    if orient3d_sign(*facet, exterior_query) != 1:
+        raise AssertionError("ghost exterior half-space oracle mismatch")
+    if orient3d_sign(*facet, interior_query) != -1:
+        raise AssertionError("ghost triangulation-side oracle mismatch")
+
+    tri2 = [
+        (Fraction(0), Fraction(0)),
+        (Fraction(1), Fraction(0)),
+        (Fraction(0), Fraction(1)),
+    ]
+    if incircle_sign(*tri2, (Fraction(1, 4), Fraction(1, 4))) != 1:
+        raise AssertionError("projected circumdisk interior oracle mismatch")
+    if incircle_sign(*tri2, (Fraction(2), Fraction(2))) != -1:
+        raise AssertionError("projected circumdisk exterior oracle mismatch")
+    if incircle_sign(*tri2, (Fraction(1), Fraction(1))) != 0:
+        raise AssertionError("projected circumcircle exact-zero oracle mismatch")
+
+
 def main():
-    insphere_count = verify_insphere()
+    verify_finite_and_ghost_semantics()\n    insphere_count = verify_insphere()
     incircle_count = verify_incircle()
     print(
         "M2.1-A symbolic polynomial oracle PASS "
