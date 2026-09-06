@@ -119,16 +119,55 @@ No missing constraint is silently accepted.
 
 ## 8. Domain classification
 
-The universal shortcut `all cells not reachable from outside = inside` is rejected.
+The universal shortcut `all cells not reachable from outside = inside` is rejected. Classification
+is an explicit state transition over declared shell/Region ownership.
 
-Reference semantics:
-- ghost/unbounded region starts OUTSIDE,
-- crossing an unconstrained facet preserves region state,
-- crossing an oriented constraint boundary applies a versioned shell/region transition,
-- closed solids, nested hollow shells/internal cavities and multiple shells must be represented explicitly,
-- open/non-manifold shells, inconsistent orientation or ambiguous transitions fail explicitly.
+Minimum reference semantics:
 
-The implementation may use labels or shell-state vectors; these semantics remain authoritative.
+```text
+Unbounded / Ghost
+-> OUTSIDE
+
+cross unconstrained facet
+-> state unchanged
+
+cross oriented exterior shell
+-> OUTSIDE <-> declared Region
+
+cross properly nested inner shell
+-> Region <-> cavity / outside-of-material state
+
+multiple disconnected bodies
+-> independent Region ownership
+
+shared material interface
+-> RegionA <-> RegionB
+   only when that interface topology is explicitly declared
+
+ambiguous shell/interface ownership
+-> typed failure
+```
+
+The cavity/outside-of-material label inside a nested shell is semantically distinct from the
+unbounded ghost OUTSIDE even if an implementation later represents both with a structured
+shell-state vector.
+
+The first classifier must handle explicitly:
+- one closed, consistently oriented solid,
+- nested inner shells/cavities,
+- multiple disconnected solids,
+- multiple shells with declared ownership,
+- declared shared material interfaces.
+
+It must reject explicitly:
+- inconsistent shell orientation,
+- touching or ownership-ambiguous shells,
+- non-manifold surface topology,
+- open shells where a volume Region is required,
+- undeclared shared interfaces.
+
+The implementation may use labels or shell-state vectors; these transition semantics remain
+authoritative and may not be replaced by parity/reachability guesses that lose Region ownership.
 
 ## 9. Exact -> binary64 realization
 

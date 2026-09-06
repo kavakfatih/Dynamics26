@@ -22,9 +22,10 @@ CAD / B-Rep
 -> Results
 ```
 
-## 2. Shared physical CAD-edge discretization
+## 2. Shared physical CAD-edge discretization and lifecycle
 
-Each physical CAD Edge is discretized once into one ordered **PhysicalEdgeChain**:
+Within one immutable **geometry revision** and one **mesh-generation / meshing transaction**, each
+physical CAD Edge has exactly one authoritative ordered **PhysicalEdgeChain**:
 
 ```text
 CAD Edge
@@ -33,7 +34,16 @@ CAD Edge
 -> Edge GeometryEntityId provenance
 ```
 
-Adjacent Faces consume the same physical MeshNode sequence. Separate face triangulators shall not independently create alternative physical nodes on the same shared CAD Edge. A FaceUse may consume the canonical physical chain forward or reversed.
+All incident Faces consume that same physical MeshNode sequence. Separate face triangulators shall
+not independently create alternative physical nodes on the same shared CAD Edge. A FaceUse may
+consume the authoritative physical chain forward or reversed.
+
+The phrase "discretized once" defines one authority in the current lifecycle scope; it does **not**
+mean immutable forever. A later M5/DEV-MESH-P4 refinement transaction may refine or replace the
+authoritative chain, but every incident FaceUse must then consume the same replacement. Old and new
+chains may not coexist as competing authorities in one accepted mesh generation. Chain provenance
+and cache validity therefore belong to the geometry revision plus mesh-generation/settings
+fingerprint lifecycle.
 
 ## 3. FaceUse / coedge / pcurve ownership
 
@@ -89,6 +99,39 @@ M = G / h^2
 ```
 
 This UV/chart metric is refinement and quality guidance only.
+
+### 7.1 Oriented CAD Face normal and TRI3 winding
+
+For a parametric surface,
+
+```text
+n_parametric = Su x Sv
+```
+
+but the underlying surface normal alone is not the product boundary-normal authority. The
+topological CAD Face / shell-use orientation must be applied:
+
+```text
+n_face = FaceOrientation(n_parametric)
+```
+
+Final physical TRI3 winding must agree with the **oriented CAD Face / shell use** that owns that
+triangle. A shared/interface Face may legitimately be used with opposite orientation by different
+Region/Shell uses while retaining the same underlying `Geom_Surface` and physical node identities.
+
+This orientation chain is engineering-significant:
+
+```text
+TRI3 winding
+-> outward/inward normal
+-> pressure direction
+-> traction
+-> contact side
+-> volume shell orientation
+```
+
+Therefore neither parameter-space winding nor the underlying `Geom_Surface` orientation by itself
+is sufficient evidence of accepted product-boundary orientation.
 
 ## 8. Final physical-space authority
 

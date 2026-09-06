@@ -11,7 +11,18 @@ The first M5 scope is an isotropic scalar physical size field. An anisotropic te
 
 M3's first-fundamental-form mapping is chart guidance for a scalar physical target and does not promote M5 to anisotropic sizing.
 
-## 2. Field composition
+## 2. Field composition and active criteria
+
+A criterion that is inactive at physical location `x` contributes no finite restriction:
+
+```text
+inactive criterion at x = +infinity
+
+h_req(x)
+= min over criteria active at x
+```
+
+Equivalently, the familiar form
 
 ```text
 h_req(x) =
@@ -24,21 +35,35 @@ min(
 )
 ```
 
-Overlapping criteria compose by minimum. The result is independent of rule enumeration order.
+is interpreted with every inactive term equal to `+infinity`. Overlapping active criteria compose
+by mathematical minimum, independent of rule enumeration order.
 
-Named Selection sizing rules resolve to persistent `GeometryEntityId` scopes before the mathematical meshing kernel starts. The kernel does not interpret UI selection objects.
+Normal product usage requires `h_global` to be a finite, strictly positive fallback criterion so
+every declared meshing-domain point has a finite requested size unless a typed invalid/unsupported
+state is returned.
+
+Named Selection sizing rules resolve to persistent `GeometryEntityId` scopes before the
+mathematical meshing kernel starts. The kernel does not interpret UI selection objects.
 
 ## 3. Frozen gradation semantics
 
-For `k >= 0`:
+For `k >= 0`, let `D` be the declared **physical meshing domain**. For `x,y in D`:
 
 ```text
-h(x) = inf_y [ h_req(y) + k ||x-y|| ]
+h(x) = inf_y [ h_req(y) + k ||x-y||_3D ]
 ```
 
-This is the greatest `k`-Lipschitz minorant of `h_req`.
+where `||x-y||_3D` is physical 3D Euclidean distance. This is the greatest `k`-Lipschitz
+minorant of `h_req` on the active physical domain; UV/chart distance is not the authority.
 
-The implementation algorithm may evolve; the mathematical meaning may not silently evolve. If the GUI exposes a growth ratio or another control instead of k, its mapping to k is versioned and included in the settings fingerprint.
+First-scope disconnected-body policy is explicit: `D` is evaluated per connected physical
+Body/Region component, and gradation does **not** propagate from one disconnected component to
+another. Any future cross-body coupling is a separately versioned policy and must enter the settings
+fingerprint. Silent global propagation across disconnected bodies is forbidden.
+
+The implementation algorithm may evolve; the mathematical meaning may not silently evolve. If the
+GUI exposes a growth ratio or another control instead of k, its mapping to k is versioned and
+included in the settings fingerprint together with the disconnected-component propagation policy.
 
 ## 4. Minimum size is a limitation control
 
@@ -68,7 +93,17 @@ Candidate:
 h_curvature = min(h_delta, h_theta)
 ```
 
-These are predictors only. Final authority is actual 3D CAD-vs-mesh deviation and normal error. Invalid predictor domains are typed failures rather than NaN propagation.
+Validity domains for the first minor-arc predictors are explicit:
+
+```text
+R > 0
+0 <= delta <= R
+0 <= theta <= pi
+```
+
+These are predictors only. Final authority is actual 3D CAD-vs-mesh deviation and normal error.
+Outside these domains the kernel returns a typed failure, or a documented criterion-disabled state
+only when policy explicitly declares that criterion inactive. NaN propagation is forbidden.
 
 ## 6. Proximity and thickness
 

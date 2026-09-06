@@ -2503,3 +2503,32 @@ At closeout baseline `60275d9430b13a3cf3b3fdd26709dee11e3d7f8b`, product contrac
 ### Consequence
 
 DEV-MESH-P6 owns product integration after P1-P5 dependencies. Dedicated TET4 formulation qualification remains under `docs/research/fem/tet4-nearly-incompressible/`.
+
+
+## ADR-MESH-0053 — Research-closeout clarification: oriented Face use, Region transitions and physical-domain sizing
+
+**Status:** ACCEPTED (RESEARCH CLOSEOUT HARDENING)  
+**Date:** 2026-09-06
+
+### Decision
+
+The D26-M3/M4/M5 freezes are clarified without authorizing implementation:
+
+- M3: `Su x Sv` is only the parametric normal. Final TRI3 winding follows the oriented CAD
+  Face/shell use. One `PhysicalEdgeChain` is authoritative per geometry revision + meshing
+  transaction; later refinement may replace that authority only coherently for all incident FaceUses.
+- M4: domain classification is an explicit typed Region/shell state transition. Unbounded ghost is
+  OUTSIDE, unconstrained crossings preserve state, oriented exterior/nested shells change declared
+  material state, and a RegionA <-> RegionB transition exists only for an explicitly declared
+  interface. Ambiguous/non-manifold/undeclared ownership fails explicitly.
+- M5: inactive criteria equal `+infinity`; `h_req` is the minimum over active criteria. Gradation
+  is defined on the declared physical domain using 3D Euclidean distance. First-scope propagation is
+  component-local: disconnected Body/Region components do not influence one another unless a future
+  versioned policy explicitly couples them. Curvature predictor domains are explicit and NaN is
+  never topology/sizing authority.
+
+### Consequence
+
+These clarifications harden qualification fixtures and settings/lifecycle fingerprints. They do not
+implement M3/M4/M5, do not alter D26SITE1/D26LIFT1, and do not promote M2 or any downstream package
+to qualified status.
