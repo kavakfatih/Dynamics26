@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace femcae::meshing::m2 {
