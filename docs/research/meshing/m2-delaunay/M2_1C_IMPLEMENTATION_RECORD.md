@@ -1,7 +1,7 @@
 # M2.1-C — Brute-force exact point location
 
 Date: 2026-09-06  
-Status: IMPLEMENTATION CANDIDATE / exact-head macOS qualification pending  
+Status: QUALIFIED IN P1C BRUTE-FORCE LOCATION SUBSCOPE  
 Development: DEV-MESH-P1C  
 M2 OVERALL: NOT QUALIFIED
 
@@ -96,14 +96,29 @@ Fixtures:
 Local GCC Debug/Release output: 5239 checks, 539 grid queries, all five types.
 Local execution is supplementary; it is not macOS qualification.
 
+## Exact-source qualification
+
+Qualified source: `9d6809cd19c2e71c7a6fc3f25a88d0f4ea21efe8`.
+[macOS arm64 workflow #302](https://github.com/kavakfatih/Dynamics26/actions/runs/34052456277)
+completed/success on 2026-09-06. Debug and Release each passed 160/160 CTests.
+Logs explicitly show test 149, `unit_m21c_delaunay_location`, passing alongside
+P1A predicates, the independent symbolic polynomial oracle and P1B bootstrap.
+The gui-fast job passed. The standalone GUI bundle job was skipped by its
+existing workflow condition; no bundle qualification is claimed by this package.
+Local AddressSanitizer/UndefinedBehaviorSanitizer also passed the P1C fixture
+with leak detection disabled. This supplements, rather than replaces, native CI.
+
+These results qualify the named source SHA. A subsequent documentation commit
+must be checked separately and must not inherit its predecessor's CI status.
+
 ## Gate scope
 
 - M2-G03/G04/G05: PASS for qualified P1B bootstrap (source/CI above).
-- M2-G06: candidate; requires this source's exact-head macOS Debug/Release.
+- M2-G06: PASS for the P1C brute-force location scope and qualified source above.
 - M2-G25: PARTIAL, bootstrap and corrupted-snapshot coverage only.
 - M2-G07 and P1D+ mutation/constructor/replay gates: DEFERRED.
 - M2-G20 remains the complete serial-constructor gate, not a per-package CI badge.
 
 No CAD-conforming tetra mesher or FEM-qualified TET4 product capability is claimed.
-After P1C qualification the next single authorized production target is P1D:
+The next single production target is P1D:
 cavity oracle + transactional patch. This work does not implement it.

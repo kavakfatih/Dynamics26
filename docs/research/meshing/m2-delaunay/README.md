@@ -9,7 +9,7 @@
 
 Program: Dynamics26 Original Meshing Engine
 Work package: M2.0 — Delaunay Reference Architecture & Experiment Plan
-Status: M2.0 DESIGN FROZEN / M2.1-A QUALIFIED IN SUBSCOPE / M2.1-B QUALIFIED IN BOOTSTRAP SUBSCOPE / M2.1-C CANDIDATE; M2 OVERALL NOT QUALIFIED
+Status: M2.0 DESIGN FROZEN / M2.1-A QUALIFIED IN SUBSCOPE / M2.1-B QUALIFIED IN BOOTSTRAP SUBSCOPE / M2.1-C QUALIFIED IN LOCATION SUBSCOPE; M2 OVERALL NOT QUALIFIED
 Date: 2026-09-05
 
 ## Purpose
@@ -53,7 +53,7 @@ be traceable to a committed derivation or contract. Chat history is not engineer
 - EXPERIMENT_PLAN.md — golden cases, brute-force oracles, determinism gates, replay and telemetry
 - M2_1A_IMPLEMENTATION_RECORD.md — semantic-predicate implementation and exact-head qualification evidence
 - M2_1B_IMPLEMENTATION_RECORD.md — bootstrap hardening and exact-head qualification evidence
-- M2_1C_IMPLEMENTATION_RECORD.md — brute-force location contract and qualification candidate
+- M2_1C_IMPLEMENTATION_RECORD.md — brute-force location contract and exact-source workflow #302 qualification
 
 ## Current leading decisions
 

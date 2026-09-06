@@ -64,7 +64,7 @@ Bugünkü repository gerçeğinde product meshing yolu `StructuredHexMesher` tab
 - dense reference → suitable sparse backend routing,
 - nonlinear element distortion and mesh-convergence framework.
 
-Production meshing strategy artık **özgün Dynamics26 meshing engine** olarak dondurulmuştur. M1 robust-geometry foundation QUALIFIED, M2 ise M2.0 reference-architecture/experiment-plan adımıyla AUTHORIZED durumdadır. Gmsh/Netgen/TetGen/CGAL/MMG benzeri projeler yalnız clean-room teori, mimari, failure-mode ve benchmark araştırma kaynaklarıdır; production mesher dependency'si değildir.
+Production meshing strategy artık **özgün Dynamics26 meshing engine** olarak dondurulmuştur. M1 robust-geometry foundation QUALIFIED; M2.0 tasarımı dondurulmuş, P1A predicate, P1B bootstrap ve P1C exact location alt kapsamları doğrulanmıştır. [P1C kaynak/CI kanıtı](docs/research/meshing/m2-delaunay/M2_1C_IMPLEMENTATION_RECORD.md) kayıtlıdır. M2 bütünü NOT QUALIFIED; sıradaki aşama P1D cavity oracle + transactional patch'tir. Gmsh/Netgen/TetGen/CGAL/MMG benzeri projeler yalnız clean-room teori, mimari, failure-mode ve benchmark araştırma kaynaklarıdır; production mesher dependency'si değildir.
 
 ### V1.3 — Extension / Plugin Architecture & SDK
 

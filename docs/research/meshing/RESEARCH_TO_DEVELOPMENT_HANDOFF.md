@@ -57,7 +57,9 @@ Development reuse:
 
 ### M2 — Delaunay point-cloud tetrahedralization research
 
-Status: M2.0 DESIGN FROZEN; production tetrahedralizer not yet started.
+Status: M2.0 DESIGN FROZEN; P1A/P1B/P1C QUALIFIED IN DECLARED SUBSCOPES.
+M2 OVERALL NOT QUALIFIED; serial insertion/constructor qualification remains open.
+See `m2-delaunay/M2_1C_IMPLEMENTATION_RECORD.md` for source SHA and macOS CI evidence.
 
 Established:
 
@@ -73,11 +75,15 @@ Established:
 
 Development reuse:
 
-- P1A begins with semantic Delaunay predicates,
-- P1B locator,
-- P1C Plan -> Validate -> Commit cavity mutation,
-- P1D serial insertion,
-- P1E deterministic qualification.
+- P1A semantic Delaunay predicates (qualified; oblique metric correction ADR-MESH-0043),
+- P1B typed finite/ghost bootstrap (qualified in bootstrap scope),
+- P1C brute-force exact point location (qualified; M2-G06),
+- P1D cavity oracle + Plan -> Validate -> Commit transactional patch (next),
+- P1E deterministic adjacency walk,
+- P1F serial constructor determinism / fingerprint / replay.
+
+This sequence supersedes the earlier abbreviated handoff list and matches the
+frozen M2 phase boundaries and current development plan; no phase is skipped.
 
 ### M3 — CAD curve/surface meshing research
 
@@ -227,16 +233,17 @@ These are development inputs unless superseded by explicit ADR:
 | P6 Product TET4 | M7 + solver/FEM research | not started |
 | P7 TET10 | M8 | deferred |
 
-## 5. First production-development scope
+## 5. Current production-development scope
 
-After DEV-MESH-P0 closes, the next implementation is **not** O2/M6 work.
-
-It is:
+P0 has closed and P1A/P1B/P1C have passed their declared qualification gates.
+The next single implementation target is:
 
 ```text
-DEV-MESH-P1A
-M2 semantic Delaunay predicate layer
+DEV-MESH-P1D
+Cavity oracle + transactional patch
 ```
+
+P1D is not implemented by the P1C closeout. M2 overall remains NOT QUALIFIED.
 
 Reason:
 
@@ -248,9 +255,12 @@ Reason:
 M6 research may continue in parallel when it answers a concrete future integration/qualification
 question, but production coding priority stays on P1 -> P2 -> P3 -> P4 -> P5.
 
-## 6. Development-entry checklist
+## 6. Historical development-entry checklist
 
-Before the first P1 source commit:
+The following records the original handoff checklist before the first P1 source
+commit; its unchecked items are historical, not current P1C status. Current
+source/CI evidence is recorded in the P1A/P1B/P1C implementation records.
+For every next package, re-read authority and verify current main and CI again.
 
 - [x] M1 qualified in declared scope,
 - [x] M2.0 reference architecture frozen,

@@ -341,9 +341,11 @@ Authoritative execution documents:
 - `docs/planning/V1.2_ORIGINAL_MESHING_DEVELOPMENT_PLAN.md`,
 - `docs/research/meshing/RESEARCH_TO_DEVELOPMENT_HANDOFF.md`.
 
-Current state is **DEV-MESH-P0 — research consolidation/development handoff**. M1 qualified robust
-geometry and partial M6 executable research evidence are inputs; the first formal production mesher
-implementation after P0 is P1A/M2 semantic Delaunay predicates.
+Current state: **DEV-MESH-P0 COMPLETE; P1A/P1B/P1C QUALIFIED IN DECLARED SUBSCOPES**.
+P1C source `9d6809cd19c2e71c7a6fc3f25a88d0f4ea21efe8` passed
+[macOS arm64 #302](https://github.com/kavakfatih/Dynamics26/actions/runs/34052456277),
+Debug/Release 160/160. M2 overall remains **NOT QUALIFIED**; next is P1D cavity
+oracle + transactional patch. This is not a CAD-conforming tetra mesher or product TET4 claim.
 
 
 V1.2 begins with the blocker that currently prevents real arbitrary-part workflows.
@@ -365,7 +367,7 @@ Güncel gate durumu:
 - M1 robust geometry foundation: **QUALIFIED**,
 - exact predicates / certified fast path / deterministic degeneracy foundation: qualified M1 evidence,
 - tetra topology primitives/validator: qualified M1 scope,
-- M2: **AUTHORIZED — M2.0 REFERENCE ARCHITECTURE & EXPERIMENT PLAN FIRST**.
+- M2: **DESIGN FROZEN; P1A/P1B/P1C QUALIFIED IN SUBSCOPE; OVERALL NOT QUALIFIED**.
 
 Gmsh, Netgen, TetGen, CGAL, MMG ve benzeri projeler teori, architecture,
 failure-mode ve benchmark araştırma kaynağı olarak kullanılabilir; kaynak kodu
