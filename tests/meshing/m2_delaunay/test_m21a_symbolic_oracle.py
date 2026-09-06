@@ -239,6 +239,21 @@ def main():
     verify_finite_and_ghost_semantics()
     insphere_count = verify_insphere()
     incircle_count = verify_incircle()
+    # ADR-MESH-0043: z=x oblique plane, genuine radius-3 circle.
+    # Full polynomial expansion is independent of production cofactor code.
+    sites = [(10, (0, 3, 0)), (80, (2, 1, 2)),
+             (30, (-2, 1, -2)), (90, (0, -3, 0))]
+    rank = lift_rank(sites)
+    for order in permutations(range(3)):
+        ordered = [sites[i] for i in order] + [sites[3]]
+        rows = [[constant(x), constant(y),
+                 poly_add(constant(x*x+y*y+z*z), monomial(rank[pid])),
+                 constant(1)] for pid, (x, y, z) in ordered]
+        poly = determinant(rows)
+        orientation = numeric_determinant_sign(
+            [[x, y, 1] for _, (x, y, _) in ordered[:3]])
+        if 0 in poly or leading_sign(poly) * orientation != -1:
+            raise AssertionError("oblique Euclidean lift tie mismatch")
     print(
         "M2.1-A symbolic polynomial oracle PASS "
         f"insphere_permutations={insphere_count} "

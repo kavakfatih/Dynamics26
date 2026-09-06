@@ -178,7 +178,13 @@ Project the four coplanar points without a floating heuristic.
 Try coordinate-plane projected orientation in a fixed order such as XY, XZ, YZ. Use the first
 projection whose exact orient2d is non-zero. A non-collinear 3D triangle must have at least one.
 
-Orient projected triangle positively, then:
+**Correction ADR-MESH-0043 (2026-09-06):** projection chooses only the two
+independent planar coordinate columns `(u,v)`. Preserve the **3D Euclidean lift**
+`h=x*x+y*y+z*z` in the exact determinant `[u v h 1]`. Ordinary projected
+`InCircle(u,v)` changes the metric on an oblique plane and is forbidden here.
+See `M2_1A_COPLANAR_METRIC_CORRECTION.md` for the counterexample and derivation.
+
+Normalize the determinant by the projected triangle orientation, then:
 - incircle Positive -> inside circumdisk -> ghost conflict,
 - incircle Negative -> outside -> no conflict,
 - incircle Zero -> apply 2D lift-only symbolic tie.

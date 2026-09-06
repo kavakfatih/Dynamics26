@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -310,6 +311,56 @@ void verifyInvalidInputs() {
         "duplicate PointId entered D26LIFT1");
 }
 
+void verifyObliqueMetric() {
+    // z=x duzleminde metrik 2*x*x+y*y'dir; XY InCircle bunu korumaz.
+    // Ilk ucgenin merkezi (1/2,1/2,1/2), R^2=3/4.
+    const std::array<IndexedPoint3, 3> facet{
+        p3(10, 0, 0, 0), p3(80, 1, 0, 1), p3(30, 0, 1, 0)};
+    const auto outside = femcae::meshing::m2::classifyProjectedCoplanarCircumcircle(
+        facet, p3(90, 1.125, 0.5, 1.125));
+    require(outside.geometricSign == PredicateSign::Negative,
+            "oblique 3D circle exterior was classified using the XY metric");
+
+    // Merkez orijin, R^2=9. Gercek circle tie, XY circle tie degil.
+    const std::array<IndexedPoint3, 4> circle{
+        p3(10, 0, 3, 0), p3(80, 2, 1, 2),
+        p3(30, -2, 1, -2), p3(90, 0, -3, 0)};
+    std::array<std::size_t, 3> order{0, 1, 2};
+    do {
+        const auto tie = femcae::meshing::m2::classifyProjectedCoplanarCircumcircle(
+            {circle[order[0]], circle[order[1]], circle[order[2]]}, circle[3]);
+        require(tie.geometricSign == PredicateSign::Zero &&
+                tie.resolvedSign == PredicateSign::Negative,
+                "oblique Euclidean circle tie or PointId cofactor order is wrong");
+    } while (std::next_permutation(order.begin(), order.end()));
+
+    // Bagimsiz oracle: merkez (s/2,s/2,s/2), R^2=3*s^2/4.
+    // dyadic grid'de numerator 2*(2i-8)^2+(2j-8)^2-192 isareti yeterli.
+    for (int exponent : {-500, 0, 500}) {
+        const double s = std::ldexp(1.0, exponent);
+        for (int axis = 0; axis < 3; ++axis) {
+            const auto map = [s, axis](double x, double y) -> Vec3 {
+                if (axis == 0) return {x*s, y*s, x*s};
+                if (axis == 1) return {x*s, x*s, y*s};
+                return {0.0, x*s, y*s}; // XY/XZ zero: YZ fallback
+            };
+            const std::array<IndexedPoint3, 3> tri{{
+                {10, map(0, 0)}, {80, map(1, 0)}, {30, map(0, 1)}}};
+            for (int i = -4; i <= 12; ++i) {
+                for (int j = -4; j <= 12; ++j) {
+                    const int weight = axis == 2 ? 1 : 2;
+                    const int distance = weight*(2*i-8)*(2*i-8) +
+                                         (2*j-8)*(2*j-8) - 64*(weight+1);
+                    const auto sign = femcae::meshing::m2::classifyProjectedCoplanarCircumcircle(
+                        tri, {90, map(i/8.0, j/8.0)}).geometricSign;
+                    require(toInt(sign) == (distance < 0 ? 1 : distance > 0 ? -1 : 0),
+                            "3D circumcircle disagrees with exact squared-distance oracle");
+                }
+            }
+        }
+    }
+}
+
 } // namespace
 
 int main() {
@@ -320,6 +371,7 @@ int main() {
         verifyGhostConflictSemantic();
         verifyProjectionFallback();
         verifyInvalidInputs();
+        verifyObliqueMetric();
 
         std::cout
             << "M2.1-A semantic predicates PASS"

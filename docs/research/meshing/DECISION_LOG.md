@@ -2306,3 +2306,23 @@ Detailed repository mapping:
 
     M6_IMPLEMENTATION_SPEC.md
     M6_IMPLEMENTATION_SEQUENCE.md.
+
+
+## ADR-MESH-0043 — Coplanar ghost circles preserve the 3D Euclidean lift
+
+**Status:** ACCEPTED — explicit correction of an M2 frozen derivation defect  
+**Date:** 2026-09-06
+
+Independent P1 audit reproduced a metric error in both the frozen projected-circle
+wording and P1A implementation. Orthographic projection is not generally an
+isometry of an oblique plane. Use the first nonzero XY/XZ/YZ orientation only to
+choose coordinates; evaluate `[u v x*x+y*y+z*z 1]` by exact dyadic arithmetic.
+On genuine zero use the same projected orientation cofactors and ascending
+PointId lift priority. Spatial coordinates, M1 predicates and D26LIFT1 formal
+perturbation are unchanged. This corrects Euclidean geometry, not site ordering.
+
+Authority, proof, counterexample and executable symbols:
+`m2-delaunay/M2_1A_COPLANAR_METRIC_CORRECTION.md`.
+Reopen M2-G09 and the coplanar portion of M2-G10 until the corrected source HEAD
+passes macOS arm64 Debug/Release. Old evidence remains historical and cannot
+qualify oblique hulls. P1C must wait for prerequisite repairs and qualification.

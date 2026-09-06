@@ -293,3 +293,13 @@ This section extends the M6 metric sources with operation/scheduling research.
 
 
 | M6-PAR-005 | Y. Du, Y. Fu, J. Xie, G. Zhao, S. H. Lo, L. Xu, Z. Guan, *An efficient multi-threaded partitioning parallel strategy for tetrahedral mesh improvement*, Computer-Aided Design 192 (2026) 104021 | Current large-scale parallel-improvement evidence: staged smoothing/flipping versus targeted repair, iterative reprocessing of conflict-limited boundary elements, and explicit working-cavity conflict management | https://doi.org/10.1016/j.cad.2025.104021 | 2026-09-06 |
+
+
+## P1 independent coplanar metric audit — 2026-09-06
+
+| ID | Source | Use | URL | Reviewed |
+|---|---|---|---|---|
+| M2-DOC-002 | CGAL coplanar_side_of_bounded_circle public contract | 3D coplanar circle semantics only; no source code reused | https://doc.cgal.org/latest/Kernel_23/group__coplanar__side__of__bounded__circle__grp.html | 2026-09-06 |
+
+ADR-MESH-0043 derives the actual determinant independently from the Euclidean
+circle equation. Commercial/library behavior is not the proof.

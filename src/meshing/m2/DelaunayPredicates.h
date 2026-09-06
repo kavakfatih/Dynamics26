@@ -49,8 +49,8 @@ enum class DelaunayConflict : std::uint8_t {
     const IndexedPoint3& query);
 
 // Query facet duzleminde olmak zorundadir. XY -> XZ -> YZ sabit sirasi
-// ile ilk exact non-collinear projeksiyon secilir ve projected InCircle
-// pozitif-orientasyon semantigine normalize edilir.
+// ile ilk exact non-collinear projeksiyon secilir. Lift x*x+y*y+z*z'dir;
+// 3B Oklid metrigi korunur (ADR-MESH-0043), isaret pozitif normalize edilir.
 [[nodiscard]] ResolvedDelaunaySign classifyProjectedCoplanarCircumcircle(
     const std::array<IndexedPoint3, 3>& facet,
     const IndexedPoint3& query);

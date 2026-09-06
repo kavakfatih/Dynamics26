@@ -1,5 +1,11 @@
 # M2 — Delaunay Point-Cloud Tetrahedralization Research
 
+
+> 2026-09-06 independent audit: ADR-MESH-0043 corrects the oblique coplanar
+> circle metric. M2-G09 / coplanar G10 are REOPENED pending corrected-source
+> exact-head CI. See `M2_1A_COPLANAR_METRIC_CORRECTION.md` in the M2 research package.
+> Historical PASS statements below do not cover this newly reproduced defect.
+
 Program: Dynamics26 Original Meshing Engine
 Work package: M2.0 — Delaunay Reference Architecture & Experiment Plan
 Status: M2.0 DESIGN FROZEN / M2.1-A QUALIFIED IN SUBSCOPE / M2.1-B NEXT; M2 OVERALL NOT QUALIFIED

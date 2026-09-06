@@ -1,4 +1,5 @@
 #include "DelaunayPredicates.h"
+#include "../internal/exact/ExactDyadicArithmetic.h"
 
 #include <algorithm>
 #include <array>
@@ -6,6 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace femcae::meshing::m2 {
 namespace {
@@ -93,6 +95,40 @@ DelaunayConflict conflictFromSign(PredicateSign sign) {
     throw std::logic_error("resolved Delaunay sign must be non-zero");
 }
 
+PredicateSign resolveCircleCofactors(const std::array<IndexedPoint2, 4>& sites) {
+    const std::array<PredicateSign, 4> coefficients{
+        predicates::orient2d(sites[1].point, sites[2].point, sites[3].point).sign,
+        negated(predicates::orient2d(sites[0].point, sites[2].point, sites[3].point).sign),
+        predicates::orient2d(sites[0].point, sites[1].point, sites[3].point).sign,
+        negated(predicates::orient2d(sites[0].point, sites[1].point, sites[2].point).sign)};
+    return firstCofactorByPointId<4>(
+        {sites[0].id, sites[1].id, sites[2].id, sites[3].id}, coefficients);
+}
+
+PredicateSign exactCoplanarCircle(
+    const std::array<IndexedPoint3, 4>& sites, Projection projection) {
+    using namespace femcae::meshing::internal::exact;
+    std::vector<double> coordinates;
+    coordinates.reserve(12);
+    for (const auto& site : sites) {
+        coordinates.insert(coordinates.end(), {site.point.x, site.point.y, site.point.z});
+    }
+    const auto xyz = exactIntegerCoordinates(coordinates);
+    const std::size_t u = projection == Projection::YZ ? 1U : 0U;
+    const std::size_t v = projection == Projection::XY ? 1U : 2U;
+    Matrix matrix;
+    for (std::size_t i = 0; i < 4; ++i) {
+        const auto& x = xyz[3*i];
+        const auto& y = xyz[3*i+1];
+        const auto& z = xyz[3*i+2];
+        // ADR-MESH-0043: projeksiyon yalniz duzlem koordinatini secer.
+        // Lift gercek 3B normdur; egik duzlemde u*u+v*v kullanilamaz.
+        // Ortak dyadic olcek determinantı pozitif alpha^4 ile carpar.
+        matrix.push_back({xyz[3*i+u], xyz[3*i+v], x*x+y*y+z*z, BigInt::one()});
+    }
+    return static_cast<PredicateSign>(determinant(matrix).sign());
+}
+
 } // namespace
 
 ResolvedDelaunaySign resolveLiftOnlyInsphere(
@@ -153,21 +189,7 @@ ResolvedDelaunaySign resolveLiftOnlyIncircle(
 
     // Dynamics26 row-major [x y lift 1] determinantinde lift kolonunun
     // kofaktor isaretleri sirasiyla + - + - olur.
-    const std::array<PredicateSign, 4> coefficients{
-        predicates::orient2d(
-            sites[1].point, sites[2].point, sites[3].point).sign,
-        negated(predicates::orient2d(
-            sites[0].point, sites[2].point, sites[3].point).sign),
-        predicates::orient2d(
-            sites[0].point, sites[1].point, sites[3].point).sign,
-        negated(predicates::orient2d(
-            sites[0].point, sites[1].point, sites[2].point).sign)};
-
-    const std::array<PointId, 4> ids{
-        sites[0].id, sites[1].id, sites[2].id, sites[3].id};
-
-    const PredicateSign resolved =
-        firstCofactorByPointId(ids, coefficients);
+    const PredicateSign resolved = resolveCircleCofactors(sites);
     if (resolved == PredicateSign::Zero) {
         throw std::invalid_argument(
             "D26LIFT1 InCircle tie is unresolved because all orientation cofactors are zero");
@@ -235,10 +257,17 @@ ResolvedDelaunaySign classifyProjectedCoplanarCircumcircle(
             continue;
         }
 
+        const PredicateSign raw = exactCoplanarCircle(sites, projection);
+        const PredicateSign geometric = orientation == PredicateSign::Negative ? negated(raw) : raw;
+        if (geometric != PredicateSign::Zero) {
+            return {geometric, geometric};
+        }
         if (orientation == PredicateSign::Negative) {
             std::swap(projected[1], projected[2]);
         }
-        return resolveLiftOnlyIncircle(projected);
+        // Gercek 3B circle Zero'dur. 2B InCircle'i yeniden cagirmak baska
+        // metrikte non-zero uretebilir; yalniz formal lift kofaktorlerini coz.
+        return {PredicateSign::Zero, resolveCircleCofactors(projected)};
     }
 
     throw std::invalid_argument(

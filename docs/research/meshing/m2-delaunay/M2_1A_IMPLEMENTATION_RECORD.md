@@ -1,5 +1,11 @@
 # M2.1-A — Semantic Delaunay Predicates Implementation Record
 
+
+> 2026-09-06 independent audit: ADR-MESH-0043 corrects the oblique coplanar
+> circle metric. M2-G09 / coplanar G10 are REOPENED pending corrected-source
+> exact-head CI. See `M2_1A_COPLANAR_METRIC_CORRECTION.md` in the M2 research package.
+> Historical PASS statements below do not cover this newly reproduced defect.
+
 **Date:** 2026-09-06  
 **Development milestone:** DEV-MESH-P1A  
 **Research authority:** M2.0 DESIGN FROZEN  
