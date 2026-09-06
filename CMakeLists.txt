@@ -66,6 +66,7 @@ endif()
 set(FEMCAE_MESHING_SOURCES
     src/meshing/RobustPredicates.cpp
     src/meshing/m6/quality/MeanRatioExact.cpp
+    src/meshing/m6/quality/IntervalArithmetic.cpp
     src/meshing/RobustGeometry.cpp
     src/meshing/TetraTopology.cpp
     src/meshing/MeshTypes.cpp
@@ -79,9 +80,17 @@ set(FEMCAE_MESHING_SOURCES
     src/meshing/SurfaceLoadAssembler.cpp
 )
 
+# Exact/filtered geometry kernels rely on a frozen floating expression contract.
+# Keep the certified source set explicit so future M6 filter sources cannot silently
+# inherit unsafe reassociation or contraction semantics.
+set(FEMCAE_CERTIFIED_FP_SOURCES
+    src/meshing/RobustPredicates.cpp
+    src/meshing/m6/quality/IntervalArithmetic.cpp
+)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
     set_property(
-        SOURCE src/meshing/RobustPredicates.cpp
+        SOURCE ${FEMCAE_CERTIFIED_FP_SOURCES}
         APPEND PROPERTY COMPILE_OPTIONS
         "-fno-fast-math"
         "-ffp-contract=off"

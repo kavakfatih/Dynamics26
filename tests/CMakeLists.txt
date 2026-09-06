@@ -445,3 +445,39 @@ if(Python3_Interpreter_FOUND)
         FIXTURES_REQUIRED d26_m6_qmr_corpus
     )
 endif()
+
+# M6 I2a — D26INT1 primitive interval backend + independent exact-rational oracle
+add_executable(
+    unit_m6_interval_backend
+    meshing/m6_quality/test_m6_interval_backend.cpp
+)
+target_link_libraries(unit_m6_interval_backend PRIVATE femcae_meshing)
+target_include_directories(unit_m6_interval_backend PRIVATE "${CMAKE_SOURCE_DIR}/src")
+femcae_enable_warnings(unit_m6_interval_backend)
+
+if(Python3_Interpreter_FOUND)
+    set(FEMCAE_M6_INTERVAL_CORPUS "${CMAKE_BINARY_DIR}/m6-interval-corpus.d26int")
+
+    add_test(
+        NAME unit_m6_generate_interval_corpus
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/meshing_oracle/generate_m6_interval_corpus.py
+                --output ${FEMCAE_M6_INTERVAL_CORPUS}
+                --random-cases 128
+                --seed 26090602
+    )
+    set_tests_properties(unit_m6_generate_interval_corpus PROPERTIES
+        LABELS "unit;meshing;m6;quality;interval;exact-oracle;determinism"
+        FIXTURES_SETUP d26_m6_interval_corpus
+    )
+
+    add_test(
+        NAME unit_m6_interval_backend_generated
+        COMMAND unit_m6_interval_backend ${FEMCAE_M6_INTERVAL_CORPUS}
+    )
+    set_tests_properties(unit_m6_interval_backend_generated PROPERTIES
+        LABELS "unit;meshing;m6;quality;interval;determinism"
+        FIXTURES_REQUIRED d26_m6_interval_corpus
+    )
+endif()
+
