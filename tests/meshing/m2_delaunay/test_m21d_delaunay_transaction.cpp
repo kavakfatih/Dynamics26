@@ -30,7 +30,7 @@ void check(bool condition, const std::string& message) {
 }
 
 std::vector<CanonicalSite> tetraSites(
-    geometry::Vec3 query,
+    femcae::geometry::Vec3 query,
     PointId queryId = 5U) {
     return {
         {1U, {0.0, 0.0, 0.0}},
