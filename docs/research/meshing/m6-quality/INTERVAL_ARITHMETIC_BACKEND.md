@@ -1126,3 +1126,25 @@ This avoids:
 Directed rounding and EFT/FMA remain valuable independent cross-check/optimization paths.
 
 No production M6 code is authorized by this document.
+
+
+## 48. Exact fallback backend update
+
+D26INT1's exact fallback target is now more specific:
+
+    D26QMRB1
+      =
+    D26QMR1 semantics
+    evaluated with the shared/internal M1 dyadic BigInt arithmetic.
+
+This does not change D26INT1 interval correctness.
+
+The filter still knows only:
+
+    certified Less/Greater
+    or
+    Uncertain.
+
+Backend extraction/caching details remain outside the interval kernel.
+
+See EXACT_QMR_BACKEND_SELECTION.md.

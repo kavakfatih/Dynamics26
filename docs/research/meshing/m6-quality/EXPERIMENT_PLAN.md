@@ -1365,3 +1365,198 @@ No flag policy is accepted solely from performance preference.
 | M6-R108 | Debug/Release/replay preserve final exact comparison and qualified D26INT1 semantics |
 
 These gates do not authorize production interval code.
+
+
+## Tier Q2-AH — exact-backend repository truth
+
+Audit current production source and require:
+
+    M1 exact backend
+      =
+    dyadic BigInt integer arithmetic,
+
+not floating expansions.
+
+Record:
+- BigInt limb width,
+- supported operations,
+- dyadic decode path,
+- common-exponent integer scaling,
+- determinant implementation,
+- public/private API boundary.
+
+This gate protects future research from assuming a backend the repository does not actually contain.
+
+## Tier Q2-AI — no-gcd D26QMR1 equivalence
+
+For each tetra build two exact keys independently.
+
+### Path A — primitive gcd normalized
+
+    binary64 lattice
+      ->
+    common primitive gcd removal
+      ->
+    d_A,s_A.
+
+### Path B — M1 common-exponent scaling only
+
+    per-tetra minimum exponent
+      ->
+    exact integer coordinates
+      ->
+    d_B,s_B.
+
+Require:
+
+    d_A^2/s_A^3
+      =
+    d_B^2/s_B^3
+
+as exact rationals.
+
+Repeat with tetra A and tetra B using different common scales.
+
+Purpose:
+prove general gcd/division is optional for exact ordering.
+
+## Tier Q2-AJ — fixed exact 3x3 determinant
+
+Implement only in research/verification form an explicit 3x3 BigInt determinant tree.
+
+Cross-check against:
+- M1 generic exact determinant,
+- Python exact determinant,
+- M1 Orient3D sign.
+
+Require exact agreement under:
+- all 24 vertex permutations,
+- random dyadic tetrahedra,
+- sliver/needle/wedge families,
+- wide exponent-span coordinates.
+
+## Tier Q2-AK — exact-key memory audit
+
+Record exact bit/limb widths for:
+
+    d
+    s
+    d^2
+    s^3
+    cross product.
+
+Verify theoretical bounds:
+
+    bitlen(d) <= 6300
+    bitlen(s) <= 4203
+    bitlen(d^2) <= 12600
+    bitlen(s^3) <= 12609
+    comparison magnitude < 25210 bits.
+
+For 32-bit limbs verify raw cache-size accounting.
+
+Do not derive a product-wide memory budget from typical-only cases.
+
+## Tier Q2-AL — cache semantics
+
+Run identical local optimization/search fixtures with:
+
+    cache disabled
+    d/s cache
+    d^2/s^3 cache
+    lazy promoted cache.
+
+Require:
+- identical exact comparison results,
+- identical final topology,
+- identical exact ties.
+
+Measure:
+- cache hits/misses,
+- peak bytes,
+- exact-key builds,
+- cross multiplications avoided.
+
+Separate:
+- edge removal,
+- SPR,
+- connectivity-only flips,
+- smoothing.
+
+## Tier Q2-AM — stale-cache negative control
+
+For smoothing:
+1. build exact key for tetra,
+2. move one vertex,
+3. deliberately reuse PointId-only cached key in negative-control code,
+4. show the stale result can disagree with recomputation.
+
+Production candidate must:
+- scope cache to proposal,
+- or include exact coordinate state/version.
+
+Purpose:
+prove PointId alone is insufficient after coordinate motion.
+
+## Tier Q2-AN — alternative exact backend benchmark
+
+Optional research build:
+
+    Boost.Multiprecision cpp_int
+
+or another independently maintained arbitrary-precision integer backend.
+
+Cross-check:
+- exact comparison sign,
+- exact ties,
+- bit-width corpus.
+
+Benchmark against D26QMRB1 on:
+- ordinary fallback samples,
+- near-ties,
+- SPR repeated-candidate workloads.
+
+No backend promotion from microbenchmark alone.
+
+## Tier Q2-AO — expansion backend experiment
+
+Only after D26QMRB1 telemetry exists, prototype/estimate an exact expansion evaluation of:
+
+    F
+      =
+    D_A^2 S_B^3
+      -
+    D_B^2 S_A^3.
+
+Measure:
+- expansion lengths,
+- exact multiply/add cost,
+- compiler FP assumptions,
+- fallback workload speed.
+
+Require exact agreement with D26QMRB1 and independent rational oracle.
+
+This tier is not an implementation prerequisite.
+
+## Additional exact-backend research gates
+
+| Gate | Requirement |
+|---|---|
+| M6-R109 | repository audit confirms M1 exact backend is dyadic BigInt, not floating expansions |
+| M6-R110 | M1 per-call common-exponent scaling is sufficient for D26QMR1 without gcd/division |
+| M6-R111 | no-gcd and primitive-gcd exact keys represent the same rational q_MR order |
+| M6-R112 | fixed exact 3x3 determinant agrees with M1 generic determinant |
+| M6-R113 | exact determinant sign agrees with M1 Orient3D |
+| M6-R114 | exact-key bit/limb telemetry respects the derived binary64 bounds |
+| M6-R115 | D26QMRB1 agrees with Python Fraction and independent dyadic-integer corpora |
+| M6-R116 | future shared-kernel extraction preserves all M1 qualification results |
+| M6-R117 | BigInt remains internal; no public ABI dependency on M6 exact types |
+| M6-R118 | cache-disabled and cache-enabled local optimization produce identical results |
+| M6-R119 | smoothing cannot reuse stale PointId-only exact keys |
+| M6-R120 | SPR/edge-removal cache hit rate and peak memory are reported separately |
+| M6-R121 | global persistent exact-key cache remains off absent explicit evidence |
+| M6-R122 | optional Boost cpp_int benchmark/oracle agrees with D26QMRB1 |
+| M6-R123 | expansion backend remains experimental until telemetry justifies it |
+| M6-R124 | Debug/Release/replay preserve exact result and cache semantics |
+
+These gates do not authorize production exact-backend refactoring.

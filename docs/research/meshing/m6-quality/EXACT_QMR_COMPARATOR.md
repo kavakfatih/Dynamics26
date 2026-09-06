@@ -1124,3 +1124,135 @@ An interval containing zero means only:
     cannot certify sign.
 
 D26QMR1 alone establishes exact equality.
+
+
+## 40. Repository-truth backend correction
+
+Current Dynamics26 M1 production source does **not** use Shewchuk-style floating expansions as its
+exact backend.
+
+At the current research head:
+
+    src/meshing/RobustPredicates.cpp
+
+contains:
+- a private signed arbitrary-precision BigInt,
+- 32-bit limbs,
+- exact binary64 dyadic decoding,
+- common-exponent integer scaling,
+- exact integer determinant evaluation.
+
+M1.7 documents the exact path as:
+
+    finite binary64
+      ->
+    exact dyadic decomposition
+      ->
+    common power-of-two integer scale
+      ->
+    Dynamics26 signed arbitrary-precision integer
+      ->
+    exact determinant.
+
+Therefore the phrase "M1-style expansion reuse" is incorrect for the current repository.
+
+The correct reuse candidate is:
+
+    M1 dyadic BigInt exact kernel.
+
+Floating expansions remain a separate literature-backed alternative.
+
+## 41. General gcd is not required for exact D26QMR1
+
+Earlier D26QMR1 research introduced primitive integer gcd normalization.
+
+That normalization is mathematically valid and can reduce integer size, but it is **not required for
+correctness**.
+
+Let tetra T be scaled by any exact positive common factor alpha_T:
+
+    X_i
+      =
+    alpha_T I_i.
+
+Then:
+
+    D_T
+      =
+    alpha_T^3 d_T
+
+and:
+
+    S_T
+      =
+    alpha_T^2 s_T.
+
+Hence:
+
+    D_T^2/S_T^3
+      =
+    d_T^2/s_T^3.
+
+Therefore tetra A and tetra B may each use a different exact common scale:
+
+    alpha_A
+    alpha_B
+
+and their independently formed integer ratios remain exactly comparable.
+
+### Consequence
+
+The existing M1 exactIntegerCoordinates-style common-exponent scaling is already sufficient.
+
+D26QMR1 does not need:
+- arbitrary-precision division,
+- gcd,
+- rational reduction
+
+to obtain exact order.
+
+Primitive gcd normalization is demoted to an optional size/performance optimization.
+
+## 42. M1-compatible exact construction
+
+For one tetra:
+1. decode its 12 finite binary64 coordinates using the M1 dyadic decoder,
+2. choose the minimum binary exponent over the call,
+3. shift every significand to that common exponent,
+4. obtain exact signed integer coordinates,
+5. form exact edge differences,
+6. compute exact determinant d,
+7. compute exact squared-edge sum s.
+
+The resulting integer coordinate system may contain a common factor.
+
+That does not alter:
+
+    d^2/s^3.
+
+For comparison:
+
+    sign(
+      d_A^2 s_B^3
+      -
+      d_B^2 s_A^3
+    )
+
+remains exact.
+
+This is the leading first implementation/reference path.
+
+## 43. Exact backend selection moved to a dedicated document
+
+Backend selection, shared-kernel boundaries, cache policy and expansion/Boost alternatives are now
+tracked in:
+
+    EXACT_QMR_BACKEND_SELECTION.md.
+
+Leading research policy:
+
+    D26QMRB1
+      =
+    shared internal M1 dyadic BigInt backend.
+
+This is a semantics/backend research name only and does not authorize source refactoring.

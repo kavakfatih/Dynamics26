@@ -276,3 +276,7 @@ This section extends the M6 metric sources with operation/scheduling research.
 | M6-NUM-010 | Arm, *Cortex-A55 Core Advanced SIMD and Floating-point Support TRM*, FPCR | AArch64 FPCR RMode and FZ fields; RN and flush-to-zero architectural environment controls | https://documentation-service.arm.com/static/5e7e16dfb2608e4d7f0a2f8b | 2026-09-06 |
 | M6-NUM-011 | C++ reference documentation for std::nextafter / std::scalbn / std::fma | Library-semantics reference: adjacent representable step, exact radix-power scaling absent range error, single-rounding FMA; not standards authority | https://en.cppreference.com/cpp/numeric/math/nextafter | 2026-09-06 |
 | M6-NUM-012 | Apple Open Source XNU, arm64 proc_reg.h | Apple arm64 architecture corroboration exposing FPCR_FZ and FPCR_RMODE fields | https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/arm64/proc_reg.h | 2026-09-06 |
+
+
+| M6-NUM-013 | Boost.Multiprecision 1.92 documentation, cpp_int integer backend | Independent arbitrary-precision C++ integer alternative/benchmark; header-oriented Boost-licensed backend without GMP requirement | https://www.boost.org/doc/libs/latest/libs/multiprecision/doc/html/boost_multiprecision/tut/ints/cpp_int.html | 2026-09-06 |
+| M6-NUM-014 | Boost.Multiprecision integer backend comparison | Documents cpp_int / GMP / TomMath backend dependency-performance tradeoffs; used only for alternative-backend research, not Dynamics26 truth | https://www.boost.org/doc/libs/latest/libs/multiprecision/doc/html/boost_multiprecision/tut/ints.html | 2026-09-06 |

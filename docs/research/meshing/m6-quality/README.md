@@ -46,7 +46,8 @@ Dynamics26 solver benchmarks in M7.
 - NONLINEAR_RUBBER_MESH_QUALITY.md — reference/current configuration quality, deformation gradient and incompressibility separation
 - QUALITY_METRIC_POLICY.md — proposed Dynamics26 metric roles, aggregation and release-policy boundaries
 - QUALITY_ORDER_AND_ACCEPTANCE_POLICY.md — sorted mean-ratio acceptance order, local-to-global theorem and proposal/commit separation
-- EXACT_QMR_COMPARATOR.md — binary64 lattice oracle, primitive-integer normalization and bounded exact comparison
+- EXACT_QMR_COMPARATOR.md — binary64 lattice oracle, exact order identity and bounded integer comparison
+- EXACT_QMR_BACKEND_SELECTION.md — M1 BigInt reuse, no-GCD exact construction, expansion/Boost alternatives and local exact-key caching policy
 - FILTERED_QMR_COMPARATOR.md — dynamic interval cross-polynomial filter, power-of-two normalization, semi-static bound research and compiler/FP contract
 - INTERVAL_ARITHMETIC_BACKEND.md — C++20/macOS arm64 outward interval primitives, adjacent-representable widening, fenv/FMA/subnormal contract and backend ranking
 - LOCAL_TOPOLOGY_IMPROVEMENT.md — 2<->3, 3<->2, 4<->4, protected topology and deterministic quality reconnection
@@ -67,6 +68,7 @@ Dynamics26 solver benchmarks in M7.
 - one bad element can matter; report worst/low-percentile distributions rather than average alone,
 - optimizer commit acceptance now leads toward a sorted worst-to-best q_MR vector rather than pure max-min or an aggregate mean; smooth aggregate objectives remain proposal tools,
 - D26QMR1 is an exact **ordering** contract, not an exact irrational q_MR-value evaluator; binary64 coordinates reduce to a bounded integer-rational comparison with no quality epsilon,
+- the leading exact fallback backend is now the already-qualified M1 dyadic BigInt arithmetic extracted into a shared internal kernel; expansion arithmetic remains an experimental alternative rather than assumed M1 infrastructure,
 - D26QMRF1 now leads with a certified dynamic interval filter over the homogeneous comparison polynomial; semi-static magic-constant filters are deferred until their expression tree and floating environment are formally/auditably certified,
 - D26INT1 now leads with round-to-nearest primitive evaluation plus adjacent-representable outward widening; directed-rounding and EFT/FMA backends remain secondary research paths,
 - mesh grading, interpolation error, stiffness conditioning and nearly-incompressible formulation stability remain separate quality/evidence layers,

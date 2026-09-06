@@ -1721,3 +1721,127 @@ Neither is the first qualification dependency.
 M6-R91..M6-R108.
 
 No production interval implementation is authorized.
+
+
+---
+
+## ADR-MESH-0036 — D26QMRB1 reuses the qualified M1 dyadic BigInt mechanism
+
+**Status:** PROPOSED / M6 EARLY RESEARCH
+**Date:** 2026-09-06
+
+### Decision candidate
+
+The first exact backend for D26QMR1 should be:
+
+    D26QMRB1
+      =
+    shared/internal Dynamics26 dyadic BigInt arithmetic
+
+derived from the already-qualified M1 exact predicate mechanism.
+
+This is preferred over introducing a new expansion or external multiprecision backend before
+telemetry demonstrates a need.
+
+### Repository-truth correction
+
+Current M1 production exact predicates do not use floating expansions.
+
+They use:
+- exact binary64 dyadic decoding,
+- per-call common exponent,
+- signed arbitrary-precision integer coordinates,
+- exact integer determinant.
+
+Therefore reuse M1 expansion arithmetic is not a valid description of current code.
+
+### No-gcd theorem
+
+For one tetra's exact common scale alpha:
+
+    D = alpha^3 d
+    S = alpha^2 s.
+
+Thus:
+
+    D^2/S^3
+      =
+    d^2/s^3.
+
+Different tetrahedra may use different positive alpha values.
+
+Therefore D26QMR1 does not require:
+- gcd,
+- arbitrary-precision division,
+- reduced rational storage.
+
+Primitive gcd normalization remains optional compression only.
+
+### Shared-kernel boundary
+
+Future refactoring should share only arithmetic mechanism:
+
+    Binary64 dyadic decode
+    SignedBigInt
+    exact integer helpers.
+
+Policy remains separate:
+- M1 owns robust predicate semantics,
+- M6 owns q_MR order semantics.
+
+BigInt must remain internal and absent from installed/public ABI.
+
+### Fixed exact expression
+
+D26QMR1 should use:
+- exact edge differences,
+- fixed 3x3 determinant,
+- exact six-edge squared sum,
+- unreduced (d^2,s^3) or equivalent lazy key,
+- exact cross multiplication.
+
+M1's generic recursive determinant remains a useful qualification cross-check, not the intended
+performance architecture for M6.
+
+### Cache policy
+
+No permanent global exact-key cache is accepted first.
+
+Leading policy:
+- local/cavity/pass-scoped memoization,
+- strongest use in SPR and edge-removal search,
+- no stale PointId-only reuse after smoothing coordinates move.
+
+Worst-case unreduced (d^2,s^3) raw payload is approximately 3156 bytes per tetra with the current
+32-bit-limb model, before container overhead.
+
+This is sufficient reason to require telemetry before global caching.
+
+### Alternative backends
+
+D26QMRE1 — Shewchuk-style expansions:
+- mathematically credible,
+- new backend family,
+- experimental until fallback telemetry justifies it.
+
+D26QMRX1 — external arbitrary precision such as Boost cpp_int:
+- credible independent oracle/benchmark,
+- not selected as first dependency.
+
+No GMP/runtime backend is selected without evidence that exact arithmetic dominates end-to-end cost.
+
+### Promotion rule
+
+Any alternative must show:
+- identical exact order/ties,
+- deterministic replay,
+- acceptable compiler/dependency contract,
+- material optimizer-level benefit.
+
+Microbenchmark speed alone is insufficient.
+
+### Evidence needed
+
+M6-R109..M6-R124.
+
+No production refactor or M6 exact comparator implementation is authorized.
