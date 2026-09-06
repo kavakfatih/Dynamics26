@@ -1,6 +1,7 @@
 #include "femcae/meshing/RobustPredicates.h"
 
 #include "internal/exact/ExactDyadicArithmetic.h"
+#include "internal/PredicateCallAudit.h"
 
 #include <algorithm>
 #include <bit>
@@ -27,6 +28,8 @@ using BigInt = femcae::meshing::internal::exact::BigInt;
 using Matrix = femcae::meshing::internal::exact::Matrix;
 using femcae::meshing::internal::exact::determinant;
 using femcae::meshing::internal::exact::exactIntegerCoordinates;
+
+thread_local PredicateTelemetry* qualificationCallAuditSink = nullptr;
 
 bool fastValueAllowed(double value) noexcept {
     return std::isfinite(value) &&
@@ -315,6 +318,10 @@ void recordCall(PredicateTelemetry* telemetry) noexcept {
     if (telemetry != nullptr) {
         ++telemetry->calls;
     }
+    if (qualificationCallAuditSink != nullptr &&
+        qualificationCallAuditSink != telemetry) {
+        ++qualificationCallAuditSink->calls;
+    }
 }
 
 void recordInvalid(PredicateTelemetry* telemetry) noexcept {
@@ -324,6 +331,14 @@ void recordInvalid(PredicateTelemetry* telemetry) noexcept {
 }
 
 } // namespace
+
+namespace internal {
+
+void setPredicateCallAuditSink(PredicateTelemetry* telemetry) noexcept {
+    qualificationCallAuditSink = telemetry;
+}
+
+} // namespace internal
 
 PredicateEvaluation orient2d(
     const geometry::Vec2& a,

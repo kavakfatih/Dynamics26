@@ -25,6 +25,9 @@ namespace {
 
 using predicates::PredicateSign;
 
+thread_local detail::DelaunayCommitBarrierAuditHooks
+    commitBarrierAuditHooks{};
+
 struct EdgeKey {
     std::array<DelaunayVertexRef, 2> vertices{};
 
@@ -543,18 +546,6 @@ DelaunayTransactionFailure extractCavity(
     return DelaunayTransactionFailure::None;
 }
 
-bool checkedRequiredSlots(
-    std::size_t current,
-    std::size_t additional,
-    std::size_t& required) noexcept {
-    if (additional > std::numeric_limits<std::size_t>::max() - current) {
-        return false;
-    }
-    required = current + additional;
-    return required <= static_cast<std::size_t>(
-                           std::numeric_limits<std::uint32_t>::max());
-}
-
 std::optional<std::size_t> candidateMatchingFace(
     const DelaunayCellRecord& cell,
     const DelaunayFaceKey& key) {
@@ -566,13 +557,13 @@ DelaunayTransactionFailure buildCandidatePatch(
     const std::map<PointId, geometry::Vec3>& points,
     DelaunayInsertionPlan& plan,
     std::string& detail) {
-    std::size_t required = 0U;
-    if (!checkedRequiredSlots(
-            slots.size(), plan.boundaryFacets.size(), required)) {
+    const auto slotCheck = detail::checkedDelaunayRequiredSlots(
+        slots.size(), plan.boundaryFacets.size());
+    if (!slotCheck.ok()) {
         detail = "P1D candidate append exceeds the 32-bit handle domain";
-        return DelaunayTransactionFailure::CapacityOverflow;
+        return slotCheck.failure;
     }
-    plan.requiredSlotCount = required;
+    plan.requiredSlotCount = slotCheck.required;
     plan.candidateCells.clear();
     plan.candidateCells.reserve(plan.boundaryFacets.size());
 
@@ -892,10 +883,10 @@ DelaunayTransactionResult validatePlanCore(
             "P1D candidate/base/rewire cardinalities disagree");
     }
 
-    std::size_t required = 0U;
-    if (!checkedRequiredSlots(
-            arena.slots().size(), plan.candidateCells.size(), required) ||
-        required != plan.requiredSlotCount) {
+    const auto slotCheck = detail::checkedDelaunayRequiredSlots(
+        arena.slots().size(), plan.candidateCells.size());
+    if (!slotCheck.ok() ||
+        slotCheck.required != plan.requiredSlotCount) {
         return fail(
             DelaunayTransactionFailure::CapacityOverflow,
             "P1D required slot count is invalid");
@@ -1117,6 +1108,30 @@ DelaunayTransactionResult validatePlanCore(
 }
 
 } // namespace
+
+namespace detail {
+
+void setDelaunayCommitBarrierAuditHooks(
+    DelaunayCommitBarrierAuditHooks hooks) noexcept {
+    commitBarrierAuditHooks = hooks;
+}
+
+DelaunayRequiredSlotCountCheck checkedDelaunayRequiredSlots(
+    std::size_t current,
+    std::size_t additional) noexcept {
+    if (additional > std::numeric_limits<std::size_t>::max() - current) {
+        return {DelaunayTransactionFailure::CapacityOverflow, 0U};
+    }
+    const std::size_t required = current + additional;
+    if (required >
+        static_cast<std::size_t>(
+            std::numeric_limits<std::uint32_t>::max())) {
+        return {DelaunayTransactionFailure::CapacityOverflow, 0U};
+    }
+    return {DelaunayTransactionFailure::None, required};
+}
+
+} // namespace detail
 
 struct DelaunayTransactionAccess {
     // COMMIT BARRIER'in otesindeki tek mutation girisi.
@@ -1346,7 +1361,15 @@ DelaunayTransactionResult commitDelaunayInsertion(
     // Buradan sonra predicate, symbolic tie, point-location, map/hash growth,
     // reserve/capacity request veya yeni topological decision yoktur.
     const std::size_t capacityBefore = arena.capacity();
+    const detail::DelaunayCommitBarrierAuditHooks auditHooks =
+        commitBarrierAuditHooks;
+    if (auditHooks.onBarrierCrossed != nullptr) {
+        auditHooks.onBarrierCrossed();
+    }
     DelaunayTransactionAccess::applyPreparedCommit(arena, plan);
+    if (auditHooks.onMechanicalCommitCompleted != nullptr) {
+        auditHooks.onMechanicalCommitCompleted();
+    }
     if (arena.capacity() != capacityBefore) {
         // Bu invariant reserve precondition ile ulasilamaz; noexcept commit
         // yolunda recovery topology uretmek de yasaktir.

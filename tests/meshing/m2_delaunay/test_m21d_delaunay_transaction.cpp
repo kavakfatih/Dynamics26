@@ -1,4 +1,5 @@
 #include "meshing/m2/DelaunayTransaction.h"
+#include "meshing/internal/PredicateCallAudit.h"
 
 #include "femcae/meshing/RobustPredicates.h"
 
@@ -6,13 +7,104 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <map>
+#include <new>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
+
+namespace {
+
+thread_local bool allocationAuditArmed = false;
+thread_local std::uint64_t allocationAuditAttempts = 0U;
+
+void recordAllocationAttempt() noexcept {
+    if (allocationAuditArmed) {
+        ++allocationAuditAttempts;
+    }
+}
+
+void* allocateUnaligned(std::size_t size) {
+    recordAllocationAttempt();
+    if (void* memory = std::malloc(size == 0U ? 1U : size)) {
+        return memory;
+    }
+    throw std::bad_alloc();
+}
+
+void* allocateAligned(std::size_t size, std::size_t alignment) {
+    recordAllocationAttempt();
+    void* memory = nullptr;
+    const int status = posix_memalign(
+        &memory,
+        alignment,
+        size == 0U ? alignment : size);
+    if (status == 0 && memory != nullptr) {
+        return memory;
+    }
+    throw std::bad_alloc();
+}
+
+} // namespace
+
+void* operator new(std::size_t size) {
+    return allocateUnaligned(size);
+}
+
+void* operator new[](std::size_t size) {
+    return allocateUnaligned(size);
+}
+
+void operator delete(void* memory) noexcept {
+    std::free(memory);
+}
+
+void operator delete[](void* memory) noexcept {
+    std::free(memory);
+}
+
+void operator delete(void* memory, std::size_t) noexcept {
+    std::free(memory);
+}
+
+void operator delete[](void* memory, std::size_t) noexcept {
+    std::free(memory);
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment) {
+    return allocateAligned(size, static_cast<std::size_t>(alignment));
+}
+
+void* operator new[](std::size_t size, std::align_val_t alignment) {
+    return allocateAligned(size, static_cast<std::size_t>(alignment));
+}
+
+void operator delete(void* memory, std::align_val_t) noexcept {
+    std::free(memory);
+}
+
+void operator delete[](void* memory, std::align_val_t) noexcept {
+    std::free(memory);
+}
+
+void operator delete(
+    void* memory,
+    std::size_t,
+    std::align_val_t) noexcept {
+    std::free(memory);
+}
+
+void operator delete[](
+    void* memory,
+    std::size_t,
+    std::align_val_t) noexcept {
+    std::free(memory);
+}
 
 using namespace femcae::meshing;
 using namespace femcae::meshing::m2;
@@ -21,6 +113,39 @@ namespace {
 
 int failures = 0;
 int checks = 0;
+
+struct CommitBarrierAuditState {
+    predicates::PredicateTelemetry predicateCalls;
+    std::uint64_t allocationAttempts{0U};
+    bool barrierCrossed{false};
+    bool mechanicalCommitCompleted{false};
+};
+
+thread_local CommitBarrierAuditState* activeCommitAudit = nullptr;
+
+void onCommitBarrierCrossed() noexcept {
+    if (activeCommitAudit == nullptr) {
+        return;
+    }
+    activeCommitAudit->predicateCalls = {};
+    activeCommitAudit->allocationAttempts = 0U;
+    activeCommitAudit->barrierCrossed = true;
+    allocationAuditAttempts = 0U;
+    allocationAuditArmed = true;
+    predicates::internal::setPredicateCallAuditSink(
+        &activeCommitAudit->predicateCalls);
+}
+
+void onMechanicalCommitCompleted() noexcept {
+    allocationAuditArmed = false;
+    predicates::internal::setPredicateCallAuditSink(nullptr);
+    if (activeCommitAudit == nullptr) {
+        return;
+    }
+    activeCommitAudit->allocationAttempts =
+        allocationAuditAttempts;
+    activeCommitAudit->mechanicalCommitCompleted = true;
+}
 
 void check(bool condition, const std::string& message) {
     ++checks;
@@ -490,8 +615,9 @@ void testFailureNoMutation() {
             reserveDelaunayInsertion(arena, sites, plan, limit);
         check(!result.ok() &&
                   result.failure ==
-                      DelaunayTransactionFailure::ResourceLimit,
-              "controlled capacity limit returns typed resource status");
+                      DelaunayTransactionFailure::ResourceLimit &&
+                  !result.commitBarrierCrossed,
+              "controlled capacity limit returns typed pre-barrier resource status");
         check(exactStateFingerprint(arena) == before,
               "resource limit changes no topology state");
     }
@@ -905,6 +1031,96 @@ void testCandidateConeAndBaseSetHardening() {
     }
 }
 
+
+void testCommitBarrierInstrumentationControls() {
+    allocationAuditAttempts = 0U;
+    allocationAuditArmed = true;
+    void* controlled = ::operator new(sizeof(std::uint64_t));
+    allocationAuditArmed = false;
+    ::operator delete(controlled);
+    check(allocationAuditAttempts == 1U,
+          "G26 allocation tracker negative control detects an armed allocation");
+
+    predicates::PredicateTelemetry telemetry;
+    predicates::internal::setPredicateCallAuditSink(&telemetry);
+    (void)predicates::orient3d(
+        {0.0, 0.0, 0.0},
+        {1.0, 0.0, 0.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 0.0, 1.0});
+    predicates::internal::setPredicateCallAuditSink(nullptr);
+    check(telemetry.calls == 1U,
+          "G26 predicate audit negative control detects an armed predicate call");
+}
+
+void testCommitBarrierHasNoPredicatesOrAllocations() {
+    auto sites = tetraSites({0.125, 0.125, 0.125});
+    auto arena = bootstrap(sites);
+    auto planned = buildDelaunayInsertionPlan(arena, sites, 5U);
+    check(planned.ok(), "G26 qualification plan succeeds");
+    if (!planned.ok()) return;
+
+    auto plan = *planned.plan;
+    const auto reserve =
+        reserveDelaunayInsertion(arena, sites, plan);
+    check(reserve.ok(), "G26 qualification reserve succeeds");
+    if (!reserve.ok()) return;
+
+    CommitBarrierAuditState audit;
+    activeCommitAudit = &audit;
+    detail::setDelaunayCommitBarrierAuditHooks({
+        &onCommitBarrierCrossed,
+        &onMechanicalCommitCompleted});
+
+    const std::size_t capacityBefore = arena.capacity();
+    const auto commit =
+        commitDelaunayInsertion(arena, sites, plan);
+
+    detail::setDelaunayCommitBarrierAuditHooks({});
+    activeCommitAudit = nullptr;
+    allocationAuditArmed = false;
+    predicates::internal::setPredicateCallAuditSink(nullptr);
+
+    check(commit.ok() && commit.commitBarrierCrossed,
+          "G26 successful commit crosses the production barrier");
+    check(audit.barrierCrossed && audit.mechanicalCommitCompleted,
+          "G26 observer brackets the exact mechanical commit window");
+    check(audit.predicateCalls.calls == 0U,
+          "G26 post-barrier predicate call count is zero");
+    check(audit.allocationAttempts == 0U,
+          "G26 post-barrier allocation attempt count is zero");
+    check(arena.capacity() == capacityBefore,
+          "G26 arena capacity remains unchanged after the barrier");
+    check(validateDelaunayTopology(arena.slots(), sites).ok(),
+          "G26 committed post-state passes the typed topology validator");
+}
+
+void testCheckedSlotArithmeticBoundaries() {
+    const std::size_t handleMax =
+        static_cast<std::size_t>(
+            std::numeric_limits<std::uint32_t>::max());
+
+    const auto upper = detail::checkedDelaunayRequiredSlots(
+        handleMax - 1U, 1U);
+    check(upper.ok() && upper.required == handleMax,
+          "G29 checked arithmetic accepts the exact 32-bit handle upper bound");
+
+    const auto handleOverflow =
+        detail::checkedDelaunayRequiredSlots(handleMax, 1U);
+    check(!handleOverflow.ok() &&
+              handleOverflow.failure ==
+                  DelaunayTransactionFailure::CapacityOverflow,
+          "G29 checked arithmetic maps handle-domain overflow to CapacityOverflow");
+
+    const auto sizeOverflow =
+        detail::checkedDelaunayRequiredSlots(
+            std::numeric_limits<std::size_t>::max(), 1U);
+    check(!sizeOverflow.ok() &&
+              sizeOverflow.failure ==
+                  DelaunayTransactionFailure::CapacityOverflow,
+          "G29 checked arithmetic rejects size_t wraparound as CapacityOverflow");
+}
+
 void testStalePlan() {
     std::vector<CanonicalSite> sites{
         {1U, {0.0, 0.0, 0.0}},
@@ -964,6 +1180,9 @@ int main() {
     testExactSiteSnapshotHardening();
     testCurrentOracleRevalidationAndForgedFlags();
     testCandidateConeAndBaseSetHardening();
+    testCommitBarrierInstrumentationControls();
+    testCommitBarrierHasNoPredicatesOrAllocations();
+    testCheckedSlotArithmeticBoundaries();
     testStalePlan();
     testNearDegenerateExactNonzero();
 

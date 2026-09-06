@@ -131,6 +131,37 @@ struct DelaunayResourceLimits {
         static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())};
 };
 
+namespace detail {
+
+using DelaunayCommitBarrierAuditCallback = void (*)() noexcept;
+
+struct DelaunayCommitBarrierAuditHooks {
+    DelaunayCommitBarrierAuditCallback onBarrierCrossed{nullptr};
+    DelaunayCommitBarrierAuditCallback onMechanicalCommitCompleted{nullptr};
+};
+
+// Private P1D qualification observer. Default hooks are null; production
+// topology semantics and fingerprints do not depend on this state.
+void setDelaunayCommitBarrierAuditHooks(
+    DelaunayCommitBarrierAuditHooks hooks) noexcept;
+
+struct DelaunayRequiredSlotCountCheck {
+    DelaunayTransactionFailure failure{DelaunayTransactionFailure::None};
+    std::size_t required{0};
+
+    [[nodiscard]] bool ok() const noexcept {
+        return failure == DelaunayTransactionFailure::None;
+    }
+};
+
+// Pure checked arithmetic authority shared by production planning/validation
+// and the G29 boundary fixtures.
+[[nodiscard]] DelaunayRequiredSlotCountCheck checkedDelaunayRequiredSlots(
+    std::size_t current,
+    std::size_t additional) noexcept;
+
+} // namespace detail
+
 // P1D correctness-first plan:
 // all-live-cell semantic conflict oracle -> exact-conflicting deterministic seed
 // -> adjacency flood -> cavity extraction -> complete candidate patch -> validation.
