@@ -480,4 +480,3 @@ if(Python3_Interpreter_FOUND)
         FIXTURES_REQUIRED d26_m6_interval_corpus
     )
 endif()
-
