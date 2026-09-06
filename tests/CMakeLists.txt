@@ -560,3 +560,25 @@ if(Python3_Interpreter_FOUND)
         FIXTURES_REQUIRED d26_m6_quality_vector_corpus
     )
 endif()
+
+# M6 I4 foundation — private tetra optimization state + explicit constraints
+add_executable(
+    unit_m6_optimization_state
+    meshing/m6_quality/test_m6_optimization_state.cpp
+)
+target_link_libraries(unit_m6_optimization_state PRIVATE femcae_meshing)
+target_include_directories(
+    unit_m6_optimization_state
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m6_optimization_state)
+
+add_test(
+    NAME unit_m6_optimization_state
+    COMMAND unit_m6_optimization_state
+)
+set_tests_properties(
+    unit_m6_optimization_state
+    PROPERTIES
+    LABELS "unit;meshing;m6;optimizer;state;constraints;pointid;determinism"
+)

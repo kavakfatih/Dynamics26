@@ -70,6 +70,8 @@ set(FEMCAE_MESHING_SOURCES
     src/meshing/m6/quality/MeanRatioFilter.cpp
     src/meshing/m6/quality/QualityVector.cpp
     src/meshing/m6/quality/QualityAcceptance.cpp
+    src/meshing/m6/state/ConstraintView.cpp
+    src/meshing/m6/state/TetraOptimizationState.cpp
     src/meshing/RobustGeometry.cpp
     src/meshing/TetraTopology.cpp
     src/meshing/MeshTypes.cpp
