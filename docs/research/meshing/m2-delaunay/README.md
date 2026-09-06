@@ -2,7 +2,7 @@
 
 Program: Dynamics26 Original Meshing Engine
 Work package: M2.0 — Delaunay Reference Architecture & Experiment Plan
-Status: M2.0 DESIGN FROZEN / M2.1-A NEXT; IMPLEMENTATION NOT QUALIFIED
+Status: M2.0 DESIGN FROZEN / M2.1-A QUALIFIED IN SUBSCOPE / M2.1-B NEXT; M2 OVERALL NOT QUALIFIED
 Date: 2026-09-05
 
 ## Purpose
@@ -44,6 +44,7 @@ be traceable to a committed derivation or contract. Chat history is not engineer
 - PATCH_ORIENTATION_AND_STITCHING.md — finite/ghost cone construction, positive orientation and new-new/new-old neighbor pairing
 - M2_0_RESEARCH_FREEZE_AUDIT.md — closure matrix, frozen contracts, gate classification and M2.1 authorization boundary
 - EXPERIMENT_PLAN.md — golden cases, brute-force oracles, determinism gates, replay and telemetry
+- M2_1A_IMPLEMENTATION_RECORD.md — semantic-predicate implementation and exact-head qualification evidence
 
 ## Current leading decisions
 

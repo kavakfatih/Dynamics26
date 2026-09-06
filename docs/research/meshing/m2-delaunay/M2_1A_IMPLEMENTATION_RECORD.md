@@ -3,7 +3,7 @@
 **Date:** 2026-09-06  
 **Development milestone:** DEV-MESH-P1A  
 **Research authority:** M2.0 DESIGN FROZEN  
-**Status at commit creation:** IMPLEMENTATION CANDIDATE / EXACT-HEAD QUALIFICATION PENDING
+**Status:** QUALIFIED IN DECLARED P1A SUBSCOPE — exact-head workflow #293 SUCCESS
 
 ## Scope
 
@@ -89,10 +89,25 @@ This subphase targets:
 - M2-G09,
 - M2-G10.
 
-PASS claims require the exact source commit's macOS arm64 Debug/Release test evidence.
+Exact-head evidence on `0508c7056917d016130e7713f1af1d78d9605012`:
+
+- workflow #293: `completed/success`,
+- Debug: 157/157 CTest PASS,
+- Release: full build/test and release-hardening gates PASS,
+- `unit_m21a_delaunay_predicates`: PASS,
+- `unit_m21a_symbolic_polynomial_oracle`: PASS,
+- gui-fast: PASS.
+
+Therefore the declared P1A evidence closes:
+
+- **M2-G02: PASS**,
+- **M2-G08: PASS**,
+- **M2-G09: PASS**,
+- **M2-G10: PASS**.
+
+This does not close M2 overall and does not close M2-G20, which belongs to the completed serial
+reference constructor qualification.
 
 ## Next subphase
-
-After exact-head qualification:
 
 `DEV-MESH-P1B / M2.1-B — typed finite/infinite bootstrap and reference arena`.
