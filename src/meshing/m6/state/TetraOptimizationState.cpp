@@ -190,6 +190,16 @@ void TetraOptimizationState::validate() {
             "M6 optimizer state tetra topology is invalid");
     }
 
+    for (const TetHandle tetra : liveTetrahedra()) {
+        const TetSlot& slot = checkedSlot(tetra);
+        for (PointId id : slot.record.vertices) {
+            if (!hasPoint(id)) {
+                throw std::invalid_argument(
+                    "M6 live tetra references unknown PointId");
+            }
+        }
+    }
+
     for (const PointMobilityEntry& entry :
          constraints_.pointMobilityEntries()) {
         if (!hasPoint(entry.point)) {
