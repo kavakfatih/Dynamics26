@@ -208,10 +208,29 @@ IntervalResult cubePositive(Interval value) noexcept {
 }
 
 IntervalResult scalePowerOfTwo(Interval value, int exponent) noexcept {
-    // std::scalbn radix-2 olceklemede normal aralikta exact'tir. Ilk backend,
-    // negatif exponent ile subnormal bolgeye inen endpointleri konservatif olarak
-    // Range sayar; rounding/underflow ayrintisini tahmin etmek yerine exact fallback
-    // yolunun kullanilmasini saglar.
+    // Radix-2 scaling is an ordinary D26INT1 primitive: evaluate once under
+    // round-to-nearest, then widen outward once. It is not exempt from the
+    // widening rule, and must not try to decide when it is exempt.
+    //
+    // The previous policy tried. It classified the scaled result and skipped
+    // widening whenever that result was normal, on the reasoning that scalbn is
+    // exact while the result stays normal. That reasoning is false at the
+    // subnormal boundary: a downscale whose exact result falls in the gap just
+    // below DBL_MIN can be a tie, and round-to-nearest-EVEN then rounds it UP to
+    // DBL_MIN, which is normal. The returned lower bound then sits strictly
+    // above the true value and the enclosure is broken. The whole family
+    //
+    //     value = +/-(2^53 - 1) * 2^p,  exponent = -1075 - p
+    //
+    // does this, one member per binade; scalePowerOfTwo(0x1.fffffffffffffp-1021, -2)
+    // is the smallest instance. It is measure-zero, so random testing never
+    // finds it -- test_m6_interval_backend enumerates the family directly.
+    //
+    // Widening unconditionally costs one ulp on scalings that were exact, and
+    // removes the class of bug entirely. std::scalbn is IEEE-754 scaleB, which
+    // is correctly rounded, and probeEnvironment has already established an
+    // IEC 559 environment with gradual underflow -- so the error is at most half
+    // an ulp and a single outward step always covers it.
     if (!finiteOrdered(value)) {
         return failure(IntervalFailure::InvalidInput);
     }
@@ -221,23 +240,7 @@ IntervalResult scalePowerOfTwo(Interval value, int exponent) noexcept {
     if (!std::isfinite(lo) || !std::isfinite(hi)) {
         return failure(IntervalFailure::Range);
     }
-
-    const auto unsupportedDownscale =
-        [exponent](double before, double after) noexcept {
-            if (before == 0.0) {
-                return false;
-            }
-            if (after == 0.0) {
-                return true;
-            }
-            return exponent < 0 && std::fpclassify(after) == FP_SUBNORMAL;
-        };
-
-    if (unsupportedDownscale(value.lo, lo) ||
-        unsupportedDownscale(value.hi, hi)) {
-        return failure(IntervalFailure::Range);
-    }
-    return {{lo, hi}, IntervalFailure::None};
+    return outwardPrimitive(lo, hi);
 }
 
 bool normalizationExponent(
