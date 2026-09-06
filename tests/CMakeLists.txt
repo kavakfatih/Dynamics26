@@ -480,3 +480,38 @@ if(Python3_Interpreter_FOUND)
         FIXTURES_REQUIRED d26_m6_interval_corpus
     )
 endif()
+
+# M6 I2b — D26QMRF1 fixed D/S/F tree + exact fallback
+add_executable(
+    unit_m6_filtered_qmr
+    meshing/m6_quality/test_m6_filtered_qmr.cpp
+)
+target_link_libraries(unit_m6_filtered_qmr PRIVATE femcae_meshing)
+target_include_directories(unit_m6_filtered_qmr PRIVATE "${CMAKE_SOURCE_DIR}/src")
+femcae_enable_warnings(unit_m6_filtered_qmr)
+
+if(Python3_Interpreter_FOUND)
+    set(FEMCAE_M6_FILTER_CORPUS "${CMAKE_BINARY_DIR}/m6-filter-corpus.d26qf")
+
+    add_test(
+        NAME unit_m6_generate_filter_corpus
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/meshing_oracle/generate_m6_filter_corpus.py
+                --output ${FEMCAE_M6_FILTER_CORPUS}
+                --random-cases 128
+                --seed 26090603
+    )
+    set_tests_properties(unit_m6_generate_filter_corpus PROPERTIES
+        LABELS "unit;meshing;m6;quality;interval;filtered;exact-oracle;determinism"
+        FIXTURES_SETUP d26_m6_filter_corpus
+    )
+
+    add_test(
+        NAME unit_m6_filtered_qmr_generated
+        COMMAND unit_m6_filtered_qmr ${FEMCAE_M6_FILTER_CORPUS}
+    )
+    set_tests_properties(unit_m6_filtered_qmr_generated PROPERTIES
+        LABELS "unit;meshing;m6;quality;interval;filtered;exact;determinism;replay"
+        FIXTURES_REQUIRED d26_m6_filter_corpus
+    )
+endif()

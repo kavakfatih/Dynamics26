@@ -67,6 +67,7 @@ set(FEMCAE_MESHING_SOURCES
     src/meshing/RobustPredicates.cpp
     src/meshing/m6/quality/MeanRatioExact.cpp
     src/meshing/m6/quality/IntervalArithmetic.cpp
+    src/meshing/m6/quality/MeanRatioFilter.cpp
     src/meshing/RobustGeometry.cpp
     src/meshing/TetraTopology.cpp
     src/meshing/MeshTypes.cpp
@@ -86,6 +87,7 @@ set(FEMCAE_MESHING_SOURCES
 set(FEMCAE_CERTIFIED_FP_SOURCES
     src/meshing/RobustPredicates.cpp
     src/meshing/m6/quality/IntervalArithmetic.cpp
+    src/meshing/m6/quality/MeanRatioFilter.cpp
 )
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
