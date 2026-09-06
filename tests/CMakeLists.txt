@@ -411,6 +411,41 @@ add_femcae_meshing_test(
 )
 
 
+# M2.1-A — frozen semantic Delaunay predicate layer
+add_executable(
+    unit_m21a_delaunay_predicates
+    meshing/m2_delaunay/test_m21a_delaunay_predicates.cpp
+)
+target_link_libraries(unit_m21a_delaunay_predicates PRIVATE femcae_meshing)
+target_include_directories(
+    unit_m21a_delaunay_predicates
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m21a_delaunay_predicates)
+
+add_test(
+    NAME unit_m21a_delaunay_predicates
+    COMMAND unit_m21a_delaunay_predicates
+)
+set_tests_properties(
+    unit_m21a_delaunay_predicates
+    PROPERTIES
+    LABELS "unit;meshing;m2;delaunay;predicate;symbolic;determinism"
+)
+
+if(Python3_Interpreter_FOUND)
+    add_test(
+        NAME unit_m21a_symbolic_polynomial_oracle
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/meshing/m2_delaunay/test_m21a_symbolic_oracle.py
+    )
+    set_tests_properties(
+        unit_m21a_symbolic_polynomial_oracle
+        PROPERTIES
+        LABELS "unit;meshing;m2;delaunay;symbolic;exact-oracle;determinism"
+    )
+endif()
+
 # M6 I1 — exact D26QMR1 comparator + independent Python exact oracle
 add_executable(
     unit_m6_exact_qmr

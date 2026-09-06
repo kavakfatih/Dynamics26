@@ -65,6 +65,7 @@ endif()
 
 set(FEMCAE_MESHING_SOURCES
     src/meshing/RobustPredicates.cpp
+    src/meshing/m2/DelaunayPredicates.cpp
     src/meshing/m6/quality/MeanRatioExact.cpp
     src/meshing/m6/quality/IntervalArithmetic.cpp
     src/meshing/m6/quality/MeanRatioFilter.cpp
