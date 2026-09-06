@@ -95,6 +95,7 @@ set(FEMCAE_CERTIFIED_FP_SOURCES
     src/meshing/RobustPredicates.cpp
     src/meshing/m6/quality/IntervalArithmetic.cpp
     src/meshing/m6/quality/MeanRatioFilter.cpp
+    src/meshing/m6/quality/MeanRatioExact.cpp
     src/meshing/m6/optimizer/SmartSmoothing.cpp
 )
 
@@ -105,6 +106,21 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
         "-fno-fast-math"
         "-ffp-contract=off"
     )
+    set_property(
+        SOURCE ${FEMCAE_CERTIFIED_FP_SOURCES}
+        APPEND PROPERTY COMPILE_DEFINITIONS
+        FEMCAE_FP_CONTRACT_CONTROLLED=1
+    )
+else()
+    # These sources refuse to compile without the definition above. Silently
+    # dropping contraction control would leave the kernels claiming a frozen
+    # expression contract the build never enforced, and a wrong certified sign
+    # is worse than an unbuildable target. Add the compiler here with its own
+    # equivalent of -ffp-contract=off to support it.
+    message(WARNING
+        "FEMCAE: '${CMAKE_CXX_COMPILER_ID}' has no known contraction-control "
+        "flags. The exact/filtered geometry kernels will fail to compile until "
+        "FEMCAE_CERTIFIED_FP_SOURCES gains a branch for this compiler.")
 endif()
 
 set(FEMCAE_APPLICATION_SOURCES

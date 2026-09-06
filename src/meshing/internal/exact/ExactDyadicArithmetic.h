@@ -1,5 +1,13 @@
 #pragma once
 
+// decodeBinary64 rejects non-finite input, and fast-math semantics let a
+// compiler assume that rejection never fires. The guard lives in the header so
+// it protects every consumer of this mechanism rather than the ones that
+// happened to be listed somewhere.
+#ifdef __FAST_MATH__
+#error "Dynamics26 exact dyadic arithmetic cannot be compiled with fast-math semantics"
+#endif
+
 #include <algorithm>
 #include <bit>
 #include <cmath>

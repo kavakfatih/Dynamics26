@@ -10,6 +10,10 @@
 #error "Dynamics26 D26INT1 cannot be compiled with fast-math semantics"
 #endif
 
+#ifndef FEMCAE_FP_CONTRACT_CONTROLLED
+#error "Dynamics26 D26INT1 must be built through FEMCAE_CERTIFIED_FP_SOURCES so contraction control is enforced"
+#endif
+
 namespace femcae::meshing::m6::quality::interval {
 namespace {
 

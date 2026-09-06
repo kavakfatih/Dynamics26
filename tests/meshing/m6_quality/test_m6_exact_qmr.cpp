@@ -114,7 +114,7 @@ int genericExactOrientSign(const TetraCoordinates& tetra) {
 
 void verifyDeterminantAuthority(const TetraCoordinates& tetra) {
     const int fixed =
-        femcae::meshing::m6::quality::exactRelativeDeterminantSign(tetra);
+        femcae::meshing::m6::quality::exactOrient3dSign(tetra);
     const int generic = genericExactOrientSign(tetra);
     const auto publicResult = femcae::meshing::predicates::orient3d(
         tetra[0], tetra[1], tetra[2], tetra[3]);

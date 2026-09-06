@@ -6,6 +6,10 @@
 #include <utility>
 #include <vector>
 
+#ifndef FEMCAE_FP_CONTRACT_CONTROLLED
+#error "Dynamics26 D26QMRB1 must be built through FEMCAE_CERTIFIED_FP_SOURCES so contraction control is enforced"
+#endif
+
 namespace femcae::meshing::m6::quality {
 namespace {
 
@@ -158,7 +162,7 @@ ExactMeanRatioKey buildExactMeanRatioKey(
     return key;
 }
 
-int exactRelativeDeterminantSign(const TetraCoordinates& tetra) {
+int exactOrient3dSign(const TetraCoordinates& tetra) {
     return signedOrientDeterminant(integerTetra(tetra)).sign();
 }
 
@@ -166,6 +170,10 @@ MeanRatioOrder compareExactMeanRatioKeys(
     const ExactMeanRatioKey& lhs,
     const ExactMeanRatioKey& rhs,
     ExactMeanRatioTelemetry* telemetry) {
+    if (telemetry != nullptr) {
+        ++telemetry->keyComparisons;
+    }
+
     const BigInt leftCross =
         lhs.determinantSquared * rhs.edgeSumCubed;
     const BigInt rightCross =

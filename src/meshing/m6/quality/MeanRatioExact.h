@@ -27,7 +27,12 @@ enum class MeanRatioOrder : std::int8_t {
 };
 
 struct ExactMeanRatioTelemetry {
+    // `calls` counts the coordinate-pair entry point only. D26QV1 compares
+    // prebuilt keys instead, so `keyComparisons` is the counter that reflects
+    // exact-backend work on the optimizer's own path; a run driven entirely
+    // through D26QV1 leaves `calls` at zero.
     std::uint64_t calls{0};
+    std::uint64_t keyComparisons{0};
     std::uint64_t exactEqual{0};
     std::uint64_t invalidInput{0};
     std::size_t maxDeterminantBits{0};
@@ -53,7 +58,11 @@ struct ExactMeanRatioKey {
     const TetraCoordinates& tetra,
     ExactMeanRatioTelemetry* telemetry = nullptr);
 
-[[nodiscard]] int exactRelativeDeterminantSign(
+// Sign of the homogeneous [x y z 1] determinant, i.e. the M1 Orient3D sign.
+// This is the negation of the relative 3x3 row determinant, not that
+// determinant itself; buildExactMeanRatioKey takes the magnitude and so does
+// not depend on the convention, but a caller reading the sign does.
+[[nodiscard]] int exactOrient3dSign(
     const TetraCoordinates& tetra);
 
 [[nodiscard]] MeanRatioOrder compareExactMeanRatioKeys(
