@@ -446,6 +446,28 @@ if(Python3_Interpreter_FOUND)
     )
 endif()
 
+# M2.1-B — typed finite/infinite bootstrap + reference topology
+add_executable(
+    unit_m21b_delaunay_bootstrap
+    meshing/m2_delaunay/test_m21b_delaunay_bootstrap.cpp
+)
+target_link_libraries(unit_m21b_delaunay_bootstrap PRIVATE femcae_meshing)
+target_include_directories(
+    unit_m21b_delaunay_bootstrap
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m21b_delaunay_bootstrap)
+
+add_test(
+    NAME unit_m21b_delaunay_bootstrap
+    COMMAND unit_m21b_delaunay_bootstrap
+)
+set_tests_properties(
+    unit_m21b_delaunay_bootstrap
+    PROPERTIES
+    LABELS "unit;meshing;m2;delaunay;bootstrap;ghost;topology;determinism"
+)
+
 # M6 I1 — exact D26QMR1 comparator + independent Python exact oracle
 add_executable(
     unit_m6_exact_qmr
