@@ -890,6 +890,63 @@ DelaunayTransactionResult validatePlanCore(
             return fail(
                 DelaunayTransactionFailure::InvalidCandidateTopology,
                 "P1D candidate has invalid finite/ghost vertex pattern");
+        } else {
+            // Frozen ghost convention: Infinite is slot 0 and finite face 0
+            // must pair to a new finite candidate. Its finite triple is outward,
+            // so the finite neighbor's opposite witness is exact-negative.
+            const DelaunayCellHandle finiteNeighbor =
+                candidate.record.neighbors[0];
+            if (!finiteNeighbor.isValid() ||
+                finiteNeighbor.generation != 1U ||
+                finiteNeighbor.slot < plan.sourceSlotCount ||
+                finiteNeighbor.slot >= plan.requiredSlotCount) {
+                return fail(
+                    DelaunayTransactionFailure::InvalidGhostOrientation,
+                    "P1D ghost finite face is not paired to a new candidate");
+            }
+            const std::size_t neighborIndex =
+                static_cast<std::size_t>(finiteNeighbor.slot) -
+                plan.sourceSlotCount;
+            if (neighborIndex >= plan.candidateCells.size() ||
+                !finiteCell(plan.candidateCells[neighborIndex].record)) {
+                return fail(
+                    DelaunayTransactionFailure::InvalidGhostOrientation,
+                    "P1D ghost finite face neighbor is not a finite candidate");
+            }
+            const DelaunayFaceKey ghostFiniteFace =
+                canonicalDelaunayFaceKey(candidate.record, 0U);
+            const auto finiteFace = matchingFace(
+                plan.candidateCells[neighborIndex].record,
+                ghostFiniteFace);
+            if (!finiteFace.has_value()) {
+                return fail(
+                    DelaunayTransactionFailure::InvalidGhostOrientation,
+                    "P1D ghost/finite candidate face identity mismatch");
+            }
+            const auto witnessId =
+                plan.candidateCells[neighborIndex]
+                    .record.vertices[*finiteFace].finitePointId();
+            if (!witnessId.has_value()) {
+                return fail(
+                    DelaunayTransactionFailure::InvalidGhostOrientation,
+                    "P1D ghost finite-neighbor witness is not finite");
+            }
+            const PointId a =
+                *candidate.record.vertices[1].finitePointId();
+            const PointId d =
+                *candidate.record.vertices[2].finitePointId();
+            const PointId c =
+                *candidate.record.vertices[3].finitePointId();
+            if (predicates::orient3d(
+                    pointFor(points, a),
+                    pointFor(points, d),
+                    pointFor(points, c),
+                    pointFor(points, *witnessId)).sign !=
+                PredicateSign::Negative) {
+                return fail(
+                    DelaunayTransactionFailure::InvalidGhostOrientation,
+                    "P1D ghost finite face is not outward-oriented");
+            }
         }
 
         const auto baseFace = matchingFace(

@@ -363,13 +363,47 @@ void testFailureNoMutation() {
     {
         auto plan = *good.plan;
         const auto before = exactStateFingerprint(arena);
-        plan.candidateCells.push_back(plan.candidateCells.front());
-        plan.requiredSlotCount += 1U;
+        check(plan.candidateCells.size() >= 2U,
+              "duplicate injection has two candidate cells");
+        if (plan.candidateCells.size() >= 2U) {
+            plan.candidateCells[1].record =
+                plan.candidateCells[0].record;
+            const auto result =
+                commitDelaunayInsertion(arena, sites, plan);
+            check(!result.ok() &&
+                      result.failure ==
+                          DelaunayTransactionFailure::DuplicateCandidate,
+                  "duplicate candidate connectivity rejected explicitly");
+            check(exactStateFingerprint(arena) == before,
+                  "duplicate candidate causes no partial mutation");
+        }
+    }
+
+    {
+        auto plan = *good.plan;
+        const auto before = exactStateFingerprint(arena);
+        ++plan.conflictOracle.front().generation;
+        ++plan.conflictFlood.front().generation;
         const auto result =
             commitDelaunayInsertion(arena, sites, plan);
-        check(!result.ok(), "duplicate/non-manifold candidate patch rejected");
+        check(!result.ok() &&
+                  result.failure ==
+                      DelaunayTransactionFailure::InvalidTopology,
+              "stale cavity handle generation rejected explicitly");
         check(exactStateFingerprint(arena) == before,
-              "duplicate candidate causes no partial mutation");
+              "stale generation causes no partial mutation");
+    }
+
+    {
+        const auto before = exactStateFingerprint(arena);
+        auto missingQuery =
+            buildDelaunayInsertionPlan(arena, sites, 999U);
+        check(!missingQuery.ok() &&
+                  missingQuery.failure ==
+                      DelaunayTransactionFailure::InvalidQuery,
+              "missing query PointId rejected explicitly");
+        check(exactStateFingerprint(arena) == before,
+              "invalid query causes no partial mutation");
     }
 
     {
@@ -406,6 +440,38 @@ void testFailureNoMutation() {
         check(exactStateFingerprint(arena) == before,
               "invalid-topology fixture cannot affect good arena");
     }
+}
+
+
+void testInvalidGhostOrientationNoMutation() {
+    auto sites = tetraSites({2.0, 2.0, 2.0});
+    auto arena = bootstrap(sites);
+    auto planned = buildDelaunayInsertionPlan(arena, sites, 5U);
+    check(planned.ok(), "ghost-orientation injection base plan succeeds");
+    if (!planned.ok()) return;
+
+    auto plan = *planned.plan;
+    const auto ghost = std::find_if(
+        plan.candidateCells.begin(), plan.candidateCells.end(),
+        [](const DelaunayCandidateCell& candidate) {
+            return candidate.record.vertices[0].isInfinite();
+        });
+    check(ghost != plan.candidateCells.end(),
+          "outside-hull patch contains ghost candidate");
+    if (ghost == plan.candidateCells.end()) return;
+
+    const auto before = exactStateFingerprint(arena);
+    std::swap(
+        ghost->record.vertices[1],
+        ghost->record.vertices[2]);
+    const auto result =
+        commitDelaunayInsertion(arena, sites, plan);
+    check(!result.ok() &&
+              result.failure ==
+                  DelaunayTransactionFailure::InvalidGhostOrientation,
+          "inward ghost candidate rejected with typed failure");
+    check(exactStateFingerprint(arena) == before,
+          "invalid ghost orientation causes no partial mutation");
 }
 
 void testStalePlan() {
@@ -461,6 +527,7 @@ int main() {
     testSharedFiniteFacetAndEdge();
     testReversedEnumerationDeterminism();
     testFailureNoMutation();
+    testInvalidGhostOrientationNoMutation();
     testStalePlan();
     testNearDegenerateExactNonzero();
 
