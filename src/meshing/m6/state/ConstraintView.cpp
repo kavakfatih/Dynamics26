@@ -1,7 +1,9 @@
 #include "ConstraintView.h"
 
 #include <algorithm>
+#include <optional>
 #include <stdexcept>
+#include <utility>
 
 namespace femcae::meshing::m6::state {
 namespace {
@@ -15,13 +17,46 @@ bool validFace(const CanonicalFaceKey& face) noexcept {
            face.vertices[1] != face.vertices[2];
 }
 
-CanonicalFaceKey normalizedFace(CanonicalFaceKey face) {
+// Query-side canonicalization. Stored keys are canonicalized by the constructor,
+// so a lookup must canonicalize too: an operation planner holding a face in
+// mesh-local winding order or an edge in traversal order must not be told that a
+// protected feature is unprotected. Invalid keys resolve to nullopt, which the
+// callers report as "not protected" rather than "protected" -- an invalid key
+// never names a stored feature.
+std::optional<ProtectedEdgeKey> canonicalEdgeForQuery(
+    const ProtectedEdgeKey& edge) noexcept {
+    if (edge.vertices[0] == InvalidPointId ||
+        edge.vertices[1] == InvalidPointId ||
+        edge.vertices[0] == edge.vertices[1]) {
+        return std::nullopt;
+    }
+
+    ProtectedEdgeKey result = edge;
+    if (result.vertices[1] < result.vertices[0]) {
+        std::swap(result.vertices[0], result.vertices[1]);
+    }
+    return result;
+}
+
+std::optional<CanonicalFaceKey> canonicalFaceForQuery(
+    const CanonicalFaceKey& face) noexcept {
     if (!validFace(face)) {
+        return std::nullopt;
+    }
+
+    CanonicalFaceKey result = face;
+    std::sort(result.vertices.begin(), result.vertices.end());
+    return result;
+}
+
+CanonicalFaceKey normalizedFace(const CanonicalFaceKey& face) {
+    const std::optional<CanonicalFaceKey> canonical =
+        canonicalFaceForQuery(face);
+    if (!canonical.has_value()) {
         throw std::invalid_argument(
             "M6 protected face requires three distinct non-zero PointIds");
     }
-    std::sort(face.vertices.begin(), face.vertices.end());
-    return face;
+    return *canonical;
 }
 
 } // namespace
@@ -29,18 +64,13 @@ CanonicalFaceKey normalizedFace(CanonicalFaceKey face) {
 ProtectedEdgeKey canonicalProtectedEdgeKey(
     PointId a,
     PointId b) {
-    if (a == InvalidPointId ||
-        b == InvalidPointId ||
-        a == b) {
+    const std::optional<ProtectedEdgeKey> canonical =
+        canonicalEdgeForQuery(ProtectedEdgeKey{{a, b}});
+    if (!canonical.has_value()) {
         throw std::invalid_argument(
             "M6 protected edge requires two distinct non-zero PointIds");
     }
-
-    ProtectedEdgeKey result{{a, b}};
-    if (result.vertices[1] < result.vertices[0]) {
-        std::swap(result.vertices[0], result.vertices[1]);
-    }
-    return result;
+    return *canonical;
 }
 
 ConstraintView::ConstraintView(
@@ -145,18 +175,28 @@ bool ConstraintView::pointTouchesProtectedTopology(
 
 bool ConstraintView::isProtected(
     const ProtectedEdgeKey& edge) const noexcept {
+    const std::optional<ProtectedEdgeKey> canonical =
+        canonicalEdgeForQuery(edge);
+    if (!canonical.has_value()) {
+        return false;
+    }
     return std::binary_search(
         protectedEdges_.begin(),
         protectedEdges_.end(),
-        edge);
+        *canonical);
 }
 
 bool ConstraintView::isProtected(
     const CanonicalFaceKey& face) const noexcept {
+    const std::optional<CanonicalFaceKey> canonical =
+        canonicalFaceForQuery(face);
+    if (!canonical.has_value()) {
+        return false;
+    }
     return std::binary_search(
         protectedFaces_.begin(),
         protectedFaces_.end(),
-        face);
+        *canonical);
 }
 
 } // namespace femcae::meshing::m6::state

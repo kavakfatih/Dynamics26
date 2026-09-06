@@ -14,6 +14,7 @@ namespace s = femcae::meshing::m6::state;
 namespace q = femcae::meshing::m6::quality;
 using femcae::meshing::CanonicalFaceKey;
 using femcae::meshing::CanonicalSite;
+using femcae::meshing::InvalidPointId;
 using femcae::meshing::InvalidTetHandle;
 using femcae::meshing::PointId;
 using femcae::meshing::TetSlot;
@@ -128,6 +129,50 @@ int main() {
         require(
             state.constraints().isProtected(protectedFace),
             "protected face canonicalization failed");
+
+        // A query key is canonicalized on the way in, exactly like a stored key.
+        // An operation planner holds edges in traversal order and faces in
+        // mesh-local winding order; if those orderings answered "not protected"
+        // the constraint layer would fail open and let a protected CAD feature
+        // be destroyed.
+        require(
+            state.constraints().isProtected(
+                s::ProtectedEdgeKey{{50U, 30U}}),
+            "reversed protected edge query must resolve to the same edge");
+
+        CanonicalFaceKey windingFace;
+        windingFace.vertices = {70U, 30U, 50U};
+        require(
+            state.constraints().isProtected(windingFace),
+            "rotated protected face query must resolve to the same face");
+
+        CanonicalFaceKey swappedFace;
+        swappedFace.vertices = {50U, 70U, 30U};
+        require(
+            state.constraints().isProtected(swappedFace),
+            "reflected protected face query must resolve to the same face");
+
+        // Malformed keys never name a stored feature, so they must answer
+        // "not protected" without throwing out of a noexcept query.
+        require(
+            !state.constraints().isProtected(
+                s::ProtectedEdgeKey{{30U, 30U}}),
+            "degenerate edge query must not report protection");
+        require(
+            !state.constraints().isProtected(
+                s::ProtectedEdgeKey{{InvalidPointId, 30U}}),
+            "invalid edge query must not report protection");
+
+        CanonicalFaceKey degenerateFace;
+        degenerateFace.vertices = {30U, 30U, 50U};
+        require(
+            !state.constraints().isProtected(degenerateFace),
+            "degenerate face query must not report protection");
+
+        require(
+            !state.constraints().isProtected(
+                s::canonicalProtectedEdgeKey(30U, 70U)),
+            "unprotected edge must not report protection");
 
         const q::IndexedTetraCoordinates original =
             state.qualityCell(live[0]);
