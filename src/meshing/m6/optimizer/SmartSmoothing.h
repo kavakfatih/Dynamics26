@@ -16,6 +16,12 @@ enum class SmartSmoothingStatus : std::uint8_t {
     InvalidTarget
 };
 
+enum class SmartSmoothingCommitStatus : std::uint8_t {
+    Committed = 0,
+    StaleProposal,
+    Rejected
+};
+
 struct SmartSmoothingProposal {
     SmartSmoothingStatus status{SmartSmoothingStatus::InvalidTarget};
     PointId target{InvalidPointId};
@@ -36,6 +42,10 @@ struct SmartSmoothingTelemetry {
     std::uint64_t nonImprovingSamples{0};
     std::uint64_t strictImprovingSamples{0};
     std::uint64_t bestReplacements{0};
+    std::uint64_t commitCalls{0};
+    std::uint64_t committed{0};
+    std::uint64_t staleRejected{0};
+    std::uint64_t commitRejected{0};
 };
 
 // O1 first reference policy:
@@ -46,6 +56,17 @@ struct SmartSmoothingTelemetry {
 [[nodiscard]] SmartSmoothingProposal planSmartSmoothing(
     const state::TetraOptimizationState& state,
     PointId target,
+    SmartSmoothingTelemetry* telemetry = nullptr,
+    quality::AcceptanceTelemetry* acceptanceTelemetry = nullptr,
+    quality::QualityVectorTelemetry* vectorTelemetry = nullptr,
+    quality::ExactMeanRatioTelemetry* exactTelemetry = nullptr);
+
+// Serial reference commit: proposal snapshot'i yeniden dogrulanir, strict
+// D26QACC1 tekrar calistirilir ve ancak bundan sonra tek coordinate mutation
+// transactional olarak authoritative state'e uygulanir.
+[[nodiscard]] SmartSmoothingCommitStatus commitSmartSmoothing(
+    state::TetraOptimizationState& state,
+    const SmartSmoothingProposal& proposal,
     SmartSmoothingTelemetry* telemetry = nullptr,
     quality::AcceptanceTelemetry* acceptanceTelemetry = nullptr,
     quality::QualityVectorTelemetry* vectorTelemetry = nullptr,

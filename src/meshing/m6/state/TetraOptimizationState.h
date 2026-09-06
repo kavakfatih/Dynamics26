@@ -50,6 +50,14 @@ public:
     [[nodiscard]] bool hasPoint(PointId id) const noexcept;
     [[nodiscard]] const geometry::Vec3& point(PointId id) const;
 
+    // Operation commit katmani bu primitive'i ancak stale/constraint/quality
+    // revalidation sonrasinda cagirir. Method finite/exact-positive state
+    // invariant'ini transactional rollback ile korur; kalite iyilesmesine
+    // kendi basina authority vermez.
+    [[nodiscard]] bool applyValidatedPointCoordinate(
+        PointId id,
+        const geometry::Vec3& candidate);
+
     [[nodiscard]] std::vector<TetHandle> liveTetrahedra() const;
     [[nodiscard]] std::vector<TetHandle> incidentTetrahedra(PointId id) const;
     [[nodiscard]] std::vector<PointId> oneRingNeighbors(PointId id) const;

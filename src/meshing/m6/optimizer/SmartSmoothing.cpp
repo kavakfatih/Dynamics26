@@ -1,6 +1,7 @@
 #include "SmartSmoothing.h"
 
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <optional>
@@ -32,26 +33,15 @@ bool finitePoint(const geometry::Vec3& point) noexcept {
            std::isfinite(point.z);
 }
 
-bool targetTouchesProtectedTopology(
-    const state::ConstraintView& constraints,
-    PointId target) noexcept {
-    for (const state::ProtectedEdgeKey& edge :
-         constraints.protectedEdges()) {
-        if (edge.vertices[0] == target ||
-            edge.vertices[1] == target) {
-            return true;
-        }
-    }
-
-    for (const CanonicalFaceKey& face :
-         constraints.protectedFaces()) {
-        for (PointId id : face.vertices) {
-            if (id == target) {
-                return true;
-            }
-        }
-    }
-    return false;
+bool samePointBits(
+    const geometry::Vec3& lhs,
+    const geometry::Vec3& rhs) noexcept {
+    return std::bit_cast<std::uint64_t>(lhs.x) ==
+               std::bit_cast<std::uint64_t>(rhs.x) &&
+           std::bit_cast<std::uint64_t>(lhs.y) ==
+               std::bit_cast<std::uint64_t>(rhs.y) &&
+           std::bit_cast<std::uint64_t>(lhs.z) ==
+               std::bit_cast<std::uint64_t>(rhs.z);
 }
 
 geometry::Vec3 oneRingCentroid(
@@ -138,9 +128,7 @@ SmartSmoothingProposal planSmartSmoothing(
         optimizationState.constraints();
 
     if (!constraints.isInteriorFree(target) ||
-        targetTouchesProtectedTopology(
-            constraints,
-            target)) {
+        constraints.pointTouchesProtectedTopology(target)) {
         if (telemetry != nullptr) {
             ++telemetry->constraintBlocked;
         }
@@ -303,6 +291,131 @@ SmartSmoothingProposal planSmartSmoothing(
     result.sampleOrdinal = bestOrdinal;
     result.newQuality = std::move(bestQuality);
     return result;
+}
+
+SmartSmoothingCommitStatus commitSmartSmoothing(
+    state::TetraOptimizationState& optimizationState,
+    const SmartSmoothingProposal& proposal,
+    SmartSmoothingTelemetry* telemetry,
+    quality::AcceptanceTelemetry* acceptanceTelemetry,
+    quality::QualityVectorTelemetry* vectorTelemetry,
+    quality::ExactMeanRatioTelemetry* exactTelemetry) {
+    if (telemetry != nullptr) {
+        ++telemetry->commitCalls;
+    }
+
+    const auto reject = [telemetry]() {
+        if (telemetry != nullptr) {
+            ++telemetry->commitRejected;
+        }
+        return SmartSmoothingCommitStatus::Rejected;
+    };
+    const auto stale = [telemetry]() {
+        if (telemetry != nullptr) {
+            ++telemetry->staleRejected;
+        }
+        return SmartSmoothingCommitStatus::StaleProposal;
+    };
+
+    if (proposal.status != SmartSmoothingStatus::Improved ||
+        proposal.target == InvalidPointId ||
+        !finitePoint(proposal.proposedPoint)) {
+        return reject();
+    }
+
+    if (!optimizationState.hasPoint(proposal.target) ||
+        !samePointBits(
+            optimizationState.point(proposal.target),
+            proposal.originalPoint)) {
+        return stale();
+    }
+
+    const state::ConstraintView& constraints =
+        optimizationState.constraints();
+    if (!constraints.isInteriorFree(proposal.target) ||
+        constraints.pointTouchesProtectedTopology(
+            proposal.target)) {
+        return reject();
+    }
+
+    const std::vector<TetHandle> currentIncident =
+        optimizationState.incidentTetrahedra(
+            proposal.target);
+    if (currentIncident != proposal.incidentTetrahedra) {
+        return stale();
+    }
+
+    const std::vector<quality::IndexedTetraCoordinates>
+        oldCells =
+            starCells(
+                optimizationState,
+                currentIncident);
+    const quality::QualityVector currentOldQuality =
+        quality::buildQualityVector(
+            oldCells,
+            vectorTelemetry,
+            exactTelemetry);
+
+    if (quality::compareQualityVectors(
+            currentOldQuality,
+            proposal.oldQuality,
+            vectorTelemetry,
+            exactTelemetry) !=
+        quality::QualityVectorOrder::Equal) {
+        return stale();
+    }
+
+    const state::PointCoordinateOverride override{
+        proposal.target,
+        proposal.proposedPoint};
+    const std::vector<quality::IndexedTetraCoordinates>
+        newCells =
+            starCells(
+                optimizationState,
+                currentIncident,
+                override);
+
+    const quality::ReplacementValidationEvidence evidence{
+        true,
+        true,
+        true};
+    const quality::AcceptanceEvaluation acceptance =
+        quality::evaluateReplacement(
+            oldCells,
+            newCells,
+            evidence,
+            acceptanceTelemetry,
+            vectorTelemetry,
+            exactTelemetry);
+    if (acceptance.decision !=
+        quality::AcceptanceDecision::Accept) {
+        return reject();
+    }
+
+    const quality::QualityVector currentNewQuality =
+        quality::buildQualityVector(
+            newCells,
+            vectorTelemetry,
+            exactTelemetry);
+    if (quality::compareQualityVectors(
+            currentNewQuality,
+            proposal.newQuality,
+            vectorTelemetry,
+            exactTelemetry) !=
+        quality::QualityVectorOrder::Equal) {
+        return stale();
+    }
+
+    if (!optimizationState.applyValidatedPointCoordinate(
+            proposal.target,
+            proposal.proposedPoint)) {
+        return reject();
+    }
+
+    if (telemetry != nullptr) {
+        ++telemetry->committed;
+    }
+    return SmartSmoothingCommitStatus::Committed;
 }
 
 } // namespace femcae::meshing::m6::optimizer

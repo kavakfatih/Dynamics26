@@ -60,6 +60,41 @@ const geometry::Vec3& TetraOptimizationState::point(
     return points_[it->second].point;
 }
 
+bool TetraOptimizationState::applyValidatedPointCoordinate(
+    PointId id,
+    const geometry::Vec3& candidate) {
+    const auto it = pointIndex_.find(id);
+    if (it == pointIndex_.end() ||
+        !finitePoint(candidate) ||
+        !constraints_.isInteriorFree(id) ||
+        constraints_.pointTouchesProtectedTopology(id)) {
+        return false;
+    }
+
+    const geometry::Vec3 previous =
+        points_[it->second].point;
+    points_[it->second].point = candidate;
+
+    bool valid = true;
+    try {
+        for (TetHandle tetra : incidentTetrahedra(id)) {
+            if (!quality::isExactPositiveQualityCell(
+                    qualityCell(tetra))) {
+                valid = false;
+                break;
+            }
+        }
+    } catch (const std::exception&) {
+        valid = false;
+    }
+
+    if (!valid) {
+        points_[it->second].point = previous;
+        return false;
+    }
+    return true;
+}
+
 std::vector<TetHandle> TetraOptimizationState::liveTetrahedra() const {
     std::vector<TetHandle> result;
     for (std::size_t slot = 0; slot < tetraSlots_.size(); ++slot) {

@@ -123,6 +123,26 @@ bool ConstraintView::isFixed(
            *value == PointMobility::Fixed;
 }
 
+bool ConstraintView::pointTouchesProtectedTopology(
+    PointId point) const noexcept {
+    for (const ProtectedEdgeKey& edge : protectedEdges_) {
+        if (edge.vertices[0] == point ||
+            edge.vertices[1] == point) {
+            return true;
+        }
+    }
+
+    for (const CanonicalFaceKey& face : protectedFaces_) {
+        if (std::find(
+                face.vertices.begin(),
+                face.vertices.end(),
+                point) != face.vertices.end()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool ConstraintView::isProtected(
     const ProtectedEdgeKey& edge) const noexcept {
     return std::binary_search(

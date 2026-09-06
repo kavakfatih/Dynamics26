@@ -344,6 +344,123 @@ void verifySlotPermutationReplay() {
         "slot permutation changed semantic new D26QV1");
 }
 
+void verifyTransactionalCommit() {
+    const Vec3 original{0.25, 0.1, -0.1};
+    s::TetraOptimizationState state =
+        makeState(original);
+
+    o::SmartSmoothingTelemetry telemetry;
+    q::AcceptanceTelemetry acceptanceTelemetry;
+    q::QualityVectorTelemetry vectorTelemetry;
+
+    const o::SmartSmoothingProposal proposal =
+        o::planSmartSmoothing(
+            state,
+            10U,
+            &telemetry,
+            &acceptanceTelemetry,
+            &vectorTelemetry);
+
+    require(
+        proposal.status ==
+            o::SmartSmoothingStatus::Improved,
+        "transaction fixture did not produce proposal");
+
+    const o::SmartSmoothingCommitStatus committed =
+        o::commitSmartSmoothing(
+            state,
+            proposal,
+            &telemetry,
+            &acceptanceTelemetry,
+            &vectorTelemetry);
+
+    require(
+        committed ==
+            o::SmartSmoothingCommitStatus::Committed,
+        "strict smart-smoothing proposal did not commit");
+    require(
+        samePointBits(
+            state.point(10U),
+            proposal.proposedPoint),
+        "committed coordinate does not match proposal");
+    require(
+        telemetry.commitCalls == 1U &&
+            telemetry.committed == 1U &&
+            telemetry.staleRejected == 0U &&
+            telemetry.commitRejected == 0U,
+        "smart-smoothing commit telemetry mismatch");
+
+    const o::SmartSmoothingProposal after =
+        o::planSmartSmoothing(
+            state,
+            10U);
+    require(
+        after.status ==
+            o::SmartSmoothingStatus::NoImprovingSample,
+        "committed reference centroid should be O1-stalled");
+}
+
+void verifyStaleProposalRejected() {
+    const Vec3 sourceCenter{0.25, 0.1, -0.1};
+    const s::TetraOptimizationState source =
+        makeState(sourceCenter);
+    const o::SmartSmoothingProposal proposal =
+        o::planSmartSmoothing(
+            source,
+            10U);
+
+    require(
+        proposal.status ==
+            o::SmartSmoothingStatus::Improved,
+        "stale fixture source proposal missing");
+
+    const Vec3 newerCenter{0.2, 0.1, -0.1};
+    s::TetraOptimizationState newer =
+        makeState(newerCenter);
+
+    o::SmartSmoothingTelemetry telemetry;
+    const o::SmartSmoothingCommitStatus status =
+        o::commitSmartSmoothing(
+            newer,
+            proposal,
+            &telemetry);
+
+    require(
+        status ==
+            o::SmartSmoothingCommitStatus::StaleProposal,
+        "stale snapshot proposal was not rejected");
+    require(
+        samePointBits(
+            newer.point(10U),
+            newerCenter),
+        "stale proposal mutated newer authoritative state");
+    require(
+        telemetry.staleRejected == 1U &&
+            telemetry.committed == 0U,
+        "stale commit telemetry mismatch");
+}
+
+void verifyNonImprovingProposalCannotCommit() {
+    s::TetraOptimizationState state =
+        makeState({0.0, 0.0, 0.0});
+    const o::SmartSmoothingProposal proposal =
+        o::planSmartSmoothing(
+            state,
+            10U);
+
+    require(
+        proposal.status ==
+            o::SmartSmoothingStatus::NoImprovingSample,
+        "non-improving commit fixture unexpectedly improved");
+
+    require(
+        o::commitSmartSmoothing(
+            state,
+            proposal) ==
+            o::SmartSmoothingCommitStatus::Rejected,
+        "non-improving proposal entered commit path");
+}
+
 void verifyProtectedTopologyBlocksMotion() {
     const auto canonicalSites =
         sites({0.25, 0.1, -0.1});
@@ -384,6 +501,9 @@ int main() {
         verifyNoImprovementAtCentroid();
         verifyConstraintAndInvalidTargets();
         verifySlotPermutationReplay();
+        verifyTransactionalCommit();
+        verifyStaleProposalRejected();
+        verifyNonImprovingProposalCannotCommit();
         verifyProtectedTopologyBlocksMotion();
 
         std::cout

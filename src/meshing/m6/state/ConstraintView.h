@@ -47,6 +47,8 @@ public:
 
     [[nodiscard]] bool isInteriorFree(PointId point) const noexcept;
     [[nodiscard]] bool isFixed(PointId point) const noexcept;
+    [[nodiscard]] bool pointTouchesProtectedTopology(
+        PointId point) const noexcept;
 
     [[nodiscard]] bool isProtected(
         const ProtectedEdgeKey& edge) const noexcept;
