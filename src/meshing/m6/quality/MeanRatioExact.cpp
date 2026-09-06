@@ -102,27 +102,16 @@ void updateKeyTelemetry(
         key.edgeSum.bitLength());
 }
 
-struct PoweredKey {
-    BigInt determinantSquared;
-    BigInt edgeSumCubed;
-};
-
-PoweredKey powerKey(
+void updatePowerTelemetry(
     const ExactMeanRatioKey& key,
-    ExactMeanRatioTelemetry* telemetry) {
-    const BigInt determinantSquared =
-        key.determinantMagnitude * key.determinantMagnitude;
-    const BigInt edgeSumSquared = key.edgeSum * key.edgeSum;
-    const BigInt edgeSumCubed = edgeSumSquared * key.edgeSum;
-
-    if (telemetry != nullptr) {
-        telemetry->maxPowerBits = std::max({
-            telemetry->maxPowerBits,
-            determinantSquared.bitLength(),
-            edgeSumCubed.bitLength()});
+    ExactMeanRatioTelemetry* telemetry) noexcept {
+    if (telemetry == nullptr) {
+        return;
     }
-
-    return {determinantSquared, edgeSumCubed};
+    telemetry->maxPowerBits = std::max({
+        telemetry->maxPowerBits,
+        key.determinantSquared.bitLength(),
+        key.edgeSumCubed.bitLength()});
 }
 
 MeanRatioOrder orderFromSign(int sign) noexcept {
@@ -156,8 +145,16 @@ ExactMeanRatioKey buildExactMeanRatioKey(
             "D26QMR1 requires a positive squared-edge sum");
     }
 
-    ExactMeanRatioKey key{std::move(determinant), std::move(sum)};
+    BigInt determinantSquared = determinant * determinant;
+    BigInt edgeSumCubed = (sum * sum) * sum;
+
+    ExactMeanRatioKey key{
+        std::move(determinant),
+        std::move(sum),
+        std::move(determinantSquared),
+        std::move(edgeSumCubed)};
     updateKeyTelemetry(key, telemetry);
+    updatePowerTelemetry(key, telemetry);
     return key;
 }
 
@@ -169,13 +166,10 @@ MeanRatioOrder compareExactMeanRatioKeys(
     const ExactMeanRatioKey& lhs,
     const ExactMeanRatioKey& rhs,
     ExactMeanRatioTelemetry* telemetry) {
-    const PoweredKey lhsPower = powerKey(lhs, telemetry);
-    const PoweredKey rhsPower = powerKey(rhs, telemetry);
-
     const BigInt leftCross =
-        lhsPower.determinantSquared * rhsPower.edgeSumCubed;
+        lhs.determinantSquared * rhs.edgeSumCubed;
     const BigInt rightCross =
-        rhsPower.determinantSquared * lhsPower.edgeSumCubed;
+        rhs.determinantSquared * lhs.edgeSumCubed;
 
     if (telemetry != nullptr) {
         telemetry->maxCrossBits = std::max({

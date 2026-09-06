@@ -36,9 +36,17 @@ struct ExactMeanRatioTelemetry {
     std::size_t maxCrossBits{0};
 };
 
+// Build through buildExactMeanRatioKey only. The comparator reads D^2 and S^3
+// directly, so a hand-assembled key with empty power fields compares as zero.
+//
+// The powers are cached rather than recomputed per comparison because a key is
+// compared O(log n) times inside a D26QV1 sort but derived once: caching turns a
+// comparison from six big multiplications into two.
 struct ExactMeanRatioKey {
     femcae::meshing::internal::exact::BigInt determinantMagnitude;
     femcae::meshing::internal::exact::BigInt edgeSum;
+    femcae::meshing::internal::exact::BigInt determinantSquared;
+    femcae::meshing::internal::exact::BigInt edgeSumCubed;
 };
 
 [[nodiscard]] ExactMeanRatioKey buildExactMeanRatioKey(

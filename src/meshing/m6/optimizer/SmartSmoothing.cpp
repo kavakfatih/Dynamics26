@@ -221,6 +221,10 @@ SmartSmoothingProposal planSmartSmoothing(
                     result.incidentTetrahedra,
                     override);
 
+        // The old side is the same unchanged star for every sample and was
+        // already built above, and the new side is needed again below when the
+        // sample wins. Both are handed to the evaluation rather than rebuilt.
+        quality::QualityVector candidateQuality;
         const quality::AcceptanceEvaluation acceptance =
             quality::evaluateReplacement(
                 oldCells,
@@ -228,7 +232,8 @@ SmartSmoothingProposal planSmartSmoothing(
                 evidence,
                 acceptanceTelemetry,
                 vectorTelemetry,
-                exactTelemetry);
+                exactTelemetry,
+                {&result.oldQuality, &candidateQuality});
 
         if (acceptance.decision ==
             quality::AcceptanceDecision::InvalidCandidate) {
@@ -249,12 +254,6 @@ SmartSmoothingProposal planSmartSmoothing(
         if (telemetry != nullptr) {
             ++telemetry->strictImprovingSamples;
         }
-
-        quality::QualityVector candidateQuality =
-            quality::buildQualityVector(
-                newCells,
-                vectorTelemetry,
-                exactTelemetry);
 
         bool replaceBest = !haveBest;
         if (haveBest) {
@@ -379,6 +378,7 @@ SmartSmoothingCommitStatus commitSmartSmoothing(
         true,
         true,
         true};
+    quality::QualityVector currentNewQuality;
     const quality::AcceptanceEvaluation acceptance =
         quality::evaluateReplacement(
             oldCells,
@@ -386,17 +386,13 @@ SmartSmoothingCommitStatus commitSmartSmoothing(
             evidence,
             acceptanceTelemetry,
             vectorTelemetry,
-            exactTelemetry);
+            exactTelemetry,
+            {&currentOldQuality, &currentNewQuality});
     if (acceptance.decision !=
         quality::AcceptanceDecision::Accept) {
         return reject();
     }
 
-    const quality::QualityVector currentNewQuality =
-        quality::buildQualityVector(
-            newCells,
-            vectorTelemetry,
-            exactTelemetry);
     if (quality::compareQualityVectors(
             currentNewQuality,
             proposal.newQuality,

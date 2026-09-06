@@ -1,6 +1,7 @@
 #include "QualityAcceptance.h"
 
 #include <stdexcept>
+#include <utility>
 
 namespace femcae::meshing::m6::quality {
 namespace {
@@ -23,7 +24,8 @@ AcceptanceEvaluation evaluateReplacement(
     const ReplacementValidationEvidence& evidence,
     AcceptanceTelemetry* telemetry,
     QualityVectorTelemetry* vectorTelemetry,
-    ExactMeanRatioTelemetry* exactTelemetry) {
+    ExactMeanRatioTelemetry* exactTelemetry,
+    AcceptanceVectorReuse reuse) {
     if (telemetry != nullptr) {
         ++telemetry->calls;
     }
@@ -57,12 +59,20 @@ AcceptanceEvaluation evaluateReplacement(
     }
 
     try {
-        const QualityVector oldVector =
-            buildQualityVector(
-                oldCells,
-                vectorTelemetry,
-                exactTelemetry);
-        const QualityVector newVector =
+        QualityVector rebuiltOldVector;
+        if (reuse.preparedOld == nullptr) {
+            rebuiltOldVector =
+                buildQualityVector(
+                    oldCells,
+                    vectorTelemetry,
+                    exactTelemetry);
+        }
+        const QualityVector& oldVector =
+            reuse.preparedOld != nullptr
+                ? *reuse.preparedOld
+                : rebuiltOldVector;
+
+        QualityVector newVector =
             buildQualityVector(
                 newCells,
                 vectorTelemetry,
@@ -74,6 +84,10 @@ AcceptanceEvaluation evaluateReplacement(
                 oldVector,
                 vectorTelemetry,
                 exactTelemetry);
+
+        if (reuse.capturedNew != nullptr) {
+            *reuse.capturedNew = std::move(newVector);
+        }
 
         if (order == QualityVectorOrder::Better) {
             if (telemetry != nullptr) {
