@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -145,6 +146,43 @@ std::map<PointId, geometry::Vec3> validatedPoints(
         }
     }
     return points;
+}
+
+std::uint64_t canonicalSiteCoordinateBits(double value) {
+    if (!std::isfinite(value)) {
+        throw std::invalid_argument(
+            "M2 P1D site snapshot requires finite coordinates");
+    }
+    std::uint64_t bits = std::bit_cast<std::uint64_t>(value);
+    // M1/D26SITE1 canonicalization normalizes both signed-zero encodings to +0.
+    if ((bits & 0x7FFFFFFFFFFFFFFFULL) == 0ULL) {
+        bits = 0ULL;
+    }
+    return bits;
+}
+
+std::vector<DelaunaySiteSnapshotEntry> exactSiteSnapshot(
+    std::span<const CanonicalSite> sites) {
+    std::vector<DelaunaySiteSnapshotEntry> snapshot;
+    snapshot.reserve(sites.size());
+    for (const CanonicalSite& site : sites) {
+        if (site.id == InvalidPointId) {
+            throw std::invalid_argument(
+                "M2 P1D site snapshot requires non-zero PointId");
+        }
+        snapshot.push_back({
+            site.id,
+            canonicalSiteCoordinateBits(site.point.x),
+            canonicalSiteCoordinateBits(site.point.y),
+            canonicalSiteCoordinateBits(site.point.z)});
+    }
+    std::sort(
+        snapshot.begin(), snapshot.end(),
+        [](const DelaunaySiteSnapshotEntry& lhs,
+           const DelaunaySiteSnapshotEntry& rhs) {
+            return lhs.id < rhs.id;
+        });
+    return snapshot;
 }
 
 geometry::Vec3 pointFor(
@@ -791,11 +829,19 @@ DelaunayTransactionResult validatePlanCore(
     }
 
     std::map<PointId, geometry::Vec3> points;
+    std::vector<DelaunaySiteSnapshotEntry> currentSiteSnapshot;
     try {
         points = validatedPoints(sites);
+        currentSiteSnapshot = exactSiteSnapshot(sites);
     } catch (const std::exception& error) {
         return fail(DelaunayTransactionFailure::InvalidQuery, error.what());
     }
+    if (currentSiteSnapshot != plan.sourceSiteSnapshot) {
+        return fail(
+            DelaunayTransactionFailure::StalePlan,
+            "P1D canonical site snapshot no longer matches the planned geometry");
+    }
+
     const auto query = points.find(plan.queryId);
     if (plan.queryId == InvalidPointId || query == points.end() ||
         !samePoint(query->second, plan.queryPoint)) {
@@ -819,6 +865,20 @@ DelaunayTransactionResult validatePlanCore(
         return fail(DelaunayTransactionFailure::InvalidTopology, error.what());
     }
 
+    std::vector<DelaunayCellHandle> currentConflictOracle;
+    try {
+        currentConflictOracle = globalConflictOracle(
+            arena.slots(),
+            points,
+            {plan.queryId, plan.queryPoint});
+    } catch (const std::exception& error) {
+        return fail(DelaunayTransactionFailure::InvalidTopology, error.what());
+    }
+    if (currentConflictOracle != plan.conflictOracle) {
+        return fail(
+            DelaunayTransactionFailure::StalePlan,
+            "P1D current exact conflict oracle does not match the stored plan");
+    }
     if (plan.conflictOracle.empty() ||
         !sameHandleSequence(plan.conflictOracle, plan.conflictFlood)) {
         return fail(
@@ -851,7 +911,17 @@ DelaunayTransactionResult validatePlanCore(
         cavity[handle.slot] = true;
     }
 
+    std::set<DelaunayFaceKey> boundaryBaseKeys;
+    for (const DelaunayBoundaryFacetRecord& boundary : plan.boundaryFacets) {
+        if (!boundaryBaseKeys.insert(boundary.key).second) {
+            return fail(
+                DelaunayTransactionFailure::InvalidStitching,
+                "P1D cavity boundary contains a duplicate canonical base face");
+        }
+    }
+
     std::set<std::array<DelaunayVertexRef, 4>> candidateKeys;
+    std::set<DelaunayFaceKey> candidateBaseKeys;
     for (std::size_t index = 0U;
          index < plan.candidateCells.size(); ++index) {
         const DelaunayCandidateCell& candidate =
@@ -869,6 +939,32 @@ DelaunayTransactionResult validatePlanCore(
             return fail(
                 DelaunayTransactionFailure::DuplicateCandidate,
                 "P1D candidate connectivity is duplicated");
+        }
+        if (!candidateBaseKeys.insert(candidate.baseFace).second) {
+            return fail(
+                DelaunayTransactionFailure::InvalidStitching,
+                "P1D more than one candidate claims the same cavity base face");
+        }
+
+        std::optional<std::size_t> queryVertex;
+        for (std::size_t vertex = 0U; vertex < 4U; ++vertex) {
+            if (candidate.record.vertices[vertex].finitePointId() !=
+                plan.queryId) {
+                continue;
+            }
+            if (queryVertex.has_value()) {
+                return fail(
+                    DelaunayTransactionFailure::InvalidCandidateTopology,
+                    "P1D candidate contains the inserted query more than once");
+            }
+            queryVertex = vertex;
+        }
+        if (!queryVertex.has_value() ||
+            canonicalDelaunayFaceKey(
+                candidate.record, *queryVertex) != candidate.baseFace) {
+            return fail(
+                DelaunayTransactionFailure::InvalidCandidateTopology,
+                "P1D candidate is not the query cone over its cavity base face");
         }
 
         if (finiteCell(candidate.record)) {
@@ -958,6 +1054,12 @@ DelaunayTransactionResult validatePlanCore(
                 DelaunayTransactionFailure::InvalidStitching,
                 "P1D candidate base face/outside neighbor is inconsistent");
         }
+    }
+
+    if (candidateBaseKeys != boundaryBaseKeys) {
+        return fail(
+            DelaunayTransactionFailure::InvalidStitching,
+            "P1D candidate base-face set does not equal the cavity boundary set");
     }
 
     for (const DelaunayExternalRewire& rewire :
@@ -1096,6 +1198,13 @@ DelaunayPlanResult buildDelaunayInsertionPlan(
     plan.sourceTopologyVersion = arena.topologyVersion();
     plan.sourceSlotCount = arena.slots().size();
     plan.sourceLiveCount = arena.liveCount();
+    try {
+        plan.sourceSiteSnapshot = exactSiteSnapshot(sites);
+    } catch (const std::exception& error) {
+        result.failure = DelaunayTransactionFailure::InvalidQuery;
+        result.detail = error.what();
+        return result;
+    }
 
     const IndexedPoint3 query{queryId, plan.queryPoint};
     try {

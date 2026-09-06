@@ -684,6 +684,227 @@ void testInvalidGhostOrientationNoMutation() {
           "invalid ghost orientation causes no partial mutation");
 }
 
+
+void testExactSiteSnapshotHardening() {
+    auto sites = tetraSites({0.125, 0.125, 0.125});
+    auto arena = bootstrap(sites);
+    auto planned = buildDelaunayInsertionPlan(arena, sites, 5U);
+    check(planned.ok(), "site-snapshot hardening base plan succeeds");
+    if (!planned.ok()) return;
+
+    const auto before = exactStateFingerprint(arena);
+
+    {
+        auto changed = sites;
+        changed[0].point.x = 0x1p-40;
+        auto plan = *planned.plan;
+        const auto validation =
+            validateDelaunayInsertionPlan(arena, changed, plan);
+        check(!validation.ok() &&
+                  validation.failure ==
+                      DelaunayTransactionFailure::StalePlan,
+              "non-query coordinate mutation invalidates exact site snapshot");
+        const auto reserve =
+            reserveDelaunayInsertion(arena, changed, plan);
+        check(!reserve.ok() &&
+                  reserve.failure ==
+                      DelaunayTransactionFailure::StalePlan,
+              "site-coordinate mismatch is rejected before reserve");
+        plan.reserved = true;
+        const auto commit =
+            commitDelaunayInsertion(arena, changed, plan);
+        check(!commit.ok() &&
+                  commit.failure ==
+                      DelaunayTransactionFailure::StalePlan &&
+                  !commit.commitBarrierCrossed,
+              "site-coordinate mismatch is rejected before commit barrier");
+        check(exactStateFingerprint(arena) == before,
+              "site-coordinate mismatch causes no topology mutation");
+    }
+
+    {
+        auto changed = sites;
+        changed.erase(changed.begin());
+        auto plan = *planned.plan;
+        const auto result =
+            commitDelaunayInsertion(arena, changed, plan);
+        check(!result.ok() &&
+                  result.failure ==
+                      DelaunayTransactionFailure::StalePlan &&
+                  !result.commitBarrierCrossed,
+              "site-count deletion invalidates exact catalogue snapshot");
+        check(exactStateFingerprint(arena) == before,
+              "site-count deletion causes no topology mutation");
+    }
+
+    {
+        auto changed = sites;
+        changed.push_back({6U, {0.75, 0.625, 0.5}});
+        auto plan = *planned.plan;
+        const auto result =
+            commitDelaunayInsertion(arena, changed, plan);
+        check(!result.ok() &&
+                  result.failure ==
+                      DelaunayTransactionFailure::StalePlan &&
+                  !result.commitBarrierCrossed,
+              "extra canonical site invalidates exact catalogue snapshot");
+        check(exactStateFingerprint(arena) == before,
+              "extra-site mismatch causes no topology mutation");
+    }
+
+    {
+        auto changed = sites;
+        changed[0].id = 10U;
+        auto plan = *planned.plan;
+        const auto result =
+            commitDelaunayInsertion(arena, changed, plan);
+        check(!result.ok() &&
+                  result.failure ==
+                      DelaunayTransactionFailure::StalePlan &&
+                  !result.commitBarrierCrossed,
+              "PointId mutation invalidates exact catalogue snapshot");
+        check(exactStateFingerprint(arena) == before,
+              "PointId mismatch causes no topology mutation");
+    }
+
+    {
+        auto signedZeroEquivalent = sites;
+        signedZeroEquivalent[0].point.x = -0.0;
+        auto plan = *planned.plan;
+        const auto validation =
+            validateDelaunayInsertionPlan(
+                arena, signedZeroEquivalent, plan);
+        check(validation.ok(),
+              "M1 signed-zero normalization keeps +0/-0 site snapshot equivalent");
+        check(exactStateFingerprint(arena) == before,
+              "signed-zero snapshot validation is non-mutating");
+    }
+}
+
+void testCurrentOracleRevalidationAndForgedFlags() {
+    auto sites = tetraSites({0.125, 0.125, 0.125});
+    auto arena = bootstrap(sites);
+    auto planned = buildDelaunayInsertionPlan(arena, sites, 5U);
+    check(planned.ok(), "oracle-revalidation base plan succeeds");
+    if (!planned.ok()) return;
+
+    auto plan = *planned.plan;
+    DelaunayCellHandle wrong = InvalidDelaunayCellHandle;
+    for (std::size_t slot = 0U; slot < arena.slots().size(); ++slot) {
+        if (!arena.slots()[slot].live) continue;
+        const DelaunayCellHandle handle{
+            static_cast<std::uint32_t>(slot),
+            arena.slots()[slot].generation};
+        if (std::find(
+                plan.conflictOracle.begin(),
+                plan.conflictOracle.end(),
+                handle) == plan.conflictOracle.end()) {
+            wrong = handle;
+            break;
+        }
+    }
+    check(wrong.isValid(),
+          "oracle tamper fixture finds a live non-conflicting cell");
+    if (!wrong.isValid()) return;
+
+    plan.conflictOracle = {wrong};
+    plan.conflictFlood = {wrong};
+    plan.validated = true;
+    plan.reserved = true;
+
+    check(plan.conflictOracle == plan.conflictFlood,
+          "tampered stored oracle and flood remain self-consistent");
+
+    const auto before = exactStateFingerprint(arena);
+    const auto validation =
+        validateDelaunayInsertionPlan(arena, sites, plan);
+    check(!validation.ok() &&
+              validation.failure ==
+                  DelaunayTransactionFailure::StalePlan,
+          "current exact all-cell oracle rejects jointly tampered stored truth");
+
+    const auto commit =
+        commitDelaunayInsertion(arena, sites, plan);
+    check(!commit.ok() &&
+              commit.failure ==
+                  DelaunayTransactionFailure::StalePlan &&
+              !commit.commitBarrierCrossed,
+          "forged validated/reserved flags cannot bypass oracle revalidation");
+    check(exactStateFingerprint(arena) == before,
+          "joint oracle/flood tamper causes no partial mutation");
+}
+
+void testCandidateConeAndBaseSetHardening() {
+    auto sites = tetraSites({0.125, 0.125, 0.125});
+    auto arena = bootstrap(sites);
+    auto planned = buildDelaunayInsertionPlan(arena, sites, 5U);
+    check(planned.ok(), "candidate-cone hardening base plan succeeds");
+    if (!planned.ok()) return;
+
+    {
+        auto plan = *planned.plan;
+        auto& candidate = plan.candidateCells.front();
+        auto query = std::find(
+            candidate.record.vertices.begin(),
+            candidate.record.vertices.end(),
+            DelaunayVertexRef::finite(plan.queryId));
+        check(query != candidate.record.vertices.end(),
+              "candidate query-incidence fixture finds inserted query");
+        if (query != candidate.record.vertices.end()) {
+            PointId replacement = InvalidPointId;
+            for (PointId id = 1U; id <= 4U; ++id) {
+                if (std::find(
+                        candidate.record.vertices.begin(),
+                        candidate.record.vertices.end(),
+                        DelaunayVertexRef::finite(id)) ==
+                    candidate.record.vertices.end()) {
+                    replacement = id;
+                    break;
+                }
+            }
+            check(replacement != InvalidPointId,
+                  "candidate query tamper finds a distinct live replacement");
+            if (replacement != InvalidPointId) {
+                *query = DelaunayVertexRef::finite(replacement);
+                plan.validated = true;
+                plan.reserved = true;
+                const auto before = exactStateFingerprint(arena);
+                const auto result =
+                    commitDelaunayInsertion(arena, sites, plan);
+                check(!result.ok() &&
+                          result.failure ==
+                              DelaunayTransactionFailure::InvalidCandidateTopology &&
+                          !result.commitBarrierCrossed,
+                      "candidate missing inserted query is rejected pre-commit");
+                check(exactStateFingerprint(arena) == before,
+                      "candidate query-incidence tamper causes no mutation");
+            }
+        }
+    }
+
+    {
+        auto plan = *planned.plan;
+        check(plan.candidateCells.size() >= 2U,
+              "candidate base-set fixture has at least two candidates");
+        if (plan.candidateCells.size() >= 2U) {
+            plan.candidateCells[1].baseFace =
+                plan.candidateCells[0].baseFace;
+            plan.validated = true;
+            plan.reserved = true;
+            const auto before = exactStateFingerprint(arena);
+            const auto result =
+                commitDelaunayInsertion(arena, sites, plan);
+            check(!result.ok() &&
+                      result.failure ==
+                          DelaunayTransactionFailure::InvalidStitching &&
+                      !result.commitBarrierCrossed,
+                  "duplicate/missing candidate base identity is rejected");
+            check(exactStateFingerprint(arena) == before,
+                  "candidate base-set tamper causes no mutation");
+        }
+    }
+}
+
 void testStalePlan() {
     std::vector<CanonicalSite> sites{
         {1U, {0.0, 0.0, 0.0}},
@@ -740,6 +961,9 @@ int main() {
     testFailureNoMutation();
     testNonManifoldFaceIncidenceNoMutation();
     testInvalidGhostOrientationNoMutation();
+    testExactSiteSnapshotHardening();
+    testCurrentOracleRevalidationAndForgedFlags();
+    testCandidateConeAndBaseSetHardening();
     testStalePlan();
     testNearDegenerateExactNonzero();
 

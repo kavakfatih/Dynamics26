@@ -70,12 +70,27 @@ struct DelaunayExternalRewire {
     DelaunayCellHandle newCell;
 };
 
+struct DelaunaySiteSnapshotEntry {
+    PointId id{InvalidPointId};
+    std::uint64_t xBits{0};
+    std::uint64_t yBits{0};
+    std::uint64_t zBits{0};
+
+    friend bool operator==(
+        const DelaunaySiteSnapshotEntry&,
+        const DelaunaySiteSnapshotEntry&) = default;
+};
+
 struct DelaunayInsertionPlan {
     PointId queryId{InvalidPointId};
     geometry::Vec3 queryPoint;
     std::uint64_t sourceTopologyVersion{0};
     std::size_t sourceSlotCount{0};
     std::size_t sourceLiveCount{0};
+
+    // Collision-free correctness authority: PointId-artan M1-canonical
+    // binary64 coordinate bit snapshot. Hash/digest bunun yerine gecemez.
+    std::vector<DelaunaySiteSnapshotEntry> sourceSiteSnapshot;
 
     // Iki ayri yolun canonical siralanmis snapshot handle sonuclari.
     std::vector<DelaunayCellHandle> conflictOracle;
