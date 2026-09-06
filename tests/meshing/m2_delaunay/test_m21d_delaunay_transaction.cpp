@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -47,6 +48,46 @@ DelaunayReferenceArena bootstrap(
         throw std::runtime_error("test bootstrap did not produce 3D topology");
     }
     return std::move(result.arena);
+}
+
+DelaunayReferenceArena permuteLiveSlots(
+    const DelaunayReferenceArena& source,
+    const std::vector<std::size_t>& oldSlotsInNewOrder) {
+    if (oldSlotsInNewOrder.size() != source.slots().size()) {
+        throw std::runtime_error("slot permutation must cover the complete bootstrap");
+    }
+    std::vector<std::size_t> newSlotForOld(source.slots().size(), 0U);
+    std::vector<bool> seen(source.slots().size(), false);
+    for (std::size_t newSlot = 0U;
+         newSlot < oldSlotsInNewOrder.size(); ++newSlot) {
+        const std::size_t oldSlot = oldSlotsInNewOrder[newSlot];
+        if (oldSlot >= source.slots().size() || seen[oldSlot]) {
+            throw std::runtime_error("slot permutation is not bijective");
+        }
+        seen[oldSlot] = true;
+        newSlotForOld[oldSlot] = newSlot;
+    }
+
+    DelaunayReferenceArena result;
+    result.reserve(source.slots().size());
+    for (const std::size_t oldSlot : oldSlotsInNewOrder) {
+        const DelaunayCellSlot& sourceSlot = source.slots()[oldSlot];
+        if (!sourceSlot.live || sourceSlot.generation != 1U) {
+            throw std::runtime_error("P1D slot fixture expects live generation-1 bootstrap cells");
+        }
+        DelaunayCellRecord record = sourceSlot.record;
+        for (DelaunayCellHandle& neighbor : record.neighbors) {
+            if (!neighbor.isValid() ||
+                neighbor.slot >= newSlotForOld.size() ||
+                neighbor.generation != 1U) {
+                throw std::runtime_error("slot permutation encountered invalid bootstrap neighbor");
+            }
+            neighbor.slot = static_cast<std::uint32_t>(
+                newSlotForOld[neighbor.slot]);
+        }
+        (void)result.appendCell(record);
+    }
+    return result;
 }
 
 std::string vertexText(const DelaunayVertexRef& vertex) {
@@ -302,6 +343,41 @@ void testReversedEnumerationDeterminism() {
           "reversed input enumeration gives same canonical P1D topology");
 }
 
+
+void testCellSlotPermutationDeterminism() {
+    auto sites = tetraSites({0.125, 0.125, 0.125});
+    auto canonicalArena = bootstrap(sites);
+    auto permutedArena = permuteLiveSlots(
+        canonicalArena,
+        {4U, 2U, 0U, 3U, 1U});
+
+    check(validateDelaunayTopology(canonicalArena.slots(), sites).ok(),
+          "canonical bootstrap valid before slot-permutation test");
+    check(validateDelaunayTopology(permutedArena.slots(), sites).ok(),
+          "legally slot-permuted bootstrap remains valid");
+
+    auto canonicalPlan =
+        buildDelaunayInsertionPlan(canonicalArena, sites, 5U);
+    auto permutedPlan =
+        buildDelaunayInsertionPlan(permutedArena, sites, 5U);
+    check(canonicalPlan.ok() && permutedPlan.ok(),
+          "canonical and slot-permuted P1D plans both succeed");
+    if (!canonicalPlan.ok() || !permutedPlan.ok()) return;
+
+    requirePlanOracleEquality(*canonicalPlan.plan);
+    requirePlanOracleEquality(*permutedPlan.plan);
+    commitAndValidate(
+        canonicalArena, sites, *canonicalPlan.plan,
+        "canonical-slot commit");
+    commitAndValidate(
+        permutedArena, sites, *permutedPlan.plan,
+        "permuted-slot commit");
+
+    check(canonicalTopologyFingerprint(canonicalArena) ==
+              canonicalTopologyFingerprint(permutedArena),
+          "legal cell-slot permutation cannot change canonical P1D topology");
+}
+
 void testFailureNoMutation() {
     auto sites = tetraSites({0.125, 0.125, 0.125});
     auto arena = bootstrap(sites);
@@ -443,6 +519,140 @@ void testFailureNoMutation() {
 }
 
 
+
+void testNonManifoldFaceIncidenceNoMutation() {
+    auto sites = tetraSites({0.125, 0.125, 0.125});
+    sites.push_back({6U, {0.75, 0.625, 0.5}});
+    auto arena = bootstrap(sites);
+    auto planned = buildDelaunayInsertionPlan(arena, sites, 5U);
+    check(planned.ok(), "non-manifold injection base plan succeeds");
+    if (!planned.ok()) return;
+
+    auto plan = *planned.plan;
+    using Owner = std::pair<std::size_t, std::size_t>;
+    std::map<DelaunayFaceKey, std::vector<Owner>> owners;
+    for (std::size_t candidate = 0U;
+         candidate < plan.candidateCells.size(); ++candidate) {
+        for (std::size_t face = 0U; face < 4U; ++face) {
+            owners[canonicalDelaunayFaceKey(
+                plan.candidateCells[candidate].record, face)]
+                .push_back({candidate, face});
+        }
+    }
+
+    std::map<PointId, femcae::geometry::Vec3> points;
+    for (const CanonicalSite& site : sites) {
+        points.emplace(site.id, site.point);
+    }
+
+    std::optional<DelaunayFaceKey> injectedFace;
+    std::array<DelaunayVertexRef, 4> injectedVertices{};
+    std::size_t thirdCandidate = plan.candidateCells.size();
+    for (const auto& [key, faceOwners] : owners) {
+        if (faceOwners.size() != 2U ||
+            !std::all_of(
+                key.vertices.begin(), key.vertices.end(),
+                [](const DelaunayVertexRef& vertex) {
+                    return vertex.isFinite();
+                })) {
+            continue;
+        }
+
+        const auto third = std::find_if(
+            plan.candidateCells.begin(),
+            plan.candidateCells.end(),
+            [&](const DelaunayCandidateCell& candidate) {
+                const std::size_t index =
+                    static_cast<std::size_t>(
+                        &candidate - plan.candidateCells.data());
+                return index != faceOwners[0].first &&
+                       index != faceOwners[1].first;
+            });
+        if (third == plan.candidateCells.end()) continue;
+
+        injectedVertices[0] = key.vertices[0];
+        injectedVertices[1] = key.vertices[1];
+        injectedVertices[2] = key.vertices[2];
+        injectedVertices[3] = DelaunayVertexRef::finite(6U);
+        auto p = [&](const DelaunayVertexRef& vertex) {
+            return points.at(*vertex.finitePointId());
+        };
+        auto sign = predicates::orient3d(
+            p(injectedVertices[0]),
+            p(injectedVertices[1]),
+            p(injectedVertices[2]),
+            p(injectedVertices[3])).sign;
+        if (sign == predicates::PredicateSign::Zero) continue;
+        if (sign == predicates::PredicateSign::Negative) {
+            std::swap(injectedVertices[0], injectedVertices[1]);
+        }
+        injectedFace = key;
+        thirdCandidate =
+            static_cast<std::size_t>(
+                third - plan.candidateCells.begin());
+        break;
+    }
+
+    check(injectedFace.has_value() &&
+              thirdCandidate < plan.candidateCells.size(),
+          "fixture found a non-coplanar third owner for a lateral face");
+    if (!injectedFace.has_value() ||
+        thirdCandidate >= plan.candidateCells.size()) {
+        return;
+    }
+
+    DelaunayCandidateCell& corrupt =
+        plan.candidateCells[thirdCandidate];
+    DelaunayCellRecord record;
+    record.vertices = injectedVertices;
+    record.neighbors =
+        corrupt.record.neighbors;
+    record.neighbors[3] = corrupt.outsideCell;
+    corrupt.record = record;
+    corrupt.baseFace = *injectedFace;
+    corrupt.baseLocalFace = 3U;
+
+    std::vector<DelaunayCellSlot> simulated(
+        arena.slots().begin(), arena.slots().end());
+    for (const DelaunayCellHandle handle : plan.conflictOracle) {
+        simulated[handle.slot].live = false;
+    }
+    for (const DelaunayCandidateCell& candidate :
+         plan.candidateCells) {
+        DelaunayCellSlot slot;
+        slot.generation = candidate.futureHandle.generation;
+        slot.live = true;
+        slot.record = candidate.record;
+        simulated.push_back(slot);
+    }
+    for (const DelaunayExternalRewire& rewire :
+         plan.externalRewires) {
+        simulated[rewire.outsideCell.slot]
+            .record.neighbors[rewire.outsideLocalFace] =
+            rewire.newCell;
+    }
+    const auto report =
+        validateDelaunayTopology(simulated, sites);
+    const bool hasNonManifoldFace = std::any_of(
+        report.issues.begin(), report.issues.end(),
+        [](const DelaunayTopologyIssue& issue) {
+            return issue.code ==
+                   DelaunayTopologyIssueCode::FaceIncidenceNotTwo;
+        });
+    check(hasNonManifoldFace,
+          "independent typed validator observes non-manifold face incidence");
+
+    const auto before = exactStateFingerprint(arena);
+    const auto result =
+        commitDelaunayInsertion(arena, sites, plan);
+    check(!result.ok() &&
+              result.failure ==
+                  DelaunayTransactionFailure::InvalidCandidateTopology,
+          "non-manifold candidate patch is rejected before commit barrier");
+    check(exactStateFingerprint(arena) == before,
+          "non-manifold candidate failure causes no partial mutation");
+}
+
 void testInvalidGhostOrientationNoMutation() {
     auto sites = tetraSites({2.0, 2.0, 2.0});
     auto arena = bootstrap(sites);
@@ -526,7 +736,9 @@ int main() {
     testCosphericalGolden();
     testSharedFiniteFacetAndEdge();
     testReversedEnumerationDeterminism();
+    testCellSlotPermutationDeterminism();
     testFailureNoMutation();
+    testNonManifoldFaceIncidenceNoMutation();
     testInvalidGhostOrientationNoMutation();
     testStalePlan();
     testNearDegenerateExactNonzero();
