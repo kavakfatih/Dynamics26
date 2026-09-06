@@ -2,6 +2,7 @@
 
 #include "DelaunayTopology.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
