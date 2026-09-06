@@ -222,13 +222,15 @@ void verifyAdjacencyAndRanges() {
         exponent == 1073,
         "subnormal normalization exponent mismatch");
 
+    // scalePowerOfTwo widens like any other primitive, so the exact value it
+    // scales is enclosed rather than reproduced.
     const auto normalized =
         d26int::scalePowerOfTwo(
             {minSubnormal, minSubnormal}, exponent);
     require(
         normalized.ok() &&
-            normalized.value.lo == 0.5 &&
-            normalized.value.hi == 0.5,
+            normalized.value.lo <= 0.5 &&
+            normalized.value.hi >= 0.5,
         "subnormal power-of-two normalization mismatch");
 
     require(
@@ -239,13 +241,86 @@ void verifyAdjacencyAndRanges() {
         scaled >= 0.5 && scaled < 1.0,
         "max-finite normalization target mismatch");
 
+    // A downscale into the subnormal range is enclosed, not refused. The old
+    // policy reported Range here, which cost D26QMRF1 its entire certificate
+    // rate on axis-aligned meshes; see INTERVAL_DOWNSCALE_POLICY_EXPERIMENT.md.
     const auto downscaleSubnormal =
         d26int::scalePowerOfTwo(
             {minNormal, minNormal}, -1);
     require(
-        !downscaleSubnormal.ok() &&
-            downscaleSubnormal.failure == d26int::IntervalFailure::Range,
-        "subnormal downscale must conservatively return range uncertainty");
+        downscaleSubnormal.ok(),
+        "subnormal downscale must be enclosed rather than refused");
+    require(
+        downscaleSubnormal.value.lo <= minNormal / 2.0 &&
+            downscaleSubnormal.value.hi >= minNormal / 2.0,
+        "subnormal downscale lost containment");
+
+    // Overflow is still refused: there is no finite enclosure to return.
+    const auto overflowScale =
+        d26int::scalePowerOfTwo({maxFinite, maxFinite}, 1);
+    require(
+        !overflowScale.ok() &&
+            overflowScale.failure == d26int::IntervalFailure::Range,
+        "overflowing scale must return range uncertainty");
+}
+
+// The measure-zero family that broke the previous policy.
+//
+// For value = (2^53 - 1) * 2^p and exponent = -1075 - p, the exact product is
+// 2^-1022 - 2^-1075: the tie exactly between the largest subnormal and DBL_MIN.
+// Round-to-nearest-EVEN resolves it upward to DBL_MIN, which is NORMAL -- so any
+// policy that skips widening on a normal result returns a lower bound strictly
+// above the true value. One member exists per binade and nothing else in the
+// double range behaves this way, so random corpora never sample it. It is
+// enumerated here on purpose.
+void verifyMinNormalTieBoundary() {
+    const double significand =
+        static_cast<double>((1LL << 53) - 1);
+    std::size_t checked = 0U;
+
+    for (int p = -1073; p <= 971; ++p) {
+        const double value = std::ldexp(significand, p);
+        if (!std::isfinite(value) || value == 0.0) {
+            continue;
+        }
+        const int exponent = -1075 - p;
+
+        for (const double endpoint : {value, -value}) {
+            const auto result =
+                d26int::scalePowerOfTwo({endpoint, endpoint}, exponent);
+            require(
+                result.ok(),
+                "min-normal tie member unexpectedly refused");
+
+            // The exact product is +/-(2^-1022 - 2^-1075). Both neighbouring
+            // representables are known, so containment is checked exactly:
+            // the true value lies strictly between the largest subnormal and
+            // DBL_MIN, so a sound enclosure must not exclude either side of it.
+            const double dblMin = std::numeric_limits<double>::min();
+            const double largestSubnormal = d26int::nextDown(dblMin);
+
+            if (endpoint > 0.0) {
+                require(
+                    result.value.lo <= largestSubnormal,
+                    "min-normal tie lower bound excludes the true value");
+                require(
+                    result.value.hi >= dblMin,
+                    "min-normal tie upper bound is below the true value");
+            } else {
+                require(
+                    result.value.lo <= -dblMin,
+                    "negative min-normal tie lower bound is above the true value");
+                require(
+                    result.value.hi >= -largestSubnormal,
+                    "negative min-normal tie upper bound excludes the true value");
+            }
+            ++checked;
+        }
+    }
+
+    require(
+        checked > 2000U,
+        "min-normal tie family is unexpectedly small");
 }
 
 } // namespace
@@ -255,6 +330,7 @@ int main(int argc, char** argv) {
         require(argc == 2, "generated D26INT1 fixture path required");
         verifyEnvironment();
         verifyAdjacencyAndRanges();
+        verifyMinNormalTieBoundary();
         const std::size_t cases = verifyFixture(argv[1]);
 
         std::cout

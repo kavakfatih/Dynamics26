@@ -4,6 +4,7 @@
 #include <cfenv>
 #include <charconv>
 #include <cmath>
+#include <utility>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -105,26 +106,78 @@ q::IndexedTetraCoordinates parseTetra(
     return tetra;
 }
 
+// Exact dyadic comparison of `value` against `reference * 2^exponent`.
+//
+// The obvious implementation scales the oracle endpoint with std::scalbn and
+// compares doubles, but that rounds: the scaled reference can land above the
+// true product and turn the upper containment check into a weaker requirement
+// than the one intended, and it underflows silently to zero for the large
+// exponents this corpus reaches (6*(e_lhs + e_rhs)). A containment check must
+// not itself be approximate, so the comparison is done on integer mantissas.
+//
+// Returns -1, 0 or 1 for value <, == or > reference * 2^exponent.
+int compareAgainstScaled(
+    double value,
+    double reference,
+    int exponent) {
+    const auto decompose = [](double x) {
+        if (x == 0.0) {
+            return std::pair<std::int64_t, int>{0, 0};
+        }
+        int binaryExponent = 0;
+        const double fraction = std::frexp(x, &binaryExponent);
+        return std::pair<std::int64_t, int>{
+            static_cast<std::int64_t>(std::ldexp(fraction, 53)),
+            binaryExponent - 53};
+    };
+
+    auto [valueMantissa, valueExponent] = decompose(value);
+    auto [referenceMantissa, referenceExponent] = decompose(reference);
+    referenceExponent += exponent;
+
+    if (valueMantissa == 0 && referenceMantissa == 0) {
+        return 0;
+    }
+    if (valueMantissa == 0) {
+        return referenceMantissa > 0 ? -1 : 1;
+    }
+    if (referenceMantissa == 0) {
+        return valueMantissa > 0 ? 1 : -1;
+    }
+    if ((valueMantissa > 0) != (referenceMantissa > 0)) {
+        return valueMantissa > 0 ? 1 : -1;
+    }
+
+    // Both non-zero and same sign. Align exponents; a difference beyond the
+    // 54-bit significand width already decides the comparison by magnitude.
+    __int128 lhs = valueMantissa;
+    __int128 rhs = referenceMantissa;
+    const int shift = valueExponent - referenceExponent;
+    if (shift > 0) {
+        if (shift > 64) {
+            return valueMantissa > 0 ? 1 : -1;
+        }
+        lhs <<= shift;
+    } else if (shift < 0) {
+        if (shift < -64) {
+            return valueMantissa > 0 ? -1 : 1;
+        }
+        rhs <<= -shift;
+    }
+    return lhs < rhs ? -1 : (lhs > rhs ? 1 : 0);
+}
+
 void requireContainsScaled(
     const q::interval::Interval& actual,
     double expectedLo,
     double expectedHi,
     int exponent,
     const std::string& label) {
-    const double scaledLo =
-        std::scalbn(expectedLo, exponent);
-    const double scaledHi =
-        std::scalbn(expectedHi, exponent);
-
     require(
-        std::isfinite(scaledLo) &&
-            std::isfinite(scaledHi),
-        label + " scaled oracle left binary64 range");
-    require(
-        actual.lo <= scaledLo,
+        compareAgainstScaled(actual.lo, expectedLo, exponent) <= 0,
         label + " lower containment failure");
     require(
-        actual.hi >= scaledHi,
+        compareAgainstScaled(actual.hi, expectedHi, exponent) >= 0,
         label + " upper containment failure");
 }
 

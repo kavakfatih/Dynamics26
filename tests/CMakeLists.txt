@@ -662,42 +662,29 @@ set_tests_properties(
     LABELS "unit;meshing;m6;optimizer;smoothing;quality;acceptance;determinism;replay"
 )
 
-# D26INT1-E1 — subnormal downscale policy experiment.
-# Measures certificate coverage under the frozen policy against a proposed
-# outward-step policy, and asserts only that the proposal stays in agreement
-# with D26QMRB1. Production code is unchanged; this exists so the policy
-# decision can be taken on measurement.
+# D26QMRF1 certificate coverage qualification. Began as the D26INT1-E1 policy
+# experiment; the policy question is settled, so what remains is the coverage
+# and agreement property the decision rests on, kept as a regression guard.
 add_executable(
-    experiment_m6_interval_downscale
-    meshing/m6_quality/experiment_m6_interval_downscale.cpp
+    unit_m6_filter_coverage
+    meshing/m6_quality/test_m6_filter_coverage.cpp
 )
 target_link_libraries(
-    experiment_m6_interval_downscale
+    unit_m6_filter_coverage
     PRIVATE femcae_meshing
 )
 target_include_directories(
-    experiment_m6_interval_downscale
+    unit_m6_filter_coverage
     PRIVATE "${CMAKE_SOURCE_DIR}/src"
 )
-femcae_enable_warnings(experiment_m6_interval_downscale)
-
-# The experiment mirrors a frozen floating expression contract, so it inherits
-# the same contraction/reassociation guarantees as the sources it mirrors.
-if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
-    set_property(
-        SOURCE meshing/m6_quality/experiment_m6_interval_downscale.cpp
-        APPEND PROPERTY COMPILE_OPTIONS
-        "-fno-fast-math"
-        "-ffp-contract=off"
-    )
-endif()
+femcae_enable_warnings(unit_m6_filter_coverage)
 
 add_test(
-    NAME experiment_m6_interval_downscale
-    COMMAND experiment_m6_interval_downscale
+    NAME unit_m6_filter_coverage
+    COMMAND unit_m6_filter_coverage
 )
 set_tests_properties(
-    experiment_m6_interval_downscale
+    unit_m6_filter_coverage
     PROPERTIES
-    LABELS "experiment;meshing;m6;quality;interval;filtered;coverage"
+    LABELS "unit;meshing;m6;quality;interval;filtered;coverage"
 )
