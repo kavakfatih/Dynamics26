@@ -343,12 +343,15 @@ Authoritative execution documents:
 - `docs/planning/V1.2_ORIGINAL_MESHING_DEVELOPMENT_PLAN.md`,
 - `docs/research/meshing/RESEARCH_TO_DEVELOPMENT_HANDOFF.md`.
 
-Current state: **DEV-MESH-P0 COMPLETE; P1A/P1B/P1C/P1D QUALIFIED IN DECLARED SUBSCOPES**.
-P1D final evidence source `f5ab7e8dfcad9e6cd731722c2a1cc9c47c26f915` passed
-[macOS arm64 #313](https://github.com/kavakfatih/Dynamics26/actions/runs/34062158920),
-Debug/Release 161/161 full CTest and 38/38 meshing CTest. M2 overall remains
-**NOT QUALIFIED**; next is P1E deterministic adjacency walk. This is not a
-complete serial Delaunay constructor, CAD-conforming tetra mesher or product TET4 claim.
+Current state: **DEV-MESH-P0 COMPLETE; P1A/P1B/P1C/P1D/P1E QUALIFIED IN DECLARED SUBSCOPES**.
+P1E source `bb232ed3f308375271af07a100adee531444d499` passed
+[macOS arm64 #315](https://github.com/kavakfatih/Dynamics26/actions/runs/34085624974),
+Debug/Release 162/162 full CTest and 39/39 meshing CTest. The dedicated P1E
+runtime corpus reported 1093/1093 walk successes, zero accepted-corpus stalls,
+zero walk/oracle mismatches and max walk length 2 in both Debug and Release.
+M2 overall remains **NOT QUALIFIED**; next is P1F serial constructor
+determinism/fingerprint/replay. This is not a complete serial Delaunay
+constructor, CAD-conforming tetra mesher or product TET4 claim.
 
 
 V1.2 begins with the blocker that currently prevents real arbitrary-part workflows.
@@ -370,7 +373,7 @@ Güncel gate durumu:
 - M1 robust geometry foundation: **QUALIFIED**,
 - exact predicates / certified fast path / deterministic degeneracy foundation: qualified M1 evidence,
 - tetra topology primitives/validator: qualified M1 scope,
-- M2: **DESIGN FROZEN; P1A/P1B/P1C/P1D QUALIFIED IN DECLARED SUBSCOPES; P1E/P1F PENDING; OVERALL NOT QUALIFIED**.
+- M2: **DESIGN FROZEN; P1A/P1B/P1C/P1D/P1E QUALIFIED IN DECLARED SUBSCOPES; P1F PENDING; OVERALL NOT QUALIFIED**.
 
 Gmsh, Netgen, TetGen, CGAL, MMG ve benzeri projeler teori, architecture,
 failure-mode ve benchmark araştırma kaynağı olarak kullanılabilir; kaynak kodu
@@ -611,7 +614,7 @@ RESEARCHED
 
 Research state:
 - M1 QUALIFIED,
-- M2 DESIGN FROZEN; P1A/P1B/P1C/P1D qualified in declared subscopes; P1E/P1F pending; M2 OVERALL NOT QUALIFIED,
+- M2 DESIGN FROZEN; P1A/P1B/P1C/P1D/P1E qualified in declared subscopes; P1F pending; M2 OVERALL NOT QUALIFIED,
 - M3 D26-M3-FREEZE-1,
 - M4 D26-M4-FREEZE-1,
 - M5 D26-M5-FREEZE-1,
@@ -628,4 +631,4 @@ DEV-MESH-P1 -> P2 -> P3 -> P4 -> P5 -> P6
 -> P7
 ```
 
-The immediate next coding target is DEV-MESH-P1E only. P1E is not implemented by the P1D closeout.
+The immediate next coding target is DEV-MESH-P1F only. P1F is not implemented by the P1E closeout.

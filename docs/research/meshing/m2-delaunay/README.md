@@ -9,7 +9,7 @@
 
 Program: Dynamics26 Original Meshing Engine
 Work package: M2.0 — Delaunay Reference Architecture & Experiment Plan
-Status: M2.0 DESIGN FROZEN / M2.1-A QUALIFIED IN SUBSCOPE / M2.1-B QUALIFIED IN BOOTSTRAP SUBSCOPE / M2.1-C QUALIFIED IN LOCATION SUBSCOPE / M2.1-D QUALIFIED IN CAVITY-TRANSACTION SUBSCOPE; M2 OVERALL NOT QUALIFIED
+Status: M2.0 DESIGN FROZEN / M2.1-A QUALIFIED IN SUBSCOPE / M2.1-B QUALIFIED IN BOOTSTRAP SUBSCOPE / M2.1-C QUALIFIED IN LOCATION SUBSCOPE / M2.1-D QUALIFIED IN CAVITY-TRANSACTION SUBSCOPE / M2.1-E QUALIFIED IN DETERMINISTIC-WALK SUBSCOPE; M2 OVERALL NOT QUALIFIED
 Date: 2026-09-05
 
 ## Purpose
@@ -55,6 +55,7 @@ be traceable to a committed derivation or contract. Chat history is not engineer
 - M2_1B_IMPLEMENTATION_RECORD.md — bootstrap hardening and exact-head qualification evidence
 - M2_1C_IMPLEMENTATION_RECORD.md — brute-force location contract and exact-source workflow #302 qualification
 - M2_1D_IMPLEMENTATION_RECORD.md — exact cavity oracle, transaction snapshot/barrier and exact-source workflow #311 qualification
+- M2_1E_IMPLEMENTATION_RECORD.md — deterministic adjacency walk, P1C oracle agreement and exact-source workflow #315 qualification
 
 ## Current leading decisions
 

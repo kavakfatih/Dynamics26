@@ -5,10 +5,11 @@ Date: 2026-09-06
 Scope: **RESEARCH CONSOLIDATION + DESIGN FREEZE + DEVELOPMENT HANDOFF**  
 Implementation changes in this closeout: **NONE**
 
-> **Post-closeout implementation status (2026-09-07):** P1D is now
-> **QUALIFIED IN DECLARED CAVITY-TRANSACTION SUBSCOPE** on source
-> `f5ab7e8dfcad9e6cd731722c2a1cc9c47c26f915`, macOS arm64 workflow #313 SUCCESS.
-> P1E is the next development target and is not implemented. M2 OVERALL remains
+> **Post-closeout implementation status (2026-09-07):** P1D remains
+> **QUALIFIED IN DECLARED CAVITY-TRANSACTION SUBSCOPE** and P1E is now
+> **QUALIFIED IN DECLARED DETERMINISTIC-WALK SUBSCOPE** on source
+> `bb232ed3f308375271af07a100adee531444d499`, macOS arm64 workflow #315 SUCCESS.
+> P1F is the next development target and is not implemented. M2 OVERALL remains
 > **NOT QUALIFIED**. Historical baseline statements below are retained only where
 > explicitly labeled as the original research-closeout snapshot.
 
@@ -35,7 +36,7 @@ It does **not** mean:
 |---|---|
 | M0 | STANDING KNOWLEDGE / CONTRACT LIBRARY |
 | M1 | QUALIFIED robust-geometry foundation |
-| M2 | DESIGN FROZEN; P1A/P1B/P1C/P1D qualified in declared subscopes; P1E/P1F pending; **M2 OVERALL NOT QUALIFIED** |
+| M2 | DESIGN FROZEN; P1A/P1B/P1C/P1D/P1E qualified in declared subscopes; P1F pending; **M2 OVERALL NOT QUALIFIED** |
 | M3 | RESEARCH COMPLETE / DESIGN FROZEN — D26-M3-FREEZE-1; implementation not started |
 | M4 | RESEARCH COMPLETE / DESIGN FROZEN — D26-M4-FREEZE-1; implementation not started |
 | M5 | RESEARCH COMPLETE / DESIGN FROZEN — D26-M5-FREEZE-1; implementation not started |
@@ -63,11 +64,12 @@ That list is a historical snapshot, not current status.
 - P1B typed finite/infinite bootstrap: **QUALIFIED IN BOOTSTRAP SUBSCOPE**,
 - P1C brute-force exact point location: **QUALIFIED IN LOCATION SUBSCOPE**,
 - P1D cavity oracle + transactional patch: **QUALIFIED IN DECLARED CAVITY-TRANSACTION SUBSCOPE**,
-- P1E deterministic adjacency walk: **NEXT DEVELOPMENT TARGET / NOT IMPLEMENTED**.
+- P1E deterministic adjacency walk: **QUALIFIED IN DECLARED DETERMINISTIC-WALK SUBSCOPE**,
+- P1F serial constructor determinism/fingerprint/replay: **NEXT DEVELOPMENT TARGET / NOT IMPLEMENTED**.
 
-Current P1D-owned gate truth:
+Current P1D/P1E-owned gate truth:
 
-**PASS:** M2-G11, M2-G12, M2-G13, M2-G14, M2-G15, M2-G26, M2-G29, M2-G34, M2-G35, M2-G36  
+**PASS:** M2-G07, M2-G11, M2-G12, M2-G13, M2-G14, M2-G15, M2-G26, M2-G29, M2-G34, M2-G35, M2-G36  
 **PARTIAL:** M2-G25  
 **DEFERRED:** M2-G20 and P1F/final-constructor gates
 
@@ -120,7 +122,7 @@ Research M-numbers and development P-numbers are separate namespaces.
 DEV-MESH-P1
 M1 + M2
 serial point-cloud Delaunay
-current: P1A PASS / P1B PASS / P1C PASS / P1D PASS / P1E NEXT
+current: P1A PASS / P1B PASS / P1C PASS / P1D PASS / P1E PASS / P1F NEXT
     |
     v
 DEV-MESH-P2
@@ -189,7 +191,7 @@ M7 selects no solver formulation.
 ## 10. Closeout self-audit
 
 - [x] Historical P1A/P1B/P1C research-closeout truth is preserved and clearly labeled.
-- [x] Current post-closeout status records P1D qualified in its declared cavity-transaction subscope and P1E next.
+- [x] Current post-closeout status records P1D and P1E qualified in their declared subscopes and P1F next.
 - [x] ADR-MESH-0043 preserved.
 - [x] M3 FaceUse/pcurve ownership and chart aliases are explicit.
 - [x] M4 subcomplex coverage and exact constructed sites are explicit.

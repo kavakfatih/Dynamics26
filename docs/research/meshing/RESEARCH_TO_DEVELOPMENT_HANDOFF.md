@@ -57,9 +57,9 @@ Development reuse:
 
 ### M2 — Delaunay point-cloud tetrahedralization research
 
-Status: M2.0 DESIGN FROZEN; P1A/P1B/P1C/P1D QUALIFIED IN DECLARED SUBSCOPES; M2 OVERALL NOT QUALIFIED.
+Status: M2.0 DESIGN FROZEN; P1A/P1B/P1C/P1D/P1E QUALIFIED IN DECLARED SUBSCOPES; M2 OVERALL NOT QUALIFIED.
 M2 OVERALL NOT QUALIFIED; serial insertion/constructor qualification remains open.
-See `m2-delaunay/M2_1C_IMPLEMENTATION_RECORD.md` for source SHA and macOS CI evidence.
+See `m2-delaunay/M2_1E_IMPLEMENTATION_RECORD.md` for current walk source SHA and macOS CI evidence.
 
 Established:
 
@@ -79,8 +79,8 @@ Development reuse:
 - P1B typed finite/ghost bootstrap (qualified in bootstrap scope),
 - P1C brute-force exact point location (qualified; M2-G06),
 - P1D cavity oracle + Plan -> Validate -> reserve -> Commit transactional patch (qualified in declared subscope),
-- P1E deterministic adjacency walk (next),
-- P1F serial constructor determinism / fingerprint / replay.
+- P1E deterministic adjacency walk (qualified in deterministic-walk subscope; M2-G07),
+- P1F serial constructor determinism / fingerprint / replay (next; not implemented).
 
 This sequence supersedes the earlier abbreviated handoff list and matches the
 frozen M2 phase boundaries and current development plan; no phase is skipped.
@@ -235,15 +235,15 @@ These are development inputs unless superseded by explicit ADR:
 
 ## 5. Current production-development scope
 
-P0 has closed and P1A/P1B/P1C/P1D have passed their declared qualification gates.
+P0 has closed and P1A/P1B/P1C/P1D/P1E have passed their declared qualification gates.
 The next single implementation target is:
 
 ```text
-DEV-MESH-P1E
-Deterministic adjacency walk
+DEV-MESH-P1F
+Serial constructor determinism / fingerprint / replay
 ```
 
-P1D is qualified only against its declared cavity/transaction reference contract. P1E/P1F and
+P1E is qualified only against its deterministic adjacency-walk / P1C-oracle contract. P1F and
 complete serial-constructor qualification remain pending; M2 overall remains NOT QUALIFIED.
 
 Reason:
@@ -310,4 +310,4 @@ P1 / M1+M2
 
 M8 is a future curved-boundary/TET10 direction and does not block the TET4 path. M9/M10 remain deferred.
 
-The next coding-agent target after this documentation closeout is only **DEV-MESH-P1E — deterministic adjacency walk**. P1E is not implemented by this closeout.
+The next coding-agent target after this documentation closeout is only **DEV-MESH-P1F — serial constructor determinism / fingerprint / replay**. P1F is not implemented by this closeout.
