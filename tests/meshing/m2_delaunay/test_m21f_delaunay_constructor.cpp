@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -17,6 +19,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -1437,41 +1440,210 @@ void testTelemetryBaseline(
     printTelemetry(result.telemetry);
 }
 
+
+std::string bytesToHex(std::string_view bytes) {
+    static constexpr char digits[] = "0123456789abcdef";
+    if (bytes.size() >
+        std::numeric_limits<std::size_t>::max() / 2U) {
+        throw std::length_error(
+            "P1F qualification manifest hex length overflow");
+    }
+    std::string result;
+    result.reserve(bytes.size() * 2U);
+    for (unsigned char byte : bytes) {
+        result.push_back(digits[(byte >> 4U) & 0xFU]);
+        result.push_back(digits[byte & 0xFU]);
+    }
+    return result;
+}
+
+void atomicWriteText(
+    const std::string& path,
+    const std::string& content) {
+    const std::filesystem::path destination(path);
+    if (destination.has_parent_path()) {
+        std::filesystem::create_directories(
+            destination.parent_path());
+    }
+    const std::filesystem::path temporary =
+        destination.string() + ".tmp";
+    std::error_code ignored;
+    std::filesystem::remove(temporary, ignored);
+
+    {
+        std::ofstream output(
+            temporary,
+            std::ios::binary | std::ios::trunc);
+        if (!output) {
+            throw std::runtime_error(
+                "could not create P1F qualification manifest temporary");
+        }
+        output.write(
+            content.data(),
+            static_cast<std::streamsize>(content.size()));
+        if (!output) {
+            throw std::runtime_error(
+                "could not write P1F qualification manifest temporary");
+        }
+    }
+
+    std::filesystem::remove(destination, ignored);
+    std::filesystem::rename(temporary, destination);
+}
+
+std::uint64_t elapsedMilliseconds(
+    std::chrono::steady_clock::time_point begin,
+    std::chrono::steady_clock::time_point end) {
+    const auto value =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            end - begin).count();
+    if (value < 0) {
+        throw std::runtime_error(
+            "P1F qualification steady-clock duration was negative");
+    }
+    return static_cast<std::uint64_t>(value);
+}
+
+void writeCoreQualificationManifest(
+    const std::string& path,
+    const std::string& buildConfig,
+    const GoldenManifests& manifest,
+    const std::vector<ComplexityEvidence>& complexity,
+    std::uint64_t runtimeMs,
+    std::uint64_t goldenMs,
+    std::uint64_t fiveMs,
+    std::uint64_t smallOracleMs,
+    std::uint64_t resourceMs,
+    std::uint64_t determinismMs,
+    std::uint64_t metamorphicMs,
+    std::uint64_t telemetryMs) {
+    std::ostringstream out;
+    out
+        << "schema=D26M21FQ1\n"
+        << "completion=1\n"
+        << "kind=core\n"
+        << "build_config=" << buildConfig << "\n"
+        << "site_policy=" << D26SitePolicyId << "\n"
+        << "symbolic_policy=" << D26SymbolicPolicyId << "\n"
+        << "fingerprint_schema=" << D26FingerprintSchemaId << "\n"
+        << "replay_schema=" << D26ReplaySchemaId << "\n"
+        << "constructor_fixtures=" << stats.constructorFixtures << "\n"
+        << "successful_builds=" << stats.successfulBuilds << "\n"
+        << "failed_expected_builds=" << stats.expectedFailedBuilds << "\n"
+        << "five_site_permutations=" << stats.fiveSitePermutations << "\n"
+        << "five_site_mismatches=" << stats.fiveSiteMismatches << "\n"
+        << "global_oracle_sets=" << stats.globalOracleSets << "\n"
+        << "global_tet_site_tests=" << stats.globalTetSiteTests << "\n"
+        << "global_oracle_failures=" << stats.globalOracleFailures << "\n"
+        << "local_facets_checked=" << stats.localFacetsChecked << "\n"
+        << "local_legality_failures=" << stats.localLegalityFailures << "\n"
+        << "symbolic_ties_checked=" << stats.symbolicTiesChecked << "\n"
+        << "symbolic_tie_failures=" << stats.symbolicTieFailures << "\n"
+        << "S3_states_checked=" << stats.s3StatesChecked << "\n"
+        << "S3_failures=" << stats.s3Failures << "\n"
+        << "hull_faces_checked=" << stats.hullFacesChecked << "\n"
+        << "hull_support_violations=" << stats.hullSupportViolations << "\n"
+        << "coplanar_hull_edges=" << stats.coplanarHullEdgesChecked << "\n"
+        << "hull_symbolic_ties=" << stats.hullSymbolicTiesChecked << "\n"
+        << "hull_symbolic_failures=" << stats.hullSymbolicFailures << "\n"
+        << "validator_states=" << stats.validatorStates << "\n"
+        << "resource_cases=" << stats.resourceCases << "\n"
+        << "metamorphic_cases=" << stats.metamorphicCases << "\n"
+        << "metamorphic_failures=" << stats.metamorphicFailures << "\n"
+        << "fingerprint_mismatches=" << stats.fingerprintMismatches << "\n"
+        << "five_digest=" << manifest.fiveDigest << "\n"
+        << "cube_digest=" << manifest.cubeDigest << "\n"
+        << "interior_digest=" << manifest.interiorDigest << "\n"
+        << "five_record_hex=" << bytesToHex(manifest.fiveRecord) << "\n"
+        << "cube_record_hex=" << bytesToHex(manifest.cubeRecord) << "\n"
+        << "interior_record_hex=" << bytesToHex(manifest.interiorRecord) << "\n"
+        << "runtime_ms=" << runtimeMs << "\n"
+        << "phase_golden_ms=" << goldenMs << "\n"
+        << "phase_five_ms=" << fiveMs << "\n"
+        << "phase_small_oracle_ms=" << smallOracleMs << "\n"
+        << "phase_resource_ms=" << resourceMs << "\n"
+        << "phase_determinism_ms=" << determinismMs << "\n"
+        << "phase_metamorphic_ms=" << metamorphicMs << "\n"
+        << "phase_telemetry_ms=" << telemetryMs << "\n";
+
+    for (std::size_t i = 0U; i < complexity.size(); ++i) {
+        out
+            << "complexity_" << i << "_sites=" << complexity[i].sites << "\n"
+            << "complexity_" << i << "_finite=" << complexity[i].finite << "\n"
+            << "complexity_" << i << "_hull=" << complexity[i].ghost << "\n"
+            << "complexity_" << i << "_slots=" << complexity[i].slots << "\n"
+            << "complexity_" << i << "_digest=" << complexity[i].digest << "\n";
+    }
+
+    atomicWriteText(path, out.str());
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     try {
         std::optional<std::string> replayPath;
+        std::optional<std::string> manifestPath;
+        std::string buildConfig{"unspecified"};
+        bool skipCubeExhaustive = false;
+
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
-            if (arg == "--write-replay" &&
-                i + 1 < argc) {
+            if (arg == "--write-replay" && i + 1 < argc) {
                 replayPath = argv[++i];
+            } else if (arg == "--manifest" && i + 1 < argc) {
+                manifestPath = argv[++i];
+            } else if (arg == "--build-config" && i + 1 < argc) {
+                buildConfig = argv[++i];
+            } else if (arg == "--skip-cube-exhaustive") {
+                skipCubeExhaustive = true;
             } else {
                 throw std::runtime_error(
-                    "usage: unit_m21f_delaunay_constructor [--write-replay <path>]");
+                    "usage: unit_m21f_delaunay_constructor "
+                    "[--write-replay <path>] [--manifest <path>] "
+                    "[--build-config <name>] [--skip-cube-exhaustive]");
             }
         }
 
+        const auto totalBegin = std::chrono::steady_clock::now();
+
+        const auto goldenBegin = std::chrono::steady_clock::now();
         testGoldenDerivations();
         const GoldenManifests manifest =
             testGoldenReferenceBuilds();
+        const auto goldenEnd = std::chrono::steady_clock::now();
 
+        const auto fiveBegin = std::chrono::steady_clock::now();
         testExhaustiveFive(manifest);
-        testExhaustiveCube(manifest);
+        const auto fiveEnd = std::chrono::steady_clock::now();
+
+        if (!skipCubeExhaustive) {
+            testExhaustiveCube(manifest);
+        }
+
+        const auto smallBegin = std::chrono::steady_clock::now();
         testSmallNOracles();
         testLowerDimensionalAndOrderFailures();
+        const auto smallEnd = std::chrono::steady_clock::now();
 
         std::string* replayOutput =
-            replayPath.has_value()
-                ? &*replayPath
-                : nullptr;
+            replayPath.has_value() ? &*replayPath : nullptr;
+        const auto resourceBegin = std::chrono::steady_clock::now();
         const auto complexity =
             testComplexityAndResource(replayOutput);
+        const auto resourceEnd = std::chrono::steady_clock::now();
 
+        const auto determinismBegin = std::chrono::steady_clock::now();
         testInputEnumerationAndDeterminism(manifest);
+        const auto determinismEnd = std::chrono::steady_clock::now();
+
+        const auto metamorphicBegin = std::chrono::steady_clock::now();
         testMetamorphic();
+        const auto metamorphicEnd = std::chrono::steady_clock::now();
+
+        const auto telemetryBegin = std::chrono::steady_clock::now();
         testTelemetryBaseline(manifest);
+        const auto telemetryEnd = std::chrono::steady_clock::now();
 
         require(
             stats.fiveSiteMismatches == 0U &&
@@ -1486,69 +1658,87 @@ int main(int argc, char** argv) {
             stats.metamorphicFailures == 0U,
             "P1F aggregate qualification failure counters are non-zero");
 
+        const auto totalEnd = std::chrono::steady_clock::now();
+        const std::uint64_t totalMs =
+            elapsedMilliseconds(totalBegin, totalEnd);
+        const std::uint64_t goldenMs =
+            elapsedMilliseconds(goldenBegin, goldenEnd);
+        const std::uint64_t fiveMs =
+            elapsedMilliseconds(fiveBegin, fiveEnd);
+        const std::uint64_t smallMs =
+            elapsedMilliseconds(smallBegin, smallEnd);
+        const std::uint64_t resourceMs =
+            elapsedMilliseconds(resourceBegin, resourceEnd);
+        const std::uint64_t determinismMs =
+            elapsedMilliseconds(determinismBegin, determinismEnd);
+        const std::uint64_t metamorphicMs =
+            elapsedMilliseconds(metamorphicBegin, metamorphicEnd);
+        const std::uint64_t telemetryMs =
+            elapsedMilliseconds(telemetryBegin, telemetryEnd);
+
+        if (manifestPath.has_value()) {
+            writeCoreQualificationManifest(
+                *manifestPath,
+                buildConfig,
+                manifest,
+                complexity,
+                totalMs,
+                goldenMs,
+                fiveMs,
+                smallMs,
+                resourceMs,
+                determinismMs,
+                metamorphicMs,
+                telemetryMs);
+        }
+
         std::cout
-            << "M2.1-F serial constructor qualification PASS"
+            << "M2.1-F serial constructor core qualification PASS"
             << " checks=" << checks
-            << " constructor_fixtures="
-            << stats.constructorFixtures
-            << " successful_builds="
-            << stats.successfulBuilds
-            << " failed_expected_builds="
-            << stats.expectedFailedBuilds
-            << " five_site_permutations="
-            << stats.fiveSitePermutations
-            << " five_site_mismatches="
-            << stats.fiveSiteMismatches
-            << " cube_permutations="
-            << stats.cubePermutations
-            << " cube_mismatches="
-            << stats.cubeMismatches
-            << " global_oracle_sets="
-            << stats.globalOracleSets
-            << " global_tet_site_tests="
-            << stats.globalTetSiteTests
-            << " global_oracle_failures="
-            << stats.globalOracleFailures
-            << " local_facets_checked="
-            << stats.localFacetsChecked
-            << " local_legality_failures="
-            << stats.localLegalityFailures
-            << " symbolic_ties_checked="
-            << stats.symbolicTiesChecked
-            << " symbolic_tie_failures="
-            << stats.symbolicTieFailures
-            << " S3_states_checked="
-            << stats.s3StatesChecked
-            << " S3_failures="
-            << stats.s3Failures
-            << " hull_faces_checked="
-            << stats.hullFacesChecked
-            << " hull_support_violations="
-            << stats.hullSupportViolations
-            << " coplanar_hull_edges="
-            << stats.coplanarHullEdgesChecked
-            << " hull_symbolic_ties="
-            << stats.hullSymbolicTiesChecked
-            << " hull_symbolic_failures="
-            << stats.hullSymbolicFailures
-            << " validator_states="
-            << stats.validatorStates
-            << " resource_cases="
-            << stats.resourceCases
-            << " metamorphic_cases="
-            << stats.metamorphicCases
-            << " metamorphic_failures="
-            << stats.metamorphicFailures
-            << " fingerprint_mismatches="
-            << stats.fingerprintMismatches
+            << " constructor_fixtures=" << stats.constructorFixtures
+            << " successful_builds=" << stats.successfulBuilds
+            << " failed_expected_builds=" << stats.expectedFailedBuilds
+            << " five_site_permutations=" << stats.fiveSitePermutations
+            << " five_site_mismatches=" << stats.fiveSiteMismatches
+            << " cube_permutations=" << stats.cubePermutations
+            << " cube_mismatches=" << stats.cubeMismatches
+            << " global_oracle_sets=" << stats.globalOracleSets
+            << " global_tet_site_tests=" << stats.globalTetSiteTests
+            << " global_oracle_failures=" << stats.globalOracleFailures
+            << " local_facets_checked=" << stats.localFacetsChecked
+            << " local_legality_failures=" << stats.localLegalityFailures
+            << " symbolic_ties_checked=" << stats.symbolicTiesChecked
+            << " symbolic_tie_failures=" << stats.symbolicTieFailures
+            << " S3_states_checked=" << stats.s3StatesChecked
+            << " S3_failures=" << stats.s3Failures
+            << " hull_faces_checked=" << stats.hullFacesChecked
+            << " hull_support_violations=" << stats.hullSupportViolations
+            << " coplanar_hull_edges=" << stats.coplanarHullEdgesChecked
+            << " hull_symbolic_ties=" << stats.hullSymbolicTiesChecked
+            << " hull_symbolic_failures=" << stats.hullSymbolicFailures
+            << " validator_states=" << stats.validatorStates
+            << " resource_cases=" << stats.resourceCases
+            << " metamorphic_cases=" << stats.metamorphicCases
+            << " metamorphic_failures=" << stats.metamorphicFailures
+            << " fingerprint_mismatches=" << stats.fingerprintMismatches
+            << " runtime_ms=" << totalMs << '\n';
+
+        std::cout
+            << "phase_runtime"
+            << " golden_ms=" << goldenMs
+            << " five_ms=" << fiveMs
+            << " small_oracle_ms=" << smallMs
+            << " resource_ms=" << resourceMs
+            << " determinism_ms=" << determinismMs
+            << " metamorphic_ms=" << metamorphicMs
+            << " telemetry_ms=" << telemetryMs
             << '\n';
 
         std::cout
             << "determinism_manifest"
             << " site_policy=" << D26SitePolicyId
             << " symbolic_policy=" << D26SymbolicPolicyId
-            << " fingerprint_schema="
-            << D26FingerprintSchemaId
+            << " fingerprint_schema=" << D26FingerprintSchemaId
             << " replay_schema=" << D26ReplaySchemaId
             << " five_sites=5 five_finite=2 five_hull=6 five_digest="
             << manifest.fiveDigest
@@ -1558,8 +1748,7 @@ int main(int argc, char** argv) {
             << manifest.interiorDigest
             << '\n';
 
-        for (std::size_t i = 0U;
-             i < complexity.size(); ++i) {
+        for (std::size_t i = 0U; i < complexity.size(); ++i) {
             std::cout
                 << "complexity_manifest"
                 << " case=" << i

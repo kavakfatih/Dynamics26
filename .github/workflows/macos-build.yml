@@ -76,6 +76,13 @@ jobs:
       - name: Build
         run: cmake --build build-${{ matrix.build_type }} --parallel
 
+      - name: Prepare M2 P1F qualification evidence
+        run: |
+          set -euxo pipefail
+          evidence="build-${{ matrix.build_type }}/m21f-qualification"
+          rm -rf "$evidence"
+          mkdir -p "$evidence"
+
       - name: Test
         run: ctest --test-dir build-${{ matrix.build_type }} --output-on-failure
 
@@ -87,9 +94,14 @@ jobs:
       - name: M2 P1F serial reference constructor qualification
         run: |
           set -euxo pipefail
-          replay="$RUNNER_TEMP/m21f-${{ matrix.build_type }}.d26replay"
-          build-${{ matrix.build_type }}/tests/unit_m21f_delaunay_constructor --write-replay "$replay"
-          build-${{ matrix.build_type }}/tests/unit_m21f_delaunay_replay "$replay"
+          evidence="build-${{ matrix.build_type }}/m21f-qualification"
+          test -f "$evidence/core.manifest"
+          for i in {0..15}; do
+            test -f "$evidence/cube-shard-$i.manifest"
+          done
+          build-${{ matrix.build_type }}/tests/unit_m21f_delaunay_aggregate             --manifest-dir "$evidence"             --shard-count 16             --build-config "${{ matrix.build_type }}"             --aggregate-manifest "$evidence/direct-aggregate.manifest"
+          build-${{ matrix.build_type }}/tests/unit_m21f_delaunay_replay             "$evidence/resource-failure.d26replay"
+          cat "$evidence/direct-aggregate.manifest"
 
       - name: M1 predicate telemetry baseline
         if: matrix.build_type == 'Release'
@@ -295,7 +307,11 @@ jobs:
         run: cmake --build build-gui --parallel
 
       - name: Test core with GUI build
-        run: ctest --test-dir build-gui --output-on-failure
+        run: |
+          set -euxo pipefail
+          rm -rf build-gui/m21f-qualification
+          mkdir -p build-gui/m21f-qualification
+          ctest --test-dir build-gui --output-on-failure
 
       - name: Project schema migration gate
         run: ctest --test-dir build-gui -L migration --output-on-failure

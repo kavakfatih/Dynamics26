@@ -520,12 +520,21 @@ set_tests_properties(
 )
 
 # M2.1-F — final serial append-only reference-constructor qualification.
-# The constructor target executes the literal 5! and 8! permutation records and
-# writes one deterministic injected-failure replay for the separate process.
+#
+# #318 showed that the single monolithic Debug exhaustive test exceeded the
+# generic 1500 s CTest envelope. The mandatory 8! suite is therefore partitioned
+# into deterministic, disjoint lexicographic rank intervals. This is sharding,
+# not sampling: normal full CTest executes every shard and the aggregator proves
+# contiguous [0,40320) coverage with zero gaps/overlaps/mismatches.
+set(
+    FEMCAE_M21F_QUALIFICATION_DIR
+    "${CMAKE_BINARY_DIR}/m21f-qualification"
+)
 set(
     FEMCAE_M21F_REPLAY
-    "${CMAKE_BINARY_DIR}/m21f-resource-failure.d26replay"
+    "${FEMCAE_M21F_QUALIFICATION_DIR}/resource-failure.d26replay"
 )
+set(FEMCAE_M21F_CUBE_SHARD_COUNT 16)
 
 add_executable(
     unit_m21f_delaunay_constructor
@@ -544,14 +553,116 @@ add_test(
     NAME unit_m21f_delaunay_constructor
     COMMAND
         unit_m21f_delaunay_constructor
+        --skip-cube-exhaustive
         --write-replay
         ${FEMCAE_M21F_REPLAY}
+        --manifest
+        "${FEMCAE_M21F_QUALIFICATION_DIR}/core.manifest"
+        --build-config
+        "${CMAKE_BUILD_TYPE}"
 )
 set_tests_properties(
     unit_m21f_delaunay_constructor
     PROPERTIES
     LABELS "unit;meshing;m2;delaunay;constructor;determinism;fingerprint;replay;qualification"
     FIXTURES_SETUP d26_m21f_replay
+    RUN_SERIAL TRUE
+    TIMEOUT 600
+)
+
+add_executable(
+    unit_m21f_delaunay_cube_shard
+    meshing/m2_delaunay/test_m21f_delaunay_cube_shard.cpp
+)
+target_link_libraries(
+    unit_m21f_delaunay_cube_shard
+    PRIVATE femcae_meshing
+)
+target_include_directories(
+    unit_m21f_delaunay_cube_shard
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m21f_delaunay_cube_shard)
+
+set(FEMCAE_M21F_CUBE_SHARD_TESTS)
+math(
+    EXPR FEMCAE_M21F_CUBE_SHARD_LAST
+    "${FEMCAE_M21F_CUBE_SHARD_COUNT} - 1"
+)
+foreach(
+    FEMCAE_M21F_CUBE_SHARD_INDEX
+    RANGE 0 ${FEMCAE_M21F_CUBE_SHARD_LAST}
+)
+    set(
+        FEMCAE_M21F_CUBE_SHARD_TEST
+        "unit_m21f_delaunay_cube_shard_${FEMCAE_M21F_CUBE_SHARD_INDEX}"
+    )
+    add_test(
+        NAME ${FEMCAE_M21F_CUBE_SHARD_TEST}
+        COMMAND
+            unit_m21f_delaunay_cube_shard
+            --shard-index
+            ${FEMCAE_M21F_CUBE_SHARD_INDEX}
+            --shard-count
+            ${FEMCAE_M21F_CUBE_SHARD_COUNT}
+            --manifest
+            "${FEMCAE_M21F_QUALIFICATION_DIR}/cube-shard-${FEMCAE_M21F_CUBE_SHARD_INDEX}.manifest"
+            --failure-replay
+            "${FEMCAE_M21F_QUALIFICATION_DIR}/cube-failure-${FEMCAE_M21F_CUBE_SHARD_INDEX}.d26replay"
+            --build-config
+            "${CMAKE_BUILD_TYPE}"
+    )
+    set_tests_properties(
+        ${FEMCAE_M21F_CUBE_SHARD_TEST}
+        PROPERTIES
+        # Deliberately not labelled "meshing": full CTest is the mandatory
+        # exhaustive execution. The later meshing-labelled subrun consumes the
+        # exact current-execution shard manifests through the aggregator instead
+        # of repeating 40,320 constructor calls a second time.
+        LABELS "unit;m2;delaunay;constructor;determinism;fingerprint;qualification;exhaustive"
+        RUN_SERIAL TRUE
+        TIMEOUT 600
+    )
+    list(
+        APPEND
+        FEMCAE_M21F_CUBE_SHARD_TESTS
+        ${FEMCAE_M21F_CUBE_SHARD_TEST}
+    )
+endforeach()
+
+add_executable(
+    unit_m21f_delaunay_aggregate
+    meshing/m2_delaunay/test_m21f_delaunay_aggregate.cpp
+)
+target_link_libraries(
+    unit_m21f_delaunay_aggregate
+    PRIVATE femcae_meshing
+)
+target_include_directories(
+    unit_m21f_delaunay_aggregate
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m21f_delaunay_aggregate)
+add_test(
+    NAME unit_m21f_delaunay_aggregate
+    COMMAND
+        unit_m21f_delaunay_aggregate
+        --manifest-dir
+        ${FEMCAE_M21F_QUALIFICATION_DIR}
+        --shard-count
+        ${FEMCAE_M21F_CUBE_SHARD_COUNT}
+        --build-config
+        "${CMAKE_BUILD_TYPE}"
+        --aggregate-manifest
+        "${FEMCAE_M21F_QUALIFICATION_DIR}/aggregate.manifest"
+)
+set_tests_properties(
+    unit_m21f_delaunay_aggregate
+    PROPERTIES
+    LABELS "unit;meshing;m2;delaunay;constructor;determinism;fingerprint;qualification"
+    DEPENDS "unit_m21f_delaunay_constructor;${FEMCAE_M21F_CUBE_SHARD_TESTS}"
+    RUN_SERIAL TRUE
+    TIMEOUT 60
 )
 
 add_executable(
@@ -578,6 +689,8 @@ set_tests_properties(
     PROPERTIES
     LABELS "unit;meshing;m2;delaunay;constructor;determinism;fingerprint;replay;qualification"
     FIXTURES_REQUIRED d26_m21f_replay
+    RUN_SERIAL TRUE
+    TIMEOUT 60
 )
 
 # M6 I1 — exact D26QMR1 comparator + independent Python exact oracle
