@@ -19,6 +19,7 @@ enum class DelaunayTransactionFailure : std::uint8_t {
     DuplicateLiveSite,
     InvalidTopology,
     EmptyConflict,
+    VerifiedSeedNotConflict,
     DisconnectedCavity,
     InvalidFaceMultiplicity,
     InvalidBoundaryManifold,
@@ -95,6 +96,9 @@ struct DelaunayInsertionPlan {
     // Iki ayri yolun canonical siralanmis snapshot handle sonuclari.
     std::vector<DelaunayCellHandle> conflictOracle;
     std::vector<DelaunayCellHandle> conflictFlood;
+    // P1F nominal constructor path: P1E'nin exact-verified seed handle'i.
+    // Standalone P1D path'te null kalir ve legacy canonical oracle seed'i kullanilir.
+    std::optional<DelaunayCellHandle> verifiedConflictSeed;
 
     std::vector<DelaunayInternalFacetRecord> internalFacets;
     std::vector<DelaunayBoundaryFacetRecord> boundaryFacets;
@@ -170,6 +174,15 @@ struct DelaunayRequiredSlotCountCheck {
     const DelaunayReferenceArena& arena,
     std::span<const CanonicalSite> sites,
     PointId queryId);
+
+// P1F composition path: P1E tarafindan geometrik olarak dogrulanmis seed
+// adjacency flood'u gercekten surer. P1D all-live exact conflict oracle
+// bagimsiz correctness authority olarak kalir ve flood==oracle zorunludur.
+[[nodiscard]] DelaunayPlanResult buildDelaunayInsertionPlanFromVerifiedSeed(
+    const DelaunayReferenceArena& arena,
+    std::span<const CanonicalSite> sites,
+    PointId queryId,
+    DelaunayCellHandle verifiedSeed);
 
 // Untrusted/test-tampered plan dahil, commit barrier oncesi full structural +
 // geometric candidate validation. Arena mutation yapmaz.

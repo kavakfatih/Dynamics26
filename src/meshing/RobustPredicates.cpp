@@ -30,6 +30,7 @@ using femcae::meshing::internal::exact::determinant;
 using femcae::meshing::internal::exact::exactIntegerCoordinates;
 
 thread_local PredicateTelemetry* qualificationCallAuditSink = nullptr;
+thread_local internal::PredicateDetailedTelemetry* qualificationDetailedAuditSink = nullptr;
 
 bool fastValueAllowed(double value) noexcept {
     return std::isfinite(value) &&
@@ -330,12 +331,53 @@ void recordInvalid(PredicateTelemetry* telemetry) noexcept {
     }
 }
 
+void recordDetailedCall(
+    PredicateTelemetry* explicitTelemetry,
+    PredicateTelemetry* detailedTelemetry) noexcept {
+    if (detailedTelemetry != nullptr &&
+        detailedTelemetry != explicitTelemetry) {
+        ++detailedTelemetry->calls;
+    }
+}
+
+void recordDetailedEvaluation(
+    PredicateTelemetry* explicitTelemetry,
+    PredicateTelemetry* detailedTelemetry,
+    const PredicateEvaluation& evaluation) noexcept {
+    if (detailedTelemetry == nullptr ||
+        detailedTelemetry == explicitTelemetry) {
+        return;
+    }
+    if (evaluation.path == PredicateEvaluationPath::FastCertified) {
+        ++detailedTelemetry->fastCertified;
+    } else {
+        ++detailedTelemetry->exactFallback;
+    }
+    if (evaluation.sign == PredicateSign::Zero) {
+        ++detailedTelemetry->exactZero;
+    }
+}
+
+void recordDetailedInvalid(
+    PredicateTelemetry* explicitTelemetry,
+    PredicateTelemetry* detailedTelemetry) noexcept {
+    if (detailedTelemetry != nullptr &&
+        detailedTelemetry != explicitTelemetry) {
+        ++detailedTelemetry->invalidInput;
+    }
+}
+
 } // namespace
 
 namespace internal {
 
 void setPredicateCallAuditSink(PredicateTelemetry* telemetry) noexcept {
     qualificationCallAuditSink = telemetry;
+}
+
+void setPredicateDetailedAuditSink(
+    PredicateDetailedTelemetry* telemetry) noexcept {
+    qualificationDetailedAuditSink = telemetry;
 }
 
 } // namespace internal
@@ -345,10 +387,17 @@ PredicateEvaluation orient2d(
     const geometry::Vec2& b,
     const geometry::Vec2& c,
     PredicateTelemetry* telemetry) {
+    PredicateTelemetry* detailedTelemetry =
+        qualificationDetailedAuditSink != nullptr
+            ? &qualificationDetailedAuditSink->orient2d
+            : nullptr;
     recordCall(telemetry);
+    recordDetailedCall(telemetry, detailedTelemetry);
     try {
         if (const auto fast = tryFastOrient2d(a, b, c)) {
             recordEvaluation(telemetry, *fast);
+            recordDetailedEvaluation(
+                telemetry, detailedTelemetry, *fast);
             return *fast;
         }
 
@@ -361,9 +410,12 @@ PredicateEvaluation orient2d(
             {p[4], p[5], BigInt::one()}};
         const PredicateEvaluation result = exactEvaluation(matrix);
         recordEvaluation(telemetry, result);
+        recordDetailedEvaluation(
+            telemetry, detailedTelemetry, result);
         return result;
     } catch (const std::invalid_argument&) {
         recordInvalid(telemetry);
+        recordDetailedInvalid(telemetry, detailedTelemetry);
         throw;
     }
 }
@@ -374,10 +426,17 @@ PredicateEvaluation orient3d(
     const geometry::Vec3& c,
     const geometry::Vec3& d,
     PredicateTelemetry* telemetry) {
+    PredicateTelemetry* detailedTelemetry =
+        qualificationDetailedAuditSink != nullptr
+            ? &qualificationDetailedAuditSink->orient3d
+            : nullptr;
     recordCall(telemetry);
+    recordDetailedCall(telemetry, detailedTelemetry);
     try {
         if (const auto fast = tryFastOrient3d(a, b, c, d)) {
             recordEvaluation(telemetry, *fast);
+            recordDetailedEvaluation(
+                telemetry, detailedTelemetry, *fast);
             return *fast;
         }
 
@@ -394,9 +453,12 @@ PredicateEvaluation orient3d(
             {p[9], p[10], p[11], BigInt::one()}};
         const PredicateEvaluation result = exactEvaluation(matrix);
         recordEvaluation(telemetry, result);
+        recordDetailedEvaluation(
+            telemetry, detailedTelemetry, result);
         return result;
     } catch (const std::invalid_argument&) {
         recordInvalid(telemetry);
+        recordDetailedInvalid(telemetry, detailedTelemetry);
         throw;
     }
 }
@@ -407,10 +469,17 @@ PredicateEvaluation incircle(
     const geometry::Vec2& c,
     const geometry::Vec2& d,
     PredicateTelemetry* telemetry) {
+    PredicateTelemetry* detailedTelemetry =
+        qualificationDetailedAuditSink != nullptr
+            ? &qualificationDetailedAuditSink->incircle
+            : nullptr;
     recordCall(telemetry);
+    recordDetailedCall(telemetry, detailedTelemetry);
     try {
         if (const auto fast = tryFastIncircle(a, b, c, d)) {
             recordEvaluation(telemetry, *fast);
+            recordDetailedEvaluation(
+                telemetry, detailedTelemetry, *fast);
             return *fast;
         }
 
@@ -427,9 +496,12 @@ PredicateEvaluation incircle(
         }
         const PredicateEvaluation result = exactEvaluation(matrix);
         recordEvaluation(telemetry, result);
+        recordDetailedEvaluation(
+            telemetry, detailedTelemetry, result);
         return result;
     } catch (const std::invalid_argument&) {
         recordInvalid(telemetry);
+        recordDetailedInvalid(telemetry, detailedTelemetry);
         throw;
     }
 }
@@ -441,10 +513,17 @@ PredicateEvaluation insphere(
     const geometry::Vec3& d,
     const geometry::Vec3& e,
     PredicateTelemetry* telemetry) {
+    PredicateTelemetry* detailedTelemetry =
+        qualificationDetailedAuditSink != nullptr
+            ? &qualificationDetailedAuditSink->insphere
+            : nullptr;
     recordCall(telemetry);
+    recordDetailedCall(telemetry, detailedTelemetry);
     try {
         if (const auto fast = tryFastInsphere(a, b, c, d, e)) {
             recordEvaluation(telemetry, *fast);
+            recordDetailedEvaluation(
+                telemetry, detailedTelemetry, *fast);
             return *fast;
         }
 
@@ -466,9 +545,12 @@ PredicateEvaluation insphere(
         }
         const PredicateEvaluation result = exactEvaluation(matrix);
         recordEvaluation(telemetry, result);
+        recordDetailedEvaluation(
+            telemetry, detailedTelemetry, result);
         return result;
     } catch (const std::invalid_argument&) {
         recordInvalid(telemetry);
+        recordDetailedInvalid(telemetry, detailedTelemetry);
         throw;
     }
 }

@@ -33,6 +33,19 @@ enum class DelaunayConflict : std::uint8_t {
     Conflict = 1
 };
 
+struct DelaunaySemanticTelemetry {
+    std::uint64_t symbolicInsphereTies{0};
+    std::uint64_t symbolicIncircleTies{0};
+};
+
+namespace detail {
+
+// Private P1F observational sink. It cannot steer predicate or topology truth.
+void setDelaunaySemanticTelemetrySink(
+    DelaunaySemanticTelemetry* telemetry) noexcept;
+
+} // namespace detail
+
 // D26LIFT1: ham InSphere sifiriysa yalniz formal lift koordinati
 // PointId onceligine gore perturbe edilir. x/y/z koordinatlari degismez.
 [[nodiscard]] ResolvedDelaunaySign resolveLiftOnlyInsphere(

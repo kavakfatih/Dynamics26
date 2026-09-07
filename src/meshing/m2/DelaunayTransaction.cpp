@@ -876,6 +876,39 @@ DelaunayTransactionResult validatePlanCore(
             DelaunayTransactionFailure::DisconnectedCavity,
             "P1D stored flood does not equal stored global conflict oracle");
     }
+
+    if (plan.verifiedConflictSeed.has_value()) {
+        if (std::find(
+                currentConflictOracle.begin(),
+                currentConflictOracle.end(),
+                *plan.verifiedConflictSeed) ==
+            currentConflictOracle.end()) {
+            return fail(
+                DelaunayTransactionFailure::VerifiedSeedNotConflict,
+                "P1F external verified seed is not in the current exact conflict oracle");
+        }
+
+        std::vector<DelaunayCellHandle> currentSeedFlood;
+        try {
+            currentSeedFlood = adjacencyFlood(
+                arena.slots(),
+                points,
+                {plan.queryId, plan.queryPoint},
+                *plan.verifiedConflictSeed);
+        } catch (const std::exception& error) {
+            return fail(
+                DelaunayTransactionFailure::VerifiedSeedNotConflict,
+                error.what());
+        }
+        if (!sameHandleSequence(
+                currentSeedFlood, currentConflictOracle) ||
+            !sameHandleSequence(
+                currentSeedFlood, plan.conflictFlood)) {
+            return fail(
+                DelaunayTransactionFailure::DisconnectedCavity,
+                "P1F seed-driven flood does not equal current/stored exact conflict oracle");
+        }
+    }
     if (plan.candidateCells.size() != plan.boundaryFacets.size() ||
         plan.externalRewires.size() != plan.boundaryFacets.size()) {
         return fail(
@@ -1169,10 +1202,11 @@ struct DelaunayTransactionAccess {
     }
 };
 
-DelaunayPlanResult buildDelaunayInsertionPlan(
+static DelaunayPlanResult buildDelaunayInsertionPlanCore(
     const DelaunayReferenceArena& arena,
     std::span<const CanonicalSite> sites,
-    PointId queryId) {
+    PointId queryId,
+    std::optional<DelaunayCellHandle> externallyVerifiedSeed) {
     DelaunayPlanResult result;
     std::map<PointId, geometry::Vec3> points;
     try {
@@ -1213,6 +1247,7 @@ DelaunayPlanResult buildDelaunayInsertionPlan(
     plan.sourceTopologyVersion = arena.topologyVersion();
     plan.sourceSlotCount = arena.slots().size();
     plan.sourceLiveCount = arena.liveCount();
+    plan.verifiedConflictSeed = externallyVerifiedSeed;
     try {
         plan.sourceSiteSnapshot = exactSiteSnapshot(sites);
     } catch (const std::exception& error) {
@@ -1223,8 +1258,8 @@ DelaunayPlanResult buildDelaunayInsertionPlan(
 
     const IndexedPoint3 query{queryId, plan.queryPoint};
     try {
-        // Independent correctness oracle: every live cell is semantically
-        // classified, independent of adjacency traversal.
+        // Bagimsiz correctness oracle: her live cell adjacency'den bagimsiz
+        // semantic predicate ile siniflandirilir.
         plan.conflictOracle =
             globalConflictOracle(arena.slots(), points, query);
         if (plan.conflictOracle.empty()) {
@@ -1233,16 +1268,34 @@ DelaunayPlanResult buildDelaunayInsertionPlan(
             return result;
         }
 
-        // Deterministic seed is the canonical-minimum cell in the oracle set.
-        // It is reclassified by the flood before traversal, so exact conflict
-        // is an executable seed precondition.
+        DelaunayCellHandle seed = plan.conflictOracle.front();
+        if (externallyVerifiedSeed.has_value()) {
+            if (std::find(
+                    plan.conflictOracle.begin(),
+                    plan.conflictOracle.end(),
+                    *externallyVerifiedSeed) ==
+                plan.conflictOracle.end()) {
+                result.failure =
+                    DelaunayTransactionFailure::VerifiedSeedNotConflict;
+                result.detail =
+                    "P1F P1E seed is not a member of the all-live exact conflict oracle";
+                return result;
+            }
+            seed = *externallyVerifiedSeed;
+        }
+
+        // P1F'de flood'u P1E seed'i surer; standalone P1D'de legacy
+        // canonical-minimum oracle seed'i aynen korunur.
         plan.conflictFlood = adjacencyFlood(
             arena.slots(),
             points,
             query,
-            plan.conflictOracle.front());
+            seed);
     } catch (const std::exception& error) {
-        result.failure = DelaunayTransactionFailure::InvalidTopology;
+        result.failure =
+            externallyVerifiedSeed.has_value()
+                ? DelaunayTransactionFailure::VerifiedSeedNotConflict
+                : DelaunayTransactionFailure::InvalidTopology;
         result.detail = error.what();
         return result;
     }
@@ -1289,6 +1342,23 @@ DelaunayPlanResult buildDelaunayInsertionPlan(
 
     result.plan = std::move(plan);
     return result;
+}
+
+DelaunayPlanResult buildDelaunayInsertionPlan(
+    const DelaunayReferenceArena& arena,
+    std::span<const CanonicalSite> sites,
+    PointId queryId) {
+    return buildDelaunayInsertionPlanCore(
+        arena, sites, queryId, std::nullopt);
+}
+
+DelaunayPlanResult buildDelaunayInsertionPlanFromVerifiedSeed(
+    const DelaunayReferenceArena& arena,
+    std::span<const CanonicalSite> sites,
+    PointId queryId,
+    DelaunayCellHandle verifiedSeed) {
+    return buildDelaunayInsertionPlanCore(
+        arena, sites, queryId, verifiedSeed);
 }
 
 DelaunayTransactionResult validateDelaunayInsertionPlan(

@@ -14,6 +14,8 @@ namespace {
 
 using predicates::PredicateSign;
 
+thread_local DelaunaySemanticTelemetry* semanticTelemetrySink = nullptr;
+
 template <typename Site, std::size_t N>
 void validateSiteIds(
     const std::array<Site, N>& sites,
@@ -131,6 +133,15 @@ PredicateSign exactCoplanarCircle(
 
 } // namespace
 
+namespace detail {
+
+void setDelaunaySemanticTelemetrySink(
+    DelaunaySemanticTelemetry* telemetry) noexcept {
+    semanticTelemetrySink = telemetry;
+}
+
+} // namespace detail
+
 ResolvedDelaunaySign resolveLiftOnlyInsphere(
     const std::array<IndexedPoint3, 5>& sites) {
     validateSiteIds(sites, "D26LIFT1 InSphere");
@@ -144,6 +155,9 @@ ResolvedDelaunaySign resolveLiftOnlyInsphere(
 
     if (raw != PredicateSign::Zero) {
         return {raw, raw};
+    }
+    if (semanticTelemetrySink != nullptr) {
+        ++semanticTelemetrySink->symbolicInsphereTies;
     }
 
     // Dynamics26 row-major [x y z lift 1] determinantinde lift kolonunun
@@ -185,6 +199,9 @@ ResolvedDelaunaySign resolveLiftOnlyIncircle(
 
     if (raw != PredicateSign::Zero) {
         return {raw, raw};
+    }
+    if (semanticTelemetrySink != nullptr) {
+        ++semanticTelemetrySink->symbolicIncircleTies;
     }
 
     // Dynamics26 row-major [x y lift 1] determinantinde lift kolonunun
@@ -261,6 +278,9 @@ ResolvedDelaunaySign classifyProjectedCoplanarCircumcircle(
         const PredicateSign geometric = orientation == PredicateSign::Negative ? negated(raw) : raw;
         if (geometric != PredicateSign::Zero) {
             return {geometric, geometric};
+        }
+        if (semanticTelemetrySink != nullptr) {
+            ++semanticTelemetrySink->symbolicIncircleTies;
         }
         if (orientation == PredicateSign::Negative) {
             std::swap(projected[1], projected[2]);
