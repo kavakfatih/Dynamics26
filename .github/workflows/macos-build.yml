@@ -24,7 +24,12 @@ env:
 
 jobs:
   build-test:
-    timeout-minutes: 75
+    # P1F Debug qualification executes all 40,320 cube permutations in 16
+    # deterministic serial shards. #319 proved the per-test guards are healthy
+    # (shards 0-14 passed) but the complete Debug job exceeded 75 minutes while
+    # shard 15 was running. 120 minutes is a measured wall-clock envelope; it
+    # changes no test, shard, predicate, topology or qualification semantics.
+    timeout-minutes: 120
     # GitHub-hosted runner tablosunda `macos-15` standard runner Apple Silicon
     # arm64 (M1) olarak listelenir. Architecture gate yine binary seviyesinde zorunludur.
     runs-on: macos-15
