@@ -498,6 +498,27 @@ set_tests_properties(
     LABELS "unit;meshing;m2;delaunay;cavity;transaction;determinism"
 )
 
+# M2.1-E — deterministic adjacency visibility walk vs P1C exact oracle
+add_executable(
+    unit_m21e_delaunay_walk
+    meshing/m2_delaunay/test_m21e_delaunay_walk.cpp
+)
+target_link_libraries(unit_m21e_delaunay_walk PRIVATE femcae_meshing)
+target_include_directories(
+    unit_m21e_delaunay_walk
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m21e_delaunay_walk)
+add_test(
+    NAME unit_m21e_delaunay_walk
+    COMMAND unit_m21e_delaunay_walk
+)
+set_tests_properties(
+    unit_m21e_delaunay_walk
+    PROPERTIES
+    LABELS "unit;meshing;m2;delaunay;location;walk;determinism"
+)
+
 # M6 I1 — exact D26QMR1 comparator + independent Python exact oracle
 add_executable(
     unit_m6_exact_qmr

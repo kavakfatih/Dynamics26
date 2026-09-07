@@ -79,6 +79,11 @@ jobs:
       - name: Test
         run: ctest --test-dir build-${{ matrix.build_type }} --output-on-failure
 
+      - name: M2 P1E deterministic walk qualification
+        run: |
+          set -euxo pipefail
+          build-${{ matrix.build_type }}/tests/unit_m21e_delaunay_walk
+
       - name: M1 predicate telemetry baseline
         if: matrix.build_type == 'Release'
         run: |
