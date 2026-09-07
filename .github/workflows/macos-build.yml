@@ -84,6 +84,13 @@ jobs:
           set -euxo pipefail
           build-${{ matrix.build_type }}/tests/unit_m21e_delaunay_walk
 
+      - name: M2 P1F serial reference constructor qualification
+        run: |
+          set -euxo pipefail
+          replay="$RUNNER_TEMP/m21f-${{ matrix.build_type }}.d26replay"
+          build-${{ matrix.build_type }}/tests/unit_m21f_delaunay_constructor --write-replay "$replay"
+          build-${{ matrix.build_type }}/tests/unit_m21f_delaunay_replay "$replay"
+
       - name: M1 predicate telemetry baseline
         if: matrix.build_type == 'Release'
         run: |

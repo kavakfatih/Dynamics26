@@ -519,6 +519,67 @@ set_tests_properties(
     LABELS "unit;meshing;m2;delaunay;location;walk;determinism"
 )
 
+# M2.1-F — final serial append-only reference-constructor qualification.
+# The constructor target executes the literal 5! and 8! permutation records and
+# writes one deterministic injected-failure replay for the separate process.
+set(
+    FEMCAE_M21F_REPLAY
+    "${CMAKE_BINARY_DIR}/m21f-resource-failure.d26replay"
+)
+
+add_executable(
+    unit_m21f_delaunay_constructor
+    meshing/m2_delaunay/test_m21f_delaunay_constructor.cpp
+)
+target_link_libraries(
+    unit_m21f_delaunay_constructor
+    PRIVATE femcae_meshing
+)
+target_include_directories(
+    unit_m21f_delaunay_constructor
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m21f_delaunay_constructor)
+add_test(
+    NAME unit_m21f_delaunay_constructor
+    COMMAND
+        unit_m21f_delaunay_constructor
+        --write-replay
+        ${FEMCAE_M21F_REPLAY}
+)
+set_tests_properties(
+    unit_m21f_delaunay_constructor
+    PROPERTIES
+    LABELS "unit;meshing;m2;delaunay;constructor;determinism;fingerprint;replay;qualification"
+    FIXTURES_SETUP d26_m21f_replay
+)
+
+add_executable(
+    unit_m21f_delaunay_replay
+    meshing/m2_delaunay/test_m21f_delaunay_replay.cpp
+)
+target_link_libraries(
+    unit_m21f_delaunay_replay
+    PRIVATE femcae_meshing
+)
+target_include_directories(
+    unit_m21f_delaunay_replay
+    PRIVATE "${CMAKE_SOURCE_DIR}/src"
+)
+femcae_enable_warnings(unit_m21f_delaunay_replay)
+add_test(
+    NAME unit_m21f_delaunay_replay
+    COMMAND
+        unit_m21f_delaunay_replay
+        ${FEMCAE_M21F_REPLAY}
+)
+set_tests_properties(
+    unit_m21f_delaunay_replay
+    PROPERTIES
+    LABELS "unit;meshing;m2;delaunay;constructor;determinism;fingerprint;replay;qualification"
+    FIXTURES_REQUIRED d26_m21f_replay
+)
+
 # M6 I1 — exact D26QMR1 comparator + independent Python exact oracle
 add_executable(
     unit_m6_exact_qmr
